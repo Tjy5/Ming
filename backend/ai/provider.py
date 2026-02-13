@@ -4,9 +4,17 @@ import abc
 import asyncio
 import os
 import re
+from dotenv import load_dotenv
 
 from models.game import GameState, StructuredDecree
 from models.enums import DecreeType, PersonnelAction
+
+PARSE_ERROR_TYPE_PARSE = "parse_error"
+PARSE_ERROR_TYPE_UNAVAILABLE = "service_unavailable"
+
+
+def parse_error(message: str, error_type: str = PARSE_ERROR_TYPE_PARSE) -> dict:
+    return {"error": message, "error_type": error_type}
 
 
 class AIProvider(abc.ABC):
@@ -92,7 +100,7 @@ class MockProvider(AIProvider):
         self, text: str, game_state: GameState,
     ) -> list[StructuredDecree] | dict:
         if NEGATION_KEYWORDS.search(text):
-            return {"error": "检测到否定指令，请直接描述您想执行的政令"}
+            return parse_error("检测到否定指令，请直接描述您想执行的政令")
         results: list[StructuredDecree] = []
         for pattern, dtype, extra in KEYWORD_MAP:
             if pattern.search(text):
@@ -112,7 +120,7 @@ class MockProvider(AIProvider):
                         kwargs["target"] = m.group(0)
                 results.append(StructuredDecree(**kwargs))
         if not results:
-            return {"error": "无法识别具体政令，请使用按钮操作或描述具体政令内容"}
+            return parse_error("无法识别具体政令，请使用按钮操作或描述具体政令内容")
         return results
 
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
@@ -121,14 +129,25 @@ class MockProvider(AIProvider):
 
 # ── Factory ──────────────────────────────────────────────
 
-_PROVIDERS: dict[str, type[AIProvider]] = {"mock": MockProvider}
+# from .openai_provider import OpenAIProvider  <-- REMOVED
+
+_PROVIDERS: dict[str, type[AIProvider]] = {
+    "mock": MockProvider,
+    # "openai": OpenAIProvider, <-- REMOVED
+}
 
 _VALID_DECREE_TYPES = {t.value for t in DecreeType}
 
 
 def get_provider(name: str | None = None) -> AIProvider:
     if name is None:
+        load_dotenv()
         name = os.getenv("AI_PROVIDER", "mock")
+    
+    if name == "openai":
+         from .openai_provider import OpenAIProvider
+         return ResilientProvider(OpenAIProvider())
+
     cls = _PROVIDERS.get(name)
     if cls is None:
         raise ValueError(f"Unknown AI provider: {name}")
@@ -174,8 +193,14 @@ class ResilientProvider(AIProvider):
                 return _validate_decrees(result)
             except Exception:
                 if attempt == self._retries - 1:
-                    return {"error": "AI解析服务暂时不可用，请使用按钮操作"}
-        return {"error": "AI解析服务暂时不可用，请使用按钮操作"}
+                    return parse_error(
+                        "AI解析服务暂时不可用，请使用按钮操作",
+                        PARSE_ERROR_TYPE_UNAVAILABLE,
+                    )
+        return parse_error(
+            "AI解析服务暂时不可用，请使用按钮操作",
+            PARSE_ERROR_TYPE_UNAVAILABLE,
+        )
 
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
         for attempt in range(self._retries):
@@ -194,8 +219,8 @@ def _validate_decrees(decrees: list[StructuredDecree]) -> list[StructuredDecree]
     validated = []
     for d in decrees:
         if d.type.value not in _VALID_DECREE_TYPES:
-            return {"error": "无法识别为有效政令"}
+            return parse_error("无法识别为有效政令")
         validated.append(d)
     if not validated:
-        return {"error": "无法识别为有效政令"}
+        return parse_error("无法识别为有效政令")
     return validated

@@ -10,7 +10,7 @@ from models.game import (
     ErrorResponse, create_initial_state,
 )
 from engine.core import process_decree, check_preconditions, validate_target
-from ai.provider import get_provider
+from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE, get_provider
 from db.saves import (
     init_db, save_game, load_game, list_saves, delete_save, auto_save,
     SaveNotFoundError, CorruptSaveError, StorageError,
@@ -134,8 +134,9 @@ async def parse_decree(req: ParseRequest):
     provider = _get_provider()
     result = await provider.parse_free_input(req.text, _get_state())
     if isinstance(result, dict) and "error" in result:
-        raise HTTPException(422, detail=ErrorResponse(
-            error_code="parse_error",
+        is_unavailable = result.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
+        raise HTTPException(503 if is_unavailable else 422, detail=ErrorResponse(
+            error_code="parse_unavailable" if is_unavailable else "parse_error",
             message=result["error"],
         ).model_dump())
     return [d.model_dump() for d in result]

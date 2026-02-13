@@ -1,0 +1,174 @@
+from __future__ import annotations
+
+import json
+import logging
+import os
+import re
+
+import httpx
+import openai
+from dotenv import load_dotenv
+
+from models.game import GameState, StructuredDecree
+from models.enums import DecreeType, PersonnelAction
+from .provider import (
+    AIProvider,
+    PARSE_ERROR_TYPE_UNAVAILABLE,
+    parse_error,
+)
+
+load_dotenv()
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+class OpenAIProvider(AIProvider):
+    def __init__(self):
+        trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
+        http_client = httpx.AsyncClient(trust_env=trust_env_proxy)
+        self.client = openai.AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            base_url=os.getenv("OPENAI_BASE_URL"),
+            http_client=http_client,
+        )
+        self.model = os.getenv("OPENAI_MODEL_NAME", "gemini-3-flash-preview")
+
+    async def generate_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> str:
+        prompt = self._build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logging.error(f"Error generating narrative: {e}")
+            return "（AI服务响应异常，但政令已执行）"
+
+    async def parse_free_input(
+        self, text: str, game_state: GameState,
+    ) -> list[StructuredDecree] | dict:
+        prompt = self._build_parse_prompt(text, game_state)
+        
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一款历史模拟游戏的指令解析器。将用户的自然语言输入解析为结构化的政令JSON。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content.strip()
+            data = json.loads(content)
+            
+            if "error" in data:
+                return parse_error(data["error"])
+            
+            decrees = []
+            for item in data.get("decrees", []):
+                 # Convert string enums to Enum objects
+                if "type" in item:
+                    try:
+                        item["type"] = DecreeType(item["type"])
+                    except ValueError:
+                        continue
+                if "sub_action" in item and item["sub_action"]:
+                     try:
+                        item["sub_action"] = PersonnelAction(item["sub_action"])
+                     except ValueError:
+                         item["sub_action"] = None
+                
+                decrees.append(StructuredDecree(**item))
+            
+            validated = []
+            for d in decrees:
+                if d.type.value not in {t.value for t in DecreeType}:
+                    return parse_error("无法识别为有效政令")
+                validated.append(d)
+            if not validated:
+                return parse_error("无法识别为有效政令")
+            return validated
+
+        except json.JSONDecodeError as e:
+            logging.error(f"Error parsing LLM JSON output: {e}")
+            return parse_error("AI返回格式异常，请重试")
+        except Exception as e:
+            logging.error(f"Error parsing input: {e}")
+            return parse_error(
+                "AI解析服务暂时不可用，请使用按钮操作",
+                PARSE_ERROR_TYPE_UNAVAILABLE,
+            )
+
+    async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
+        prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是一名为国分忧的大臣。请解释为何不能执行某项政令。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception:
+            return f"陛下，此令行不通：{reason}"
+
+    def _build_narrative_prompt(self, delta, state, events, decree):
+        # ... prompt construction logic ...
+        return f"""
+        当前时间：{state.time.year}年{state.time.month}月
+        
+        玩家下达了政令：{decree}
+        
+        数值变化：
+        - 国库：{delta.get('treasury', 0)}
+        - 民心：{delta.get('civil_morale', 0)}
+        - 军心：{delta.get('military_morale', 0)}
+        - 威望：{delta.get('court_prestige', 0)}
+        
+        触发事件：{', '.join(events) if events else '无'}
+        
+        请生成一段100字左右的叙事，描述政令执行的过程和直接后果。风格要符合明朝历史背景。
+        """
+
+    def _build_parse_prompt(self, text, state):
+        return f"""
+        用户输入："{text}"
+        
+        请解析为 JSON 格式。
+        
+        可选政令类型 (type): {', '.join([t.value for t in DecreeType])}
+        可选人事动作 (sub_action): {', '.join([a.value for a in PersonnelAction])}
+        
+        如果通过，返回格式：
+        {{
+            "decrees": [
+                {{
+                    "type": "...",
+                    "target": "...",
+                    "sub_action": "..." (optional)
+                }}
+            ]
+        }}
+        
+        如果无法理解或涉及敏感/无效操作，返回：
+        {{
+            "error": "拒绝理由"
+        }}
+        """

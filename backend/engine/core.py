@@ -275,17 +275,27 @@ def advance_time(state: GameState) -> None:
 
 # ── Game End Check ───────────────────────────────────────
 
+FINAL_JUDGEMENT_YEAR = 17
+FINAL_JUDGEMENT_MONTH = 3
+
+
+def _is_final_judgement_time(state: GameState) -> bool:
+    if state.time.year > FINAL_JUDGEMENT_YEAR:
+        return True
+    return state.time.year == FINAL_JUDGEMENT_YEAR and state.time.month >= FINAL_JUDGEMENT_MONTH
+
+
 def check_game_end(state: GameState) -> dict | None:
     if all(r.control == RegionControl.FALLEN for r in state.regions):
         return {"result": "defeat", "message": "社稷倾覆，大明亡矣"}
     if state.court_prestige <= 0:
         return {"result": "defeat", "message": "天子威严尽失，朝纲崩坏"}
-    if state.time.year >= 17 and state.time.month >= 3:
+    if _is_final_judgement_time(state):
+        if (all(r.control == RegionControl.COURT for r in state.regions)
+                and all(f.rebellion_risk <= 20 for f in state.factions)
+                and state.court_prestige > 80):
+            return {"result": "victory", "message": "中兴大明，力挽狂澜"}
         return {"result": "defeat", "message": "甲申之变，历史重演"}
-    if (all(r.control == RegionControl.COURT for r in state.regions)
-            and all(f.rebellion_risk <= 20 for f in state.factions)
-            and state.court_prestige > 80):
-        return {"result": "victory", "message": "中兴大明，力挽狂澜"}
     return None
 
 
