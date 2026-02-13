@@ -1,0 +1,10 @@
+:root {
+  font-family: "KaiTi", "Microsoft YaHei", serif;
+  line-height: 1.5;
+  color: var(--text-main);
+  background: var(--bg-dark);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
