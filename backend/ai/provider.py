@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import logging
 import os
 import re
 from dotenv import load_dotenv
@@ -148,6 +149,10 @@ def get_provider(name: str | None = None) -> AIProvider:
          from .openai_provider import OpenAIProvider
          return ResilientProvider(OpenAIProvider())
 
+    if name == "google":
+         from .google_provider import GoogleProvider
+         return ResilientProvider(GoogleProvider())
+
     cls = _PROVIDERS.get(name)
     if cls is None:
         raise ValueError(f"Unknown AI provider: {name}")
@@ -159,7 +164,7 @@ def get_provider(name: str | None = None) -> AIProvider:
 class ResilientProvider(AIProvider):
     """Wraps any AIProvider with timeout, retry, and output validation."""
 
-    def __init__(self, inner: AIProvider, timeout: float = 10.0, retries: int = 3):
+    def __init__(self, inner: AIProvider, timeout: float = 30.0, retries: int = 3):
         self._inner = inner
         self._timeout = timeout
         self._retries = retries
@@ -174,7 +179,8 @@ class ResilientProvider(AIProvider):
                     self._inner.generate_narrative(delta_attribution, game_state, chain_events, decree),
                     timeout=self._timeout,
                 )
-            except Exception:
+            except Exception as e:
+                logging.error(f"generate_narrative attempt {attempt+1}/{self._retries} failed: {e}")
                 if attempt == self._retries - 1:
                     return "（AI服务暂时不可用，数值已更新）"
         return "（AI服务暂时不可用，数值已更新）"
@@ -191,7 +197,8 @@ class ResilientProvider(AIProvider):
                 if isinstance(result, dict):
                     return result
                 return _validate_decrees(result)
-            except Exception:
+            except Exception as e:
+                logging.error(f"parse_free_input attempt {attempt+1}/{self._retries} failed: {e}")
                 if attempt == self._retries - 1:
                     return parse_error(
                         "AI解析服务暂时不可用，请使用按钮操作",
@@ -209,7 +216,8 @@ class ResilientProvider(AIProvider):
                     self._inner.rejection_narrative(decree, reason),
                     timeout=self._timeout,
                 )
-            except Exception:
+            except Exception as e:
+                logging.error(f"rejection_narrative attempt {attempt+1}/{self._retries} failed: {e}")
                 if attempt == self._retries - 1:
                     return f"此令无法执行：{reason}"
         return f"此令无法执行：{reason}"

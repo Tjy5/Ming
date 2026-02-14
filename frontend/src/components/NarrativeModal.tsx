@@ -1,6 +1,21 @@
 const FIELD_LABELS: Record<string, string> = {
   treasury: '钱粮', population: '人口', military_supply: '军备',
   civil_morale: '民心', military_morale: '军心', court_prestige: '威望',
+  stability: '稳定度', rebellion_risk: '叛乱度', tax_collected: '税收',
+  disaster_level: '灾害', tax_rate: '税率', garrison: '驻军',
+  satisfaction: '满意度',
+}
+
+function resolveLabel(key: string): string {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key]
+
+  for (const field in FIELD_LABELS) {
+    if (key.endsWith(`_${field}`)) {
+      const prefix = key.slice(0, key.length - field.length - 1)
+      return `${prefix}${FIELD_LABELS[field]}`
+    }
+  }
+  return key
 }
 
 interface Props {
@@ -23,7 +38,7 @@ export default function NarrativeModal({ narrative, delta, onClose }: Props) {
             <ul className="delta-list">
               {entries.map(([key, val]) => (
                 <li key={key}>
-                  <span>{FIELD_LABELS[key] ?? key}</span>
+                  <span>{resolveLabel(key)}</span>
                   <span className={val > 0 ? 'delta-pos' : 'delta-neg'}>
                     {val > 0 ? '+' : ''}{val}
                   </span>
