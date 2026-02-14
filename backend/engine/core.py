@@ -1,23 +1,41 @@
 from __future__ import annotations
 
 import math
-from copy import deepcopy
 
 from models.game import (
     GameState, StructuredDecree, DecreeResponse, GameTime,
     GameEvent, HistoryEntry, clamp_state,
 )
-from models.enums import DecreeType, RegionControl, RegionThreat, EventUrgency
+from models.enums import DecreeType, RegionControl, RegionThreat, TaxContribution, EventUrgency
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
     DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
     PRECONDITION_MESSAGES, TARGET_MISSING_MESSAGES,
 )
+from .scripts import get_scripts_for_time, ScriptEvent
+
+
+# ── Era Config ──────────────────────────────────────────
+
+ERA_CONFIG = [
+    {"name": "天启", "start_year": 1621},
+    {"name": "崇祯", "start_year": 1628},
+]
+
+
+def resolve_era(year: int) -> tuple[str, int]:
+    era = ERA_CONFIG[0]
+    for e in ERA_CONFIG:
+        if e["start_year"] <= year:
+            era = e
+        else:
+            break
+    return era["name"], year - era["start_year"] + 1
 
 
 # ── Attribution helper ───────────────────────────────────
 
-def _attr_add(attr: dict, key: str, source: str, value: int) -> None:
+def _attr_add(attr: dict, key: str, source: str, value: int | float) -> None:
     if value == 0:
         return
     attr.setdefault(key, {})[source] = attr.get(key, {}).get(source, 0) + value
@@ -62,7 +80,19 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
     for r in state.regions:
         if r.threat != RegionThreat.NONE:
             r.stability -= 3
+            r.civil_morale -= 2
+            r.disaster_level += 3
             _attr_add(attr, f"{r.name}_stability", "passive_drift", -3)
+            _attr_add(attr, f"{r.name}_civil_morale", "passive_drift", -2)
+            _attr_add(attr, f"{r.name}_disaster_level", "passive_drift", 3)
+        if r.stability < 30:
+            r.rebellion_risk += 2
+            r.tax_rate -= 0.02
+            _attr_add(attr, f"{r.name}_rebellion_risk", "passive_drift", 2)
+            _attr_add(attr, f"{r.name}_tax_rate", "passive_drift", -0.02)
+        if r.civil_morale < 30:
+            r.rebellion_risk += 1
+            _attr_add(attr, f"{r.name}_rebellion_risk", "passive_drift", 1)
     if state.treasury < 50:
         state.military_morale -= 1
         _attr_add(attr, "military_morale", "passive_drift", -1)
@@ -108,8 +138,10 @@ def apply_faction_reactions(state: GameState, decree: StructuredDecree, attr: di
 
 # ── Region Impact ────────────────────────────────────────
 
-def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) -> None:
+def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) -> float:
+    """Returns decree_tax_modifier for tax recalculation."""
     dt = decree.type
+    tax_mod = 1.0
     for r in state.regions:
         if dt == DecreeType.TAX_INCREASE:
             if r.stability < 30:
@@ -119,16 +151,28 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
             else:
                 penalty = -5
             r.stability += penalty
+            r.civil_morale -= 3
+            r.rebellion_risk += 2
             _attr_add(attr, f"{r.name}_stability", "region_impact", penalty)
+            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -3)
+            _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", 2)
+            tax_mod = 1.15
         elif dt == DecreeType.TAX_DECREASE:
             r.stability += 3
+            r.civil_morale += 2
+            r.rebellion_risk -= 1
             _attr_add(attr, f"{r.name}_stability", "region_impact", 3)
+            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", 2)
+            _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -1)
+            tax_mod = 0.85
         elif dt == DecreeType.RECRUIT_TROOPS:
             if r.threat != RegionThreat.NONE:
                 r.stability += 5
                 r.garrison += 2000
+                r.civil_morale -= 2
                 _attr_add(attr, f"{r.name}_stability", "region_impact", 5)
                 _attr_add(attr, f"{r.name}_garrison", "region_impact", 2000)
+                _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -2)
         elif dt == DecreeType.DISBAND_TROOPS:
             if r.garrison > 10000:
                 r.garrison -= 3000
@@ -136,14 +180,25 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
         elif dt == DecreeType.DISASTER_RELIEF:
             if decree.target and r.name == decree.target:
                 r.stability += 20
+                r.civil_morale += 8
+                r.disaster_level -= 15
+                r.rebellion_risk -= 5
                 _attr_add(attr, f"{r.name}_stability", "region_impact", 20)
+                _attr_add(attr, f"{r.name}_civil_morale", "region_impact", 8)
+                _attr_add(attr, f"{r.name}_disaster_level", "region_impact", -15)
+                _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -5)
         elif dt == DecreeType.HARSH_PUNISHMENT:
             if r.stability < 40:
                 r.stability -= 8
+                r.rebellion_risk -= 5
                 _attr_add(attr, f"{r.name}_stability", "region_impact", -8)
+                _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -5)
             elif r.stability >= 60:
                 r.stability += 3
                 _attr_add(attr, f"{r.name}_stability", "region_impact", 3)
+            r.civil_morale -= 4
+            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -4)
+    return tax_mod
 
 
 # ── Region Control State Machine ─────────────────────────
@@ -164,12 +219,18 @@ CHAIN_EVENTS = [
     {
         "name": "流寇势力扩大",
         "check": lambda s: _region(s, "陕西").stability < 20 and s.civil_morale < 40,
-        "apply": lambda s, a: _chain_apply(s, a, "流寇势力扩大", [("陕西", "stability", -5), ("中原", "stability", -10)]),
+        "apply": lambda s, a: _chain_apply(s, a, "流寇势力扩大", [
+            ("陕西", "stability", -5), ("中原", "stability", -10),
+            ("陕西", "rebellion_risk", 10), ("中原", "rebellion_risk", 5),
+            ("陕西", "disaster_level", 10),
+        ]),
     },
     {
         "name": "边军哗变",
         "check": lambda s: s.military_morale < 25 and s.treasury < 20,
-        "apply": lambda s, a: _chain_apply(s, a, "边军哗变", [("辽东", "stability", -20)], faction_effects=[("边将势力", "rebellion_risk", 25)]),
+        "apply": lambda s, a: _chain_apply(s, a, "边军哗变", [
+            ("辽东", "stability", -20), ("辽东", "rebellion_risk", 15),
+        ], faction_effects=[("边将势力", "rebellion_risk", 25)]),
     },
     {
         "name": "朝堂危机",
@@ -184,7 +245,10 @@ CHAIN_EVENTS = [
     {
         "name": "后金入寇",
         "check": lambda s: _region(s, "辽东").stability < 15 and s.military_supply < 30,
-        "apply": lambda s, a: _chain_apply(s, a, "后金入寇", [("辽东", "stability", -20), ("京畿", "stability", -10)], global_effects=[("military_morale", -15)]),
+        "apply": lambda s, a: _chain_apply(s, a, "后金入寇", [
+            ("辽东", "stability", -20), ("京畿", "stability", -10),
+            ("辽东", "disaster_level", 20), ("京畿", "disaster_level", 10),
+        ], global_effects=[("military_morale", -15)]),
     },
 ]
 
@@ -218,7 +282,11 @@ def _chain_crisis(state, attr):
 def _chain_jiangnan(state, attr):
     r = _region(state, "江南")
     r.stability -= 15
+    r.civil_morale -= 10
+    r.tax_rate -= 0.2
     _attr_add(attr, "江南_stability", "chain_event", -15)
+    _attr_add(attr, "江南_civil_morale", "chain_event", -10)
+    _attr_add(attr, "江南_tax_rate", "chain_event", -0.2)
     state.treasury += 10
     _attr_add(attr, "treasury", "chain_event", 10)
 
@@ -228,17 +296,22 @@ def _time_to_months(year: int, month: int) -> int:
 
 
 def detect_chain_events(state: GameState, attr: dict) -> list[str]:
-    triggered = []
     current_months = _time_to_months(state.time.year, state.time.month)
+    # check phase: all conditions evaluated on same pre-chain state
+    to_fire = []
     for evt in CHAIN_EVENTS:
         name = evt["name"]
         cooldown_until = state.event_cooldowns.get(name, 0)
         if current_months <= cooldown_until:
             continue
         if evt["check"](state):
-            evt["apply"](state, attr)
-            triggered.append(name)
-            state.event_cooldowns[name] = current_months + 3
+            to_fire.append(evt)
+    # apply phase
+    triggered = []
+    for evt in to_fire:
+        evt["apply"](state, attr)
+        triggered.append(evt["name"])
+        state.event_cooldowns[evt["name"]] = current_months + 3
     return triggered
 
 
@@ -254,14 +327,57 @@ def assign_urgency(event_name: str, attr: dict) -> EventUrgency:
     return EventUrgency.LOW
 
 
+_BASE_TAX = {TaxContribution.LOW: 20, TaxContribution.MEDIUM: 35, TaxContribution.HIGH: 55}
+
+
+def recalc_tax_collected(state: GameState, decree_tax_modifier: float) -> None:
+    for r in state.regions:
+        r.tax_rate = round(r.tax_rate, 2)
+        base = _BASE_TAX[r.tax_contribution]
+        stability_factor = r.stability / 100.0
+        r.tax_collected = math.floor(base * r.tax_rate * stability_factor * decree_tax_modifier)
+
+
 # ── Event Lifecycle ──────────────────────────────────────
 
 def expire_events(state: GameState) -> None:
     current = _time_to_months(state.time.year, state.time.month)
     state.active_events = [
         e for e in state.active_events
-        if current - _time_to_months(e.triggered_year, e.triggered_month) < 6
+        if e.is_scripted or current - _time_to_months(e.triggered_year, e.triggered_month) < 6
     ]
+
+
+def _script_to_event(se: ScriptEvent, year: int, month: int) -> GameEvent:
+    from models.game import EventChoice
+    return GameEvent(
+        name=se.title,
+        description=se.title,
+        urgency=EventUrgency.HIGH,
+        triggered_year=year,
+        triggered_month=month,
+        rich_description=se.rich_description,
+        choices=[
+            EventChoice(label=c.label, description=c.description, decrees=c.decrees)
+            for c in se.choices
+        ],
+        is_scripted=True,
+        script_id=se.script_id,
+    )
+
+
+def inject_script_events(state: GameState) -> list[str]:
+    scripts = get_scripts_for_time(state.time.year, state.time.month)
+    injected = []
+    active_script_ids = {e.script_id for e in state.active_events if e.script_id}
+    for se in scripts:
+        if se.script_id in active_script_ids or se.script_id in state.resolved_script_ids:
+            continue
+        state.active_events.append(
+            _script_to_event(se, state.time.year, state.time.month)
+        )
+        injected.append(se.title)
+    return injected
 
 
 # ── Time Progression ─────────────────────────────────────
@@ -271,11 +387,12 @@ def advance_time(state: GameState) -> None:
     if state.time.month > 12:
         state.time.year += 1
         state.time.month = 1
+    state.time.era_name, state.time.era_year = resolve_era(state.time.year)
 
 
 # ── Game End Check ───────────────────────────────────────
 
-FINAL_JUDGEMENT_YEAR = 17
+FINAL_JUDGEMENT_YEAR = 1644
 FINAL_JUDGEMENT_MONTH = 3
 
 
@@ -301,8 +418,10 @@ def check_game_end(state: GameState) -> dict | None:
 
 # ── Main Pipeline ────────────────────────────────────────
 
-def process_decree(state: GameState, decree: StructuredDecree) -> tuple[dict, dict, list[str], dict | None]:
-    """Returns (delta, attribution, triggered_events, game_over)."""
+def process_decree(state: GameState, decree: StructuredDecree | None = None) -> tuple[dict, dict, list[str], dict | None]:
+    """Returns (delta, attribution, triggered_events, game_over).
+    decree=None means a 'wait' turn (passive drift + time advance only).
+    """
     attr: dict = {}
 
     # snapshot before
@@ -310,14 +429,19 @@ def process_decree(state: GameState, decree: StructuredDecree) -> tuple[dict, di
 
     # 1. passive drift
     apply_passive_drift(state, attr)
-    # 2. base effects
-    apply_base_effects(state, decree, attr)
-    # 3. faction reactions
-    apply_faction_reactions(state, decree, attr)
-    # 4. region impact
-    apply_region_impact(state, decree, attr)
+
+    decree_tax_modifier = 1.0
+    if decree:
+        # 2. base effects
+        apply_base_effects(state, decree, attr)
+        # 3. faction reactions
+        apply_faction_reactions(state, decree, attr)
+        # 4. region impact
+        decree_tax_modifier = apply_region_impact(state, decree, attr)
     # 5. chain events
     triggered = detect_chain_events(state, attr)
+    # 5.5 tax recalculation
+    recalc_tax_collected(state, decree_tax_modifier)
     # 6. clamp
     clamp_state(state)
     # region control
@@ -344,6 +468,9 @@ def process_decree(state: GameState, decree: StructuredDecree) -> tuple[dict, di
     # time
     advance_time(state)
     state.decree_count += 1
+    # script events after time advance
+    script_triggered = inject_script_events(state)
+    triggered.extend(script_triggered)
     # game end
     game_over = check_game_end(state)
     # delta
@@ -367,8 +494,11 @@ def _compute_delta(before: dict, after: dict) -> dict:
                 delta[f"{name}_{field}"] = d
     for i, (br, ar) in enumerate(zip(before["regions"], after["regions"])):
         name = br["name"]
-        for field in ("stability", "garrison"):
+        for field in ("stability", "garrison", "civil_morale", "rebellion_risk", "tax_collected", "disaster_level"):
             d = ar[field] - br[field]
             if d != 0:
                 delta[f"{name}_{field}"] = d
+        tax_d = ar["tax_rate"] - br["tax_rate"]
+        if abs(tax_d) > 1e-9:
+            delta[f"{name}_tax_rate"] = round(tax_d, 4)
     return delta

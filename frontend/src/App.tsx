@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
-import type { StructuredDecree, DecreeResponse, GameState } from './types/game'
+import type { StructuredDecree, DecreeResponse, GameState, GameEvent } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
 import FactionPanel from './components/FactionPanel'
@@ -11,6 +11,7 @@ import NarrativeModal from './components/NarrativeModal'
 import GameOverScreen from './components/GameOverScreen'
 import MultiConfirm from './components/MultiConfirm'
 import SavePanel from './components/SavePanel'
+import ScriptEventModal from './components/ScriptEventModal'
 import './App.css'
 
 function App() {
@@ -23,6 +24,7 @@ function App() {
   const [showSaves, setShowSaves] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [scriptEvent, setScriptEvent] = useState<GameEvent | null>(null)
   const toastTimer = useRef<number>(0)
 
   const showToast = useCallback((msg: string) => {
@@ -39,13 +41,20 @@ function App() {
       })
   }, [setState, showToast])
 
-  async function executeDecrees(decrees: StructuredDecree[]) {
+  // Auto-open blocking scripted events
+  useEffect(() => {
+    if (!state || scriptEvent || loading) return
+    const blocking = state.active_events.find(e => e.is_scripted && e.choices.length > 0)
+    if (blocking) setScriptEvent(blocking)
+  }, [state, scriptEvent, loading])
+
+  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string) {
     if (!state) return
     setLoading(true)
     setError(null)
     setPrevState(state)
     try {
-      const res: DecreeResponse = await api.decree(decrees)
+      const res: DecreeResponse = await api.decree(decrees, sourceScriptId)
       setState(res.state)
       setDelta(res.delta)
       setNarrative(res.narrative)
@@ -112,10 +121,12 @@ function App() {
     }
   }
 
-  function handleLoadSave(s: GameState) {
+  function handleLoadSave(s: GameState, migrationNote?: string) {
     reset()
     setState(s)
     setShowSaves(false)
+    setScriptEvent(null)
+    if (migrationNote) showToast(migrationNote)
   }
 
   if (!state) {
@@ -140,7 +151,7 @@ function App() {
         <FactionPanel factions={state.factions} />
       </div>
       <div className="bottom-panel">
-        <EventBar events={state.active_events} />
+        <EventBar events={state.active_events} onScriptClick={setScriptEvent} />
         <ActionArea
           state={state}
           loading={loading}
@@ -177,6 +188,17 @@ function App() {
             executeDecrees(d)
           }}
           onCancel={() => setPendingMulti(null)}
+        />
+      )}
+
+      {scriptEvent && (
+        <ScriptEventModal
+          event={scriptEvent}
+          state={state}
+          onChoose={(decrees, scriptId) => {
+            setScriptEvent(null)
+            executeDecrees(decrees, scriptId)
+          }}
         />
       )}
 

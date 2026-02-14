@@ -29,10 +29,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   newGame: () => request<GameState>('/game/new', { method: 'POST' }),
 
-  decree: (decrees: StructuredDecree[]) =>
+  decree: (decrees: StructuredDecree[], sourceScriptId?: string) =>
     request<DecreeResponse>('/decree', {
       method: 'POST',
-      body: JSON.stringify({ decrees }),
+      body: JSON.stringify({ decrees, source_script_id: sourceScriptId ?? null }),
     }),
 
   parseFreeText: (text: string) =>
@@ -55,7 +55,7 @@ export const api = {
   listSaves: () => request<SaveEntry[]>('/saves'),
 
   loadSave: (id: number) =>
-    request<GameState>(`/load/${id}`, { method: 'POST' }),
+    request<GameState & { migration_applied?: boolean; migration_note?: string }>(`/load/${id}`, { method: 'POST' }),
 
   deleteSave: (id: number) =>
     request<{ ok: boolean }>(`/save/${id}`, { method: 'DELETE' }),

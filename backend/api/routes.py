@@ -47,6 +47,7 @@ def startup():
 
 class DecreeRequest(BaseModel):
     decrees: list[StructuredDecree]
+    source_script_id: str | None = None
 
 
 class ParseRequest(BaseModel):
@@ -79,7 +80,14 @@ async def execute_decree(req: DecreeRequest):
     async with _lock:
         state = _get_state()
         provider = _get_provider()
-        responses: list[dict] = []
+
+        if not req.decrees and not req.source_script_id:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="invalid_decree",
+                message="至少需要一道政令",
+            ).model_dump())
+
+        last_response: dict | None = None
 
         for decree in req.decrees:
             reason = check_preconditions(state, decree)
@@ -114,17 +122,44 @@ async def execute_decree(req: DecreeRequest):
             if state.decree_count % 5 == 0:
                 auto_save(state)
 
-            response = DecreeResponse(
+            last_response = DecreeResponse(
                 state=state, delta=delta, attribution=attribution,
                 narrative=narrative, newly_triggered_events=triggered,
                 game_time=state.time, game_over=game_over,
-            )
-            responses.append(response.model_dump())
+            ).model_dump()
 
             if game_over:
                 break
 
-        return responses[-1]
+        if req.source_script_id:
+            before_count = len(state.active_events)
+            state.active_events = [
+                e for e in state.active_events
+                if e.script_id != req.source_script_id
+            ]
+            if len(state.active_events) != before_count:
+                state.resolved_script_ids.add(req.source_script_id)
+
+        if last_response is None:
+            # empty decrees (e.g. script "wait" option) — still advance turn
+            delta, attribution, triggered, game_over = process_decree(state)
+            narrative = "陛下暂且按兵不动，静观时局变化。"
+            state.history_log.append(HistoryEntry(
+                year=state.time.year, month=state.time.month,
+                decree_type="wait", decree_desc="",
+                delta=delta, narrative=narrative,
+            ))
+            if state.decree_count % 5 == 0:
+                auto_save(state)
+            last_response = DecreeResponse(
+                state=state, delta=delta, attribution=attribution,
+                narrative=narrative, newly_triggered_events=triggered,
+                game_time=state.time, game_over=game_over,
+            ).model_dump()
+
+        # refresh state in response after script cleanup
+        last_response["state"] = state.model_dump()
+        return last_response
 
 
 # ── 6.3 POST /api/decree/parse ─────────────────────────
@@ -195,8 +230,12 @@ async def get_saves():
 async def load(save_id: int):
     global _state
     try:
-        _state = load_game(save_id)
-        return _state.model_dump()
+        _state, migration_applied, migration_note = load_game(save_id)
+        return {
+            **_state.model_dump(),
+            "migration_applied": migration_applied,
+            "migration_note": migration_note,
+        }
     except SaveNotFoundError:
         raise HTTPException(404, detail=ErrorResponse(
             error_code="save_not_found",

@@ -2,3 +2,11 @@
 openspec/
 需求文档.txt
 requirements.md
+
+# Python
+__pycache__/
+*.pyc
+
+# Excluded specific files
+backend/requirements.txt
+nul

@@ -14,6 +14,8 @@ export type EventUrgency = '高' | '中' | '低'
 export interface GameTime {
   year: number
   month: number
+  era_name: string
+  era_year: number
 }
 
 export interface Faction {
@@ -30,6 +32,17 @@ export interface Region {
   control: RegionControl
   threat: RegionThreat
   tax_contribution: TaxContribution
+  civil_morale: number
+  rebellion_risk: number
+  tax_rate: number
+  tax_collected: number
+  disaster_level: number
+}
+
+export interface EventChoice {
+  label: string
+  description: string
+  decrees: StructuredDecree[]
 }
 
 export interface GameEvent {
@@ -38,6 +51,10 @@ export interface GameEvent {
   urgency: EventUrgency
   triggered_year: number
   triggered_month: number
+  rich_description: string
+  choices: EventChoice[]
+  is_scripted: boolean
+  script_id: string | null
 }
 
 export interface HistoryEntry {
@@ -64,6 +81,7 @@ export interface GameState {
   history_total_count?: number
   decree_count: number
   event_cooldowns: Record<string, number>
+  resolved_script_ids: string[]
 }
 
 export interface StructuredDecree {

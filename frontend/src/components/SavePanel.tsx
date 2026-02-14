@@ -3,7 +3,7 @@ import type { SaveEntry, GameState } from '../types/game'
 import { api, ApiError } from '../api/client'
 
 interface Props {
-  onLoad: (state: GameState) => void
+  onLoad: (state: GameState, migrationNote?: string) => void
   onClose: () => void
   hasUnsaved: boolean
 }
@@ -23,8 +23,9 @@ export default function SavePanel({ onLoad, onClose, hasUnsaved }: Props) {
   async function handleLoad(id: number) {
     if (hasUnsaved && !confirm('当前进度未保存，确认读档？')) return
     try {
-      const state = await api.loadSave(id)
-      onLoad(state)
+      const res = await api.loadSave(id)
+      const { migration_applied, migration_note, ...state } = res
+      onLoad(state as GameState, migration_applied ? migration_note : undefined)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '读档失败')
     }

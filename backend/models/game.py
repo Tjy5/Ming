@@ -27,9 +27,29 @@ class Region(BaseModel):
     control: RegionControl = RegionControl.COURT
     threat: RegionThreat = RegionThreat.NONE
     tax_contribution: TaxContribution = TaxContribution.MEDIUM
+    civil_morale: int = Field(default=50, ge=0, le=100)
+    rebellion_risk: int = Field(default=10, ge=0, le=100)
+    tax_rate: float = Field(default=0.5, ge=0, le=1)
+    tax_collected: int = Field(default=0, ge=0)
+    disaster_level: int = Field(default=0, ge=0, le=100)
+
+
+# ── Decree ───────────────────────────────────────────────
+
+class StructuredDecree(BaseModel):
+    type: DecreeType
+    target: str | None = None
+    sub_action: PersonnelAction | None = None
+    parameters: dict | None = None
 
 
 # ── Event ────────────────────────────────────────────────
+
+class EventChoice(BaseModel):
+    label: str
+    description: str = ""
+    decrees: list[StructuredDecree] = Field(default_factory=list)
+
 
 class GameEvent(BaseModel):
     name: str
@@ -37,6 +57,10 @@ class GameEvent(BaseModel):
     urgency: EventUrgency = EventUrgency.LOW
     triggered_year: int
     triggered_month: int
+    rich_description: str = ""
+    choices: list[EventChoice] = Field(default_factory=list)
+    is_scripted: bool = False
+    script_id: str | None = None
 
 
 # ── History ──────────────────────────────────────────────
@@ -53,8 +77,10 @@ class HistoryEntry(BaseModel):
 # ── GameTime ─────────────────────────────────────────────
 
 class GameTime(BaseModel):
-    year: int = 1
+    year: int = 1627
     month: int = 1
+    era_name: str = "天启"
+    era_year: int = 7
 
 
 # ── GameState ────────────────────────────────────────────
@@ -76,15 +102,7 @@ class GameState(BaseModel):
     history_log: list[HistoryEntry] = Field(default_factory=list)
     decree_count: int = 0
     event_cooldowns: dict[str, int] = Field(default_factory=dict)
-
-
-# ── Decree ───────────────────────────────────────────────
-
-class StructuredDecree(BaseModel):
-    type: DecreeType
-    target: str | None = None
-    sub_action: PersonnelAction | None = None
-    parameters: dict | None = None
+    resolved_script_ids: set[str] = Field(default_factory=set)
 
 
 # ── DecreeResponse ───────────────────────────────────────
@@ -117,25 +135,36 @@ INITIAL_FACTIONS = [
 ]
 
 INITIAL_REGIONS = [
-    Region(name="京畿", stability=80, garrison=50000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM),
-    Region(name="辽东", stability=40, garrison=30000, threat=RegionThreat.HOUJIN, tax_contribution=TaxContribution.LOW),
-    Region(name="陕西", stability=25, garrison=5000, threat=RegionThreat.REBELLION, tax_contribution=TaxContribution.LOW),
-    Region(name="江南", stability=85, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.HIGH),
-    Region(name="中原", stability=60, garrison=15000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM),
-    Region(name="山东", stability=70, garrison=12000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM),
-    Region(name="云贵", stability=50, garrison=8000, threat=RegionThreat.TUSI, tax_contribution=TaxContribution.LOW),
-    Region(name="川蜀", stability=65, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM),
+    Region(name="京畿", stability=80, garrison=50000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
+           civil_morale=75, rebellion_risk=10, tax_rate=0.50, tax_collected=40, disaster_level=10),
+    Region(name="辽东", stability=40, garrison=30000, threat=RegionThreat.HOUJIN, tax_contribution=TaxContribution.LOW,
+           civil_morale=35, rebellion_risk=55, tax_rate=0.30, tax_collected=12, disaster_level=40),
+    Region(name="陕西", stability=25, garrison=5000, threat=RegionThreat.REBELLION, tax_contribution=TaxContribution.LOW,
+           civil_morale=20, rebellion_risk=70, tax_rate=0.25, tax_collected=6, disaster_level=60),
+    Region(name="江南", stability=85, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.HIGH,
+           civil_morale=80, rebellion_risk=5, tax_rate=0.80, tax_collected=272, disaster_level=5),
+    Region(name="中原", stability=60, garrison=15000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
+           civil_morale=55, rebellion_risk=20, tax_rate=0.50, tax_collected=60, disaster_level=15),
+    Region(name="山东", stability=70, garrison=12000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
+           civil_morale=65, rebellion_risk=15, tax_rate=0.50, tax_collected=70, disaster_level=10),
+    Region(name="云贵", stability=50, garrison=8000, threat=RegionThreat.TUSI, tax_contribution=TaxContribution.LOW,
+           civil_morale=45, rebellion_risk=35, tax_rate=0.30, tax_collected=15, disaster_level=30),
+    Region(name="川蜀", stability=65, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
+           civil_morale=60, rebellion_risk=15, tax_rate=0.50, tax_collected=65, disaster_level=10),
 ]
 
 
 def create_initial_state() -> GameState:
-    return GameState(
-        time=GameTime(year=1, month=1),
+    state = GameState(
+        time=GameTime(year=1627, month=1, era_name="天启", era_year=7),
         treasury=100, population=100, military_supply=80,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
     )
+    from engine.core import inject_script_events
+    inject_script_events(state)
+    return state
 
 
 # ── Clamping ─────────────────────────────────────────────
@@ -166,3 +195,8 @@ def clamp_state(state: GameState) -> None:
     for r in state.regions:
         r.stability = clamp_indicator(r.stability)
         r.garrison = clamp_garrison(r.garrison)
+        r.civil_morale = clamp_indicator(r.civil_morale)
+        r.rebellion_risk = clamp_indicator(r.rebellion_risk)
+        r.tax_rate = round(max(0.0, min(1.0, r.tax_rate)), 2)
+        r.tax_collected = max(0, math.floor(r.tax_collected))
+        r.disaster_level = clamp_indicator(r.disaster_level)

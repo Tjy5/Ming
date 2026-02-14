@@ -30,10 +30,17 @@ def init_db() -> None:
         """)
 
 
+def _era_display(state: GameState) -> str:
+    t = state.time
+    year_str = "元年" if t.era_year == 1 else f"{t.era_year}年"
+    return f"{t.era_name}{year_str}{t.month}月"
+
+
 def save_game(state: GameState, name: str | None = None) -> int:
+    display = _era_display(state)
     if not name:
-        name = f"崇祯{state.time.year}年{state.time.month}月-存档"
-    game_time = f"崇祯{state.time.year}年{state.time.month}月"
+        name = f"{display}-存档"
+    game_time = display
     created_at = datetime.now(timezone.utc).isoformat()
     state_json = state.model_dump_json()
     try:
@@ -47,13 +54,84 @@ def save_game(state: GameState, name: str | None = None) -> int:
         raise StorageError("storage_error", "存档失败，存储异常")
 
 
-def load_game(save_id: int) -> GameState:
+_ERA_CONFIG = [
+    {"name": "天启", "start_year": 1621},
+    {"name": "崇祯", "start_year": 1628},
+]
+
+_DISASTER_BY_THREAT = {"none": 0, "后金": 40, "民变": 60, "土司": 30, "海盗": 20}
+_TAX_RATE_BY_CONTRIB = {"low": 0.3, "medium": 0.5, "high": 0.8}
+
+
+def _migrate_save(data: dict) -> bool:
+    migrated = False
+
+    # ── time migration ──
+    t = data.setdefault("time", {})
+    year = t.get("year")
+    if isinstance(year, int) and year < 100:
+        year = year + 1627
+        t["year"] = year
+        migrated = True
+
+    if "era_name" not in t or "era_year" not in t:
+        y = year if isinstance(year, int) else 1627
+        if "year" not in t:
+            t["year"] = y
+            migrated = True
+        era = _ERA_CONFIG[0]
+        for e in _ERA_CONFIG:
+            if e["start_year"] <= y:
+                era = e
+            else:
+                break
+        t.setdefault("era_name", era["name"])
+        t.setdefault("era_year", y - era["start_year"] + 1)
+        migrated = True
+
+    # ── region migration ──
+    for r in data.get("regions", []):
+        stab = r.get("stability", 50)
+        threat = r.get("threat", "none")
+        contrib = r.get("tax_contribution", "medium")
+
+        if "civil_morale" not in r:
+            r["civil_morale"] = max(0, min(100, stab - 5))
+            migrated = True
+        if "rebellion_risk" not in r:
+            r["rebellion_risk"] = 10 if threat == "none" else max(0, min(100, 100 - stab))
+            migrated = True
+        if "tax_rate" not in r:
+            r["tax_rate"] = _TAX_RATE_BY_CONTRIB.get(contrib, 0.5)
+            migrated = True
+        if "tax_collected" not in r:
+            r["tax_collected"] = 0
+            migrated = True
+        if "disaster_level" not in r:
+            r["disaster_level"] = _DISASTER_BY_THREAT.get(threat, 0)
+            migrated = True
+
+    # ── resolved_script_ids ──
+    if "resolved_script_ids" not in data:
+        data["resolved_script_ids"] = []
+        migrated = True
+
+    return migrated
+
+
+def load_game(save_id: int) -> tuple[GameState, bool, str]:
     with _connect() as conn:
         row = conn.execute("SELECT state_json FROM saves WHERE id = ?", (save_id,)).fetchone()
     if row is None:
         raise SaveNotFoundError(save_id)
     try:
-        return GameState.model_validate_json(row["state_json"])
+        data = json.loads(row["state_json"])
+        migrated = _migrate_save(data)
+        state = GameState.model_validate(data)
+        note = "旧存档已自动迁移：补充了分省详细数据与年号信息" if migrated else ""
+        return state, migrated, note
+    except (SaveNotFoundError, CorruptSaveError):
+        raise
     except Exception:
         raise CorruptSaveError(save_id)
 
@@ -76,7 +154,7 @@ def delete_save(save_id: int) -> bool:
 
 
 def auto_save(state: GameState) -> None:
-    name = f"自动存档-崇祯{state.time.year}年{state.time.month}月"
+    name = f"自动存档-{_era_display(state)}"
     try:
         save_game(state, name)
     except Exception:

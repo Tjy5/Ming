@@ -1,4 +1,5 @@
 import type { GameState } from '../types/game'
+import HistoricalCalendar from './HistoricalCalendar'
 
 interface Props {
   state: GameState
@@ -27,7 +28,7 @@ function barColor(val: number, max: number): string {
 export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame }: Props) {
   return (
     <div className="resource-bar">
-      <div className="game-time">崇祯{state.time.year}年{state.time.month}月</div>
+      <HistoricalCalendar {...state.time} />
       {RESOURCES.map(({ key, label, max }) => {
         const val = state[key] as number
         const prev = prevState ? (prevState[key] as number) : val
