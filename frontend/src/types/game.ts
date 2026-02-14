@@ -10,6 +10,7 @@ export type TaxContribution = 'low' | 'medium' | 'high'
 export type PersonnelAction = 'appoint' | 'dismiss'
 export type DiplomacyTarget = '后金' | '蒙古' | '朝鲜'
 export type EventUrgency = '高' | '中' | '低'
+export type MinisterStatus = 'active' | 'idle'
 
 export interface GameTime {
   year: number
@@ -37,6 +38,20 @@ export interface Region {
   tax_rate: number
   tax_collected: number
   disaster_level: number
+}
+
+export interface MinisterAbilities {
+  civil: number
+  military: number
+  diplomacy: number
+}
+
+export interface Minister {
+  name: string
+  faction: string
+  personality_tags: string[]
+  abilities: MinisterAbilities
+  status: MinisterStatus
 }
 
 export interface EventChoice {
@@ -76,6 +91,7 @@ export interface GameState {
   court_prestige: number
   factions: Faction[]
   regions: Region[]
+  ministers: Minister[]
   active_events: GameEvent[]
   history_log: HistoryEntry[]
   history_total_count?: number
@@ -105,6 +121,26 @@ export interface ErrorResponse {
   error_code: string
   message: string
   details?: { ai_narrative?: string } | null
+}
+
+export interface DebateMinister {
+  name: string
+  faction: string
+  position_summary: string
+}
+
+export interface DebateResult {
+  debate_text: string
+  minister_a: DebateMinister
+  minister_b: DebateMinister
+  option_a: StructuredDecree
+  option_b: StructuredDecree
+  keywords: string[]
+}
+
+export interface Capabilities {
+  debate_supported: boolean
+  portrait_supported: boolean
 }
 
 export interface SaveEntry {
@@ -172,4 +208,15 @@ export const PRECONDITION_MESSAGES: Record<DecreeType, string> = {
   diplomacy: '国库不足，无力外交（需要钱粮>=10）',
   disaster_relief: '国库不足，无法赈灾（需要钱粮>=30）',
   harsh_punishment: '朝廷威望不足（需要威望>5）',
+}
+
+export const DEBATE_TOPICS: Record<DecreeType, { topic: string; decreeType: DecreeType }[]> = {
+  tax_increase: [{ topic: '是否加征赋税以充实国库', decreeType: 'tax_increase' }],
+  tax_decrease: [{ topic: '是否减免赋税与民休息', decreeType: 'tax_decrease' }],
+  recruit_troops: [{ topic: '是否征兵备战', decreeType: 'recruit_troops' }],
+  disband_troops: [{ topic: '是否裁撤冗兵', decreeType: 'disband_troops' }],
+  personnel: [{ topic: '朝廷人事任免', decreeType: 'personnel' }],
+  diplomacy: [{ topic: '外交邦交策略', decreeType: 'diplomacy' }],
+  disaster_relief: [{ topic: '赈灾方略', decreeType: 'disaster_relief' }],
+  harsh_punishment: [{ topic: '严刑峻法之议', decreeType: 'harsh_punishment' }],
 }

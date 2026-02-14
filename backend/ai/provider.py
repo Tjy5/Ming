@@ -7,7 +7,7 @@ import os
 import re
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree
+from models.game import GameState, StructuredDecree, Minister, DebateResult, DebateMinister
 from models.enums import DecreeType, PersonnelAction
 
 PARSE_ERROR_TYPE_PARSE = "parse_error"
@@ -16,6 +16,23 @@ PARSE_ERROR_TYPE_UNAVAILABLE = "service_unavailable"
 
 def parse_error(message: str, error_type: str = PARSE_ERROR_TYPE_PARSE) -> dict:
     return {"error": message, "error_type": error_type}
+
+
+def _is_non_retryable_portrait_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    markers = (
+        "model_not_found",
+        "429",
+        "rate limit",
+        "too many requests",
+        "quota",
+        "无可用渠道",
+        "请求数限制",
+        "invalid_api_key",
+        "authentication",
+        "permission",
+    )
+    return any(m in msg for m in markers)
 
 
 class AIProvider(abc.ABC):
@@ -32,6 +49,14 @@ class AIProvider(abc.ABC):
 
     @abc.abstractmethod
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str: ...
+
+    @abc.abstractmethod
+    async def generate_debate_narrative(
+        self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
+    ) -> DebateResult | None: ...
+
+    @abc.abstractmethod
+    async def generate_portrait(self, minister_name: str, description: str) -> str | None: ...
 
 
 # ── Mock Provider ────────────────────────────────────────
@@ -127,6 +152,14 @@ class MockProvider(AIProvider):
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
         return REJECTION_TEMPLATES.get(decree.type, f"陛下，此令无法执行：{reason}")
 
+    async def generate_debate_narrative(
+        self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
+    ) -> DebateResult | None:
+        return None
+
+    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
+        return None
+
 
 # ── Factory ──────────────────────────────────────────────
 
@@ -221,6 +254,117 @@ class ResilientProvider(AIProvider):
                 if attempt == self._retries - 1:
                     return f"此令无法执行：{reason}"
         return f"此令无法执行：{reason}"
+
+    async def generate_debate_narrative(
+        self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
+    ) -> DebateResult | None:
+        for attempt in range(self._retries):
+            try:
+                return await asyncio.wait_for(
+                    self._inner.generate_debate_narrative(topic, minister_a, minister_b, game_state),
+                    timeout=self._timeout,
+                )
+            except Exception as e:
+                logging.error(f"generate_debate_narrative attempt {attempt+1}/{self._retries} failed: {e}")
+                if attempt == self._retries - 1:
+                    return None
+        return None
+
+    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
+        for attempt in range(self._retries):
+            try:
+                return await asyncio.wait_for(
+                    self._inner.generate_portrait(minister_name, description),
+                    timeout=self._timeout,
+                )
+            except Exception as e:
+                logging.error(f"generate_portrait attempt {attempt+1}/{self._retries} failed: {e}")
+                if _is_non_retryable_portrait_error(e):
+                    return None
+                if attempt == self._retries - 1:
+                    return None
+        return None
+
+
+# ── Shared Helpers ────────────────────────────────────────
+
+def build_debate_prompt(
+    topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
+) -> str:
+    def _tags(m: Minister) -> str:
+        return "、".join(m.personality_tags) if m.personality_tags else "无"
+
+    return (
+        f"辩论议题：{topic}\n\n"
+        f"大臣甲：{minister_a.name}（{minister_a.faction}），"
+        f"性格：{_tags(minister_a)}，"
+        f"文治{minister_a.abilities.civil}/武略{minister_a.abilities.military}/外交{minister_a.abilities.diplomacy}\n\n"
+        f"大臣乙：{minister_b.name}（{minister_b.faction}），"
+        f"性格：{_tags(minister_b)}，"
+        f"文治{minister_b.abilities.civil}/武略{minister_b.abilities.military}/外交{minister_b.abilities.diplomacy}\n\n"
+        f"当前国情：{game_state.time.year}年{game_state.time.month}月，"
+        f"国库{game_state.treasury}，民心{game_state.civil_morale}，"
+        f"军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+        "请严格输出JSON，不要输出额外说明文字。"
+    )
+
+
+DEBATE_SYSTEM_PROMPT = (
+    "你是崇祯模拟器的朝堂辩论生成器。围绕议题让两位大臣辩论，仅输出JSON。"
+    "字段：debate_text（200-300字），minister_a_position（≤50字），minister_b_position（≤50字），"
+    "option_a（{type,target,sub_action}），option_b（同），keywords（字符串数组，≤5个，去重）。"
+)
+
+
+def parse_debate_response(
+    data: dict, minister_a: Minister, minister_b: Minister,
+) -> DebateResult | None:
+    option_a = _parse_decree_option(data.get("option_a"))
+    option_b = _parse_decree_option(data.get("option_b"))
+    if option_a is None or option_b is None:
+        return None
+
+    debate_text = str(data.get("debate_text", "")).strip()
+    if not debate_text:
+        return None
+
+    seen: set[str] = set()
+    keywords: list[str] = []
+    for item in (data.get("keywords") if isinstance(data.get("keywords"), list) else []):
+        if not isinstance(item, str):
+            continue
+        kw = item.strip()
+        if kw and kw not in seen:
+            seen.add(kw)
+            keywords.append(kw)
+            if len(keywords) >= 5:
+                break
+
+    return DebateResult(
+        debate_text=debate_text,
+        minister_a=DebateMinister(
+            name=minister_a.name, faction=minister_a.faction,
+            position_summary=str(data.get("minister_a_position", "")).strip()[:50],
+        ),
+        minister_b=DebateMinister(
+            name=minister_b.name, faction=minister_b.faction,
+            position_summary=str(data.get("minister_b_position", "")).strip()[:50],
+        ),
+        option_a=option_a, option_b=option_b, keywords=keywords,
+    )
+
+
+def _parse_decree_option(payload) -> StructuredDecree | None:
+    if not isinstance(payload, dict):
+        return None
+    try:
+        d = dict(payload)
+        d["type"] = DecreeType(d["type"])
+        d["sub_action"] = PersonnelAction(d["sub_action"]) if d.get("sub_action") else None
+        d.setdefault("target", None)
+        return StructuredDecree(**d)
+    except Exception:
+        return None
 
 
 def _validate_decrees(decrees: list[StructuredDecree]) -> list[StructuredDecree] | dict:

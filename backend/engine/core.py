@@ -6,7 +6,7 @@ from models.game import (
     GameState, StructuredDecree, DecreeResponse, GameTime,
     GameEvent, HistoryEntry, clamp_state,
 )
-from models.enums import DecreeType, RegionControl, RegionThreat, TaxContribution, EventUrgency
+from models.enums import DecreeType, RegionControl, RegionThreat, TaxContribution, EventUrgency, MinisterStatus, PersonnelAction
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
     DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
@@ -72,6 +72,20 @@ def validate_target(decree: StructuredDecree) -> str | None:
         if not decree.target or decree.target not in DIPLOMACY_TARGETS:
             return TARGET_MISSING_MESSAGES[decree.type]
     return None
+
+
+# ── Minister Status Transition ──────────────────────────
+
+def apply_minister_transition(state: GameState, decree: StructuredDecree) -> None:
+    if decree.type != DecreeType.PERSONNEL or not decree.target or not decree.sub_action:
+        return
+    for m in state.ministers:
+        if m.name == decree.target:
+            if decree.sub_action == PersonnelAction.DISMISS and m.status == MinisterStatus.ACTIVE:
+                m.status = MinisterStatus.IDLE
+            elif decree.sub_action == PersonnelAction.APPOINT and m.status == MinisterStatus.IDLE:
+                m.status = MinisterStatus.ACTIVE
+            break
 
 
 # ── Passive Drift ────────────────────────────────────────
@@ -373,6 +387,8 @@ def inject_script_events(state: GameState) -> list[str]:
     for se in scripts:
         if se.script_id in active_script_ids or se.script_id in state.resolved_script_ids:
             continue
+        if se.condition is not None and not se.condition(state):
+            continue
         state.active_events.append(
             _script_to_event(se, state.time.year, state.time.month)
         )
@@ -436,6 +452,8 @@ def process_decree(state: GameState, decree: StructuredDecree | None = None) -> 
         apply_base_effects(state, decree, attr)
         # 3. faction reactions
         apply_faction_reactions(state, decree, attr)
+        # 3.5 minister status transition
+        apply_minister_transition(state, decree)
         # 4. region impact
         decree_tax_modifier = apply_region_impact(state, decree, attr)
     # 5. chain events

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GameState, DecreeType, PreconditionRule } from '../types/game'
+import type { GameState, DecreeType, PreconditionRule, Capabilities, DebateResult } from '../types/game'
 import { PRECONDITIONS } from '../types/game'
 
 interface Store {
@@ -9,6 +9,10 @@ interface Store {
   narrative: string | null
   gameOver: { result: 'victory' | 'defeat'; message: string } | null
   prevState: GameState | null
+  capabilities: Capabilities
+  debateResult: DebateResult | null
+  debateLoading: boolean
+  selectedTopic: string | null
 
   setState: (s: GameState) => void
   setLoading: (v: boolean) => void
@@ -16,8 +20,14 @@ interface Store {
   setNarrative: (n: string | null) => void
   setGameOver: (g: { result: 'victory' | 'defeat'; message: string } | null) => void
   setPrevState: (s: GameState | null) => void
+  setCapabilities: (c: Capabilities) => void
+  setDebateResult: (r: DebateResult | null) => void
+  setDebateLoading: (v: boolean) => void
+  setSelectedTopic: (t: string | null) => void
   reset: () => void
 }
+
+const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false }
 
 export const useStore = create<Store>((set) => ({
   state: null,
@@ -26,6 +36,10 @@ export const useStore = create<Store>((set) => ({
   narrative: null,
   gameOver: null,
   prevState: null,
+  capabilities: DEFAULT_CAPABILITIES,
+  debateResult: null,
+  debateLoading: false,
+  selectedTopic: null,
 
   setState: (s) => set({ state: s }),
   setLoading: (v) => set({ loading: v }),
@@ -33,7 +47,15 @@ export const useStore = create<Store>((set) => ({
   setNarrative: (n) => set({ narrative: n }),
   setGameOver: (g) => set({ gameOver: g }),
   setPrevState: (s) => set({ prevState: s }),
-  reset: () => set({ state: null, loading: false, error: null, narrative: null, gameOver: null, prevState: null }),
+  setCapabilities: (c) => set({ capabilities: c }),
+  setDebateResult: (r) => set({ debateResult: r }),
+  setDebateLoading: (v) => set({ debateLoading: v }),
+  setSelectedTopic: (t) => set({ selectedTopic: t }),
+  reset: () => set({
+    state: null, loading: false, error: null, narrative: null,
+    gameOver: null, prevState: null, debateResult: null,
+    debateLoading: false, selectedTopic: null,
+  }),
 }))
 
 function evalRule(state: GameState, rule: PreconditionRule): boolean {

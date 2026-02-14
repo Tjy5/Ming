@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from models.game import GameState
+from models.game import GameState, INITIAL_MINISTERS
 
 DB_PATH = Path(__file__).parent.parent / "game_saves.db"
 MAX_SAVES = 20
@@ -63,8 +63,20 @@ _DISASTER_BY_THREAT = {"none": 0, "后金": 40, "民变": 60, "土司": 30, "海
 _TAX_RATE_BY_CONTRIB = {"low": 0.3, "medium": 0.5, "high": 0.8}
 
 
-def _migrate_save(data: dict) -> bool:
-    migrated = False
+
+def _valid_ministers(raw: object) -> bool:
+    if not isinstance(raw, list) or not raw:
+        return False
+    return all(
+        isinstance(m, dict)
+        and isinstance(m.get("name"), str)
+        and isinstance(m.get("faction"), str)
+        for m in raw
+    )
+
+
+def _migrate_save(data: dict) -> list[str]:
+    notes: list[str] = []
 
     # ── time migration ──
     t = data.setdefault("time", {})
@@ -72,13 +84,11 @@ def _migrate_save(data: dict) -> bool:
     if isinstance(year, int) and year < 100:
         year = year + 1627
         t["year"] = year
-        migrated = True
 
     if "era_name" not in t or "era_year" not in t:
         y = year if isinstance(year, int) else 1627
         if "year" not in t:
             t["year"] = y
-            migrated = True
         era = _ERA_CONFIG[0]
         for e in _ERA_CONFIG:
             if e["start_year"] <= y:
@@ -87,9 +97,10 @@ def _migrate_save(data: dict) -> bool:
                 break
         t.setdefault("era_name", era["name"])
         t.setdefault("era_year", y - era["start_year"] + 1)
-        migrated = True
+        notes.append("补充了年号信息")
 
     # ── region migration ──
+    region_migrated = False
     for r in data.get("regions", []):
         stab = r.get("stability", 50)
         threat = r.get("threat", "none")
@@ -97,26 +108,36 @@ def _migrate_save(data: dict) -> bool:
 
         if "civil_morale" not in r:
             r["civil_morale"] = max(0, min(100, stab - 5))
-            migrated = True
+            region_migrated = True
         if "rebellion_risk" not in r:
             r["rebellion_risk"] = 10 if threat == "none" else max(0, min(100, 100 - stab))
-            migrated = True
+            region_migrated = True
         if "tax_rate" not in r:
             r["tax_rate"] = _TAX_RATE_BY_CONTRIB.get(contrib, 0.5)
-            migrated = True
+            region_migrated = True
         if "tax_collected" not in r:
             r["tax_collected"] = 0
-            migrated = True
+            region_migrated = True
         if "disaster_level" not in r:
             r["disaster_level"] = _DISASTER_BY_THREAT.get(threat, 0)
-            migrated = True
+            region_migrated = True
+    if region_migrated:
+        notes.append("补充了分省详细数据")
+
+    # ── minister migration ──
+    ministers_raw = data.get("ministers")
+    if "ministers" not in data:
+        data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
+        notes.append("补充了大臣数据")
+    elif not _valid_ministers(ministers_raw):
+        data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
+        notes.append("重置了损坏的大臣数据")
 
     # ── resolved_script_ids ──
     if "resolved_script_ids" not in data:
         data["resolved_script_ids"] = []
-        migrated = True
 
-    return migrated
+    return notes
 
 
 def load_game(save_id: int) -> tuple[GameState, bool, str]:
@@ -126,9 +147,10 @@ def load_game(save_id: int) -> tuple[GameState, bool, str]:
         raise SaveNotFoundError(save_id)
     try:
         data = json.loads(row["state_json"])
-        migrated = _migrate_save(data)
+        notes = _migrate_save(data)
         state = GameState.model_validate(data)
-        note = "旧存档已自动迁移：补充了分省详细数据与年号信息" if migrated else ""
+        migrated = bool(notes)
+        note = f"旧存档已自动迁移：{'；'.join(notes)}" if notes else ""
         return state, migrated, note
     except (SaveNotFoundError, CorruptSaveError):
         raise

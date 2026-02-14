@@ -1,4 +1,4 @@
-import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPage, ErrorResponse } from '../types/game'
+import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPage, ErrorResponse, DebateResult, Capabilities, Minister, DecreeType } from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
 
@@ -59,6 +59,21 @@ export const api = {
 
   deleteSave: (id: number) =>
     request<{ ok: boolean }>(`/save/${id}`, { method: 'DELETE' }),
+
+  startDebate: (topic: string, category: DecreeType) =>
+    request<DebateResult>('/debate/start', {
+      method: 'POST',
+      body: JSON.stringify({ topic, category }),
+    }),
+
+  silenceDebate: () =>
+    request<{ state: GameState; prestige_change: number }>('/debate/silence', { method: 'POST' }),
+
+  getCapabilities: () =>
+    request<Capabilities>('/capabilities'),
+
+  getMinisters: () =>
+    request<Minister[]>('/ministers'),
 }
 
 export { ApiError }

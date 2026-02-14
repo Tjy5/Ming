@@ -1,15 +1,23 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import type { GameState, DecreeType, StructuredDecree } from '../types/game'
+import type { GameState, DecreeType, StructuredDecree, Capabilities } from '../types/game'
 import { DECREE_LABELS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
 import EdictWritingPanel from './EdictWritingPanel'
+import TopicSelector from './TopicSelector'
 
 interface Props {
   state: GameState
   loading: boolean
+  capabilities: Capabilities
+  hasBlockingEvent: boolean
+  debateLoading: boolean
   onDecree: (decrees: StructuredDecree[]) => void
   onFreeText: (text: string) => void
+  onDebateStart: (topic: string, category: DecreeType) => void
+  prefilledDecree?: StructuredDecree | null
+  prefilledKeywords?: string[]
+  onPrefilledClear?: () => void
 }
 
 type Category = '内政' | '军事' | '外交' | '其他'
@@ -23,16 +31,47 @@ const CATEGORY_DECREES: Record<Category, DecreeType[]> = {
   其他: ['personnel'],
 }
 
-export default function ActionArea({ state, loading, onDecree, onFreeText }: Props) {
+const CATEGORY_TO_DECREE_TYPE: Record<Category, DecreeType> = {
+  内政: 'tax_increase',
+  军事: 'recruit_troops',
+  外交: 'diplomacy',
+  其他: 'personnel',
+}
+
+export default function ActionArea({
+  state, loading, capabilities, hasBlockingEvent, debateLoading,
+  onDecree, onFreeText, onDebateStart,
+  prefilledDecree, prefilledKeywords, onPrefilledClear,
+}: Props) {
   const [text, setText] = useState('')
   const [tab, setTab] = useState<Category>('内政')
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
+  const [showTopics, setShowTopics] = useState(false)
+
+  // Open edict panel from prefilled decree (debate result)
+  const activeEdictType = prefilledDecree ? prefilledDecree.type : edictType
 
   function handleSubmit() {
     const t = text.trim()
     if (!t) return
     onFreeText(t)
     setText('')
+  }
+
+  function handleTopicSelect(topic: string, decreeType: DecreeType) {
+    setShowTopics(false)
+    onDebateStart(topic, decreeType)
+  }
+
+  function handleEdictConfirm(decree: StructuredDecree) {
+    if (prefilledDecree) onPrefilledClear?.()
+    setEdictType(null)
+    onDecree([decree])
+  }
+
+  function handleEdictCancel() {
+    if (prefilledDecree) onPrefilledClear?.()
+    setEdictType(null)
   }
 
   return (
@@ -42,12 +81,34 @@ export default function ActionArea({ state, loading, onDecree, onFreeText }: Pro
           <button
             key={c}
             className={`cat-tab${tab === c ? ' active' : ''}`}
-            onClick={() => setTab(c)}
+            onClick={() => {
+              setTab(c)
+              setShowTopics(false)
+            }}
           >{c}</button>
         ))}
       </div>
 
       <div className="decree-tab-content">
+        {capabilities.debate_supported && (
+          <div style={{ position: 'relative' }}>
+            <button
+              className="debate-btn"
+              disabled={loading || hasBlockingEvent || debateLoading}
+              onClick={() => setShowTopics(v => !v)}
+            >
+              {debateLoading ? '廷推进行中...' : '廷推议事'}
+            </button>
+            {showTopics && (
+              <TopicSelector
+                category={CATEGORY_TO_DECREE_TYPE[tab]}
+                onSelect={handleTopicSelect}
+                onClose={() => setShowTopics(false)}
+              />
+            )}
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           <motion.div
             key={tab}
@@ -86,13 +147,15 @@ export default function ActionArea({ state, loading, onDecree, onFreeText }: Pro
         <button onClick={handleSubmit} disabled={loading || !text.trim()}>下旨</button>
       </div>
 
-      {edictType && (
+      {activeEdictType && (
         <EdictWritingPanel
-          type={edictType}
+          type={activeEdictType}
           state={state}
           loading={loading}
-          onConfirm={(decree) => { setEdictType(null); onDecree([decree]) }}
-          onCancel={() => setEdictType(null)}
+          prefilledDecree={prefilledDecree}
+          keywords={prefilledKeywords}
+          onConfirm={handleEdictConfirm}
+          onCancel={handleEdictCancel}
         />
       )}
     </div>

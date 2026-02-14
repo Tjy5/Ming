@@ -10,3 +10,13 @@ __pycache__/
 # Excluded specific files
 backend/requirements.txt
 nul
+.ace-tool/
+
+# User specified exclusions
+.hypothesis/
+.pytest_cache/
+《历史模拟器：崇祯》试玩报告：要拿什么拯救你，我的大明？.md
+《历史模拟器：崇祯》试玩报告：要拿什么拯救你，我的大明？.pdf
+【历史模拟器：崇祯】内测试玩报告_音频_原文.docx
+requirements2.md
+requirements3.md

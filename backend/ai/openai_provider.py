@@ -9,12 +9,15 @@ import httpx
 import openai
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree
+from models.game import GameState, StructuredDecree, Minister, DebateResult
 from models.enums import DecreeType, PersonnelAction
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
+    build_debate_prompt,
+    DEBATE_SYSTEM_PROMPT,
+    parse_debate_response,
 )
 
 load_dotenv()
@@ -48,7 +51,7 @@ class OpenAIProvider(AIProvider):
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。"},
+                    {"role": "system", "content": "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
@@ -120,7 +123,7 @@ class OpenAIProvider(AIProvider):
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "你是一名为国分忧的大臣。请解释为何不能执行某项政令。"},
+                    {"role": "system", "content": "你是一名为国分忧的大臣。请解释为何不能执行某项政令。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
@@ -128,6 +131,37 @@ class OpenAIProvider(AIProvider):
             return response.choices[0].message.content.strip()
         except Exception:
             return f"陛下，此令行不通：{reason}"
+
+    async def generate_debate_narrative(
+        self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
+    ) -> DebateResult | None:
+        prompt = build_debate_prompt(topic, minister_a, minister_b, game_state)
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": DEBATE_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.8,
+            response_format={"type": "json_object"},
+        )
+        content = (response.choices[0].message.content or "").strip()
+        if not content:
+            return None
+        return parse_debate_response(json.loads(content), minister_a, minister_b)
+
+    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
+        prompt = (
+            "Ming dynasty official portrait, traditional Chinese court painting style. "
+            f"Minister: {minister_name}. {description}. "
+            "Half-body portrait, formal robe, neutral background."
+        )
+        response = await self.client.images.generate(
+            model="dall-e-3", prompt=prompt,
+            size="1024x1024", quality="standard", response_format="b64_json",
+        )
+        b64 = getattr(response.data[0], "b64_json", None) if response.data else None
+        return f"data:image/png;base64,{b64}" if b64 else None
 
     def _build_narrative_prompt(self, delta, state, events, decree):
         # ... prompt construction logic ...

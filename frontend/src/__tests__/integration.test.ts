@@ -7,7 +7,7 @@ function initialState(): GameState {
     time: { year: 1627, month: 1, era_name: '天启', era_year: 7 },
     treasury: 100, population: 100, military_supply: 80,
     civil_morale: 60, military_morale: 70, court_prestige: 75,
-    factions: [], regions: [], active_events: [],
+    factions: [], regions: [], ministers: [], active_events: [],
     history_log: [], decree_count: 0, event_cooldowns: {},
     resolved_script_ids: [],
   }

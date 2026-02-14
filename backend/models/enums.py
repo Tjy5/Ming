@@ -47,3 +47,8 @@ class EventUrgency(str, Enum):
     HIGH = "高"
     MEDIUM = "中"
     LOW = "低"
+
+
+class MinisterStatus(str, Enum):
+    ACTIVE = "active"
+    IDLE = "idle"

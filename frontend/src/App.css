@@ -181,10 +181,7 @@ body {
 
 /* ── Faction Panel ─────────────────────────────────────── */
 .faction-panel {
-  background: var(--bg-panel);
-  border-left: 1px solid #333;
   padding: 12px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -676,3 +673,373 @@ body {
   padding: 0 4px;
   flex-shrink: 0;
 }
+
+/* ── Right Panel Tabs ──────────────────────────────────── */
+.right-panel {
+  background: var(--bg-panel);
+  border-left: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.right-panel-tabs {
+  display: flex;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+.rp-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.rp-tab:hover { color: var(--text-main); }
+.rp-tab.active { color: var(--accent-gold); border-bottom: 2px solid var(--accent-gold); }
+.right-panel-body { flex: 1; overflow-y: auto; }
+
+/* ── Minister Panel ────────────────────────────────────── */
+.minister-panel {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mp-faction-group { display: flex; flex-direction: column; gap: 4px; }
+.mp-faction-header {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  border-left: 3px solid #555;
+  padding-left: 6px;
+  margin-bottom: 2px;
+}
+.mp-card {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.mp-card:hover { border-color: var(--accent-gold); }
+.mp-idle { opacity: 0.5; }
+.mp-idle-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 0.6rem;
+  color: var(--red);
+  background: rgba(224,64,64,0.15);
+  border: 1px solid var(--red);
+  border-radius: 2px;
+  padding: 0 4px;
+}
+.mp-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+.mp-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #fff;
+}
+.mp-info { flex: 1; min-width: 0; }
+.mp-name { font-size: 0.85rem; font-weight: bold; margin-bottom: 2px; }
+.mp-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.mp-tag {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  background: rgba(255,255,255,0.05);
+  border-radius: 2px;
+  padding: 0 4px;
+}
+.mp-abilities { display: flex; flex-direction: column; gap: 2px; }
+.mp-ability-row { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; }
+.mp-ability-label { width: 14px; color: var(--text-dim); flex-shrink: 0; }
+.mp-ability-row .progress-track { flex: 1; height: 4px; }
+.mp-ability-val { width: 20px; text-align: right; color: var(--text-dim); }
+
+/* ── Topic Selector ────────────────────────────────────── */
+.topic-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-gold);
+  border-radius: 4px;
+  padding: 4px;
+  z-index: 50;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+.topic-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+}
+.topic-item:hover { background: rgba(201,168,76,0.1); color: var(--accent-gold); }
+
+/* ── Debate Button ─────────────────────────────────────── */
+.debate-btn {
+  width: 100%;
+  padding: 6px;
+  background: linear-gradient(180deg, #2a3a2a, #1a2a1a);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  font-size: 0.85rem;
+  font-weight: bold;
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 2px;
+  margin-bottom: 6px;
+  position: relative;
+  transition: filter 0.15s;
+}
+.debate-btn:hover:not(:disabled) { filter: brightness(1.2); }
+.debate-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Debate Panel ──────────────────────────────────────── */
+.debate-modal {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: 4px;
+  padding: 20px;
+  max-width: 640px;
+  width: 92%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.debate-topic {
+  text-align: center;
+  color: var(--accent-gold);
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 16px;
+  letter-spacing: 2px;
+}
+.debate-ministers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.debate-minister-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.debate-minister-col .mp-avatar { width: 48px; height: 48px; }
+.dm-name { font-weight: bold; font-size: 0.9rem; }
+.dm-faction { font-size: 0.7rem; color: var(--text-dim); }
+.dm-summary { font-size: 0.75rem; color: var(--text-main); margin-top: 4px; line-height: 1.4; }
+.debate-text {
+  background: var(--bg-card);
+  border: 1px solid #3a3222;
+  border-radius: 4px;
+  padding: 14px 16px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.debate-text p { margin-bottom: 6px; }
+.debate-text p:last-child { margin-bottom: 0; }
+.debate-actions {
+  display: flex;
+  gap: 8px;
+}
+.debate-actions button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+.debate-actions button:hover { filter: brightness(1.15); }
+.debate-adopt {
+  background: linear-gradient(180deg, var(--accent-red), #4a0e0e);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+.debate-silence {
+  background: var(--bg-card);
+  border: 1px solid #444;
+  color: var(--text-dim);
+}
+
+/* ── Edict Redesign (xuan-paper) ──────────────────────── */
+.edict-panel {
+  background: #f5e6c8;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  border: 2px solid var(--accent-gold);
+  border-radius: 4px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  position: relative;
+  overflow: hidden;
+  color: #2a1a0a;
+}
+.edict-panel.sealing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+.edict-header {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #4a2a0a;
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 4px;
+}
+.edict-vertical-title {
+  position: absolute;
+  right: 10px;
+  top: 20px;
+  writing-mode: vertical-rl;
+  font-size: 0.7rem;
+  color: #8a6a4a;
+  letter-spacing: 2px;
+}
+.edict-warn {
+  background: rgba(224,64,64,0.12);
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 2px;
+  margin-bottom: 12px;
+}
+.edict-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.edict-target-btn {
+  background: rgba(42,26,10,0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color 0.15s;
+}
+.edict-target-btn:hover { border-color: #8b4513; }
+.edict-target-btn.selected { border-color: #8b4513; color: #8b4513; background: rgba(139,69,19,0.1); }
+.edict-personnel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.edict-personnel select,
+.edict-personnel input {
+  background: rgba(42,26,10,0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  padding: 6px 10px;
+  font-family: inherit;
+}
+.edict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+.edict-cancel {
+  padding: 6px 16px;
+  background: rgba(42,26,10,0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+}
+.edict-cancel:hover { border-color: #8b4513; }
+.edict-seal-btn {
+  padding: 6px 20px;
+  background: linear-gradient(180deg, #c23b22, #8b2020);
+  border: 1px solid var(--accent-gold);
+  color: #f5e6c8;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+  letter-spacing: 2px;
+}
+.edict-seal-btn:hover:not(:disabled) { filter: brightness(1.2); }
+.edict-seal-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* seal stamp redesign */
+.seal-stamp {
+  width: 64px;
+  height: 64px;
+  border: 3px solid #c23b22;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #c23b22;
+  background: rgba(194,59,34,0.08);
+  position: relative;
+}
+.seal-ink-spread {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(194,59,34,0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* keyword tags */
+.edict-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.edict-keyword {
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  border: 1px solid #b8a080;
+  background: rgba(42,26,10,0.05);
+  color: #4a2a0a;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.edict-keyword:hover { border-color: #8b4513; }
+.edict-keyword.active { border-color: #c23b22; background: rgba(194,59,34,0.1); color: #c23b22; font-weight: bold; }
+.edict-keyword.inert { cursor: default; opacity: 0.5; }

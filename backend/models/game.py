@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
-    PersonnelAction, EventUrgency,
+    PersonnelAction, EventUrgency, MinisterStatus,
 )
 
 
@@ -16,6 +16,22 @@ class Faction(BaseModel):
     satisfaction: int = Field(ge=0, le=100)
     influence: int = Field(ge=0, le=100)
     rebellion_risk: int = Field(ge=0, le=100)
+
+
+# ── Minister ─────────────────────────────────────────────
+
+class MinisterAbilities(BaseModel):
+    civil: int = Field(default=0, ge=0, le=100)
+    military: int = Field(default=0, ge=0, le=100)
+    diplomacy: int = Field(default=0, ge=0, le=100)
+
+
+class Minister(BaseModel):
+    name: str
+    faction: str
+    personality_tags: list[str] = Field(default_factory=list, max_length=3)
+    abilities: MinisterAbilities = Field(default_factory=MinisterAbilities)
+    status: MinisterStatus = MinisterStatus.ACTIVE
 
 
 # ── Region ───────────────────────────────────────────────
@@ -41,6 +57,21 @@ class StructuredDecree(BaseModel):
     target: str | None = None
     sub_action: PersonnelAction | None = None
     parameters: dict | None = None
+
+
+class DebateMinister(BaseModel):
+    name: str
+    faction: str
+    position_summary: str = Field(max_length=50)
+
+
+class DebateResult(BaseModel):
+    debate_text: str
+    minister_a: DebateMinister
+    minister_b: DebateMinister
+    option_a: StructuredDecree
+    option_b: StructuredDecree
+    keywords: list[str] = Field(default_factory=list, max_length=5)
 
 
 # ── Event ────────────────────────────────────────────────
@@ -98,6 +129,7 @@ class GameState(BaseModel):
     # entities
     factions: list[Faction] = Field(default_factory=list)
     regions: list[Region] = Field(default_factory=list)
+    ministers: list[Minister] = Field(default_factory=list)
     active_events: list[GameEvent] = Field(default_factory=list)
     history_log: list[HistoryEntry] = Field(default_factory=list)
     decree_count: int = 0
@@ -153,14 +185,34 @@ INITIAL_REGIONS = [
            civil_morale=60, rebellion_risk=15, tax_rate=0.50, tax_collected=65, disaster_level=10),
 ]
 
+INITIAL_MINISTERS = [
+    Minister(name="魏忠贤", faction="阉党残余", personality_tags=["贪婪", "阴狠", "善于结党"],
+             abilities=MinisterAbilities(civil=60, military=20, diplomacy=40)),
+    Minister(name="徐光启", faction="东林党", personality_tags=["务实", "博学", "开明"],
+             abilities=MinisterAbilities(civil=90, military=30, diplomacy=70)),
+    Minister(name="孙承宗", faction="边将势力", personality_tags=["刚烈", "忠诚", "善战"],
+             abilities=MinisterAbilities(civil=50, military=95, diplomacy=60)),
+    Minister(name="袁崇焕", faction="边将势力", personality_tags=["刚烈", "自负", "善守"],
+             abilities=MinisterAbilities(civil=30, military=90, diplomacy=40)),
+    Minister(name="周延儒", faction="东林党", personality_tags=["圆滑", "善辩", "投机"],
+             abilities=MinisterAbilities(civil=70, military=20, diplomacy=80)),
+    Minister(name="温体仁", faction="勋贵集团", personality_tags=["阴狠", "善于钻营", "排异"],
+             abilities=MinisterAbilities(civil=65, military=15, diplomacy=55)),
+    Minister(name="卢象升", faction="边将势力", personality_tags=["忠诚", "刚烈", "清廉"],
+             abilities=MinisterAbilities(civil=40, military=85, diplomacy=30)),
+    Minister(name="杨嗣昌", faction="勋贵集团", personality_tags=["务实", "善谋", "优柔"],
+             abilities=MinisterAbilities(civil=75, military=60, diplomacy=65)),
+]
+
 
 def create_initial_state() -> GameState:
     state = GameState(
-        time=GameTime(year=1627, month=1, era_name="天启", era_year=7),
+        time=GameTime(year=1627, month=10, era_name="天启", era_year=7),
         treasury=100, population=100, military_supply=80,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
+        ministers=[m.model_copy() for m in INITIAL_MINISTERS],
     )
     from engine.core import inject_script_events
     inject_script_events(state)
@@ -200,3 +252,7 @@ def clamp_state(state: GameState) -> None:
         r.tax_rate = round(max(0.0, min(1.0, r.tax_rate)), 2)
         r.tax_collected = max(0, math.floor(r.tax_collected))
         r.disaster_level = clamp_indicator(r.disaster_level)
+    for m in state.ministers:
+        m.abilities.civil = clamp_indicator(m.abilities.civil)
+        m.abilities.military = clamp_indicator(m.abilities.military)
+        m.abilities.diplomacy = clamp_indicator(m.abilities.diplomacy)

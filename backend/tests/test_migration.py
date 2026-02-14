@@ -1,8 +1,9 @@
 from db.saves import _migrate_save
+from models.game import INITIAL_MINISTERS
 
 
-def _old_save_data(year: int, regions=None) -> dict:
-    return {
+def _old_save_data(year: int, regions=None, include_ministers=False) -> dict:
+    data = {
         "time": {"year": year, "month": 6},
         "treasury": 100, "population": 100, "military_supply": 80,
         "civil_morale": 60, "military_morale": 70, "court_prestige": 75,
@@ -10,6 +11,9 @@ def _old_save_data(year: int, regions=None) -> dict:
         "decree_count": 5, "event_cooldowns": {},
         "regions": regions or [],
     }
+    if include_ministers:
+        data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
+    return data
 
 
 class TestYearMigration:
@@ -56,16 +60,16 @@ class TestYearMigration:
 
     def test_migration_flag_for_relative(self):
         data = _old_save_data(5)
-        migrated = _migrate_save(data)
-        assert migrated is True
+        notes = _migrate_save(data)
+        assert len(notes) > 0
 
     def test_no_migration_for_absolute_with_era(self):
-        data = _old_save_data(1630)
+        data = _old_save_data(1630, include_ministers=True)
         data["time"]["era_name"] = "崇祯"
         data["time"]["era_year"] = 3
         data["resolved_script_ids"] = []
-        migrated = _migrate_save(data)
-        assert migrated is False
+        notes = _migrate_save(data)
+        assert len(notes) == 0
 
 
 class TestEraMigration:
@@ -89,9 +93,9 @@ class TestRegionMigration:
             "control": "朝廷", "threat": "none", "tax_contribution": "medium",
         }
         data = _old_save_data(1627, regions=[region])
-        migrated = _migrate_save(data)
+        notes = _migrate_save(data)
         r = data["regions"][0]
-        assert migrated is True
+        assert len(notes) > 0
         assert "civil_morale" in r
         assert "rebellion_risk" in r
         assert "tax_rate" in r
