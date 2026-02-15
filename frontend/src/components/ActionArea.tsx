@@ -47,6 +47,7 @@ export default function ActionArea({
   const [tab, setTab] = useState<Category>('内政')
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
   const [showTopics, setShowTopics] = useState(false)
+  const actionLocked = loading || debateLoading || hasBlockingEvent
 
   // Open edict panel from prefilled decree (debate result)
   const activeEdictType = prefilledDecree ? prefilledDecree.type : edictType
@@ -94,7 +95,7 @@ export default function ActionArea({
           <div style={{ position: 'relative' }}>
             <button
               className="debate-btn"
-              disabled={loading || hasBlockingEvent || debateLoading}
+              disabled={actionLocked}
               onClick={() => setShowTopics(v => !v)}
             >
               {debateLoading ? '廷推进行中...' : '廷推议事'}
@@ -103,7 +104,6 @@ export default function ActionArea({
               <TopicSelector
                 category={CATEGORY_TO_DECREE_TYPE[tab]}
                 onSelect={handleTopicSelect}
-                onClose={() => setShowTopics(false)}
               />
             )}
           </div>
@@ -124,9 +124,12 @@ export default function ActionArea({
                 <button
                   key={type}
                   className="decree-btn"
-                  disabled={!ok || loading}
+                  disabled={!ok || actionLocked}
                   title={ok ? DECREE_LABELS[type] : PRECONDITION_MESSAGES[type]}
-                  onClick={() => setEdictType(type)}
+                  onClick={() => {
+                    if (actionLocked) return
+                    setEdictType(type)
+                  }}
                 >
                   {DECREE_LABELS[type]}
                 </button>
@@ -140,15 +143,16 @@ export default function ActionArea({
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleSubmit()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && !actionLocked && handleSubmit()}
           placeholder="输入政令（如：加征辽饷）"
-          disabled={loading}
+          disabled={actionLocked}
         />
-        <button onClick={handleSubmit} disabled={loading || !text.trim()}>下旨</button>
+        <button onClick={handleSubmit} disabled={actionLocked || !text.trim()}>下旨</button>
       </div>
 
       {activeEdictType && (
         <EdictWritingPanel
+          key={`${activeEdictType}-${prefilledDecree?.target ?? ''}-${prefilledDecree?.sub_action ?? ''}`}
           type={activeEdictType}
           state={state}
           loading={loading}

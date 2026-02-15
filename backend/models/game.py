@@ -91,6 +91,7 @@ class GameEvent(BaseModel):
     rich_description: str = ""
     choices: list[EventChoice] = Field(default_factory=list)
     is_scripted: bool = False
+    is_blocking: bool = False
     script_id: str | None = None
 
 

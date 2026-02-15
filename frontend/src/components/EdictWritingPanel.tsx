@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { GameState, DecreeType, StructuredDecree, PersonnelAction } from '../types/game'
 import { DECREE_LABELS, REGION_NAMES, DIPLOMACY_TARGETS, PRECONDITION_MESSAGES } from '../types/game'
@@ -36,15 +36,6 @@ export default function EdictWritingPanel({
   const [inkSpread, setInkSpread] = useState(false)
   const submitted = useRef(false)
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null)
-
-  // Init target from prefilled
-  useEffect(() => {
-    if (prefilledDecree?.target) {
-      if (type === 'personnel') setPersonName(prefilledDecree.target)
-      else setTarget(prefilledDecree.target)
-    }
-    if (prefilledDecree?.sub_action) setSubAction(prefilledDecree.sub_action as PersonnelAction)
-  }, [prefilledDecree, type])
 
   const canIssue = checkPrecondition(state, type)
   const needsTarget = type === 'disaster_relief' || type === 'diplomacy' || type === 'personnel'
@@ -87,9 +78,9 @@ export default function EdictWritingPanel({
     }, 200)
   }
 
-  const shakeKeyframes = shaking
-    ? { x: [-2, 2, -2, 2, -2, 2, 0] }
-    : { x: 0 }
+  const stampAnimate = shaking
+    ? { scale: 1, opacity: 1, x: [-2, 2, -2, 2, -2, 2, 0] }
+    : { scale: 1, opacity: 1, x: 0 }
 
   return (
     <div className="modal-overlay" onClick={() => !sealing && onCancel()}>
@@ -186,10 +177,7 @@ export default function EdictWritingPanel({
             <motion.div
               className="seal-stamp"
               initial={{ scale: 3, opacity: 0 }}
-              animate={[
-                { scale: 1, opacity: 1 },
-                shakeKeyframes,
-              ]}
+              animate={stampAnimate}
               transition={{ duration: 0.4, ease: 'easeOut' }}
               onAnimationComplete={onSealLanded}
             >

@@ -18,6 +18,7 @@ from .provider import (
     build_debate_prompt,
     DEBATE_SYSTEM_PROMPT,
     parse_debate_response,
+    extract_json_object_text,
 )
 
 load_dotenv()
@@ -94,8 +95,8 @@ class GoogleProvider(AIProvider):
                     response_mime_type="application/json",
                 ),
             )
-            content = response.text.strip()
-            data = json.loads(content)
+            content = (response.text or "").strip()
+            data = json.loads(extract_json_object_text(content))
 
             if "error" in data:
                 return parse_error(data["error"])
@@ -183,7 +184,8 @@ class GoogleProvider(AIProvider):
         content = (response.text or "").strip()
         if not content:
             return None
-        return parse_debate_response(json.loads(content), minister_a, minister_b)
+        payload = json.loads(extract_json_object_text(content))
+        return parse_debate_response(payload, minister_a, minister_b)
 
     async def generate_portrait(self, minister_name: str, description: str) -> str | None:
         generate_images = getattr(getattr(getattr(self.client, "aio", None), "models", None), "generate_images", None)
@@ -255,7 +257,13 @@ class GoogleProvider(AIProvider):
             ]
         }}
 
-        如果无法理解或涉及敏感/无效操作，返回：
+        解析原则（必须遵守）：
+        1) 尽量把任何有政务意图的输入映射为一个或多个可执行政令，不要因为措辞激烈就拒绝。
+        2) 输入含“斩杀/诛杀/处斩/镇压/清洗”等，优先映射为 harsh_punishment。
+        3) 输入明确是人事任免时，使用 personnel，并给出 sub_action=appoint 或 dismiss。
+        4) 只有在输入完全不包含政务意图（闲聊、乱码）时，才返回 error。
+
+        仅在无法识别任何政务意图时，返回：
         {{
             "error": "拒绝理由"
         }}

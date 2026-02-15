@@ -18,6 +18,16 @@ def parse_error(message: str, error_type: str = PARSE_ERROR_TYPE_PARSE) -> dict:
     return {"error": message, "error_type": error_type}
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+RULE_PARSE_FALLBACK_ENABLED = _env_bool("AI_RULE_PARSE_FALLBACK", False)
+
+
 def _is_non_retryable_portrait_error(exc: Exception) -> bool:
     msg = str(exc).lower()
     markers = (
@@ -95,6 +105,7 @@ KEYWORD_MAP: list[tuple[re.Pattern, DecreeType, dict | None]] = [
     (re.compile(r"外交|遣使|出使|议和"), DecreeType.DIPLOMACY, None),
     (re.compile(r"赈灾|赈济|救灾|拨银"), DecreeType.DISASTER_RELIEF, None),
     (re.compile(r"严刑|峻法|严法|重典|酷刑"), DecreeType.HARSH_PUNISHMENT, None),
+    (re.compile(r"斩首|斩杀|问斩|处斩|诛杀|诛灭"), DecreeType.HARSH_PUNISHMENT, None),
 ]
 
 REGION_KEYWORDS = re.compile(r"京畿|辽东|陕西|江南|中原|山东|云贵|川蜀")
@@ -161,6 +172,19 @@ class MockProvider(AIProvider):
         return None
 
 
+async def _local_rule_parse(
+    text: str, game_state: GameState,
+) -> list[StructuredDecree] | None:
+    """Fallback parser using local keyword rules when AI parser rejects input."""
+    fallback = await MockProvider().parse_free_input(text, game_state)
+    if isinstance(fallback, dict):
+        return None
+    validated = _validate_decrees(fallback)
+    if isinstance(validated, dict):
+        return None
+    return validated
+
+
 # ── Factory ──────────────────────────────────────────────
 
 # from .openai_provider import OpenAIProvider  <-- REMOVED
@@ -185,6 +209,10 @@ def get_provider(name: str | None = None) -> AIProvider:
     if name == "google":
          from .google_provider import GoogleProvider
          return ResilientProvider(GoogleProvider())
+
+    if name == "h":
+         from .h_provider import HProvider
+         return ResilientProvider(HProvider())
 
     cls = _PROVIDERS.get(name)
     if cls is None:
@@ -215,8 +243,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 logging.error(f"generate_narrative attempt {attempt+1}/{self._retries} failed: {e}")
                 if attempt == self._retries - 1:
-                    return "（AI服务暂时不可用，数值已更新）"
-        return "（AI服务暂时不可用，数值已更新）"
+                    return "（AI服务响应异常，但政令已执行）"
+        return "（AI服务响应异常，但政令已执行）"
 
     async def parse_free_input(
         self, text: str, game_state: GameState,
@@ -228,15 +256,27 @@ class ResilientProvider(AIProvider):
                     timeout=self._timeout,
                 )
                 if isinstance(result, dict):
+                    if RULE_PARSE_FALLBACK_ENABLED:
+                        fallback = await _local_rule_parse(text, game_state)
+                        if fallback is not None:
+                            return fallback
                     return result
                 return _validate_decrees(result)
             except Exception as e:
                 logging.error(f"parse_free_input attempt {attempt+1}/{self._retries} failed: {e}")
                 if attempt == self._retries - 1:
+                    if RULE_PARSE_FALLBACK_ENABLED:
+                        fallback = await _local_rule_parse(text, game_state)
+                        if fallback is not None:
+                            return fallback
                     return parse_error(
                         "AI解析服务暂时不可用，请使用按钮操作",
                         PARSE_ERROR_TYPE_UNAVAILABLE,
                     )
+        if RULE_PARSE_FALLBACK_ENABLED:
+            fallback = await _local_rule_parse(text, game_state)
+            if fallback is not None:
+                return fallback
         return parse_error(
             "AI解析服务暂时不可用，请使用按钮操作",
             PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -310,9 +350,11 @@ def build_debate_prompt(
 
 
 DEBATE_SYSTEM_PROMPT = (
-    "你是崇祯模拟器的朝堂辩论生成器。围绕议题让两位大臣辩论，仅输出JSON。"
+    "你是崇祯模拟器的朝堂辩论生成器。仅输出一个JSON对象，不要输出Markdown代码块或额外文字。"
     "字段：debate_text（200-300字），minister_a_position（≤50字），minister_b_position（≤50字），"
     "option_a（{type,target,sub_action}），option_b（同），keywords（字符串数组，≤5个，去重）。"
+    "type只能是：tax_increase,tax_decrease,recruit_troops,disband_troops,personnel,diplomacy,disaster_relief,harsh_punishment。"
+    "sub_action仅在type=personnel时可用，且只能是appoint或dismiss；其它类型必须为null或省略。"
 )
 
 
@@ -354,15 +396,133 @@ def parse_debate_response(
     )
 
 
+def extract_json_object_text(raw: str) -> str:
+    text = (raw or "").strip()
+    if not text:
+        return text
+
+    # Handle fenced output like ```json ... ```
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text, flags=re.IGNORECASE).strip()
+
+    if text.startswith("{") and text.endswith("}"):
+        return text
+
+    start = text.find("{")
+    if start < 0:
+        return text
+    depth = 0
+    for idx in range(start, len(text)):
+        ch = text[idx]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:idx + 1]
+    return text
+
+
+def _coerce_decree_type(payload: dict) -> DecreeType | None:
+    raw_type = payload.get("type")
+    if isinstance(raw_type, DecreeType):
+        return raw_type
+    if isinstance(raw_type, str):
+        try:
+            return DecreeType(raw_type.strip())
+        except ValueError:
+            pass
+
+    parts = []
+    for key in ("type", "target", "sub_action"):
+        v = payload.get(key)
+        if isinstance(v, str) and v.strip():
+            parts.append(v.strip().lower())
+    blob = " ".join(parts)
+    if not blob:
+        return None
+
+    # tax
+    if re.search(r"tax|税|赋|levy|taxation", blob):
+        if re.search(r"increase|raise|add|加|增|higher|heavy", blob):
+            return DecreeType.TAX_INCREASE
+        if re.search(r"decrease|reduce|cut|免|减|降|lower", blob):
+            return DecreeType.TAX_DECREASE
+    if re.search(r"agricultur|farm|farming|民生|休养|减负|薄赋", blob):
+        return DecreeType.TAX_DECREASE
+
+    # military
+    if re.search(r"recruit|conscript|enlist|raise.*troop|征兵|募兵|招兵|增兵", blob):
+        return DecreeType.RECRUIT_TROOPS
+    if re.search(r"disband|demobil|reduce.*troop|裁兵|裁军|遣散", blob):
+        return DecreeType.DISBAND_TROOPS
+
+    # policy domains
+    if re.search(r"diplom|foreign|envoy|alliance|peace|外交|出使|遣使|议和", blob):
+        return DecreeType.DIPLOMACY
+    if re.search(r"disaster|relief|famine|flood|赈灾|赈济|救灾", blob):
+        return DecreeType.DISASTER_RELIEF
+    if re.search(r"harsh|punish|strict.*law|刑|峻法|重典|酷刑", blob):
+        return DecreeType.HARSH_PUNISHMENT
+    if re.search(r"personnel|appoint|dismiss|人事|任命|罢免|撤职|调任", blob):
+        return DecreeType.PERSONNEL
+
+    return None
+
+
+def _coerce_personnel_action(payload: dict) -> PersonnelAction | None:
+    raw = payload.get("sub_action")
+    if isinstance(raw, PersonnelAction):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return PersonnelAction(raw.strip())
+        except ValueError:
+            pass
+
+    parts = []
+    for key in ("type", "target", "sub_action"):
+        v = payload.get(key)
+        if isinstance(v, str) and v.strip():
+            parts.append(v.strip().lower())
+    blob = " ".join(parts)
+    if re.search(r"dismiss|remove|fire|罢免|撤职|免职|贬", blob):
+        return PersonnelAction.DISMISS
+    if re.search(r"appoint|promote|assign|任命|擢升|提拔", blob):
+        return PersonnelAction.APPOINT
+    return None
+
+
 def _parse_decree_option(payload) -> StructuredDecree | None:
     if not isinstance(payload, dict):
         return None
     try:
         d = dict(payload)
-        d["type"] = DecreeType(d["type"])
-        d["sub_action"] = PersonnelAction(d["sub_action"]) if d.get("sub_action") else None
-        d.setdefault("target", None)
-        return StructuredDecree(**d)
+        decree_type = _coerce_decree_type(d)
+        if decree_type is None:
+            return None
+
+        target = d.get("target")
+        if isinstance(target, str):
+            target = target.strip() or None
+        else:
+            target = None
+
+        sub_action = None
+        if decree_type == DecreeType.PERSONNEL:
+            sub_action = _coerce_personnel_action(d)
+
+        params = d.get("parameters")
+        if not isinstance(params, dict):
+            params = None
+
+        return StructuredDecree(
+            type=decree_type,
+            target=target,
+            sub_action=sub_action,
+            parameters=params,
+        )
     except Exception:
         return None
 

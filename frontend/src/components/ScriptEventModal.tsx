@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Markdown from 'react-markdown'
 import type { GameEvent, GameState, StructuredDecree } from '../types/game'
 import { PRECONDITION_MESSAGES } from '../types/game'
@@ -19,6 +20,13 @@ function disabledReason(state: GameState, decrees: StructuredDecree[]): string |
 export default function ScriptEventModal({ event, state, onChoose }: Props) {
   const scriptId = event.script_id!
   const text = event.rich_description || event.description
+  const [submitting, setSubmitting] = useState(false)
+
+  function handleChoose(decrees: StructuredDecree[]) {
+    if (submitting) return
+    setSubmitting(true)
+    onChoose(decrees, scriptId)
+  }
 
   return (
     <div className="modal-overlay">
@@ -29,7 +37,11 @@ export default function ScriptEventModal({ event, state, onChoose }: Props) {
         </div>
         <div className="script-choices">
           {event.choices.length === 0 ? (
-            <button className="modal-btn primary" onClick={() => onChoose([], scriptId)}>
+            <button
+              className="modal-btn primary"
+              disabled={submitting}
+              onClick={() => handleChoose([])}
+            >
               知道了
             </button>
           ) : event.choices.map((c, i) => {
@@ -38,8 +50,8 @@ export default function ScriptEventModal({ event, state, onChoose }: Props) {
               <button
                 key={i}
                 className={`script-choice-btn${reason ? ' disabled' : ''}`}
-                disabled={!!reason}
-                onClick={() => onChoose(c.decrees, scriptId)}
+                disabled={!!reason || submitting}
+                onClick={() => handleChoose(c.decrees)}
               >
                 <span className="sc-label">{c.label}</span>
                 <span className="sc-desc">{c.description}</span>

@@ -3,8 +3,13 @@ import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPag
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
 
 class ApiError extends Error {
-  constructor(public status: number, public body: ErrorResponse) {
+  status: number
+  body: ErrorResponse
+
+  constructor(status: number, body: ErrorResponse) {
     super(body.message)
+    this.status = status
+    this.body = body
   }
 }
 

@@ -58,7 +58,11 @@ def check_preconditions(state: GameState, decree: StructuredDecree) -> str | Non
     return None
 
 
-def validate_target(decree: StructuredDecree) -> str | None:
+def _minister_exists(state: GameState, name: str) -> bool:
+    return any(m.name == name for m in state.ministers)
+
+
+def validate_target(decree: StructuredDecree, state: GameState | None = None) -> str | None:
     req = DECREE_TARGET_REQUIRED.get(decree.type)
     if req is None:
         return None
@@ -68,6 +72,8 @@ def validate_target(decree: StructuredDecree) -> str | None:
     elif req == "person":
         if not decree.target or not decree.sub_action:
             return TARGET_MISSING_MESSAGES[decree.type]
+        if state is not None and not _minister_exists(state, decree.target):
+            return "任免目标人物不存在"
     elif req == "diplomacy_target":
         if not decree.target or decree.target not in DIPLOMACY_TARGETS:
             return TARGET_MISSING_MESSAGES[decree.type]
@@ -376,6 +382,7 @@ def _script_to_event(se: ScriptEvent, year: int, month: int) -> GameEvent:
             for c in se.choices
         ],
         is_scripted=True,
+        is_blocking=se.is_blocking,
         script_id=se.script_id,
     )
 

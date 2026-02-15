@@ -3,7 +3,7 @@ import type { Minister, MinisterAbilities } from '../types/game'
 import { getPortraitUrl } from '../utils/portraits'
 
 interface Props {
-  ministers: Minister[]
+  ministers?: Minister[] | null
 }
 
 const FACTION_COLORS: Record<string, string> = {
@@ -78,16 +78,26 @@ function MinisterCard({ minister }: { minister: Minister }) {
 }
 
 export default function MinisterPanel({ ministers }: Props) {
-  const grouped = ministers.reduce<Record<string, Minister[]>>((acc, m) => {
+  const safeMinisters = Array.isArray(ministers) ? ministers : []
+  const grouped = safeMinisters.reduce<Record<string, Minister[]>>((acc, m) => {
     ;(acc[m.faction] ??= []).push(m)
     return acc
   }, {})
 
-  const factionOrder = ['东林党', '阉党残余', '勋贵集团', '边将势力']
+  const knownFactionOrder = ['东林党', '阉党残余', '勋贵集团', '边将势力']
+  const knownFactions = knownFactionOrder.filter(fname => grouped[fname]?.length)
+  const unknownFactions = Object.keys(grouped)
+    .filter(fname => !knownFactionOrder.includes(fname))
+    .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  const displayFactions = [...knownFactions, ...unknownFactions]
+
+  if (!displayFactions.length) {
+    return <div className="minister-panel minister-panel-empty">暂无大臣数据</div>
+  }
 
   return (
     <div className="minister-panel">
-      {factionOrder.map(fname => {
+      {displayFactions.map(fname => {
         const members = grouped[fname]
         if (!members?.length) return null
         return (

@@ -6,6 +6,8 @@ requirements.md
 # Python
 __pycache__/
 *.pyc
+.env
+backend/.env
 
 # Excluded specific files
 backend/requirements.txt

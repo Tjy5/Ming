@@ -39,6 +39,11 @@ class TestInitialScriptInjection:
         has_safe = any(len(c.decrees) == 0 for c in evt.choices)
         assert has_safe
 
+    def test_opening_event_keeps_blocking_flag(self):
+        state = create_initial_state()
+        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
+        assert evt.is_blocking is True
+
     def test_opening_triggers_at_1627_10(self):
         state = create_initial_state()
         assert state.time.year == 1627
@@ -165,6 +170,8 @@ class TestConditionalScripts:
         state.factions = [Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=50)]
         injected = inject_script_events(state)
         assert "阉党残余反扑" in injected
+        evt = next(e for e in state.active_events if e.script_id == "eunuch-backlash")
+        assert evt.is_blocking is False
 
     def test_condition_false_no_resolved(self):
         state = _minimal_state(year=1627, month=12)

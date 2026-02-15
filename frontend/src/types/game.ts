@@ -69,6 +69,7 @@ export interface GameEvent {
   rich_description: string
   choices: EventChoice[]
   is_scripted: boolean
+  is_blocking: boolean
   script_id: string | null
 }
 

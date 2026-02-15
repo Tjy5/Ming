@@ -4,16 +4,14 @@ import { DEBATE_TOPICS } from '../types/game'
 interface Props {
   category: DecreeType
   onSelect: (topic: string, decreeType: DecreeType) => void
-  onClose: () => void
 }
 
-export default function TopicSelector({ category, onSelect, onClose }: Props) {
+export default function TopicSelector({ category, onSelect }: Props) {
   const topics = DEBATE_TOPICS[category] ?? []
   if (!topics.length) return null
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={onClose} />
       <div className="topic-popover">
         {topics.map(t => (
           <button

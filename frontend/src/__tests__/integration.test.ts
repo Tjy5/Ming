@@ -20,6 +20,7 @@ function openingScriptEvent(): GameEvent {
     urgency: '高',
     triggered_year: 1627, triggered_month: 1,
     rich_description: '**天启七年，正月。** ...',
+    is_blocking: true,
     is_scripted: true, script_id: 'tianqi-7-opening',
     choices: [
       {

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getTooltipText, getTaxCollectedRanks } from '../components/RegionMap'
-import type { ViewMode } from '../components/RegionMap'
+import { getTooltipText, getTaxCollectedRanks, type ViewMode } from '../components/regionMapUtils'
 import type { Region } from '../types/game'
 
 function makeRegion(overrides: Partial<Region> = {}): Region {

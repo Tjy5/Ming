@@ -149,6 +149,7 @@ async def new_game():
 
 @router.post("/decree")
 async def execute_decree(req: DecreeRequest):
+    global _state
     if _lock.locked():
         raise HTTPException(409, detail=ErrorResponse(
             error_code="decree_in_progress",
@@ -156,7 +157,7 @@ async def execute_decree(req: DecreeRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         provider = _get_provider()
 
         if not req.decrees and not req.source_script_id:
@@ -177,7 +178,7 @@ async def execute_decree(req: DecreeRequest):
                     details={"ai_narrative": narrative},
                 ).model_dump())
 
-            target_err = validate_target(decree)
+            target_err = validate_target(decree, state)
             if target_err:
                 raise HTTPException(422, detail=ErrorResponse(
                     error_code="invalid_decree",
@@ -235,6 +236,9 @@ async def execute_decree(req: DecreeRequest):
                 game_time=state.time, game_over=game_over,
             ).model_dump()
 
+        # commit only after all checks/executions pass (atomic multi-decree semantics)
+        _state = state
+
         # refresh state in response after script cleanup
         last_response["state"] = state.model_dump()
         return last_response
@@ -271,6 +275,8 @@ async def get_state():
 
 @router.get("/history")
 async def get_history(offset: int = 0, limit: int = 20):
+    offset = max(0, offset)
+    limit = max(1, min(100, limit))
     state = _get_state()
     total = len(state.history_log)
     entries = state.history_log[offset:offset + limit]

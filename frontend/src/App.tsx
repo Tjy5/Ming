@@ -38,6 +38,7 @@ function App() {
   const toastTimer = useRef<number>(0)
   const capsFetched = useRef(false)
   const capsFetchInFlight = useRef(false)
+  const decreeInFlight = useRef(false)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -79,12 +80,19 @@ function App() {
   // Auto-open blocking scripted events
   useEffect(() => {
     if (!state || scriptEvent || loading) return
-    const blocking = state.active_events.find(e => e.is_scripted && e.choices.length > 0)
+    const blocking = state.active_events.find(
+      e => e.is_scripted && e.is_blocking && e.choices.length > 0,
+    )
     if (blocking) setScriptEvent(blocking)
   }, [state, scriptEvent, loading])
 
   async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string) {
     if (!state) return
+    if (decreeInFlight.current) {
+      showToast('正在处理上一道政令，请稍候')
+      return
+    }
+    decreeInFlight.current = true
     setLoading(true)
     setError(null)
     setPrevState(state)
@@ -97,7 +105,7 @@ function App() {
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 409) {
-          showToast('正在处理上一道政令，请稍候')
+          showToast(e.body.message || '正在处理上一道政令，请稍候')
         } else {
           const ai = e.body.details?.ai_narrative
           if (ai) setNarrative(ai)
@@ -107,6 +115,7 @@ function App() {
         showToast('网络错误，请重试')
       }
     } finally {
+      decreeInFlight.current = false
       setLoading(false)
     }
   }
@@ -196,7 +205,9 @@ function App() {
     if (migrationNote) showToast(migrationNote)
   }
 
-  const hasBlockingEvent = !!state?.active_events.some(e => e.is_scripted && e.choices.length > 0)
+  const hasBlockingEvent = !!state?.active_events.some(
+    e => e.is_scripted && e.is_blocking && e.choices.length > 0,
+  )
 
   if (!state) {
     return (
