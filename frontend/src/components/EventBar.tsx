@@ -4,7 +4,9 @@ import type { GameEvent } from '../types/game'
 
 interface Props {
   events: GameEvent[]
+  pendingMemorials?: number
   onScriptClick?: (event: GameEvent) => void
+  onMemorialClick?: () => void
 }
 
 function urgClass(u: string): string {
@@ -13,7 +15,7 @@ function urgClass(u: string): string {
   return 'urg-low'
 }
 
-export default function EventBar({ events, onScriptClick }: Props) {
+export default function EventBar({ events, pendingMemorials = 0, onScriptClick, onMemorialClick }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null)
   const recent = events.slice(-5).reverse()
 
@@ -28,6 +30,13 @@ export default function EventBar({ events, onScriptClick }: Props) {
   return (
     <div className="event-bar">
       <div className="event-bar-title">近期事件</div>
+      {pendingMemorials > 0 && (
+        <div className="event-item memorial-notify" onClick={onMemorialClick}>
+          <span className="event-badge urg-high" />
+          <span className="event-title">奏折待批</span>
+          <span className="memorial-badge">{pendingMemorials}</span>
+        </div>
+      )}
       {recent.length === 0 && <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>暂无事件</div>}
       {recent.map((e, i) => (
         <div key={`${e.name}-${i}`}>

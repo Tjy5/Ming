@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
-    PersonnelAction, EventUrgency, MinisterStatus,
+    PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus,
 )
 
 
@@ -32,6 +32,7 @@ class Minister(BaseModel):
     personality_tags: list[str] = Field(default_factory=list, max_length=3)
     abilities: MinisterAbilities = Field(default_factory=MinisterAbilities)
     status: MinisterStatus = MinisterStatus.ACTIVE
+    loyalty: int = Field(default=50, ge=0, le=100)
 
 
 # ── Region ───────────────────────────────────────────────
@@ -59,6 +60,113 @@ class StructuredDecree(BaseModel):
     parameters: dict | None = None
 
 
+# ── Memorial ────────────────────────────────────────────
+
+class Memorial(BaseModel):
+    id: str
+    author_name: str
+    author_faction: str
+    title: str
+    content: str
+    suggested_decrees: list[StructuredDecree] = Field(default_factory=list)
+    trigger_reason: str
+    urgency: str
+    created_year: int
+    created_month: int
+    status: MemorialStatus = MemorialStatus.PENDING
+
+
+class MinisterReaction(BaseModel):
+    minister_name: str
+    faction: str
+    reaction_type: str
+    reaction_text: str
+    loyalty_change: int
+
+
+class FreeformResult(BaseModel):
+    effects: dict[str, int | float | str] = Field(default_factory=dict)
+    narrative: str = ""
+    reactions: list[MinisterReaction] = Field(default_factory=list)
+    rationale: str = ""
+    new_events: list[dict] = Field(default_factory=list)
+
+
+# ── Court Assembly ──────────────────────────────────────
+
+class AssemblyParticipant(BaseModel):
+    name: str
+    faction: str
+    position: str
+    argument_text: str
+
+
+class PolicySuggestion(BaseModel):
+    title: str
+    description: str
+    related_decree: StructuredDecree
+    supporter_names: list[str] = Field(default_factory=list)
+
+
+class CourtAssembly(BaseModel):
+    topic: str
+    decree_type: DecreeType
+    participants: list[AssemblyParticipant] = Field(default_factory=list)
+    suggestions: list[PolicySuggestion] = Field(default_factory=list)
+    debate_text: str = ""
+    consensus: str = ""
+    silenced: bool = False
+
+
+# ── Turn Summary ────────────────────────────────────────
+
+class IndicatorTrend(BaseModel):
+    name: str
+    before: int
+    after: int
+
+
+class FactionChange(BaseModel):
+    name: str
+    satisfaction_before: int
+    satisfaction_after: int
+    rebellion_risk_before: int
+    rebellion_risk_after: int
+
+
+class RegionChange(BaseModel):
+    name: str
+    stability_before: int
+    stability_after: int
+    control_before: str
+    control_after: str
+    threat_before: str
+    threat_after: str
+
+
+class MinisterChange(BaseModel):
+    name: str
+    loyalty_before: int
+    loyalty_after: int
+    status_before: str
+    status_after: str
+
+
+class TurnSummary(BaseModel):
+    year: int
+    month: int
+    era_name: str
+    era_year: int
+    commentary: str = ""
+    major_events: list[str] = Field(default_factory=list)
+    action_implications: list[str] = Field(default_factory=list)
+    indicator_trends: list[IndicatorTrend] = Field(default_factory=list)
+    faction_changes: list[FactionChange] = Field(default_factory=list)
+    region_changes: list[RegionChange] = Field(default_factory=list)
+    minister_changes: list[MinisterChange] = Field(default_factory=list)
+    pending_memorials_count: int = 0
+
+
 class DebateMinister(BaseModel):
     name: str
     faction: str
@@ -80,6 +188,8 @@ class EventChoice(BaseModel):
     label: str
     description: str = ""
     decrees: list[StructuredDecree] = Field(default_factory=list)
+    loyalty_effects: list[list] = Field(default_factory=list)
+    state_effects: dict[str, int] = Field(default_factory=dict)
 
 
 class GameEvent(BaseModel):
@@ -136,6 +246,11 @@ class GameState(BaseModel):
     decree_count: int = 0
     event_cooldowns: dict[str, int] = Field(default_factory=dict)
     resolved_script_ids: set[str] = Field(default_factory=set)
+    memorials: list[Memorial] = Field(default_factory=list)
+    memorial_cooldowns: dict[str, int] = Field(default_factory=dict)
+    last_assembly: CourtAssembly | None = None
+    loyalty_zero_triggered: set[str] = Field(default_factory=set)
+    last_assembly_month: int = 0
 
 
 # ── DecreeResponse ───────────────────────────────────────
@@ -148,6 +263,9 @@ class DecreeResponse(BaseModel):
     newly_triggered_events: list[str] = Field(default_factory=list)
     game_time: GameTime = Field(default_factory=GameTime)
     game_over: dict | None = None
+    minister_reactions: list[MinisterReaction] = Field(default_factory=list)
+    turn_summary: TurnSummary | None = None
+    memorial_triggers: list[Memorial] = Field(default_factory=list)
 
 
 # ── Error ────────────────────────────────────────────────
@@ -188,21 +306,21 @@ INITIAL_REGIONS = [
 
 INITIAL_MINISTERS = [
     Minister(name="魏忠贤", faction="阉党残余", personality_tags=["贪婪", "阴狠", "善于结党"],
-             abilities=MinisterAbilities(civil=60, military=20, diplomacy=40)),
+             abilities=MinisterAbilities(civil=60, military=20, diplomacy=40), loyalty=50),
     Minister(name="徐光启", faction="东林党", personality_tags=["务实", "博学", "开明"],
-             abilities=MinisterAbilities(civil=90, military=30, diplomacy=70)),
+             abilities=MinisterAbilities(civil=90, military=30, diplomacy=70), loyalty=50),
     Minister(name="孙承宗", faction="边将势力", personality_tags=["刚烈", "忠诚", "善战"],
-             abilities=MinisterAbilities(civil=50, military=95, diplomacy=60)),
+             abilities=MinisterAbilities(civil=50, military=95, diplomacy=60), loyalty=50),
     Minister(name="袁崇焕", faction="边将势力", personality_tags=["刚烈", "自负", "善守"],
-             abilities=MinisterAbilities(civil=30, military=90, diplomacy=40)),
+             abilities=MinisterAbilities(civil=30, military=90, diplomacy=40), loyalty=50),
     Minister(name="周延儒", faction="东林党", personality_tags=["圆滑", "善辩", "投机"],
-             abilities=MinisterAbilities(civil=70, military=20, diplomacy=80)),
+             abilities=MinisterAbilities(civil=70, military=20, diplomacy=80), loyalty=50),
     Minister(name="温体仁", faction="勋贵集团", personality_tags=["阴狠", "善于钻营", "排异"],
-             abilities=MinisterAbilities(civil=65, military=15, diplomacy=55)),
+             abilities=MinisterAbilities(civil=65, military=15, diplomacy=55), loyalty=50),
     Minister(name="卢象升", faction="边将势力", personality_tags=["忠诚", "刚烈", "清廉"],
-             abilities=MinisterAbilities(civil=40, military=85, diplomacy=30)),
+             abilities=MinisterAbilities(civil=40, military=85, diplomacy=30), loyalty=50),
     Minister(name="杨嗣昌", faction="勋贵集团", personality_tags=["务实", "善谋", "优柔"],
-             abilities=MinisterAbilities(civil=75, military=60, diplomacy=65)),
+             abilities=MinisterAbilities(civil=75, military=60, diplomacy=65), loyalty=50),
 ]
 
 
@@ -254,6 +372,7 @@ def clamp_state(state: GameState) -> None:
         r.tax_collected = max(0, math.floor(r.tax_collected))
         r.disaster_level = clamp_indicator(r.disaster_level)
     for m in state.ministers:
+        m.loyalty = clamp_indicator(m.loyalty)
         m.abilities.civil = clamp_indicator(m.abilities.civil)
         m.abilities.military = clamp_indicator(m.abilities.military)
         m.abilities.diplomacy = clamp_indicator(m.abilities.diplomacy)

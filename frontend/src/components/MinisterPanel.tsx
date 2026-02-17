@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import type { Minister, MinisterAbilities } from '../types/game'
+import { useState, useEffect, useMemo } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import type { Minister, MinisterAbilities, MinisterReaction } from '../types/game'
 import { getPortraitUrl } from '../utils/portraits'
 
 interface Props {
   ministers?: Minister[] | null
+  reactions?: MinisterReaction[]
 }
 
 const FACTION_COLORS: Record<string, string> = {
@@ -45,8 +47,25 @@ function Portrait({ minister }: { minister: Minister }) {
   )
 }
 
-function MinisterCard({ minister }: { minister: Minister }) {
+function loyaltyColor(v: number) {
+  if (v > 60) return 'var(--green)'
+  if (v >= 30) return 'var(--yellow)'
+  return 'var(--red)'
+}
+
+function MinisterCard({ minister, reaction }: { minister: Minister; reaction?: MinisterReaction }) {
   const idle = minister.status === 'idle'
+  const [showReaction, setShowReaction] = useState(false)
+
+  const reactionKey = reaction ? `${reaction.minister_name}:${reaction.reaction_type}:${reaction.loyalty_change}` : ''
+
+  useEffect(() => {
+    if (!reactionKey) return
+    setShowReaction(true)
+    const t = setTimeout(() => setShowReaction(false), 3000)
+    return () => clearTimeout(t)
+  }, [reactionKey])
+
   return (
     <div className={`mp-card${idle ? ' mp-idle' : ''}`}>
       <Portrait minister={minister} />
@@ -70,15 +89,42 @@ function MinisterCard({ minister }: { minister: Minister }) {
               <span className="mp-ability-val">{minister.abilities[key]}</span>
             </div>
           ))}
+          <div className={`mp-ability-row mp-loyalty-bar${minister.loyalty < 30 ? ' loyalty-low' : ''}`} style={{ marginTop: 2 }}>
+            <span className="mp-ability-label">忠</span>
+            <div className="progress-track">
+              <div
+                className="progress-fill"
+                style={{ width: `${minister.loyalty}%`, backgroundColor: loyaltyColor(minister.loyalty) }}
+              />
+            </div>
+            <span className="mp-ability-val">{minister.loyalty}</span>
+          </div>
         </div>
       </div>
       {idle && <div className="mp-idle-badge">赋闲</div>}
+      <AnimatePresence>
+        {showReaction && reaction && (
+          <motion.div
+            className={`mp-reaction-icon ${reaction.reaction_type === 'support' ? 'mp-reaction-support' : 'mp-reaction-oppose'}`}
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            {reaction.reaction_type === 'support' ? '↑' : '↓'}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
-export default function MinisterPanel({ ministers }: Props) {
-  const safeMinisters = Array.isArray(ministers) ? ministers : []
+export default function MinisterPanel({ ministers, reactions }: Props) {
+  const safeMinisters = Array.isArray(ministers) ? ministers.filter(m => m.status !== 'removed') : []
+  const reactionMap = useMemo(() => {
+    const m = new Map<string, MinisterReaction>()
+    reactions?.forEach(r => m.set(r.minister_name, r))
+    return m
+  }, [reactions])
   const grouped = safeMinisters.reduce<Record<string, Minister[]>>((acc, m) => {
     ;(acc[m.faction] ??= []).push(m)
     return acc
@@ -106,7 +152,7 @@ export default function MinisterPanel({ ministers }: Props) {
               {fname}
             </div>
             {members.map(m => (
-              <MinisterCard key={m.name} minister={m} />
+              <MinisterCard key={m.name} minister={m} reaction={reactionMap.get(m.name)} />
             ))}
           </div>
         )

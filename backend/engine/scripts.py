@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from models.game import GameState
 
 from models.game import StructuredDecree
-from models.enums import DecreeType, PersonnelAction
+from models.enums import DecreeType, PersonnelAction, MinisterStatus
 
 
 @dataclass
@@ -15,6 +15,8 @@ class ScriptChoice:
     label: str
     description: str
     decrees: list[StructuredDecree] = field(default_factory=list)
+    loyalty_effects: list[tuple[str, int]] = field(default_factory=list)
+    state_effects: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -88,6 +90,7 @@ _register(ScriptEvent(
                 target="魏忠贤",
                 sub_action=PersonnelAction.DISMISS,
             )],
+            loyalty_effects=[("魏忠贤", -30), ("徐光启", 10)],
         ),
         ScriptChoice(
             label="暂缓处置，稳住局面",
@@ -109,6 +112,7 @@ _register(ScriptEvent(
                 sub_action=PersonnelAction.DISMISS,
                 parameters={"partial_purge": True},
             )],
+            loyalty_effects=[("魏忠贤", -15)],
         ),
     ],
 ))
@@ -117,6 +121,16 @@ _register(ScriptEvent(
 def _faction_field(state, faction_name: str, field: str) -> int | None:
     f = next((f for f in state.factions if f.name == faction_name), None)
     return getattr(f, field) if f else None
+
+
+def _region_field(state, region_name: str, field: str) -> int | None:
+    r = next((r for r in state.regions if r.name == region_name), None)
+    return getattr(r, field) if r else None
+
+
+def _minister_active(state, name: str) -> bool:
+    m = next((m for m in state.ministers if m.name == name), None)
+    return m is not None and m.status == MinisterStatus.ACTIVE
 
 
 _register(ScriptEvent(
@@ -213,6 +227,275 @@ _register(ScriptEvent(
             label="减免赋税",
             description="减免陕西及周边地区当年赋税，与民休息。虽损财政收入，但可缓和民情。",
             decrees=[StructuredDecree(type=DecreeType.TAX_DECREASE)],
+        ),
+    ],
+))
+
+
+# ── Phase 3: Extended Historical Scripts (1628-1630) ───
+
+_register(ScriptEvent(
+    script_id="rebel-wangjiaying",
+    trigger_year=1628,
+    trigger_month=6,
+    title="流寇初起·王嘉胤举旗",
+    is_blocking=True,
+    condition=lambda s: (_v := _region_field(s, "陕西", "stability")) is not None and _v < 40,
+    rich_description=(
+        "**崇祯元年，六月。**\n\n"
+        "陕西连年大旱，饥民遍野。府谷人王嘉胤聚众起事，"
+        "号称'替天行道'，流民纷起响应，声势日壮。\n\n"
+        "地方急报：贼众裹粮疾走，焚掠仓廒，县城守军不敢出战。"
+        "若再失控，关中粮道恐将断绝。\n\n"
+        "朝廷当如何应对？"
+    ),
+    choices=[
+        ScriptChoice(
+            label="调兵围剿",
+            description="消耗钱粮军备但可遏制流寇蔓延。",
+            decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
+        ),
+        ScriptChoice(
+            label="招抚安置",
+            description="耗费国库但安抚民心，从根源化解民变。",
+            decrees=[StructuredDecree(type=DecreeType.DISASTER_RELIEF, target="陕西")],
+        ),
+        ScriptChoice(
+            label="令地方自行处置",
+            description="朝廷不直接介入，令地方官自行弹压。然恐贻误战机。",
+            decrees=[],
+            state_effects={"region.陕西.stability": -10},
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="ningyuan-mutiny",
+    trigger_year=1628,
+    trigger_month=7,
+    title="宁远兵变",
+    is_blocking=False,
+    condition=lambda s: s.military_morale < 50 and s.treasury < 60,
+    rich_description=(
+        "**崇祯元年，七月。**\n\n"
+        "辽东宁远驻军因欠饷日久，夜聚鼓噪，军门连发急报。"
+        "守将言：若再无银粮，恐边军离散，堡寨难守。\n\n"
+        "辽左前线一旦失序，后金骑兵可乘虚南下。"
+        "朝廷须速作决断。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="拨银补饷",
+            description="加税筹饷，先稳住边军战意。",
+            decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
+        ),
+        ScriptChoice(
+            label="严惩首恶",
+            description="杀一儆百，以军法惩处闹饷首领。",
+            decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)],
+        ),
+        ScriptChoice(
+            label="安抚许诺",
+            description="许以来月补发，暂缓军心。然边将势力恐对朝廷更加不满。",
+            decrees=[],
+            state_effects={"faction.边将势力.satisfaction": -10},
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="jisi-invasion",
+    trigger_year=1629,
+    trigger_month=10,
+    title="己巳之变·皇太极入寇",
+    is_blocking=True,
+    rich_description=(
+        "**崇祯二年，十月。**\n\n"
+        "后金大汗皇太极率精骑绕道蒙古，突破长城隘口，"
+        "直逼京畿。蓟镇烽火昼夜不绝，京师震动。\n\n"
+        "廷臣争论不休：或请速战，或请和议，或请坚壁清野。"
+        "皇城内外人心惶惶，仓卒调度稍有失当，便可能酿成大祸。\n\n"
+        "天子当如何应对这场突如其来的危机？"
+    ),
+    choices=[
+        ScriptChoice(
+            label="急召天下勤王",
+            description="集中各路兵马勤王，以战止战。辽东、京畿防线将受冲击。",
+            decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
+            state_effects={
+                "region.辽东.stability": -20,
+                "region.京畿.stability": -20,
+                "global.military_morale": 10,
+            },
+        ),
+        ScriptChoice(
+            label="固守京城待援",
+            description="紧闭城门，坚壁清野，等待各路援军。然京畿百姓将遭涂炭。",
+            decrees=[],
+            state_effects={
+                "region.京畿.stability": -15,
+                "global.court_prestige": -10,
+            },
+        ),
+        ScriptChoice(
+            label="命袁崇焕回援",
+            description="急令袁崇焕率辽东精锐回师勤王，试图以外交拖延后金攻势。",
+            decrees=[StructuredDecree(type=DecreeType.DIPLOMACY, target="后金")],
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="yuan-chonghuan-arrest",
+    trigger_year=1629,
+    trigger_month=12,
+    title="袁崇焕下狱",
+    is_blocking=True,
+    condition=lambda s: "jisi-invasion" in s.resolved_script_ids,
+    rich_description=(
+        "**崇祯二年，十二月。**\n\n"
+        "京师解围后，朝野对袁崇焕毁誉并起。"
+        "有弹劾其通敌卖国者，有言其擅杀毛文龙、纵敌入关者，"
+        "亦有力保其忠勇者。风闻交织，真伪难辨。\n\n"
+        "若轻断重臣，恐伤军心；若久拖不决，又损朝廷威信。"
+        "圣裁所向，将决定边防命脉。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="逮捕袁崇焕",
+            description="先行收系问罪，以平京师汹汹舆情。边将势力恐大为震动。",
+            decrees=[StructuredDecree(
+                type=DecreeType.PERSONNEL,
+                target="袁崇焕",
+                sub_action=PersonnelAction.DISMISS,
+            )],
+            loyalty_effects=[("袁崇焕", -50)],
+            state_effects={
+                "faction.边将势力.satisfaction": -25,
+                "faction.边将势力.rebellion_risk": 20,
+            },
+        ),
+        ScriptChoice(
+            label="力排众议，保袁崇焕",
+            description="顶住压力为袁崇焕辩护。阉党残余与勋贵集团恐更加不满。",
+            decrees=[],
+            loyalty_effects=[("袁崇焕", 20)],
+            state_effects={
+                "faction.阉党残余.satisfaction": -15,
+                "faction.勋贵集团.satisfaction": -15,
+                "global.court_prestige": -10,
+            },
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="li-zicheng-joins",
+    trigger_year=1630,
+    trigger_month=3,
+    title="陕西大起义·李自成从军",
+    is_blocking=False,
+    condition=lambda s: (_v := _region_field(s, "陕西", "stability")) is not None and _v < 30,
+    rich_description=(
+        "**崇祯三年，三月。**\n\n"
+        "陕西驿递裁汰，失业驿卒与饥民并起。"
+        "米脂人李自成弃役从伍，投身闯军，渐露锋芒。\n\n"
+        "地方官奏称：若任其流聚，陕北山川易守难攻，"
+        "势必尾大不掉。流寇之势已非一县一府所能弹压。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="重兵围剿",
+            description="调集重兵围剿，力图将流寇扼杀于萌芽。然耗费甚巨。",
+            decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
+            state_effects={
+                "region.陕西.stability": 10,
+                "global.treasury": -20,
+            },
+        ),
+        ScriptChoice(
+            label="分化瓦解",
+            description="与蒙古通好以减少多线压力，腾出手来对付流寇。",
+            decrees=[StructuredDecree(type=DecreeType.DIPLOMACY, target="蒙古")],
+        ),
+        ScriptChoice(
+            label="置之不理",
+            description="朝廷无暇西顾，任由地方自行应对。陕西与中原恐将动荡加剧。",
+            decrees=[],
+            state_effects={
+                "region.陕西.stability": -15,
+                "region.中原.stability": -10,
+            },
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="sun-chengzong-recovery",
+    trigger_year=1630,
+    trigger_month=5,
+    title="孙承宗收复遵化四城",
+    is_blocking=False,
+    condition=lambda s: _minister_active(s, "孙承宗") and s.military_supply > 40,
+    rich_description=(
+        "**崇祯三年，五月。**\n\n"
+        "老将孙承宗率军反攻，连克遵化、永平、迁安、滦州四城，"
+        "后金残部退出关内。辽东军民士气大振。\n\n"
+        "然追击深入恐有伏兵之险，见好就收亦可巩固战果。"
+        "陛下当如何决断？"
+    ),
+    choices=[
+        ScriptChoice(
+            label="乘胜追击",
+            description="趁后金立足未稳，挥师追击，力图扩大战果。然耗费军资甚巨。",
+            decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
+            state_effects={
+                "region.辽东.stability": 15,
+                "global.military_morale": 10,
+                "global.treasury": -25,
+            },
+        ),
+        ScriptChoice(
+            label="见好就收、巩固防线",
+            description="收复四城已是大功，当务之急是巩固防线、休整军队。",
+            decrees=[],
+            state_effects={
+                "region.辽东.stability": 10,
+                "global.court_prestige": 5,
+            },
+        ),
+    ],
+))
+
+_register(ScriptEvent(
+    script_id="dalinghe-prelude",
+    trigger_year=1630,
+    trigger_month=9,
+    title="大凌河之围前奏",
+    is_blocking=False,
+    condition=lambda s: (_v := _region_field(s, "辽东", "stability")) is not None and _v < 40,
+    rich_description=(
+        "**崇祯三年，九月。**\n\n"
+        "后金蓄势准备围攻大凌河，辽东局势再度紧张。"
+        "前线请示是增援固守还是收缩防线。\n\n"
+        "辽东诸堡互为犄角，一处失守便可能牵动全局。"
+        "兵部连夜会同督抚上奏，请陛下速定方略。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="增援大凌河",
+            description="增兵固守大凌河，消耗军备但可稳住辽东防线。",
+            decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
+            state_effects={
+                "global.military_supply": -15,
+                "region.辽东.stability": 5,
+            },
+        ),
+        ScriptChoice(
+            label="收缩防线",
+            description="放弃外围据点，收缩兵力于核心堡寨。辽东稳定将受损但可节约军费。",
+            decrees=[StructuredDecree(type=DecreeType.DISBAND_TROOPS)],
+            state_effects={"region.辽东.stability": -10},
         ),
     ],
 ))

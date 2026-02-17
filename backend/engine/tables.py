@@ -73,3 +73,46 @@ TARGET_MISSING_MESSAGES: dict[DecreeType, str] = {
     DecreeType.PERSONNEL: "任免需要指定目标人物和任免类型",
     DecreeType.DIPLOMACY: "外交需要指定目标（后金/蒙古/朝鲜）",
 }
+
+
+# ── AI Freeform: writable fields whitelist ──────────────
+# Pattern uses * as wildcard for entity names.
+# type: "int" = delta applied via +=, "float" = delta via += then round(2), "str" = direct set.
+
+WRITABLE_FIELDS: dict[str, dict] = {
+    "global.treasury":            {"type": "int"},
+    "global.population":          {"type": "int"},
+    "global.military_supply":     {"type": "int"},
+    "global.civil_morale":        {"type": "int"},
+    "global.military_morale":     {"type": "int"},
+    "global.court_prestige":      {"type": "int"},
+    "minister.*.loyalty":         {"type": "int"},
+    "minister.*.status":          {"type": "str", "valid": {"active", "idle", "removed"}},
+    "minister.*.abilities.civil":     {"type": "int"},
+    "minister.*.abilities.military":  {"type": "int"},
+    "minister.*.abilities.diplomacy": {"type": "int"},
+    "faction.*.satisfaction":     {"type": "int"},
+    "faction.*.rebellion_risk":   {"type": "int"},
+    "faction.*.influence":        {"type": "int"},
+    "region.*.stability":         {"type": "int"},
+    "region.*.civil_morale":      {"type": "int"},
+    "region.*.rebellion_risk":    {"type": "int"},
+    "region.*.garrison":          {"type": "int"},
+    "region.*.disaster_level":    {"type": "int"},
+    "region.*.tax_rate":          {"type": "float"},
+    "region.*.control":           {"type": "str", "valid": {"朝廷", "失控", "沦陷"}},
+    "region.*.threat":            {"type": "str", "valid": {"none", "后金", "民变", "土司", "海盗"}},
+}
+
+# Fields that SHALL NOT be modified by AI
+SYSTEM_FIELDS = frozenset({
+    "time", "decree_count", "history_log", "memorials",
+    "memorial_cooldowns", "event_cooldowns", "resolved_script_ids",
+    "loyalty_zero_triggered", "last_assembly", "last_assembly_month",
+})
+
+# Valid minister status transitions: (from, to)
+VALID_STATUS_TRANSITIONS = frozenset({
+    ("active", "idle"), ("active", "removed"),
+    ("idle", "active"), ("idle", "removed"),
+})

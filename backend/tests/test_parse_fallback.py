@@ -38,9 +38,24 @@ class _AlwaysParseErrorProvider(AIProvider):
     async def generate_portrait(self, minister_name: str, description: str) -> str | None:
         return None
 
+    async def generate_memorial(self, trigger_reason, author, game_state):
+        return ""
+
+    async def generate_minister_reaction(self, minister, decree, stance, game_state):
+        return ""
+
+    async def generate_assembly_debate(self, topic, participants, game_state):
+        return None
+
+    async def generate_turn_commentary(self, summary_data, game_state):
+        return ""
+
+    async def process_freeform(self, text, game_state):
+        return parse_error("not implemented")
+
 
 def test_parse_fallback_handles_violent_text(monkeypatch):
-    monkeypatch.setattr(provider_mod, "RULE_PARSE_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(provider_mod, "_rule_parse_fallback_enabled", True)
     provider = ResilientProvider(_AlwaysParseErrorProvider(), retries=1)
     state = create_initial_state()
     result = asyncio.run(provider.parse_free_input("斩杀所有东陵党", state))
@@ -51,7 +66,7 @@ def test_parse_fallback_handles_violent_text(monkeypatch):
 
 
 def test_parse_fallback_keeps_error_for_unknown_text(monkeypatch):
-    monkeypatch.setattr(provider_mod, "RULE_PARSE_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(provider_mod, "_rule_parse_fallback_enabled", True)
     provider = ResilientProvider(_AlwaysParseErrorProvider(), retries=1)
     state = create_initial_state()
     result = asyncio.run(provider.parse_free_input("asdfghjkl", state))

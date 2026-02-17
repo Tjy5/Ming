@@ -9,8 +9,8 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree, Minister, DebateResult
-from models.enums import DecreeType, PersonnelAction
+from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction
+from models.enums import DecreeType, PersonnelAction, MemorialStatus, MinisterStatus
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -19,6 +19,9 @@ from .provider import (
     DEBATE_SYSTEM_PROMPT,
     parse_debate_response,
     extract_json_object_text,
+    _FREEFORM_SYSTEM_PROMPT,
+    build_freeform_user_prompt as _build_freeform_user_prompt,
+    parse_freeform_response as _parse_freeform_response,
 )
 
 load_dotenv()
@@ -42,6 +45,15 @@ class GoogleProvider(AIProvider):
         )
         self.model = os.getenv("GOOGLE_MODEL_NAME") or os.getenv("OPENAI_MODEL_NAME", "gemini-3-flash-preview")
 
+    @staticmethod
+    def _safety_off() -> list:
+        return [
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
+        ]
+
     async def generate_narrative(
         self, delta_attribution: dict, game_state: GameState,
         chain_events: list[str], decree: StructuredDecree,
@@ -55,24 +67,7 @@ class GoogleProvider(AIProvider):
                 config=types.GenerateContentConfig(
                     system_instruction="你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。",
                     temperature=0.7,
-                    safety_settings=[
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                    ],
+                    safety_settings=self._safety_off(),
                 ),
             )
             return response.text.strip()
@@ -144,24 +139,7 @@ class GoogleProvider(AIProvider):
                 config=types.GenerateContentConfig(
                     system_instruction="你是一名为国分忧的大臣。请解释为何不能执行某项政令。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。",
                     temperature=0.7,
-                    safety_settings=[
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                        types.SafetySetting(
-                            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                            threshold=types.HarmBlockThreshold.BLOCK_NONE,
-                        ),
-                    ],
+                    safety_settings=self._safety_off(),
                 ),
             )
             return response.text.strip()
@@ -204,6 +182,101 @@ class GoogleProvider(AIProvider):
         response = await generate_images(**kwargs)
         return self._extract_image_b64(response)
 
+    async def generate_memorial(
+        self, trigger_reason: str, author: Minister, game_state: GameState,
+    ) -> str:
+        prompt = (
+            f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
+            f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
+            f"触发原因：{trigger_reason}\n"
+            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
+            "请以该大臣的口吻撰写一份明朝风格的奏折，200-500字。"
+            "要求：引用具体地名人名，体现大臣性格，提出具体建议。"
+        )
+        response = await self.client.aio.models.generate_content(
+            model=self.model, contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。",
+                temperature=0.7,
+                safety_settings=self._safety_off(),
+            ),
+        )
+        return response.text.strip()
+
+    async def generate_minister_reaction(
+        self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
+    ) -> str:
+        attitude = "赞同" if stance > 0 else "反对"
+        prompt = (
+            f"大臣{minister.name}（{minister.faction}），性格：{'、'.join(minister.personality_tags)}，"
+            f"对政令{decree.type.value}{attitude}（态度值{stance}）。\n"
+            "请以该大臣口吻写一句30-50字的反应，体现其性格特点。"
+        )
+        response = await self.client.aio.models.generate_content(
+            model=self.model, contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="你是崇祯模拟器的大臣反应生成器。输出一句简短的大臣反应，30-50字。",
+                temperature=0.8,
+                safety_settings=self._safety_off(),
+            ),
+        )
+        return response.text.strip()
+
+    async def generate_assembly_debate(
+        self, topic: str, participants: list[Minister], game_state: GameState,
+    ) -> dict | None:
+        parts = [f"议题：{topic}\n当前国情：{game_state.time.year}年{game_state.time.month}月，"
+                 f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n参与大臣："]
+        for p in participants:
+            parts.append(f"- {p.name}（{p.faction}），性格：{'、'.join(p.personality_tags)}，"
+                         f"文治{p.abilities.civil}/武略{p.abilities.military}")
+        prompt = "\n".join(parts)
+        response = await self.client.aio.models.generate_content(
+            model=self.model, contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "你是崇祯模拟器的朝会辩论生成器。输出JSON：{"
+                    "\"debate_text\":\"300-500字多人对话\","
+                    "\"participants\":[{\"name\":\"...\",\"position\":\"...\",\"argument_text\":\"...\"}],"
+                    "\"suggestions\":[{\"title\":\"...\",\"description\":\"...\",\"decree_type\":\"...\",\"supporter_names\":[]}],"
+                    "\"consensus\":\"共识描述\"}"
+                ),
+                temperature=0.8,
+                response_mime_type="application/json",
+            ),
+        )
+        content = (response.text or "").strip()
+        if not content:
+            return None
+        return json.loads(extract_json_object_text(content))
+
+    async def generate_turn_commentary(
+        self, summary_data: dict, game_state: GameState,
+    ) -> str:
+        events = summary_data.get("major_events", [])
+        implications = summary_data.get("action_implications", [])
+        year = int(summary_data.get("year") or game_state.time.year)
+        month = int(summary_data.get("month") or game_state.time.month)
+        events_text = "、".join(str(e) for e in events) if events else "无"
+        implications_text = "；".join(str(i) for i in implications[:4]) if implications else "无"
+        prompt = (
+            f"时间：{year}年{month}月\n"
+            f"本月大事：{events_text}\n"
+            f"政令与局势影响：{implications_text}\n"
+            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+            "请写一段50-100字的朝政总评，明朝奏报风格，概括本月朝政态势。"
+            "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
+        )
+        response = await self.client.aio.models.generate_content(
+            model=self.model, contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="你是崇祯模拟器的朝政总评生成器。输出50-100字的朝政概况。",
+                temperature=0.7,
+                safety_settings=self._safety_off(),
+            ),
+        )
+        return response.text.strip()
+
     def _extract_image_b64(self, response) -> str | None:
         images = getattr(response, "generated_images", None)
         if not images:
@@ -221,6 +294,8 @@ class GoogleProvider(AIProvider):
         return None
 
     def _build_narrative_prompt(self, delta, state, events, decree):
+        region_names = [r.name for r in state.regions]
+        personnel_context = self._build_personnel_context(decree, state)
         return f"""
         当前时间：{state.time.year}年{state.time.month}月
 
@@ -232,14 +307,64 @@ class GoogleProvider(AIProvider):
         - 军心：{delta.get('military_morale', 0)}
         - 威望：{delta.get('court_prestige', 0)}
 
+        {personnel_context}
         触发事件：{', '.join(events) if events else '无'}
+        涉及区域：{', '.join(region_names)}
 
-        请生成一段100字左右的叙事，描述政令执行的过程和直接后果。风格要符合明朝历史背景。
+        请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合明朝历史背景。
+        若有大臣被处决，叙事必须描述处决事实，且不得描述已处决大臣仍在活动。
         """
 
+    @staticmethod
+    def _build_personnel_context(decree, state) -> str:
+        lines = []
+        if decree.type == DecreeType.PERSONNEL and decree.target and decree.sub_action:
+            action_map = {
+                PersonnelAction.EXECUTE: "被处决（status: removed）",
+                PersonnelAction.DISMISS: "被罢免（status: idle）",
+                PersonnelAction.APPOINT: "被任命（status: active）",
+            }
+            desc = action_map.get(decree.sub_action, str(decree.sub_action))
+            lines.append(f"本回合人事变动：{decree.target}{desc}")
+        if lines:
+            return "人事变动：\n" + "\n".join(lines)
+        return ""
+
+    async def process_freeform(
+        self, text: str, game_state: GameState,
+    ) -> FreeformResult | dict:
+        prompt = self._build_freeform_prompt(text, game_state)
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=_FREEFORM_SYSTEM_PROMPT,
+                    temperature=0.5,
+                    response_mime_type="application/json",
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            content = (response.text or "").strip()
+            data = json.loads(extract_json_object_text(content))
+            return _parse_freeform_response(data)
+        except json.JSONDecodeError as e:
+            logging.error(f"Google freeform JSON parse error: {e}")
+            return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
+        except Exception as e:
+            logging.error(f"Google process_freeform error: {e}")
+            return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
+    @staticmethod
+    def _build_freeform_prompt(text: str, state: GameState) -> str:
+        return _build_freeform_user_prompt(text, state)
+
     def _build_parse_prompt(self, text, state):
+        minister_names = [m.name for m in state.ministers if m.status.value != "removed"]
         return f"""
         用户输入："{text}"
+
+        当前在朝/赋闲大臣：{', '.join(minister_names)}
 
         请解析为 JSON 格式。
 
@@ -259,9 +384,10 @@ class GoogleProvider(AIProvider):
 
         解析原则（必须遵守）：
         1) 尽量把任何有政务意图的输入映射为一个或多个可执行政令，不要因为措辞激烈就拒绝。
-        2) 输入含“斩杀/诛杀/处斩/镇压/清洗”等，优先映射为 harsh_punishment。
-        3) 输入明确是人事任免时，使用 personnel，并给出 sub_action=appoint 或 dismiss。
-        4) 只有在输入完全不包含政务意图（闲聊、乱码）时，才返回 error。
+        2) 输入含"斩杀/诛杀/处斩/斩首/问斩/斩了"等且指向上述某位大臣时，映射为 personnel + sub_action=execute + target=大臣名。
+        3) 输入含"镇压/清洗/严刑/峻法/重典"等但不指向特定大臣时，映射为 harsh_punishment。
+        4) 输入明确是人事任免（罢免/撤职/免职/任命/提拔）时，使用 personnel + sub_action=dismiss 或 appoint。
+        5) 只有在输入完全不包含政务意图（闲聊、乱码）时，才返回 error。
 
         仅在无法识别任何政务意图时，返回：
         {{

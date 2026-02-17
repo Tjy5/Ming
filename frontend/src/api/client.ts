@@ -1,4 +1,4 @@
-import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPage, ErrorResponse, DebateResult, Capabilities, Minister, DecreeType } from '../types/game'
+import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPage, ErrorResponse, DebateResult, Capabilities, Minister, DecreeType, CourtAssembly, MemorialStatus } from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
 
@@ -34,10 +34,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   newGame: () => request<GameState>('/game/new', { method: 'POST' }),
 
-  decree: (decrees: StructuredDecree[], sourceScriptId?: string) =>
+  decree: (decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string) =>
     request<DecreeResponse>('/decree', {
       method: 'POST',
-      body: JSON.stringify({ decrees, source_script_id: sourceScriptId ?? null }),
+      body: JSON.stringify({
+        decrees,
+        source_script_id: sourceScriptId ?? null,
+        free_text: freeText ?? null,
+      }),
     }),
 
   parseFreeText: (text: string) =>
@@ -79,6 +83,36 @@ export const api = {
 
   getMinisters: () =>
     request<Minister[]>('/ministers'),
+
+  resolveMemorial: (id: string, action: MemorialStatus) =>
+    request<{ state: GameState; action: string }>(`/memorial/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
+
+  conveneAssembly: (topic: string, decreeType: DecreeType) =>
+    request<CourtAssembly>('/court-assembly/convene', {
+      method: 'POST',
+      body: JSON.stringify({ topic, decree_type: decreeType }),
+    }),
+
+  adoptSuggestion: (suggestionIndex: number) =>
+    request<DecreeResponse>('/court-assembly/adopt', {
+      method: 'POST',
+      body: JSON.stringify({ suggestion_index: suggestionIndex }),
+    }),
+
+  silenceAssembly: () =>
+    request<{ state: GameState; prestige_change: number }>('/court-assembly/silence', { method: 'POST' }),
+
+  getSettings: () =>
+    request<{ rule_parse_fallback: boolean }>('/settings'),
+
+  updateSettings: (settings: { rule_parse_fallback: boolean }) =>
+    request<{ rule_parse_fallback: boolean }>('/settings', {
+      method: 'POST',
+      body: JSON.stringify(settings),
+    }),
 }
 
 export { ApiError }

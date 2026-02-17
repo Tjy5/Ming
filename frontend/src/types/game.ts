@@ -7,10 +7,10 @@ export type DecreeType =
 export type RegionControl = '朝廷' | '失控' | '沦陷'
 export type RegionThreat = 'none' | '后金' | '民变' | '土司' | '海盗'
 export type TaxContribution = 'low' | 'medium' | 'high'
-export type PersonnelAction = 'appoint' | 'dismiss'
+export type PersonnelAction = 'appoint' | 'dismiss' | 'execute'
 export type DiplomacyTarget = '后金' | '蒙古' | '朝鲜'
 export type EventUrgency = '高' | '中' | '低'
-export type MinisterStatus = 'active' | 'idle'
+export type MinisterStatus = 'active' | 'idle' | 'removed'
 
 export interface GameTime {
   year: number
@@ -52,6 +52,7 @@ export interface Minister {
   personality_tags: string[]
   abilities: MinisterAbilities
   status: MinisterStatus
+  loyalty: number
 }
 
 export interface EventChoice {
@@ -99,6 +100,7 @@ export interface GameState {
   decree_count: number
   event_cooldowns: Record<string, number>
   resolved_script_ids: string[]
+  memorials?: Memorial[]
 }
 
 export interface StructuredDecree {
@@ -106,6 +108,116 @@ export interface StructuredDecree {
   target?: string | null
   sub_action?: PersonnelAction | null
   parameters?: Record<string, unknown> | null
+}
+
+export type MemorialStatus = 'pending' | 'approved' | 'rejected' | 'deferred'
+
+export interface Memorial {
+  id: string
+  author_name: string
+  author_faction: string
+  title: string
+  content: string
+  suggested_decrees: StructuredDecree[]
+  trigger_reason: string
+  urgency: string
+  created_year: number
+  created_month: number
+  status: MemorialStatus
+}
+
+export interface MinisterReaction {
+  minister_name: string
+  faction: string
+  reaction_type: string
+  reaction_text: string
+  loyalty_change: number
+}
+
+export interface AssemblyParticipant {
+  name: string
+  faction: string
+  position: string
+  argument_text: string
+}
+
+export interface PolicySuggestion {
+  title: string
+  description: string
+  related_decree: StructuredDecree
+  supporter_names: string[]
+}
+
+export interface CourtAssembly {
+  topic: string
+  decree_type: DecreeType
+  participants: AssemblyParticipant[]
+  suggestions: PolicySuggestion[]
+  debate_text: string
+  consensus: string
+  silenced: boolean
+}
+
+export interface IndicatorTrend {
+  name: string
+  before: number
+  after: number
+}
+
+export interface FactionChange {
+  name: string
+  satisfaction_before: number
+  satisfaction_after: number
+  rebellion_risk_before: number
+  rebellion_risk_after: number
+}
+
+export interface RegionChange {
+  name: string
+  stability_before: number
+  stability_after: number
+  control_before: string
+  control_after: string
+  threat_before: string
+  threat_after: string
+}
+
+export interface MinisterChange {
+  name: string
+  loyalty_before: number
+  loyalty_after: number
+  status_before: string
+  status_after: string
+}
+
+export interface TurnSummary {
+  year: number
+  month: number
+  era_name: string
+  era_year: number
+  commentary: string
+  major_events: string[]
+  indicator_trends: IndicatorTrend[]
+  faction_changes: FactionChange[]
+  region_changes: RegionChange[]
+  minister_changes: MinisterChange[]
+  pending_memorials_count: number
+}
+
+export type ModalType =
+  | 'game_over'
+  | 'script_event_blocking'
+  | 'narrative'
+  | 'turn_summary'
+  | 'memorial'
+  | 'assembly'
+  | 'debate'
+  | 'script_event'
+
+export interface ModalItem {
+  type: ModalType
+  priority: number
+  payload: unknown
 }
 
 export interface DecreeResponse {
@@ -116,6 +228,9 @@ export interface DecreeResponse {
   newly_triggered_events: string[]
   game_time: GameTime
   game_over: { result: 'victory' | 'defeat'; message: string } | null
+  minister_reactions: MinisterReaction[]
+  turn_summary: TurnSummary | null
+  memorial_triggers: Memorial[]
 }
 
 export interface ErrorResponse {
@@ -142,6 +257,8 @@ export interface DebateResult {
 export interface Capabilities {
   debate_supported: boolean
   portrait_supported: boolean
+  assembly_supported: boolean
+  memorial_enabled: boolean
 }
 
 export interface SaveEntry {

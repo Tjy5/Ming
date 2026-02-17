@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
-import type { StructuredDecree, DecreeResponse, GameState, GameEvent, DecreeType } from './types/game'
+import type { StructuredDecree, DecreeResponse, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, Memorial, CourtAssembly } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
 import FactionPanel from './components/FactionPanel'
@@ -14,37 +14,67 @@ import MultiConfirm from './components/MultiConfirm'
 import SavePanel from './components/SavePanel'
 import ScriptEventModal from './components/ScriptEventModal'
 import DebatePanel from './components/DebatePanel'
+import TurnSummaryModal from './components/TurnSummaryModal'
+import MemorialPanel from './components/MemorialPanel'
+import CourtAssemblyView from './components/CourtAssemblyView'
 import './App.css'
 
-type RightTab = 'faction' | 'minister'
+type RightTab = 'faction' | 'minister' | 'assembly'
+type NarrativePayload = {
+  narrative: string
+  delta: Record<string, number>
+  ministerReactions?: MinisterReaction[]
+  turnSummary?: TurnSummary
+}
 
 function App() {
   const {
-    state, loading, error, narrative, gameOver, prevState,
-    capabilities, debateResult, debateLoading, selectedTopic,
-    setState, setLoading, setError, setNarrative, setGameOver, setPrevState,
-    setCapabilities, setDebateResult, setDebateLoading, setSelectedTopic,
-    reset,
+    state, loading, error, gameOver, prevState,
+    capabilities, debateLoading, currentModal,
+    setState, setLoading, setError, setGameOver, setPrevState,
+    setCapabilities, setDebateLoading,
+    pushModal, popModal, clearModals, reset,
   } = useStore()
 
-  const [delta, setDelta] = useState<Record<string, number>>({})
   const [showSaves, setShowSaves] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [scriptEvent, setScriptEvent] = useState<GameEvent | null>(null)
   const [rightTab, setRightTab] = useState<RightTab>('faction')
   const [prefilledDecree, setPrefilledDecree] = useState<StructuredDecree | null>(null)
   const [prefilledKeywords, setPrefilledKeywords] = useState<string[]>([])
+  const [lastReactions, setLastReactions] = useState<MinisterReaction[]>([])
+  const [assemblyLoading, setAssemblyLoading] = useState(false)
   const toastTimer = useRef<number>(0)
   const capsFetched = useRef(false)
   const capsFetchInFlight = useRef(false)
   const decreeInFlight = useRef(false)
+  const blockingPushedFor = useRef<string | null>(null)
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(null), 3000)
   }, [])
+
+  function queueTurnResultModals(res: DecreeResponse) {
+    const hasMajorEvents = !!res.turn_summary?.major_events?.length
+    pushModal({
+      type: 'narrative',
+      priority: 50,
+      payload: {
+        narrative: res.narrative,
+        delta: res.delta,
+        ministerReactions: res.minister_reactions,
+        turnSummary: hasMajorEvents ? undefined : (res.turn_summary ?? undefined),
+      } satisfies NarrativePayload,
+    })
+    if (hasMajorEvents && res.turn_summary) {
+      pushModal({ type: 'turn_summary', priority: 40, payload: res.turn_summary })
+    }
+    if (res.memorial_triggers?.length) {
+      pushModal({ type: 'memorial', priority: 30, payload: res.memorial_triggers })
+    }
+  }
 
   const fetchCapabilities = useCallback(async () => {
     if (capsFetched.current || capsFetchInFlight.current) return
@@ -79,14 +109,19 @@ function App() {
 
   // Auto-open blocking scripted events
   useEffect(() => {
-    if (!state || scriptEvent || loading) return
+    if (!state || loading) return
     const blocking = state.active_events.find(
       e => e.is_scripted && e.is_blocking && e.choices.length > 0,
     )
-    if (blocking) setScriptEvent(blocking)
-  }, [state, scriptEvent, loading])
+    if (blocking && blockingPushedFor.current !== blocking.script_id) {
+      blockingPushedFor.current = blocking.script_id
+      pushModal({ type: 'script_event_blocking', priority: 90, payload: blocking })
+    } else if (!blocking) {
+      blockingPushedFor.current = null
+    }
+  }, [state, loading, pushModal])
 
-  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string) {
+  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string) {
     if (!state) return
     if (decreeInFlight.current) {
       showToast('正在处理上一道政令，请稍候')
@@ -97,18 +132,21 @@ function App() {
     setError(null)
     setPrevState(state)
     try {
-      const res: DecreeResponse = await api.decree(decrees, sourceScriptId)
+      const res: DecreeResponse = await api.decree(decrees, sourceScriptId, freeText)
       setState(res.state)
-      setDelta(res.delta)
-      setNarrative(res.narrative)
-      if (res.game_over) setGameOver(res.game_over)
+      if (res.minister_reactions?.length) setLastReactions(res.minister_reactions)
+      if (res.game_over) {
+        setGameOver(res.game_over)
+      } else {
+        queueTurnResultModals(res)
+      }
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 409) {
           showToast(e.body.message || '正在处理上一道政令，请稍候')
         } else {
           const ai = e.body.details?.ai_narrative
-          if (ai) setNarrative(ai)
+          if (ai) pushModal({ type: 'narrative', priority: 50, payload: { narrative: ai, delta: {} } })
           else showToast(e.body.message)
         }
       } else {
@@ -122,32 +160,21 @@ function App() {
 
   async function handleFreeText(text: string) {
     if (!state) return
-    setLoading(true)
-    try {
-      const parsed = await api.parseFreeText(text)
-      if (parsed.length === 0) {
-        showToast('无法理解此政令')
-      } else if (parsed.length === 1) {
-        await executeDecrees(parsed)
-        return
-      } else {
-        setPendingMulti(parsed)
-      }
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.body.message : '解析失败')
-    } finally {
-      setLoading(false)
+    const trimmed = text.trim()
+    if (!trimmed) return
+    if (trimmed.length > 1000) {
+      showToast('政令文本过长（最多1000字）')
+      return
     }
+    await executeDecrees([], undefined, trimmed)
   }
 
   async function handleDebateStart(topic: string, category: DecreeType) {
     setDebateLoading(true)
-    setSelectedTopic(topic)
     try {
       const result = await api.startDebate(topic, category)
-      setDebateResult(result)
+      pushModal({ type: 'debate', priority: 20, payload: { result, topic } })
     } catch (e) {
-      setSelectedTopic(null)
       showToast(e instanceof ApiError ? e.body.message : '廷推失败')
     } finally {
       setDebateLoading(false)
@@ -155,17 +182,71 @@ function App() {
   }
 
   function handleDebateAdopt(decree: StructuredDecree, keywords: string[]) {
-    setDebateResult(null)
-    setSelectedTopic(null)
+    popModal()
     setPrefilledDecree(decree)
     setPrefilledKeywords(keywords)
   }
 
   async function handleDebateSilence() {
-    setDebateResult(null)
-    setSelectedTopic(null)
+    popModal()
     try {
       const res = await api.silenceDebate()
+      setState(res.state)
+      if (res.prestige_change > 0) showToast(`威望 +${res.prestige_change}`)
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.body.message : '操作失败')
+    }
+  }
+
+  async function handleMemorialResolve(id: string, action: 'approved' | 'rejected' | 'deferred') {
+    try {
+      setLoading(true)
+      const res = await api.resolveMemorial(id, action)
+      setState(res.state)
+      const labels = { approved: '准奏', rejected: '驳回', deferred: '留中' }
+      showToast(`奏折已${labels[action]}`)
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.body.message : '操作失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleConveneAssembly(topic: string, decreeType: DecreeType) {
+    setAssemblyLoading(true)
+    try {
+      const assembly = await api.conveneAssembly(topic, decreeType)
+      pushModal({ type: 'assembly', priority: 20, payload: assembly })
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.body.message : '朝会召集失败')
+    } finally {
+      setAssemblyLoading(false)
+    }
+  }
+
+  async function handleAdoptSuggestion(index: number) {
+    popModal()
+    setLoading(true)
+    try {
+      const res: DecreeResponse = await api.adoptSuggestion(index)
+      setState(res.state)
+      if (res.minister_reactions?.length) setLastReactions(res.minister_reactions)
+      if (res.game_over) {
+        setGameOver(res.game_over)
+      } else {
+        queueTurnResultModals(res)
+      }
+    } catch (e) {
+      showToast(e instanceof ApiError ? e.body.message : '采纳失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleAssemblySilence() {
+    popModal()
+    try {
+      const res = await api.silenceAssembly()
       setState(res.state)
       if (res.prestige_change > 0) showToast(`威望 +${res.prestige_change}`)
     } catch (e) {
@@ -199,7 +280,8 @@ function App() {
     reset()
     setState(s)
     setShowSaves(false)
-    setScriptEvent(null)
+    clearModals()
+    blockingPushedFor.current = null
     capsFetched.current = false
     void fetchCapabilities()
     if (migrationNote) showToast(migrationNote)
@@ -238,17 +320,37 @@ function App() {
               className={`rp-tab${rightTab === 'minister' ? ' active' : ''}`}
               onClick={() => setRightTab('minister')}
             >大臣</button>
+            <button
+              className={`rp-tab${rightTab === 'assembly' ? ' active' : ''}`}
+              onClick={() => setRightTab('assembly')}
+            >朝议</button>
           </div>
           <div className="right-panel-body">
-            {rightTab === 'faction'
-              ? <FactionPanel factions={state.factions} />
-              : <MinisterPanel ministers={state.ministers} />
-            }
+            {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
+            {rightTab === 'minister' && <MinisterPanel ministers={state.ministers} reactions={lastReactions} />}
+            {rightTab === 'assembly' && (
+              <CourtAssemblyView
+                state={state}
+                capabilities={capabilities}
+                loading={assemblyLoading}
+                onConvene={handleConveneAssembly}
+                onAdopt={handleAdoptSuggestion}
+                onSilence={handleAssemblySilence}
+              />
+            )}
           </div>
         </div>
       </div>
       <div className="bottom-panel">
-        <EventBar events={state.active_events} onScriptClick={setScriptEvent} />
+        <EventBar
+          events={state.active_events}
+          pendingMemorials={state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred').length ?? 0}
+          onScriptClick={(e) => pushModal({ type: 'script_event', priority: 10, payload: e })}
+          onMemorialClick={() => {
+            const pending = state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
+            if (pending.length) pushModal({ type: 'memorial', priority: 30, payload: pending })
+          }}
+        />
         <ActionArea
           state={state}
           loading={loading}
@@ -270,8 +372,42 @@ function App() {
         </div>
       )}
 
-      {narrative && !gameOver && (
-        <NarrativeModal narrative={narrative} delta={delta} onClose={() => setNarrative(null)} />
+      {currentModal?.type === 'narrative' && !gameOver && (() => {
+        const p = currentModal.payload as NarrativePayload
+        return (
+          <NarrativeModal
+            narrative={p.narrative}
+            delta={p.delta}
+            ministerReactions={p.ministerReactions}
+            turnSummary={p.turnSummary}
+            onClose={popModal}
+          />
+        )
+      })()}
+
+      {currentModal?.type === 'turn_summary' && (
+        <TurnSummaryModal
+          summary={currentModal.payload as TurnSummary}
+          onClose={popModal}
+        />
+      )}
+
+      {currentModal?.type === 'memorial' && (
+        <MemorialPanel
+          memorials={currentModal.payload as Memorial[]}
+          onResolve={handleMemorialResolve}
+          onClose={popModal}
+        />
+      )}
+
+      {currentModal?.type === 'assembly' && (
+        <CourtAssemblyView
+          assembly={currentModal.payload as CourtAssembly}
+          onAdopt={handleAdoptSuggestion}
+          onSilence={handleAssemblySilence}
+          onClose={popModal}
+          asModal
+        />
       )}
 
       {gameOver && (
@@ -295,21 +431,21 @@ function App() {
         />
       )}
 
-      {scriptEvent && (
+      {(currentModal?.type === 'script_event_blocking' || currentModal?.type === 'script_event') && (
         <ScriptEventModal
-          event={scriptEvent}
+          event={currentModal.payload as GameEvent}
           state={state}
           onChoose={(decrees, scriptId) => {
-            setScriptEvent(null)
+            popModal()
             executeDecrees(decrees, scriptId)
           }}
         />
       )}
 
-      {debateResult && selectedTopic && (
+      {currentModal?.type === 'debate' && (
         <DebatePanel
-          result={debateResult}
-          topic={selectedTopic}
+          result={(currentModal.payload as { result: DebateResult; topic: string }).result}
+          topic={(currentModal.payload as { result: DebateResult; topic: string }).topic}
           onAdopt={handleDebateAdopt}
           onSilence={handleDebateSilence}
         />

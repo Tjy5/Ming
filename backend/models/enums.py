@@ -35,6 +35,7 @@ class TaxContribution(str, Enum):
 class PersonnelAction(str, Enum):
     APPOINT = "appoint"
     DISMISS = "dismiss"
+    EXECUTE = "execute"
 
 
 class DiplomacyTarget(str, Enum):
@@ -52,3 +53,11 @@ class EventUrgency(str, Enum):
 class MinisterStatus(str, Enum):
     ACTIVE = "active"
     IDLE = "idle"
+    REMOVED = "removed"
+
+
+class MemorialStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    DEFERRED = "deferred"

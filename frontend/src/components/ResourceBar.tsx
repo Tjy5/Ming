@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import type { GameState } from '../types/game'
+import { api } from '../api/client'
 import HistoricalCalendar from './HistoricalCalendar'
 
 interface Props {
@@ -26,6 +28,21 @@ function barColor(val: number, max: number): string {
 }
 
 export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame }: Props) {
+  const [fallbackEnabled, setFallbackEnabled] = useState(false)
+
+  useEffect(() => {
+    api.getSettings().then(s => setFallbackEnabled(s.rule_parse_fallback)).catch(() => { })
+  }, [])
+
+  const toggleFallback = async () => {
+    try {
+      const res = await api.updateSettings({ rule_parse_fallback: !fallbackEnabled })
+      setFallbackEnabled(res.rule_parse_fallback)
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="resource-bar">
       <HistoricalCalendar {...state.time} />
@@ -50,6 +67,13 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         )
       })}
       <div className="toolbar-actions">
+        <button
+          className={`toolbar-btn${fallbackEnabled ? ' active-toggle' : ''}`}
+          onClick={toggleFallback}
+          title={fallbackEnabled ? '本地规则兜底已开启' : '本地规则兜底已关闭'}
+        >
+          {fallbackEnabled ? '兜底:开' : '兜底:关'}
+        </button>
         <button className="toolbar-btn" onClick={onSave}>存档</button>
         <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
         <button className="toolbar-btn" onClick={onNewGame}>新局</button>

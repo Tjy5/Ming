@@ -1,60 +1,83 @@
 import { create } from 'zustand'
-import type { GameState, DecreeType, PreconditionRule, Capabilities, DebateResult } from '../types/game'
+import type { GameState, DecreeType, PreconditionRule, Capabilities, ModalItem, ModalType } from '../types/game'
 import { PRECONDITIONS } from '../types/game'
+
+export const MODAL_PRIORITIES: Record<ModalType, number> = {
+  game_over: 100,
+  script_event_blocking: 90,
+  narrative: 50,
+  turn_summary: 40,
+  memorial: 30,
+  assembly: 20,
+  debate: 20,
+  script_event: 10,
+}
 
 interface Store {
   state: GameState | null
   loading: boolean
   error: string | null
-  narrative: string | null
   gameOver: { result: 'victory' | 'defeat'; message: string } | null
   prevState: GameState | null
   capabilities: Capabilities
-  debateResult: DebateResult | null
   debateLoading: boolean
-  selectedTopic: string | null
+  modalQueue: ModalItem[]
+  currentModal: ModalItem | null
 
   setState: (s: GameState) => void
   setLoading: (v: boolean) => void
   setError: (e: string | null) => void
-  setNarrative: (n: string | null) => void
   setGameOver: (g: { result: 'victory' | 'defeat'; message: string } | null) => void
   setPrevState: (s: GameState | null) => void
   setCapabilities: (c: Capabilities) => void
-  setDebateResult: (r: DebateResult | null) => void
   setDebateLoading: (v: boolean) => void
-  setSelectedTopic: (t: string | null) => void
+  pushModal: (item: ModalItem) => void
+  popModal: () => void
+  clearModals: () => void
   reset: () => void
 }
 
-const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false }
+const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false, assembly_supported: false, memorial_enabled: false }
 
 export const useStore = create<Store>((set) => ({
   state: null,
   loading: false,
   error: null,
-  narrative: null,
   gameOver: null,
   prevState: null,
   capabilities: DEFAULT_CAPABILITIES,
-  debateResult: null,
   debateLoading: false,
-  selectedTopic: null,
+  modalQueue: [],
+  currentModal: null,
 
   setState: (s) => set({ state: s }),
   setLoading: (v) => set({ loading: v }),
   setError: (e) => set({ error: e }),
-  setNarrative: (n) => set({ narrative: n }),
   setGameOver: (g) => set({ gameOver: g }),
   setPrevState: (s) => set({ prevState: s }),
   setCapabilities: (c) => set({ capabilities: c }),
-  setDebateResult: (r) => set({ debateResult: r }),
   setDebateLoading: (v) => set({ debateLoading: v }),
-  setSelectedTopic: (t) => set({ selectedTopic: t }),
+
+  pushModal: (item) => set((s) => {
+    const m = { ...item, priority: item.priority ?? MODAL_PRIORITIES[item.type] }
+    if (!s.currentModal) return { currentModal: m }
+    const q = [...s.modalQueue]
+    let i = q.length
+    while (i > 0 && q[i - 1].priority < m.priority) i--
+    q.splice(i, 0, m)
+    return { modalQueue: q }
+  }),
+  popModal: () => set((s) => {
+    if (s.modalQueue.length === 0) return { currentModal: null }
+    const [next, ...rest] = s.modalQueue
+    return { currentModal: next, modalQueue: rest }
+  }),
+  clearModals: () => set({ currentModal: null, modalQueue: [] }),
+
   reset: () => set({
-    state: null, loading: false, error: null, narrative: null,
-    gameOver: null, prevState: null, debateResult: null,
-    debateLoading: false, selectedTopic: null,
+    state: null, loading: false, error: null,
+    gameOver: null, prevState: null,
+    debateLoading: false, currentModal: null, modalQueue: [],
   }),
 }))
 

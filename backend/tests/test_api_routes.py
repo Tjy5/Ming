@@ -6,7 +6,13 @@ from fastapi import HTTPException
 from ai.provider import MockProvider, ResilientProvider
 from api import routes
 from models.enums import DecreeType, PersonnelAction
-from models.game import HistoryEntry, StructuredDecree, create_initial_state
+from models.game import (
+    CourtAssembly,
+    HistoryEntry,
+    PolicySuggestion,
+    StructuredDecree,
+    create_initial_state,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -83,3 +89,55 @@ def test_get_history_normalizes_negative_offset_and_small_limit():
     assert result["limit"] == 1
     assert len(result["entries"]) == 1
     assert result["entries"][0]["month"] == 1
+
+
+def test_execute_decree_summary_includes_action_implications_for_commentary():
+    routes._provider = _mock_provider()
+    routes._state = create_initial_state()
+
+    req = routes.DecreeRequest(
+        decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)]
+    )
+    result = asyncio.run(routes.execute_decree(req))
+
+    summary = result["turn_summary"]
+    assert summary is not None
+    assert summary["action_implications"]
+    assert any("严刑峻法" in item for item in summary["action_implications"])
+    if not summary["major_events"]:
+        assert "朝政有变" in summary["commentary"]
+
+
+def test_execute_decree_wait_turn_includes_memorial_triggers():
+    routes._provider = _mock_provider()
+    state = create_initial_state()
+    state.factions[0].satisfaction = 10
+    routes._state = state
+
+    result = asyncio.run(routes.execute_decree(routes.DecreeRequest(source_script_id="script-1")))
+
+    assert "memorial_triggers" in result
+    assert len(result["memorial_triggers"]) >= 1
+
+
+def test_adopt_suggestion_includes_memorial_triggers():
+    routes._provider = _mock_provider()
+    state = create_initial_state()
+    state.factions[0].satisfaction = 10
+    state.last_assembly = CourtAssembly(
+        topic="严刑峻法之议",
+        decree_type=DecreeType.HARSH_PUNISHMENT,
+        suggestions=[
+            PolicySuggestion(
+                title="严刑整肃",
+                description="以重典整饬朝纲",
+                related_decree=StructuredDecree(type=DecreeType.HARSH_PUNISHMENT),
+            )
+        ],
+    )
+    routes._state = state
+
+    result = asyncio.run(routes.adopt_suggestion(routes.AdoptSuggestionRequest(suggestion_index=0)))
+
+    assert "memorial_triggers" in result
+    assert len(result["memorial_triggers"]) >= 1

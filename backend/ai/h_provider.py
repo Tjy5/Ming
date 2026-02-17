@@ -36,3 +36,4 @@ class HProvider(OpenAIProvider):
             default_headers={"User-Agent": user_agent},
         )
         self.model = os.getenv("HOTARU_MODEL", "gemini-3-pro-preview")
+        self._configure_task_models("HOTARU")

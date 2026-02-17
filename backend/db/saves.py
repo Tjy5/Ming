@@ -132,10 +132,30 @@ def _migrate_save(data: dict) -> list[str]:
     elif not _valid_ministers(ministers_raw):
         data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
         notes.append("重置了损坏的大臣数据")
+    else:
+        loyalty_migrated = False
+        for minister in data["ministers"]:
+            if "loyalty" not in minister:
+                minister["loyalty"] = 50
+                loyalty_migrated = True
+        if loyalty_migrated:
+            notes.append("补充了大臣忠诚度数据")
 
     # ── resolved_script_ids ──
     if "resolved_script_ids" not in data:
         data["resolved_script_ids"] = []
+
+    # ── phase3 fields migration ──
+    if "memorials" not in data:
+        data["memorials"] = []
+    if "memorial_cooldowns" not in data:
+        data["memorial_cooldowns"] = {}
+    if "last_assembly" not in data:
+        data["last_assembly"] = None
+    if "loyalty_zero_triggered" not in data:
+        data["loyalty_zero_triggered"] = []
+    if "last_assembly_month" not in data:
+        data["last_assembly_month"] = 0
 
     return notes
 

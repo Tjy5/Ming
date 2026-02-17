@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Region } from '../types/game'
+import { AnimatePresence, motion } from 'framer-motion'
+import type { Region, RegionControl } from '../types/game'
 import {
   getBarPercent,
   getColorLevel,
@@ -20,11 +21,18 @@ const VIEW_LABELS: Record<ViewMode, string> = {
 
 const VIEW_MODES: ViewMode[] = ['standard', 'disaster', 'morale', 'rebellion', 'tax_rate', 'tax_collected']
 
-interface Props {
-  regions: Region[]
+const CONTROL_BG: Partial<Record<RegionControl, string>> = {
+  '失控': 'rgba(229,184,41,0.08)',
+  '沦陷': 'rgba(224,64,64,0.1)',
 }
 
-export default function RegionMap({ regions }: Props) {
+interface Props {
+  regions: Region[]
+  highlightRegion?: string
+  toasts?: string[]
+}
+
+export default function RegionMap({ regions, highlightRegion, toasts }: Props) {
   const [tooltip, setTooltip] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('standard')
 
@@ -45,16 +53,27 @@ export default function RegionMap({ regions }: Props) {
       <div className="region-map">
         {regions.map((r) => {
           const level = resolveLevel(r)
+          const highlighted = highlightRegion === r.name
           return (
             <div
               key={r.name}
-              className={`region-block ${stabClassMap[level]}`}
+              className={`region-block ${stabClassMap[level]}${highlighted ? ' highlight-pulse' : ''}`}
               onClick={() => setTooltip(tooltip === r.name ? null : r.name)}
+              style={{ backgroundColor: CONTROL_BG[r.control] }}
             >
               <div className="region-name">{r.name}</div>
               <div className="region-info">
                 <span className="region-control">{r.control}</span>
-                {r.threat !== 'none' && <span className="region-threat">{r.threat}</span>}
+                {r.threat !== 'none' && (
+                  <motion.span
+                    className="region-threat"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {r.threat}
+                  </motion.span>
+                )}
               </div>
               <div className="region-stab-bar">
                 <div
@@ -70,6 +89,17 @@ export default function RegionMap({ regions }: Props) {
             </div>
           )
         })}
+        <AnimatePresence>
+          {toasts?.map((msg) => (
+            <motion.div
+              key={msg}
+              className="map-toast"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+            >{msg}</motion.div>
+          ))}
+        </AnimatePresence>
       </div>
       <div className="view-switcher">
         {VIEW_MODES.map(m => (

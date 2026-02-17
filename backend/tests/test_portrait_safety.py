@@ -3,9 +3,15 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from ai.provider import AIProvider, ResilientProvider, _is_non_retryable_portrait_error
+import ai.provider as provider_mod
+from ai.provider import (
+    AIProvider,
+    PARSE_ERROR_TYPE_UNAVAILABLE,
+    ResilientProvider,
+    _is_non_retryable_portrait_error,
+)
 from api import routes
-from models.game import DebateResult, GameState, Minister, StructuredDecree
+from models.game import DebateResult, GameState, Minister, StructuredDecree, create_initial_state
 
 
 class _BaseProvider(AIProvider):
@@ -37,6 +43,24 @@ class _BaseProvider(AIProvider):
     ) -> DebateResult | None:
         return None
 
+    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
+        return None
+
+    async def generate_memorial(self, trigger_reason, author, game_state):
+        return ""
+
+    async def generate_minister_reaction(self, minister, decree, stance, game_state):
+        return ""
+
+    async def generate_assembly_debate(self, topic, participants, game_state):
+        return None
+
+    async def generate_turn_commentary(self, summary_data, game_state):
+        return ""
+
+    async def process_freeform(self, text, game_state):
+        return {"error": "not implemented"}
+
 
 class _AlwaysRaisePortraitProvider(_BaseProvider):
     def __init__(self):
@@ -54,6 +78,36 @@ class _AlwaysNonePortraitProvider(_BaseProvider):
     async def generate_portrait(self, minister_name: str, description: str) -> str | None:
         self.calls += 1
         return None
+
+
+class _SlowCommentaryProvider(_BaseProvider):
+    def __init__(self):
+        self.calls = 0
+
+    async def generate_turn_commentary(self, summary_data, game_state):
+        self.calls += 1
+        await asyncio.sleep(0.2)
+        return "slow ai commentary"
+
+
+class _SlowParseProvider(_BaseProvider):
+    def __init__(self):
+        self.calls = 0
+
+    async def parse_free_input(self, text: str, game_state: GameState):
+        self.calls += 1
+        await asyncio.sleep(0.2)
+        return []
+
+
+class _SlowFreeformProvider(_BaseProvider):
+    def __init__(self):
+        self.calls = 0
+
+    async def process_freeform(self, text, game_state):
+        self.calls += 1
+        await asyncio.sleep(0.2)
+        return {"error": "slow"}
 
 
 def test_non_retryable_portrait_error_detection():
@@ -98,3 +152,77 @@ def test_portrait_endpoint_cools_down_after_failure():
     finally:
         routes._provider = old_provider
         routes._portrait_cooldown_until = old_cooldown
+
+
+def test_turn_commentary_has_dedicated_timeout_and_retry():
+    inner = _SlowCommentaryProvider()
+    provider = ResilientProvider(
+        inner,
+        timeout=1,
+        retries=3,
+        turn_commentary_timeout=0.01,
+        turn_commentary_retries=1,
+    )
+    state = create_initial_state()
+
+    result = asyncio.run(provider.generate_turn_commentary({"major_events": ["测试事件"]}, state))
+
+    assert result == "本月朝政动荡，1件大事需关注。"
+    assert inner.calls == 1
+
+
+def test_turn_commentary_retry_log_includes_exception_type(caplog):
+    inner = _SlowCommentaryProvider()
+    provider = ResilientProvider(
+        inner,
+        timeout=1,
+        retries=3,
+        turn_commentary_timeout=0.01,
+        turn_commentary_retries=1,
+    )
+    state = create_initial_state()
+
+    with caplog.at_level("ERROR"):
+        asyncio.run(provider.generate_turn_commentary({"major_events": ["测试事件"]}, state))
+
+    assert any(
+        "generate_turn_commentary attempt 1/1 failed (TimeoutError)" in rec.message
+        for rec in caplog.records
+    )
+
+
+def test_parse_has_dedicated_timeout_and_retry(monkeypatch):
+    monkeypatch.setattr(provider_mod, "_rule_parse_fallback_enabled", False)
+    inner = _SlowParseProvider()
+    provider = ResilientProvider(
+        inner,
+        timeout=1,
+        retries=3,
+        parse_timeout=0.01,
+        parse_retries=1,
+    )
+    state = create_initial_state()
+
+    result = asyncio.run(provider.parse_free_input("加税", state))
+
+    assert isinstance(result, dict)
+    assert result.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
+    assert inner.calls == 1
+
+
+def test_freeform_has_dedicated_timeout_and_retry():
+    inner = _SlowFreeformProvider()
+    provider = ResilientProvider(
+        inner,
+        timeout=1,
+        retries=3,
+        freeform_timeout=0.01,
+        freeform_retries=1,
+    )
+    state = create_initial_state()
+
+    result = asyncio.run(provider.process_freeform("加税", state))
+
+    assert isinstance(result, dict)
+    assert result.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
+    assert inner.calls == 1

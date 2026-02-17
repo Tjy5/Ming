@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+from typing import Any
 
 import httpx
 import openai
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree, Minister, DebateResult
-from models.enums import DecreeType, PersonnelAction
+from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction
+from models.enums import DecreeType, PersonnelAction, MemorialStatus
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -18,6 +19,9 @@ from .provider import (
     DEBATE_SYSTEM_PROMPT,
     parse_debate_response,
     extract_json_object_text,
+    _FREEFORM_SYSTEM_PROMPT,
+    build_freeform_user_prompt as _build_freeform_user_prompt,
+    parse_freeform_response as _parse_freeform_response,
 )
 
 load_dotenv()
@@ -30,6 +34,14 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_str(name: str) -> str | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    return value or None
+
+
 class OpenAIProvider(AIProvider):
     def __init__(self):
         trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
@@ -40,6 +52,81 @@ class OpenAIProvider(AIProvider):
             http_client=http_client,
         )
         self.model = os.getenv("OPENAI_MODEL_NAME", "gemini-3-flash-preview")
+        self.parse_model = self.model
+        self.freeform_model = self.model
+        self.turn_commentary_model = self.model
+        self._configure_task_models("OPENAI")
+
+    def _configure_task_models(
+        self,
+        prefix: str,
+        *,
+        parse_default: str | None = None,
+        freeform_default: str | None = None,
+        turn_commentary_default: str | None = None,
+        use_simple_for_parse: bool = True,
+        use_simple_for_freeform: bool = True,
+        use_simple_for_turn_commentary: bool = True,
+    ) -> None:
+        simple_model = _env_str(f"{prefix}_SIMPLE_MODEL")
+        parse_simple = simple_model if use_simple_for_parse else None
+        freeform_simple = simple_model if use_simple_for_freeform else None
+        turn_commentary_simple = simple_model if use_simple_for_turn_commentary else None
+
+        self.parse_model = (
+            _env_str(f"{prefix}_PARSE_MODEL")
+            or parse_simple
+            or parse_default
+            or self.model
+        )
+        self.freeform_model = (
+            _env_str(f"{prefix}_FREEFORM_MODEL")
+            or freeform_simple
+            or freeform_default
+            or self.model
+        )
+        self.turn_commentary_model = (
+            _env_str(f"{prefix}_TURN_COMMENTARY_MODEL")
+            or turn_commentary_simple
+            or turn_commentary_default
+            or self.model
+        )
+
+    async def _chat_completion_with_fallback(
+        self,
+        *,
+        task_name: str,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        response_format: dict[str, str] | None = None,
+    ) -> Any:
+        kwargs: dict[str, Any] = {
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if response_format is not None:
+            kwargs["response_format"] = response_format
+
+        try:
+            return await self.client.chat.completions.create(
+                model=model,
+                **kwargs,
+            )
+        except Exception as first_error:
+            if model == self.model:
+                raise
+            logging.warning(
+                "%s model %s failed (%s), fallback to %s",
+                task_name,
+                model,
+                type(first_error).__name__,
+                self.model,
+            )
+            return await self.client.chat.completions.create(
+                model=self.model,
+                **kwargs,
+            )
 
     async def generate_narrative(
         self, delta_attribution: dict, game_state: GameState,
@@ -67,8 +154,9 @@ class OpenAIProvider(AIProvider):
         prompt = self._build_parse_prompt(text, game_state)
         
         try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
+            response = await self._chat_completion_with_fallback(
+                task_name="parse_free_input",
+                model=self.parse_model,
                 messages=[
                     {"role": "system", "content": "你是一款历史模拟游戏的指令解析器。将用户的自然语言输入解析为结构化的政令JSON。"},
                     {"role": "user", "content": prompt}
@@ -164,33 +252,193 @@ class OpenAIProvider(AIProvider):
         b64 = getattr(response.data[0], "b64_json", None) if response.data else None
         return f"data:image/png;base64,{b64}" if b64 else None
 
+    async def generate_memorial(
+        self, trigger_reason: str, author: Minister, game_state: GameState,
+    ) -> str:
+        prompt = (
+            f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
+            f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
+            f"触发原因：{trigger_reason}\n"
+            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
+            "请以该大臣的口吻撰写一份明朝风格的奏折，200-500字。"
+            "要求：引用具体地名人名，体现大臣性格，提出具体建议。"
+        )
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logging.error(f"generate_memorial error: {e}")
+            raise
+
+    async def generate_minister_reaction(
+        self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
+    ) -> str:
+        attitude = "赞同" if stance > 0 else "反对"
+        prompt = (
+            f"大臣{minister.name}（{minister.faction}），性格：{'、'.join(minister.personality_tags)}，"
+            f"对政令{decree.type.value}{attitude}（态度值{stance}）。\n"
+            "请以该大臣口吻写一句30-50字的反应，体现其性格特点。"
+        )
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "你是崇祯模拟器的大臣反应生成器。输出一句简短的大臣反应，30-50字。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.8,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logging.error(f"generate_minister_reaction error: {e}")
+            raise
+
+    async def generate_assembly_debate(
+        self, topic: str, participants: list[Minister], game_state: GameState,
+    ) -> dict | None:
+        parts = [f"议题：{topic}\n当前国情：{game_state.time.year}年{game_state.time.month}月，"
+                 f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n参与大臣："]
+        for p in participants:
+            parts.append(f"- {p.name}（{p.faction}），性格：{'、'.join(p.personality_tags)}，"
+                         f"文治{p.abilities.civil}/武略{p.abilities.military}")
+        prompt = "\n".join(parts)
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": (
+                        "你是崇祯模拟器的朝会辩论生成器。输出JSON：{"
+                        "\"debate_text\":\"300-500字多人对话\","
+                        "\"participants\":[{\"name\":\"...\",\"position\":\"...\",\"argument_text\":\"...\"}],"
+                        "\"suggestions\":[{\"title\":\"...\",\"description\":\"...\",\"decree_type\":\"...\",\"supporter_names\":[]}],"
+                        "\"consensus\":\"共识描述\"}"
+                    )},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.8,
+                response_format={"type": "json_object"},
+            )
+            content = (response.choices[0].message.content or "").strip()
+            if not content:
+                return None
+            return json.loads(extract_json_object_text(content))
+        except Exception as e:
+            logging.error(f"generate_assembly_debate error: {e}")
+            raise
+
+    async def generate_turn_commentary(
+        self, summary_data: dict, game_state: GameState,
+    ) -> str:
+        events = summary_data.get("major_events", [])
+        implications = summary_data.get("action_implications", [])
+        year = int(summary_data.get("year") or game_state.time.year)
+        month = int(summary_data.get("month") or game_state.time.month)
+        events_text = "、".join(str(e) for e in events) if events else "无"
+        implications_text = "；".join(str(i) for i in implications[:4]) if implications else "无"
+        prompt = (
+            f"时间：{year}年{month}月\n"
+            f"本月大事：{events_text}\n"
+            f"政令与局势影响：{implications_text}\n"
+            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+            "请写一段50-100字的朝政总评，明朝奏报风格，概括本月朝政态势。"
+            "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
+        )
+        try:
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_turn_commentary",
+                model=self.turn_commentary_model,
+                messages=[
+                    {"role": "system", "content": "你是崇祯模拟器的朝政总评生成器。输出50-100字的朝政概况。"},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.7,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logging.error(f"generate_turn_commentary error: {e}")
+            raise
+
+    async def process_freeform(
+        self, text: str, game_state: GameState,
+    ) -> FreeformResult | dict:
+        prompt = _build_freeform_user_prompt(text, game_state)
+        try:
+            response = await self._chat_completion_with_fallback(
+                task_name="process_freeform",
+                model=self.freeform_model,
+                messages=[
+                    {"role": "system", "content": _FREEFORM_SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.5,
+                response_format={"type": "json_object"},
+            )
+            content = (response.choices[0].message.content or "").strip()
+            data = json.loads(extract_json_object_text(content))
+            return _parse_freeform_response(data)
+        except json.JSONDecodeError as e:
+            logging.error(f"OpenAI freeform JSON parse error: {e}")
+            return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
+        except Exception as e:
+            logging.error(f"OpenAI process_freeform error: {e}")
+            return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
     def _build_narrative_prompt(self, delta, state, events, decree):
-        # ... prompt construction logic ...
+        region_names = [r.name for r in state.regions]
+        personnel_context = self._build_personnel_context(decree, state)
         return f"""
         当前时间：{state.time.year}年{state.time.month}月
-        
+
         玩家下达了政令：{decree}
-        
+
         数值变化：
         - 国库：{delta.get('treasury', 0)}
         - 民心：{delta.get('civil_morale', 0)}
         - 军心：{delta.get('military_morale', 0)}
         - 威望：{delta.get('court_prestige', 0)}
-        
+
+        {personnel_context}
         触发事件：{', '.join(events) if events else '无'}
-        
-        请生成一段100字左右的叙事，描述政令执行的过程和直接后果。风格要符合明朝历史背景。
+        涉及区域：{', '.join(region_names)}
+
+        请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合明朝历史背景。
+        若有大臣被处决，叙事必须描述处决事实，且不得描述已处决大臣仍在活动。
         """
 
+    @staticmethod
+    def _build_personnel_context(decree, state) -> str:
+        lines = []
+        if decree.type == DecreeType.PERSONNEL and decree.target and decree.sub_action:
+            action_map = {
+                PersonnelAction.EXECUTE: "被处决（status: removed）",
+                PersonnelAction.DISMISS: "被罢免（status: idle）",
+                PersonnelAction.APPOINT: "被任命（status: active）",
+            }
+            desc = action_map.get(decree.sub_action, str(decree.sub_action))
+            lines.append(f"本回合人事变动：{decree.target}{desc}")
+        if lines:
+            return "人事变动：\n" + "\n".join(lines)
+        return ""
+
     def _build_parse_prompt(self, text, state):
+        minister_names = [m.name for m in state.ministers if m.status.value != "removed"]
         return f"""
         用户输入："{text}"
-        
+
+        当前在朝/赋闲大臣：{', '.join(minister_names)}
+
         请解析为 JSON 格式。
-        
+
         可选政令类型 (type): {', '.join([t.value for t in DecreeType])}
         可选人事动作 (sub_action): {', '.join([a.value for a in PersonnelAction])}
-        
+
         如果通过，返回格式：
         {{
             "decrees": [
@@ -204,9 +452,10 @@ class OpenAIProvider(AIProvider):
 
         解析原则（必须遵守）：
         1) 尽量把任何有政务意图的输入映射为一个或多个可执行政令，不要因为措辞激烈就拒绝。
-        2) 输入含“斩杀/诛杀/处斩/镇压/清洗”等，优先映射为 harsh_punishment。
-        3) 输入明确是人事任免时，使用 personnel，并给出 sub_action=appoint 或 dismiss。
-        4) 只有在输入完全不包含政务意图（闲聊、乱码）时，才返回 error。
+        2) 输入含"斩杀/诛杀/处斩/斩首/问斩/斩了"等且指向上述某位大臣时，映射为 personnel + sub_action=execute + target=大臣名。
+        3) 输入含"镇压/清洗/严刑/峻法/重典"等但不指向特定大臣时，映射为 harsh_punishment。
+        4) 输入明确是人事任免（罢免/撤职/免职/任命/提拔）时，使用 personnel + sub_action=dismiss 或 appoint。
+        5) 只有在输入完全不包含政务意图（闲聊、乱码）时，才返回 error。
 
         仅在无法识别任何政务意图时，返回：
         {{
