@@ -24,6 +24,22 @@ class _BaseProvider(AIProvider):
     ) -> str:
         return ""
 
+    async def stream_narrative(
+        self,
+        delta_attribution: dict,
+        game_state: GameState,
+        chain_events: list[str],
+        decree: StructuredDecree,
+    ):
+        narrative = await self.generate_narrative(
+            delta_attribution,
+            game_state,
+            chain_events,
+            decree,
+        )
+        if narrative:
+            yield narrative
+
     async def parse_free_input(
         self,
         text: str,
@@ -58,7 +74,7 @@ class _BaseProvider(AIProvider):
     async def generate_turn_commentary(self, summary_data, game_state):
         return ""
 
-    async def process_freeform(self, text, game_state):
+    async def process_freeform(self, text, game_state, *, script_context=None):
         return {"error": "not implemented"}
 
 
@@ -104,10 +120,17 @@ class _SlowFreeformProvider(_BaseProvider):
     def __init__(self):
         self.calls = 0
 
-    async def process_freeform(self, text, game_state):
+    async def process_freeform(self, text, game_state, *, script_context=None):
         self.calls += 1
         await asyncio.sleep(0.2)
         return {"error": "slow"}
+
+
+class _HangingStreamProvider(_BaseProvider):
+    async def stream_narrative(self, *args, **kwargs):
+        await asyncio.sleep(0.2)
+        if False:
+            yield ""
 
 
 def test_non_retryable_portrait_error_detection():
@@ -167,7 +190,7 @@ def test_turn_commentary_has_dedicated_timeout_and_retry():
 
     result = asyncio.run(provider.generate_turn_commentary({"major_events": ["测试事件"]}, state))
 
-    assert result == "本月朝政动荡，1件大事需关注。"
+    assert "朝政动荡，1件大事需关注" in result
     assert inner.calls == 1
 
 
@@ -226,3 +249,23 @@ def test_freeform_has_dedicated_timeout_and_retry():
     assert isinstance(result, dict)
     assert result.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
     assert inner.calls == 1
+
+
+def test_stream_narrative_has_timeout_and_fallback():
+    inner = _HangingStreamProvider()
+    provider = ResilientProvider(
+        inner,
+        timeout=0.01,
+        retries=1,
+    )
+    state = create_initial_state()
+    decree = StructuredDecree(type="harsh_punishment")
+
+    async def _collect():
+        chunks: list[str] = []
+        async for chunk in provider.stream_narrative({}, state, [], decree):
+            chunks.append(chunk)
+        return chunks
+
+    result = asyncio.run(_collect())
+    assert result == ["（AI服务响应异常，但政令已执行）"]

@@ -1,5 +1,16 @@
 from models.enums import DecreeType
 
+DECREE_LABELS: dict[DecreeType, str] = {
+    DecreeType.TAX_INCREASE: "加税",
+    DecreeType.TAX_DECREASE: "减税",
+    DecreeType.RECRUIT_TROOPS: "增兵",
+    DecreeType.DISBAND_TROOPS: "裁兵",
+    DecreeType.PERSONNEL: "任免",
+    DecreeType.DIPLOMACY: "外交",
+    DecreeType.DISASTER_RELIEF: "赈灾",
+    DecreeType.HARSH_PUNISHMENT: "严刑",
+}
+
 # 8 types × 6 fields: treasury, population, military_supply, civil_morale, military_morale, court_prestige
 DECREE_EFFECTS: dict[DecreeType, dict[str, int]] = {
     DecreeType.TAX_INCREASE:      {"treasury": 15, "population": 0,  "military_supply": 0,   "civil_morale": -8,  "military_morale": 0,   "court_prestige": 0},

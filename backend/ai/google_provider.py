@@ -4,21 +4,25 @@ import base64
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction
+from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, PersonnelAction, MemorialStatus, MinisterStatus
 from .provider import (
     AIProvider,
+    MockProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
     build_debate_prompt,
     DEBATE_SYSTEM_PROMPT,
     parse_debate_response,
     extract_json_object_text,
+    validate_memorial_decrees,
+    parse_memorial_draft,
     _FREEFORM_SYSTEM_PROMPT,
     build_freeform_user_prompt as _build_freeform_user_prompt,
     parse_freeform_response as _parse_freeform_response,
@@ -74,6 +78,52 @@ class GoogleProvider(AIProvider):
         except Exception as e:
             logging.error(f"Google AI generate_narrative error: {e}")
             return "（AI服务响应异常，但政令已执行）"
+
+    async def stream_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> AsyncIterator[str]:
+        prompt = self._build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
+        config = types.GenerateContentConfig(
+            system_instruction="你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。",
+            temperature=0.7,
+            safety_settings=self._safety_off(),
+        )
+
+        emitted_any = False
+        stream_method = getattr(self.client.aio.models, "generate_content_stream", None)
+        if callable(stream_method):
+            try:
+                stream = stream_method(
+                    model=self.model,
+                    contents=prompt,
+                    config=config,
+                )
+                if hasattr(stream, "__await__"):
+                    stream = await stream
+                if hasattr(stream, "__aiter__"):
+                    async for chunk in stream:
+                        text = getattr(chunk, "text", None)
+                        if isinstance(text, str) and text != "":
+                            emitted_any = True
+                            yield text
+                    return
+                for chunk in stream:
+                    text = getattr(chunk, "text", None)
+                    if isinstance(text, str) and text != "":
+                        emitted_any = True
+                        yield text
+                return
+            except Exception as e:
+                logging.error(f"Google AI stream_narrative error: {e}")
+                if emitted_any:
+                    return
+
+        fallback = await self.generate_narrative(
+            delta_attribution, game_state, chain_events, decree,
+        )
+        if fallback:
+            yield fallback
 
     async def parse_free_input(
         self, text: str, game_state: GameState,
@@ -184,24 +234,34 @@ class GoogleProvider(AIProvider):
 
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,
-    ) -> str:
+    ) -> MemorialDraft:
+        decree_types = ", ".join(t.value for t in DecreeType)
         prompt = (
             f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
             f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
             f"触发原因：{trigger_reason}\n"
             f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
-            "请以该大臣的口吻撰写一份明朝风格的奏折，200-500字。"
-            "要求：引用具体地名人名，体现大臣性格，提出具体建议。"
+            "请以该大臣的口吻撰写一份明朝风格的奏折（200-500字），并推荐1-3条建议政令。\n"
+            f"可用政令type：{decree_types}\n"
+            '严格输出JSON：{{"content":"奏折正文","suggested_decrees":[{{"type":"...","target":"..."}}]}}'
         )
-        response = await self.client.aio.models.generate_content(
-            model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction="你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。",
-                temperature=0.7,
-                safety_settings=self._safety_off(),
-            ),
-        )
-        return response.text.strip()
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model, contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction="你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。",
+                    temperature=0.7,
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            draft = parse_memorial_draft(response.text or "", author.name, game_state)
+            if not draft.suggested_decrees and trigger_reason.split(":", 1)[0] != "faction_crisis":
+                mock = await MockProvider().generate_memorial(trigger_reason, author, game_state)
+                draft.suggested_decrees = mock.suggested_decrees
+            return draft
+        except Exception as e:
+            logging.error("GoogleProvider generate_memorial fallback: %s", e)
+            return await MockProvider().generate_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
@@ -332,8 +392,9 @@ class GoogleProvider(AIProvider):
 
     async def process_freeform(
         self, text: str, game_state: GameState,
+        *, script_context: dict | None = None,
     ) -> FreeformResult | dict:
-        prompt = self._build_freeform_prompt(text, game_state)
+        prompt = self._build_freeform_prompt(text, game_state, script_context)
         try:
             response = await self.client.aio.models.generate_content(
                 model=self.model,
@@ -356,8 +417,10 @@ class GoogleProvider(AIProvider):
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     @staticmethod
-    def _build_freeform_prompt(text: str, state: GameState) -> str:
-        return _build_freeform_user_prompt(text, state)
+    def _build_freeform_prompt(
+        text: str, state: GameState, script_context: dict | None = None,
+    ) -> str:
+        return _build_freeform_user_prompt(text, state, script_context)
 
     def _build_parse_prompt(self, text, state):
         minister_names = [m.name for m in state.ministers if m.status.value != "removed"]

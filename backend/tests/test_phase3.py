@@ -367,6 +367,44 @@ class TestGenerateTurnSummary:
         summary = generate_turn_summary(snap, snap, ["流寇势力扩大", "边军哗变"], [], state)
         assert summary.major_events == ["流寇势力扩大", "边军哗变"]
 
+    def test_region_details_from_attr(self):
+        state = make_state()
+        before = state.model_dump()
+        state.regions[0].stability -= 10
+        state.regions[0].garrison += 2000
+        after = state.model_dump()
+        rname = state.regions[0].name
+        attr = {
+            f"{rname}_stability": {"增兵": -3, "自然变化": -7},
+            f"{rname}_garrison": {"增兵": 2000},
+        }
+        summary = generate_turn_summary(before, after, [], [], state, attr=attr)
+        assert summary.region_details is not None
+        assert len(summary.region_details) == 3
+        # sorted by region name; all same region here
+        fields = [(d.field, d.source, d.delta) for d in summary.region_details]
+        assert ("stability", "增兵", -3.0) in fields
+        assert ("stability", "自然变化", -7.0) in fields
+        assert ("garrison", "增兵", 2000.0) in fields
+
+    def test_region_details_sorted_by_region(self):
+        state = make_state()
+        before = state.model_dump()
+        # change two regions
+        r_a = next(r for r in state.regions if r.name == "辽东")
+        r_b = next(r for r in state.regions if r.name == "陕西")
+        r_a.stability -= 5
+        r_b.stability -= 3
+        after = state.model_dump()
+        attr = {
+            "辽东_stability": {"自然变化": -5},
+            "陕西_stability": {"自然变化": -3},
+        }
+        summary = generate_turn_summary(before, after, [], [], state, attr=attr)
+        assert summary.region_details is not None
+        regions = [d.region for d in summary.region_details]
+        assert regions == sorted(regions)
+
 
 # ── 20.6 Save migration compatibility ──────────────────
 
@@ -439,28 +477,6 @@ class TestSaveMigrationPhase3:
 # ── 20.7 Script events trigger conditions and effects ───
 
 class TestScriptEventsPhase3:
-    def test_rebel_wangjiaying_condition(self):
-        scripts = get_scripts_for_time(1628, 6)
-        evt = next((s for s in scripts if s.script_id == "rebel-wangjiaying"), None)
-        assert evt is not None
-        # condition: 陕西 stability < 40
-        state = make_state(time=GameTime(year=1628, month=6, era_name="崇祯", era_year=1))
-        _region(state, "陕西").stability = 39
-        assert evt.condition(state) is True
-        _region(state, "陕西").stability = 40
-        assert evt.condition(state) is False
-
-    def test_ningyuan_mutiny_condition(self):
-        scripts = get_scripts_for_time(1628, 7)
-        evt = next((s for s in scripts if s.script_id == "ningyuan-mutiny"), None)
-        assert evt is not None
-        state = make_state(time=GameTime(year=1628, month=7, era_name="崇祯", era_year=1))
-        state.military_morale = 49
-        state.treasury = 59
-        assert evt.condition(state) is True
-        state.military_morale = 50
-        assert evt.condition(state) is False
-
     def test_jisi_invasion_no_condition(self):
         scripts = get_scripts_for_time(1629, 10)
         evt = next((s for s in scripts if s.script_id == "jisi-invasion"), None)
@@ -503,7 +519,7 @@ class TestScriptEventsPhase3:
         assert evt.condition(state) is False
 
     def test_dalinghe_condition(self):
-        scripts = get_scripts_for_time(1630, 9)
+        scripts = get_scripts_for_time(1631, 8)
         evt = next((s for s in scripts if s.script_id == "dalinghe-prelude"), None)
         assert evt is not None
         state = make_state()
@@ -514,7 +530,7 @@ class TestScriptEventsPhase3:
 
     def test_all_phase3_scripts_have_choices(self):
         phase3_ids = [
-            "rebel-wangjiaying", "ningyuan-mutiny", "jisi-invasion",
+            "jisi-invasion",
             "yuan-chonghuan-arrest", "li-zicheng-joins",
             "sun-chengzong-recovery", "dalinghe-prelude",
         ]
@@ -523,10 +539,11 @@ class TestScriptEventsPhase3:
             assert len(SCRIPT_REGISTRY[sid].choices) >= 2
 
     def test_opening_script_loyalty_effects(self):
-        evt = SCRIPT_REGISTRY["tianqi-7-opening"]
-        choice0 = evt.choices[0]
-        assert ("魏忠贤", -30) in choice0.loyalty_effects
-        assert ("徐光启", 10) in choice0.loyalty_effects
+        evt = SCRIPT_REGISTRY["chongzhen-accession-1627-08"]
+        choice2 = evt.choices[2]  # 即刻清算阉党
+        assert ("魏忠贤", -30) in choice2.loyalty_effects
+        choice1 = evt.choices[1]  # 试探群臣态度
+        assert ("徐光启", 10) in choice1.loyalty_effects
 
 
 # ── 20.8 process_decree pipeline order and return ────────
@@ -1059,3 +1076,38 @@ class TestScriptStateEffectsOrder:
         choice0 = evt.choices[0]
         assert ("袁崇焕", -50) in choice0.loyalty_effects
         assert "faction.边将势力.satisfaction" in choice0.state_effects
+
+
+# ── 10.12 DECREE_LABELS consistency between backend and frontend ──
+
+class TestDecreeLabelsConsistency:
+    FRONTEND_LABELS = {
+        "tax_increase": "加税",
+        "tax_decrease": "减税",
+        "recruit_troops": "增兵",
+        "disband_troops": "裁兵",
+        "personnel": "任免",
+        "diplomacy": "外交",
+        "disaster_relief": "赈灾",
+        "harsh_punishment": "严刑",
+    }
+
+    def test_all_decree_types_have_labels(self):
+        from engine.tables import DECREE_LABELS
+        for dt in DecreeType:
+            assert dt in DECREE_LABELS, f"{dt} missing from backend DECREE_LABELS"
+
+    def test_backend_frontend_labels_match(self):
+        from engine.tables import DECREE_LABELS
+        for dt in DecreeType:
+            backend_label = DECREE_LABELS[dt]
+            frontend_label = self.FRONTEND_LABELS.get(dt.value)
+            assert frontend_label is not None, f"{dt.value} missing from frontend DECREE_LABELS"
+            assert backend_label == frontend_label, (
+                f"{dt.value}: backend='{backend_label}' != frontend='{frontend_label}'"
+            )
+
+    def test_frontend_has_no_extra_keys(self):
+        backend_keys = {dt.value for dt in DecreeType}
+        for key in self.FRONTEND_LABELS:
+            assert key in backend_keys, f"frontend has extra key '{key}' not in DecreeType"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 import httpx
 import openai
 from dotenv import load_dotenv
@@ -38,8 +39,35 @@ class ZProvider(OpenAIProvider):
         self.model = os.getenv("Z_MODEL", "qwen3.5-plus-2026-02-15")
         self._configure_task_models(
             "Z",
-            parse_default="qwen3-omni-flash-2025-12-01",
+            parse_default=self.model,
             freeform_default=self.model,
-            turn_commentary_default="qwen3-omni-flash-2025-12-01",
+            turn_commentary_default=self.model,
+            use_simple_for_parse=False,
             use_simple_for_freeform=False,
+            use_simple_for_turn_commentary=False,
         )
+        self._enable_thinking_default = os.getenv("Z_ENABLE_THINKING_DEFAULT", "0").lower() in (
+            "1", "true", "yes", "on",
+        )
+        raw_tasks = os.getenv("Z_ENABLE_THINKING_TASKS")
+        if raw_tasks is None:
+            self._enable_thinking_tasks = {
+                "generate_debate_narrative",
+                "generate_memorial",
+                "generate_assembly_debate",
+            }
+        else:
+            self._enable_thinking_tasks = {
+                task.strip() for task in raw_tasks.split(",") if task.strip()
+            }
+
+    def _chat_completion_extra_kwargs(
+        self,
+        *,
+        task_name: str,
+        model: str,
+    ) -> dict[str, Any]:
+        enable_thinking = self._enable_thinking_default or (
+            task_name in self._enable_thinking_tasks
+        )
+        return {"extra_body": {"enable_thinking": enable_thinking}}

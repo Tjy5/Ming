@@ -9,6 +9,7 @@ interface Props {
   onSave: () => void
   onShowSaves: () => void
   onNewGame: () => void
+  onOpenAiSettings: () => void
 }
 
 const RESOURCES: { key: keyof GameState; label: string; max: number }[] = [
@@ -27,7 +28,7 @@ function barColor(val: number, max: number): string {
   return 'var(--red)'
 }
 
-export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame }: Props) {
+export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings }: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
 
   useEffect(() => {
@@ -76,6 +77,7 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         </button>
         <button className="toolbar-btn" onClick={onSave}>存档</button>
         <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
+        <button className="toolbar-btn" onClick={onOpenAiSettings}>AI设置</button>
         <button className="toolbar-btn" onClick={onNewGame}>新局</button>
       </div>
     </div>

@@ -1,20 +1,32 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import json
+import os
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+import re
 import time
+from urllib.parse import urlparse
 
+import httpx
+from dotenv import set_key, unset_key
 from fastapi import APIRouter, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from models.game import (
     GameState, Minister, StructuredDecree, DecreeResponse, HistoryEntry,
     ErrorResponse, create_initial_state, INITIAL_MINISTERS, INITIAL_FACTIONS,
     CourtAssembly, AssemblyParticipant, PolicySuggestion, clamp_state,
-    FreeformResult,
+    FreeformResult, Memorial, MemorialDraft,
 )
 from models.enums import DecreeType, MinisterStatus, MemorialStatus
 from engine.core import process_decree, check_preconditions, validate_target
 from engine.tables import FACTION_STANCE
+from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE, MockProvider, get_provider, get_rule_parse_fallback, set_rule_parse_fallback
 from db.saves import (
     init_db, save_game, load_game, list_saves, delete_save, auto_save,
@@ -31,6 +43,41 @@ _provider = None
 _portrait_lock = asyncio.Lock()
 _portrait_cooldown_until = 0.0
 _PORTRAIT_COOLDOWN_SECONDS = 300
+_ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
+_SECRET_MASK = "********"
+
+_AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
+    "mock": {"api_key_env": None, "base_url_env": None, "model_env": None},
+    "openai": {
+        "api_key_env": "OPENAI_API_KEY",
+        "base_url_env": "OPENAI_BASE_URL",
+        "model_env": "OPENAI_MODEL_NAME",
+    },
+    "google": {
+        "api_key_env": "GOOGLE_API_KEY",
+        "base_url_env": "GOOGLE_BASE_URL",
+        "model_env": "GOOGLE_MODEL_NAME",
+    },
+    "h": {
+        "api_key_env": "HOTARU_API_KEY",
+        "base_url_env": "HOTARU_BASE_URL",
+        "model_env": "HOTARU_MODEL",
+    },
+    "Z": {
+        "api_key_env": "Z_API_KEY",
+        "base_url_env": "Z_BASE_URL",
+        "model_env": "Z_MODEL",
+    },
+}
+
+_AI_PROVIDER_ALIASES = {
+    "mock": "mock",
+    "openai": "openai",
+    "google": "google",
+    "h": "h",
+    "hotaru": "h",
+    "z": "Z",
+}
 
 
 def _get_state() -> GameState:
@@ -56,9 +103,345 @@ def startup():
     init_db()
 
 
+def _normalize_provider_name(raw: str | None) -> str:
+    value = (raw or "").strip()
+    if not value:
+        value = os.getenv("AI_PROVIDER", "mock")
+    lowered = value.lower()
+    return _AI_PROVIDER_ALIASES.get(lowered, value)
+
+
+def _clean_optional(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _mask_secret(value: str | None) -> str:
+    return _SECRET_MASK if (value or "").strip() else ""
+
+
+def _resolve_submitted_secret(
+    submitted: str | None,
+    current: str | None,
+) -> str | None:
+    cleaned = _clean_optional(submitted)
+    if cleaned == _SECRET_MASK:
+        return _clean_optional(current)
+    return cleaned
+
+
+def _is_private_hostname(hostname: str | None) -> bool:
+    host = (hostname or "").strip().rstrip(".").lower()
+    if not host:
+        return True
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_reserved
+        or ip.is_unspecified
+    )
+
+
+def _validate_model_list_base_url(base_url: str, provider: str) -> str:
+    parsed = urlparse(base_url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(f"{provider} Base URL 仅支持 http/https")
+    if not parsed.netloc:
+        raise ValueError(f"{provider} Base URL 缺少主机")
+    if parsed.username or parsed.password:
+        raise ValueError(f"{provider} Base URL 不允许内嵌账号信息")
+    if _is_private_hostname(parsed.hostname) and not _env_bool(
+        "AI_MODEL_LIST_ALLOW_PRIVATE_HOSTS", False,
+    ):
+        raise ValueError(
+            f"{provider} Base URL 指向内网地址。若确认需要，请设置 AI_MODEL_LIST_ALLOW_PRIVATE_HOSTS=1",
+        )
+    return base_url
+
+
+def _provider_spec(provider_name: str) -> dict[str, str | None]:
+    spec = _AI_PROVIDER_SPECS.get(provider_name)
+    if spec is None:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_provider",
+            message=f"未知AI供应商: {provider_name}",
+        ).model_dump())
+    return spec
+
+
+def _env_value(env_name: str | None) -> str:
+    if not env_name:
+        return ""
+    return (os.getenv(env_name) or "").strip()
+
+
+def _current_ai_settings(provider_name: str | None = None) -> dict:
+    provider = _normalize_provider_name(provider_name)
+    if provider not in _AI_PROVIDER_SPECS:
+        provider = "mock"
+    spec = _provider_spec(provider)
+
+    api_key = _env_value(spec["api_key_env"])
+    base_url = _env_value(spec["base_url_env"])
+    model = _env_value(spec["model_env"])
+
+    if provider == "google":
+        api_key = api_key or _env_value("OPENAI_API_KEY")
+        base_url = base_url or _env_value("OPENAI_BASE_URL")
+        model = model or _env_value("OPENAI_MODEL_NAME")
+
+    return {
+        "provider": provider,
+        "api_key": _mask_secret(api_key),
+        "base_url": base_url,
+        "model": model,
+        "provider_options": ["mock", "openai", "google", "h", "Z"],
+    }
+
+
+def _persist_env_values(updates: dict[str, str | None]) -> None:
+    _ENV_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _ENV_FILE_PATH.touch(exist_ok=True)
+
+    for key, value in updates.items():
+        clean = _clean_optional(value)
+        if clean is None:
+            unset_key(str(_ENV_FILE_PATH), key)
+            os.environ.pop(key, None)
+            continue
+        set_key(str(_ENV_FILE_PATH), key, clean, quote_mode="never")
+        os.environ[key] = clean
+
+
+def _apply_ai_settings(
+    *,
+    provider: str,
+    api_key: str | None,
+    base_url: str | None,
+    model: str | None,
+) -> dict:
+    global _provider
+
+    normalized_provider = _normalize_provider_name(provider)
+    spec = _provider_spec(normalized_provider)
+
+    current_api_key = _clean_optional(_env_value(spec["api_key_env"]))
+    api_key = _resolve_submitted_secret(api_key, current_api_key)
+    base_url = _clean_optional(base_url)
+    model = _clean_optional(model)
+
+    if normalized_provider in {"h", "Z"}:
+        if not api_key or not base_url:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="invalid_ai_settings",
+                message=f"{normalized_provider} 供应商必须填写 API Key 与 Base URL",
+            ).model_dump())
+
+    updates: dict[str, str | None] = {"AI_PROVIDER": normalized_provider}
+    if spec["api_key_env"]:
+        updates[spec["api_key_env"]] = api_key
+    if spec["base_url_env"]:
+        updates[spec["base_url_env"]] = base_url
+    if spec["model_env"]:
+        updates[spec["model_env"]] = model
+
+    _persist_env_values(updates)
+    _provider = None
+    try:
+        _provider = get_provider(normalized_provider)
+    except Exception as exc:
+        _provider = None
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_ai_settings",
+            message=f"AI配置无效: {exc}",
+        ).model_dump())
+    return _current_ai_settings(normalized_provider)
+
+
+def _normalize_openai_base_url(base_url: str | None, provider: str) -> str:
+    base = (base_url or "").strip()
+    if not base and provider == "openai":
+        return "https://api.openai.com/v1"
+    if not base:
+        return ""
+    base = base.rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[:-len("/chat/completions")]
+    return base.rstrip("/")
+
+
+def _normalize_google_base_url(base_url: str | None) -> str:
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        return "https://generativelanguage.googleapis.com"
+    for suffix in ("/v1beta", "/v1"):
+        if base.endswith(suffix):
+            base = base[:-len(suffix)]
+            break
+    return base
+
+
+async def _fetch_openai_models(
+    *,
+    api_key: str | None,
+    base_url: str,
+) -> list[str]:
+    if not base_url:
+        raise ValueError("缺少可用 Base URL")
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    models_url = f"{base_url.rstrip('/')}/models"
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        response = await client.get(models_url, headers=headers)
+        response.raise_for_status()
+        payload = response.json()
+
+    models: set[str] = set()
+    data = payload.get("data")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict):
+                model_id = item.get("id")
+                if isinstance(model_id, str) and model_id.strip():
+                    models.add(model_id.strip())
+    return sorted(models)
+
+
+async def _fetch_google_models(
+    *,
+    api_key: str,
+    base_url: str,
+) -> list[str]:
+    models_url = f"{_normalize_google_base_url(base_url).rstrip('/')}/v1beta/models"
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        response = await client.get(models_url, params={"key": api_key})
+        response.raise_for_status()
+        payload = response.json()
+
+    models: set[str] = set()
+    for item in (payload.get("models") or []):
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if isinstance(name, str) and name.strip():
+            models.add(name.split("/", 1)[-1].strip())
+    return sorted(models)
+
+
+async def _fill_memorial_content(
+    provider, memorials: list[Memorial], state: GameState,
+) -> None:
+    if not memorials:
+        return
+
+    async def _fill_one(mem: Memorial):
+        author = next((m for m in state.ministers if m.name == mem.author_name), None)
+        if author is None:
+            author = Minister(name=mem.author_name, faction=mem.author_faction)
+        draft = await provider.generate_memorial(mem.trigger_reason, author, state)
+        mem.content = draft.content
+        mem.suggested_decrees = draft.suggested_decrees
+
+    results = await asyncio.gather(
+        *(_fill_one(m) for m in memorials), return_exceptions=True,
+    )
+    mock = MockProvider()
+    for mem, result in zip(memorials, results):
+        if isinstance(result, Exception):
+            try:
+                author = next((m for m in state.ministers if m.name == mem.author_name), None)
+                if author is None:
+                    author = Minister(name=mem.author_name, faction=mem.author_faction)
+                draft = await mock.generate_memorial(mem.trigger_reason, author, state)
+                mem.content = draft.content
+                mem.suggested_decrees = draft.suggested_decrees
+            except Exception:
+                mem.content = f"臣{mem.author_name}伏惟陛下圣鉴，伏乞圣裁。"
+
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])")
+_STREAM_PROGRESS_MESSAGES = (
+    "军机处正在核对政令条目……",
+    "六部正在执行政令影响……",
+    "翰林院正在撰写廷议叙事……",
+)
+
+
+def _split_stream_sentences(text: str) -> list[str]:
+    normalized = (text or "").replace("\r\n", "\n").strip()
+    if not normalized:
+        return []
+
+    chunks: list[str] = []
+    for paragraph in normalized.split("\n"):
+        paragraph = paragraph.strip()
+        if not paragraph:
+            continue
+        parts = _SENTENCE_SPLIT_RE.split(paragraph)
+        for part in parts:
+            item = part.strip()
+            if item:
+                chunks.append(item)
+    return chunks or [normalized]
+
+
+def _sse_event(event: str, data: dict) -> str:
+    payload = json.dumps(jsonable_encoder(data), ensure_ascii=False)
+    return f"event: {event}\ndata: {payload}\n\n"
+
+
+NarrativeChunkCallback = Callable[[str], Awaitable[None]]
+
+
+async def _generate_narrative_with_streaming(
+    provider,
+    attribution: dict,
+    state: GameState,
+    triggered: list[str],
+    decree: StructuredDecree,
+    stream_callback: NarrativeChunkCallback | None,
+) -> str:
+    if stream_callback is None:
+        return await provider.generate_narrative(attribution, state, triggered, decree)
+
+    chunks: list[str] = []
+    async for chunk in provider.stream_narrative(attribution, state, triggered, decree):
+        if chunk == "":
+            continue
+        chunks.append(chunk)
+        await stream_callback(chunk)
+
+    narrative = "".join(chunks)
+    if narrative:
+        return narrative
+    fallback = await provider.generate_narrative(attribution, state, triggered, decree)
+    if fallback and stream_callback is not None:
+        await stream_callback(fallback)
+    return fallback
+
+
 # ── Request / Response models ───────────────────────────
 
-MAX_FREE_TEXT_LENGTH = 1000
+MAX_FREE_TEXT_LENGTH = 200
 
 class DecreeRequest(BaseModel):
     decrees: list[StructuredDecree] = Field(default_factory=list)
@@ -126,6 +509,19 @@ class ConveneAssemblyRequest(BaseModel):
 
 class AdoptSuggestionRequest(BaseModel):
     suggestion_index: int
+
+
+class AISettingsRequest(BaseModel):
+    provider: str
+    api_key: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+
+
+class AIModelListRequest(BaseModel):
+    provider: str | None = None
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 # ── Debate Config ─────────────────────────────────────
@@ -196,30 +592,53 @@ async def new_game():
 
 # ── 6.2 POST /api/decree ───────────────────────────────
 
-@router.post("/decree")
-async def execute_decree(req: DecreeRequest):
+async def _execute_decree_core(
+    req: DecreeRequest,
+    stream_narrative_callback: NarrativeChunkCallback | None = None,
+) -> tuple[dict, list[Memorial], object, GameState]:
     global _state
     # normalize free_text
     free_text = (req.free_text or "").strip() or None
     if free_text and len(free_text) > MAX_FREE_TEXT_LENGTH:
-        raise HTTPException(422, detail=ErrorResponse(
-            error_code="invalid_decree",
-            message=f"输入长度不能超过{MAX_FREE_TEXT_LENGTH}字",
+        raise HTTPException(400, detail=ErrorResponse(
+            error_code="INPUT_TOO_LONG",
+            message="输入超过200字符限制",
         ).model_dump())
     if free_text and req.decrees:
         raise HTTPException(422, detail=ErrorResponse(
             error_code="invalid_decree",
             message="decrees 与 free_text 不能同时提供",
         ).model_dump())
+    if req.source_script_id:
+        if req.source_script_id not in SCRIPT_REGISTRY:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="INVALID_SCRIPT_ID",
+                message="无效的脚本事件ID",
+            ).model_dump())
     if _lock.locked():
         raise HTTPException(409, detail=ErrorResponse(
             error_code="decree_in_progress",
             message="正在处理上一道政令，请稍候",
         ).model_dump())
 
+    _mem_triggers: list[Memorial] = []
+
     async with _lock:
         state = _get_state().model_copy(deep=True)
         provider = _get_provider()
+
+        if req.source_script_id:
+            if req.source_script_id in state.resolved_script_ids:
+                raise HTTPException(422, detail=ErrorResponse(
+                    error_code="SCRIPT_ALREADY_RESOLVED",
+                    message="该脚本事件已处理",
+                ).model_dump())
+            active_ids = {e.script_id for e in state.active_events}
+            if req.source_script_id not in active_ids:
+                raise HTTPException(422, detail=ErrorResponse(
+                    error_code="SCRIPT_NOT_ACTIVE",
+                    message="该脚本事件当前未激活",
+                ).model_dump())
 
         # script state_effects: apply BEFORE decrees
         if req.state_effects:
@@ -229,9 +648,23 @@ async def execute_decree(req: DecreeRequest):
 
         # ── Freeform path: free_text provided, no structured decrees ──
         if free_text and not req.decrees:
-            freeform = await provider.process_freeform(free_text, state)
+            script_context = None
+            if req.source_script_id:
+                evt = SCRIPT_REGISTRY.get(req.source_script_id)
+                if evt:
+                    script_context = {
+                        "title": evt.title,
+                        "description": evt.rich_description,
+                        "suggested_actions": [c.label for c in evt.choices],
+                    }
+            freeform = await provider.process_freeform(free_text, state, script_context=script_context)
 
             if isinstance(freeform, FreeformResult):
+                if req.source_script_id and not freeform.effects and not freeform.reactions:
+                    raise HTTPException(422, detail=ErrorResponse(
+                        error_code="FREEFORM_EMPTY",
+                        message="旨意不明，请重新输入",
+                    ).model_dump())
                 mem_count_before = len(state.memorials)
                 delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
                     state, freeform=freeform,
@@ -252,6 +685,9 @@ async def execute_decree(req: DecreeRequest):
 
                 if state.decree_count % 5 == 0:
                     auto_save(state)
+
+                if stream_narrative_callback and freeform.narrative:
+                    await stream_narrative_callback(freeform.narrative)
 
                 last_response = DecreeResponse(
                     state=state, delta=delta, attribution=attribution,
@@ -288,7 +724,8 @@ async def execute_decree(req: DecreeRequest):
 
         # ── Structured path ──
         if last_response is None and req.decrees:
-            for decree in req.decrees:
+            decree_count = len(req.decrees)
+            for decree_index, decree in enumerate(req.decrees):
                 reason = check_preconditions(state, decree)
                 if reason:
                     narrative = await provider.rejection_narrative(decree, reason)
@@ -309,8 +746,17 @@ async def execute_decree(req: DecreeRequest):
                 delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state, decree)
                 _mem_triggers = state.memorials[mem_count_before:]
 
-                narrative = await provider.generate_narrative(
-                    attribution, state, triggered, decree,
+                should_stream_narrative = (
+                    stream_narrative_callback is not None
+                    and (decree_index == decree_count - 1 or game_over is not None)
+                )
+                narrative = await _generate_narrative_with_streaming(
+                    provider=provider,
+                    attribution=attribution,
+                    state=state,
+                    triggered=triggered,
+                    decree=decree,
+                    stream_callback=stream_narrative_callback if should_stream_narrative else None,
                 )
 
                 if _summary:
@@ -360,6 +806,8 @@ async def execute_decree(req: DecreeRequest):
             delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state)
             _mem_triggers = state.memorials[mem_count_before:]
             narrative = "陛下暂且按兵不动，静观时局变化。"
+            if stream_narrative_callback:
+                await stream_narrative_callback(narrative)
             if _summary:
                 _summary.commentary = await provider.generate_turn_commentary(
                     _summary.model_dump(), state,
@@ -388,9 +836,126 @@ async def execute_decree(req: DecreeRequest):
         # commit only after all checks/executions pass (atomic multi-decree semantics)
         _state = state
 
-        # refresh state in response after script cleanup
-        last_response["state"] = state.model_dump()
-        return last_response
+    # ── Fill memorial content outside lock ──
+    return last_response, _mem_triggers, provider, state
+
+
+async def _finalize_decree_response(
+    last_response: dict, memorials: list[Memorial], provider, state: GameState,
+) -> dict:
+    if memorials:
+        await _fill_memorial_content(provider, memorials, state)
+        last_response["memorial_triggers"] = [m.model_dump() for m in memorials]
+    last_response["state"] = state.model_dump()
+    return last_response
+
+
+@router.post("/decree")
+async def execute_decree(req: DecreeRequest):
+    response, memorials, provider, state = await _execute_decree_core(req)
+    return await _finalize_decree_response(response, memorials, provider, state)
+
+
+@router.post("/decree/stream")
+async def execute_decree_stream(req: DecreeRequest):
+    async def event_stream():
+        core_task: asyncio.Task | None = None
+        narrative_queue: asyncio.Queue[str] = asyncio.Queue()
+        narrative_started = False
+        heartbeat_idx = 0
+        try:
+            yield _sse_event(
+                "progress", {"stage": "queued", "message": "军机处已接旨，正在核对政令。"},
+            )
+
+            async def _on_narrative_chunk(chunk: str) -> None:
+                if chunk == "":
+                    return
+                await narrative_queue.put(chunk)
+
+            core_task = asyncio.create_task(
+                _execute_decree_core(
+                    req,
+                    stream_narrative_callback=_on_narrative_chunk,
+                ),
+            )
+
+            while True:
+                if core_task.done() and narrative_queue.empty():
+                    break
+                try:
+                    chunk = await asyncio.wait_for(narrative_queue.get(), timeout=0.6)
+                except asyncio.TimeoutError:
+                    if core_task.done():
+                        continue
+                    yield _sse_event(
+                        "progress",
+                        {
+                            "stage": "narrative" if narrative_started else "processing",
+                            "message": _STREAM_PROGRESS_MESSAGES[heartbeat_idx % len(_STREAM_PROGRESS_MESSAGES)],
+                        },
+                    )
+                    heartbeat_idx += 1
+                    continue
+
+                if not narrative_started:
+                    narrative_started = True
+                    yield _sse_event(
+                        "progress", {"stage": "narrative", "message": "诏令已成，正在宣读……"},
+                    )
+                yield _sse_event("narrative", {"chunk": chunk})
+
+            response, memorials, provider, state = await core_task
+
+            if memorials:
+                yield _sse_event(
+                    "progress", {"stage": "memorial", "message": "各部奏折正在誊录上呈……"},
+                )
+                await _fill_memorial_content(provider, memorials, state)
+                response["memorial_triggers"] = [m.model_dump() for m in memorials]
+
+                for memorial in memorials:
+                    for sentence in _split_stream_sentences(memorial.content):
+                        yield _sse_event(
+                            "memorial",
+                            {
+                                "memorial_id": memorial.id,
+                                "title": memorial.title,
+                                "chunk": sentence,
+                            },
+                        )
+                        await asyncio.sleep(0.03)
+
+            response["state"] = state.model_dump()
+            yield _sse_event("final", {"response": response})
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else ErrorResponse(
+                error_code="stream_http_error",
+                message=str(exc.detail),
+            ).model_dump()
+            yield _sse_event("error", {"status": exc.status_code, "detail": detail})
+        except asyncio.CancelledError:
+            if core_task is not None and not core_task.done():
+                core_task.cancel()
+            raise
+        except Exception:
+            yield _sse_event("error", {
+                "status": 500,
+                "detail": ErrorResponse(
+                    error_code="stream_error",
+                    message="流式执行失败，请稍后重试",
+                ).model_dump(),
+            })
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ── 6.3 POST /api/decree/parse ─────────────────────────
@@ -424,6 +989,13 @@ async def parse_decree(req: ParseRequest):
 @router.get("/state")
 async def get_state():
     state = _get_state()
+    placeholder_mems = [
+        m for m in state.memorials
+        if m.content == "待补充奏疏内容。"
+        and m.status in (MemorialStatus.PENDING, MemorialStatus.DEFERRED)
+    ]
+    if placeholder_mems:
+        await _fill_memorial_content(_get_provider(), placeholder_mems, state)
     data = state.model_dump()
     total = len(data["history_log"])
     data["history_log"] = data["history_log"][-20:]
@@ -590,6 +1162,124 @@ async def get_settings():
 async def update_settings(req: SettingsRequest):
     set_rule_parse_fallback(req.rule_parse_fallback)
     return {"rule_parse_fallback": get_rule_parse_fallback()}
+
+
+@router.get("/settings/ai")
+async def get_ai_settings(provider: str | None = None):
+    return _current_ai_settings(provider)
+
+
+@router.post("/settings/ai")
+async def update_ai_settings(req: AISettingsRequest):
+    if _lock.locked():
+        raise HTTPException(409, detail=ErrorResponse(
+            error_code="decree_in_progress",
+            message="正在处理上一道政令，请稍候再修改AI设置",
+        ).model_dump())
+
+    async with _lock:
+        return _apply_ai_settings(
+            provider=req.provider,
+            api_key=req.api_key,
+            base_url=req.base_url,
+            model=req.model,
+        )
+
+
+@router.post("/settings/ai/models")
+async def list_ai_models(req: AIModelListRequest):
+    current = _current_ai_settings(req.provider)
+    provider = _normalize_provider_name(req.provider or current["provider"])
+    spec = _provider_spec(provider)
+
+    current_api_key = _clean_optional(_env_value(spec["api_key_env"]))
+    current_base_url = _clean_optional(_env_value(spec["base_url_env"]))
+    if provider == "google":
+        current_api_key = current_api_key or _clean_optional(_env_value("OPENAI_API_KEY"))
+        current_base_url = current_base_url or _clean_optional(_env_value("OPENAI_BASE_URL"))
+
+    api_key = (
+        _resolve_submitted_secret(req.api_key, current_api_key)
+        if req.api_key is not None else current_api_key
+    )
+    base_url = _clean_optional(req.base_url) if req.base_url is not None else current_base_url
+
+    if provider == "mock":
+        return {"provider": provider, "models": [], "source": "mock"}
+
+    if provider in {"openai", "h", "Z"}:
+        try:
+            normalized_base_url = _normalize_openai_base_url(base_url, provider)
+            validated_base_url = _validate_model_list_base_url(
+                normalized_base_url, provider,
+            )
+        except ValueError as exc:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="invalid_base_url",
+                message=f"模型列表地址无效: {exc}",
+            ).model_dump())
+        try:
+            models = await _fetch_openai_models(
+                api_key=api_key,
+                base_url=validated_base_url,
+            )
+            return {"provider": provider, "models": models, "source": "openai-compatible"}
+        except Exception as exc:
+            raise HTTPException(502, detail=ErrorResponse(
+                error_code="model_list_failed",
+                message=f"获取模型列表失败: {exc}",
+            ).model_dump())
+
+    if provider == "google":
+        openai_base = _normalize_openai_base_url(base_url, provider)
+        if openai_base:
+            try:
+                validated_openai_base = _validate_model_list_base_url(
+                    openai_base, "google(openai-compatible)",
+                )
+                models = await _fetch_openai_models(
+                    api_key=api_key,
+                    base_url=validated_openai_base,
+                )
+                if models:
+                    return {
+                        "provider": provider,
+                        "models": models,
+                        "source": "openai-compatible",
+                    }
+            except Exception:
+                pass
+
+        if not api_key:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="missing_api_key",
+                message="请先填写 Google API Key 再获取模型列表",
+            ).model_dump())
+        try:
+            validated_google_base = _validate_model_list_base_url(
+                _normalize_google_base_url(base_url), "google",
+            )
+        except ValueError as exc:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="invalid_base_url",
+                message=f"模型列表地址无效: {exc}",
+            ).model_dump())
+        try:
+            models = await _fetch_google_models(
+                api_key=api_key,
+                base_url=validated_google_base,
+            )
+            return {"provider": provider, "models": models, "source": "google-api"}
+        except Exception as exc:
+            raise HTTPException(502, detail=ErrorResponse(
+                error_code="model_list_failed",
+                message=f"获取模型列表失败: {exc}",
+            ).model_dump())
+
+    raise HTTPException(422, detail=ErrorResponse(
+        error_code="invalid_provider",
+        message=f"未知AI供应商: {provider}",
+    ).model_dump())
 
 
 # ── 6.13 POST /api/minister/portrait ───────────────────
@@ -784,6 +1474,9 @@ async def convene_assembly(req: ConveneAssemblyRequest):
 
 @router.post("/court-assembly/adopt")
 async def adopt_suggestion(req: AdoptSuggestionRequest):
+    mem_triggers: list[Memorial] = []
+    provider = _get_provider()
+
     async with _lock:
         state = _get_state()
         if state.last_assembly is None:
@@ -814,7 +1507,6 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
                 message=target_err,
             ).model_dump())
 
-        provider = _get_provider()
         mem_count_before = len(state.memorials)
         delta, attr, triggered, game_over, reactions, summary = process_decree(state, decree)
         mem_triggers = state.memorials[mem_count_before:]
@@ -826,13 +1518,20 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             decree_type=decree.type.value, decree_desc=decree.target or "",
             delta=delta, narrative=narrative,
         ))
-        return DecreeResponse(
+        resp = DecreeResponse(
             state=state, delta=delta, attribution=attr,
             narrative=narrative, newly_triggered_events=triggered,
             game_time=state.time, game_over=game_over,
             minister_reactions=reactions, turn_summary=summary,
             memorial_triggers=mem_triggers,
         ).model_dump()
+
+    if mem_triggers:
+        await _fill_memorial_content(provider, mem_triggers, state)
+        resp["memorial_triggers"] = [m.model_dump() for m in mem_triggers]
+        resp["state"] = state.model_dump()
+
+    return resp
 
 
 # ── 8.5 POST /api/court-assembly/silence ─────────────

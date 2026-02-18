@@ -73,35 +73,37 @@ class TestConditionalInjection:
         return GameState(
             time=GameTime(year=year, month=month, era_name="天启", era_year=7),
             factions=kw.get("factions", [Faction(name="test", satisfaction=50, influence=50, rebellion_risk=10)]),
-            regions=[Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)],
+            regions=kw.get("regions", [Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)]),
+            ministers=kw.get("ministers", []),
         )
 
-    def test_condition_pass_injects(self):
-        state = self._state_at(1627, 12, factions=[
-            Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=50),
-        ])
+    def test_unconditional_event_injects(self):
+        # eunuch-party-purge-1627-12 has condition=None, always fires
+        state = self._state_at(1627, 12)
         injected = inject_script_events(state)
-        assert "阉党残余反扑" in injected
+        assert "阉党清算·边镇欠饷" in injected
 
-    def test_condition_fail_skips(self):
-        state = self._state_at(1627, 12, factions=[
-            Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=20),
-        ])
+    def test_conditional_event_pass_injects(self):
+        # yuan-chonghuan-arrest at 1629/12 requires "jisi-invasion" resolved
+        state = self._state_at(1629, 12)
+        state.resolved_script_ids = {"jisi-invasion"}
         injected = inject_script_events(state)
-        assert "阉党残余反扑" not in injected
-        assert "eunuch-backlash" not in state.resolved_script_ids
+        assert any("袁崇焕" in t for t in injected)
+
+    def test_conditional_event_fail_skips(self):
+        # yuan-chonghuan-arrest condition fails without "jisi-invasion" resolved
+        state = self._state_at(1629, 12)
+        state.resolved_script_ids = set()
+        injected = inject_script_events(state)
+        assert not any("袁崇焕" in t for t in injected)
 
     def test_wrong_month_not_injected(self):
-        state = self._state_at(1627, 11, factions=[
-            Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=90),
-        ])
+        state = self._state_at(1627, 11)
         injected = inject_script_events(state)
-        assert "阉党残余反扑" not in injected
+        assert "阉党清算·边镇欠饷" not in injected
 
     def test_idempotent(self):
-        state = self._state_at(1627, 12, factions=[
-            Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=50),
-        ])
+        state = self._state_at(1627, 12)
         inject_script_events(state)
         count_before = len(state.active_events)
         inject_script_events(state)
@@ -139,7 +141,7 @@ class TestStartTimeAndEra:
     def test_initial_state_time(self):
         state = create_initial_state()
         assert state.time.year == 1627
-        assert state.time.month == 10
+        assert state.time.month == 8
         assert state.time.era_name == "天启"
         assert state.time.era_year == 7
 

@@ -7,6 +7,7 @@ from models.game import (
     GameState, StructuredDecree, DecreeResponse, GameTime,
     GameEvent, HistoryEntry, MinisterReaction, Memorial,
     TurnSummary, IndicatorTrend, FactionChange, RegionChange, MinisterChange,
+    RegionDetail,
     FreeformResult,
     clamp_state,
 )
@@ -19,6 +20,7 @@ from .tables import (
     DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
     PRECONDITION_MESSAGES, TARGET_MISSING_MESSAGES,
     WRITABLE_FIELDS, VALID_STATUS_TRANSITIONS,
+    DECREE_LABELS,
 )
 from .scripts import get_scripts_for_time, ScriptEvent
 
@@ -118,30 +120,30 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
             r.stability -= 3
             r.civil_morale -= 2
             r.disaster_level += 3
-            _attr_add(attr, f"{r.name}_stability", "passive_drift", -3)
-            _attr_add(attr, f"{r.name}_civil_morale", "passive_drift", -2)
-            _attr_add(attr, f"{r.name}_disaster_level", "passive_drift", 3)
+            _attr_add(attr, f"{r.name}_stability", "自然变化", -3)
+            _attr_add(attr, f"{r.name}_civil_morale", "自然变化", -2)
+            _attr_add(attr, f"{r.name}_disaster_level", "自然变化", 3)
         if r.stability < 30:
             r.rebellion_risk += 2
             r.tax_rate -= 0.02
-            _attr_add(attr, f"{r.name}_rebellion_risk", "passive_drift", 2)
-            _attr_add(attr, f"{r.name}_tax_rate", "passive_drift", -0.02)
+            _attr_add(attr, f"{r.name}_rebellion_risk", "自然变化", 2)
+            _attr_add(attr, f"{r.name}_tax_rate", "自然变化", -0.02)
         if r.civil_morale < 30:
             r.rebellion_risk += 1
-            _attr_add(attr, f"{r.name}_rebellion_risk", "passive_drift", 1)
+            _attr_add(attr, f"{r.name}_rebellion_risk", "自然变化", 1)
     if state.treasury < 50:
         state.military_morale -= 1
-        _attr_add(attr, "military_morale", "passive_drift", -1)
+        _attr_add(attr, "military_morale", "自然变化", -1)
     if any(r.stability < 20 for r in state.regions):
         state.civil_morale -= 2
-        _attr_add(attr, "civil_morale", "passive_drift", -2)
+        _attr_add(attr, "civil_morale", "自然变化", -2)
     if any(f.rebellion_risk > 60 for f in state.factions):
         state.court_prestige -= 1
-        _attr_add(attr, "court_prestige", "passive_drift", -1)
+        _attr_add(attr, "court_prestige", "自然变化", -1)
     # loyalty passive decay
     for m in state.ministers:
         m.loyalty -= 1
-        _attr_add(attr, f"{m.name}_loyalty", "passive_drift", -1)
+        _attr_add(attr, f"{m.name}_loyalty", "自然变化", -1)
     # 怠政惩罚: pending/deferred memorials > 5
     pending_count = sum(
         1 for mem in state.memorials
@@ -149,7 +151,7 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
     )
     if pending_count > 5:
         state.court_prestige -= 3
-        _attr_add(attr, "court_prestige", "passive_drift", -3)
+        _attr_add(attr, "court_prestige", "自然变化", -3)
 
 
 # ── Base Effects ─────────────────────────────────────────
@@ -269,6 +271,7 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
     """Returns decree_tax_modifier for tax recalculation."""
     dt = decree.type
     tax_mod = 1.0
+    source = DECREE_LABELS.get(dt, "政令")
     for r in state.regions:
         if dt == DecreeType.TAX_INCREASE:
             if r.stability < 30:
@@ -280,51 +283,51 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
             r.stability += penalty
             r.civil_morale -= 3
             r.rebellion_risk += 2
-            _attr_add(attr, f"{r.name}_stability", "region_impact", penalty)
-            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -3)
-            _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", 2)
+            _attr_add(attr, f"{r.name}_stability", source, penalty)
+            _attr_add(attr, f"{r.name}_civil_morale", source, -3)
+            _attr_add(attr, f"{r.name}_rebellion_risk", source, 2)
             tax_mod = 1.15
         elif dt == DecreeType.TAX_DECREASE:
             r.stability += 3
             r.civil_morale += 2
             r.rebellion_risk -= 1
-            _attr_add(attr, f"{r.name}_stability", "region_impact", 3)
-            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", 2)
-            _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -1)
+            _attr_add(attr, f"{r.name}_stability", source, 3)
+            _attr_add(attr, f"{r.name}_civil_morale", source, 2)
+            _attr_add(attr, f"{r.name}_rebellion_risk", source, -1)
             tax_mod = 0.85
         elif dt == DecreeType.RECRUIT_TROOPS:
             if r.threat != RegionThreat.NONE:
                 r.stability += 5
                 r.garrison += 2000
                 r.civil_morale -= 2
-                _attr_add(attr, f"{r.name}_stability", "region_impact", 5)
-                _attr_add(attr, f"{r.name}_garrison", "region_impact", 2000)
-                _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -2)
+                _attr_add(attr, f"{r.name}_stability", source, 5)
+                _attr_add(attr, f"{r.name}_garrison", source, 2000)
+                _attr_add(attr, f"{r.name}_civil_morale", source, -2)
         elif dt == DecreeType.DISBAND_TROOPS:
             if r.garrison > 10000:
                 r.garrison -= 3000
-                _attr_add(attr, f"{r.name}_garrison", "region_impact", -3000)
+                _attr_add(attr, f"{r.name}_garrison", source, -3000)
         elif dt == DecreeType.DISASTER_RELIEF:
             if decree.target and r.name == decree.target:
                 r.stability += 20
                 r.civil_morale += 8
                 r.disaster_level -= 15
                 r.rebellion_risk -= 5
-                _attr_add(attr, f"{r.name}_stability", "region_impact", 20)
-                _attr_add(attr, f"{r.name}_civil_morale", "region_impact", 8)
-                _attr_add(attr, f"{r.name}_disaster_level", "region_impact", -15)
-                _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -5)
+                _attr_add(attr, f"{r.name}_stability", source, 20)
+                _attr_add(attr, f"{r.name}_civil_morale", source, 8)
+                _attr_add(attr, f"{r.name}_disaster_level", source, -15)
+                _attr_add(attr, f"{r.name}_rebellion_risk", source, -5)
         elif dt == DecreeType.HARSH_PUNISHMENT:
             if r.stability < 40:
                 r.stability -= 8
                 r.rebellion_risk -= 5
-                _attr_add(attr, f"{r.name}_stability", "region_impact", -8)
-                _attr_add(attr, f"{r.name}_rebellion_risk", "region_impact", -5)
+                _attr_add(attr, f"{r.name}_stability", source, -8)
+                _attr_add(attr, f"{r.name}_rebellion_risk", source, -5)
             elif r.stability >= 60:
                 r.stability += 3
-                _attr_add(attr, f"{r.name}_stability", "region_impact", 3)
+                _attr_add(attr, f"{r.name}_stability", source, 3)
             r.civil_morale -= 4
-            _attr_add(attr, f"{r.name}_civil_morale", "region_impact", -4)
+            _attr_add(attr, f"{r.name}_civil_morale", source, -4)
     return tax_mod
 
 
@@ -388,22 +391,22 @@ def _chain_apply(state, attr, event_name, region_effects, faction_effects=None, 
     for rname, field, delta in region_effects:
         r = _region(state, rname)
         setattr(r, field, getattr(r, field) + delta)
-        _attr_add(attr, f"{rname}_{field}", "chain_event", delta)
+        _attr_add(attr, f"{rname}_{field}", event_name, delta)
     for fname, field, delta in (faction_effects or []):
         f = next(fc for fc in state.factions if fc.name == fname)
         setattr(f, field, getattr(f, field) + delta)
-        _attr_add(attr, f"{fname}_{field}", "chain_event", delta)
+        _attr_add(attr, f"{fname}_{field}", event_name, delta)
     for field, delta in (global_effects or []):
         setattr(state, field, getattr(state, field) + delta)
-        _attr_add(attr, field, "chain_event", delta)
+        _attr_add(attr, field, event_name, delta)
 
 
 def _chain_crisis(state, attr):
     state.court_prestige -= 15
-    _attr_add(attr, "court_prestige", "chain_event", -15)
+    _attr_add(attr, "court_prestige", "朝堂危机", -15)
     for f in state.factions:
         f.rebellion_risk += 10
-        _attr_add(attr, f"{f.name}_rebellion_risk", "chain_event", 10)
+        _attr_add(attr, f"{f.name}_rebellion_risk", "朝堂危机", 10)
 
 
 def _chain_jiangnan(state, attr):
@@ -411,11 +414,11 @@ def _chain_jiangnan(state, attr):
     r.stability -= 15
     r.civil_morale -= 10
     r.tax_rate -= 0.2
-    _attr_add(attr, "江南_stability", "chain_event", -15)
-    _attr_add(attr, "江南_civil_morale", "chain_event", -10)
-    _attr_add(attr, "江南_tax_rate", "chain_event", -0.2)
+    _attr_add(attr, "江南_stability", "江南税变", -15)
+    _attr_add(attr, "江南_civil_morale", "江南税变", -10)
+    _attr_add(attr, "江南_tax_rate", "江南税变", -0.2)
     state.treasury += 10
-    _attr_add(attr, "treasury", "chain_event", 10)
+    _attr_add(attr, "treasury", "江南税变", 10)
 
 
 def _time_to_months(year: int, month: int) -> int:
@@ -834,7 +837,7 @@ def apply_ai_effects(
                     new_val = round(new_val, 2)
                 setattr(entity, field, new_val)
 
-        _attr_add(attr, attr_key, "ai_effects", value)
+        _attr_add(attr, attr_key, "旨意影响", value)
 
     # Round 2: string/status sets
     for path, value, meta in status_entries:
@@ -850,7 +853,7 @@ def apply_ai_effects(
         actual_value = _coerce_enum(category, field, value)
         attr_key = f"{name}_{field}"
         setattr(entity, field, actual_value)
-        attr.setdefault(attr_key, {})["ai_effects"] = value
+        attr.setdefault(attr_key, {})["旨意影响"] = value
 
         if category == "minister" and field == "status":
             if value == "removed":
@@ -1013,6 +1016,7 @@ def process_decree(
         state,
         decree=decree,
         freeform=freeform,
+        attr=attr,
     )
 
     return delta, attr, triggered, game_over, reactions, summary
@@ -1156,12 +1160,24 @@ def _build_action_implications(
     return deduped
 
 
+_REGION_NUMERIC_FIELDS = (
+    "stability", "garrison", "civil_morale", "rebellion_risk",
+    "disaster_level", "tax_collected", "tax_rate",
+)
+_REGION_ALL_FIELDS = (
+    "stability", "garrison", "control", "threat",
+    "civil_morale", "rebellion_risk", "disaster_level",
+    "tax_collected", "tax_rate", "tax_contribution",
+)
+
+
 def generate_turn_summary(
     before: dict, after: dict,
     triggered: list[str], reactions: list[MinisterReaction],
     state: GameState,
     decree: StructuredDecree | None = None,
     freeform: FreeformResult | None = None,
+    attr: dict | None = None,
 ) -> TurnSummary:
     indicator_trends = [
         IndicatorTrend(name=k, before=before[k], after=after[k])
@@ -1187,13 +1203,37 @@ def generate_turn_summary(
         br = br_map.get(ar["name"])
         if br is None:
             continue
-        if br["stability"] != ar["stability"] or br["control"] != ar["control"] or br["threat"] != ar["threat"]:
-            region_changes.append(RegionChange(
-                name=ar["name"],
-                stability_before=br["stability"], stability_after=ar["stability"],
-                control_before=br["control"], control_after=ar["control"],
-                threat_before=br["threat"], threat_after=ar["threat"],
-            ))
+        has_change = any(br.get(f) != ar.get(f) for f in _REGION_ALL_FIELDS)
+        if not has_change:
+            continue
+        rc = RegionChange(
+            name=ar["name"],
+            stability_before=br["stability"], stability_after=ar["stability"],
+            control_before=br["control"], control_after=ar["control"],
+            threat_before=br["threat"], threat_after=ar["threat"],
+        )
+        if br.get("garrison") != ar.get("garrison"):
+            rc.garrison_before = br["garrison"]
+            rc.garrison_after = ar["garrison"]
+        if br.get("civil_morale") != ar.get("civil_morale"):
+            rc.civil_morale_before = br["civil_morale"]
+            rc.civil_morale_after = ar["civil_morale"]
+        if br.get("rebellion_risk") != ar.get("rebellion_risk"):
+            rc.rebellion_risk_before = br["rebellion_risk"]
+            rc.rebellion_risk_after = ar["rebellion_risk"]
+        if br.get("disaster_level") != ar.get("disaster_level"):
+            rc.disaster_level_before = br["disaster_level"]
+            rc.disaster_level_after = ar["disaster_level"]
+        if br.get("tax_collected") != ar.get("tax_collected"):
+            rc.tax_collected_before = br["tax_collected"]
+            rc.tax_collected_after = ar["tax_collected"]
+        if br.get("tax_rate") != ar.get("tax_rate"):
+            rc.tax_rate_before = br["tax_rate"]
+            rc.tax_rate_after = ar["tax_rate"]
+        if br.get("tax_contribution") != ar.get("tax_contribution"):
+            rc.tax_contribution_before = br["tax_contribution"]
+            rc.tax_contribution_after = ar["tax_contribution"]
+        region_changes.append(rc)
 
     bm_map = {m["name"]: m for m in before.get("ministers", [])}
     minister_changes = []
@@ -1207,6 +1247,30 @@ def generate_turn_summary(
                 loyalty_before=bm["loyalty"], loyalty_after=am["loyalty"],
                 status_before=bm["status"], status_after=am["status"],
             ))
+
+    # Build region_details from attr dict
+    region_details: list[RegionDetail] | None = None
+    if attr:
+        details: list[RegionDetail] = []
+        region_names = {r["name"] for r in after.get("regions", [])}
+        for key, sources in attr.items():
+            if not isinstance(sources, dict):
+                continue
+            # Parse "{region}_{field}" keys
+            for rname in region_names:
+                if key.startswith(f"{rname}_"):
+                    field = key[len(rname) + 1:]
+                    if field in _REGION_NUMERIC_FIELDS:
+                        for source, delta in sources.items():
+                            if delta != 0:
+                                details.append(RegionDetail(
+                                    region=rname, field=field,
+                                    delta=float(delta), source=source,
+                                ))
+                    break
+        if details:
+            details.sort(key=lambda d: d.region)
+            region_details = details
 
     pending_count = sum(1 for m in state.memorials if m.status.value in _PENDING_STATUSES)
     action_implications = _build_action_implications(
@@ -1229,6 +1293,7 @@ def generate_turn_summary(
         faction_changes=faction_changes,
         region_changes=region_changes,
         minister_changes=minister_changes,
+        region_details=region_details,
         pending_memorials_count=pending_count,
     )
 

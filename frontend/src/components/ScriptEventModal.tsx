@@ -1,31 +1,32 @@
 import { useState } from 'react'
 import Markdown from 'react-markdown'
-import type { GameEvent, GameState, StructuredDecree } from '../types/game'
-import { PRECONDITION_MESSAGES } from '../types/game'
-import { checkPrecondition } from '../hooks/store'
+import type { GameEvent, StructuredDecree } from '../types/game'
 
 interface Props {
   event: GameEvent
-  state: GameState
-  onChoose: (decrees: StructuredDecree[], scriptId: string) => void
+  onChoose: (decrees: StructuredDecree[], scriptId: string, freeText?: string) => Promise<string | null>
 }
 
-function disabledReason(state: GameState, decrees: StructuredDecree[]): string | null {
-  const failed = [...new Set(
-    decrees.filter(d => !checkPrecondition(state, d.type)).map(d => d.type),
-  )]
-  return failed.length ? failed.map(t => PRECONDITION_MESSAGES[t]).join('；') : null
-}
-
-export default function ScriptEventModal({ event, state, onChoose }: Props) {
+export default function ScriptEventModal({ event, onChoose }: Props) {
   const scriptId = event.script_id!
   const text = event.rich_description || event.description
+  const [freeText, setFreeText] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [warning, setWarning] = useState<string | null>(null)
 
-  function handleChoose(decrees: StructuredDecree[]) {
-    if (submitting) return
+  async function handleSubmit() {
+    const trimmed = freeText.trim()
+    if (submitting || !trimmed) return
+    setWarning(null)
     setSubmitting(true)
-    onChoose(decrees, scriptId)
+    try {
+      const errorCode = await onChoose([], scriptId, trimmed)
+      if (errorCode === 'FREEFORM_EMPTY') {
+        setWarning('旨意不明，请重新输入')
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -35,30 +36,25 @@ export default function ScriptEventModal({ event, state, onChoose }: Props) {
         <div className="script-md-body">
           <Markdown>{text}</Markdown>
         </div>
-        <div className="script-choices">
-          {event.choices.length === 0 ? (
+        <div className="script-freetext">
+          <textarea
+            maxLength={200}
+            value={freeText}
+            onChange={e => { setFreeText(e.target.value); setWarning(null) }}
+            placeholder="输入你的旨意（如：罢免魏忠贤、加征辽饷、按兵不动...）"
+            disabled={submitting}
+          />
+          <div className="script-freetext-footer">
+            {warning && <span className="script-warning">{warning}</span>}
+            <span className="char-count">{freeText.length}/200</span>
             <button
               className="modal-btn primary"
-              disabled={submitting}
-              onClick={() => handleChoose([])}
+              disabled={!freeText.trim() || submitting}
+              onClick={handleSubmit}
             >
-              知道了
+              {submitting ? '处理中…' : '颁旨'}
             </button>
-          ) : event.choices.map((c, i) => {
-            const reason = disabledReason(state, c.decrees)
-            return (
-              <button
-                key={i}
-                className={`script-choice-btn${reason ? ' disabled' : ''}`}
-                disabled={!!reason || submitting}
-                onClick={() => handleChoose(c.decrees)}
-              >
-                <span className="sc-label">{c.label}</span>
-                <span className="sc-desc">{c.description}</span>
-                {reason && <span className="sc-reason">{reason}</span>}
-              </button>
-            )
-          })}
+          </div>
         </div>
       </div>
     </div>

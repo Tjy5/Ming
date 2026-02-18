@@ -1,4 +1,20 @@
-import type { GameState, StructuredDecree, DecreeResponse, SaveEntry, HistoryPage, ErrorResponse, DebateResult, Capabilities, Minister, DecreeType, CourtAssembly, MemorialStatus } from '../types/game'
+import type {
+  GameState,
+  StructuredDecree,
+  DecreeResponse,
+  SaveEntry,
+  HistoryPage,
+  ErrorResponse,
+  DebateResult,
+  Capabilities,
+  Minister,
+  DecreeType,
+  CourtAssembly,
+  MemorialStatus,
+  AISettings,
+  AIModelListResponse,
+  AIProvider,
+} from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
 
@@ -13,6 +29,109 @@ class ApiError extends Error {
   }
 }
 
+type DecreeStreamMessage =
+  | { event: 'progress'; data: { stage: string; message: string } }
+  | { event: 'narrative'; data: { chunk: string } }
+  | { event: 'memorial'; data: { memorial_id: string; title: string; chunk: string } }
+  | { event: 'error'; data: { status: number; detail: ErrorResponse } }
+  | { event: 'final'; data: { response: DecreeResponse } }
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+function normalizeErrorBody(raw: unknown, status: number): ErrorResponse {
+  if (isRecord(raw)) {
+    const errorCode = typeof raw.error_code === 'string' ? raw.error_code : 'network_error'
+    const message = typeof raw.message === 'string' ? raw.message : `HTTP ${status}`
+    const details = isRecord(raw.details) ? raw.details : null
+    return { error_code: errorCode, message, details }
+  }
+  return { error_code: 'network_error', message: `HTTP ${status}`, details: null }
+}
+
+async function toApiError(res: Response): Promise<ApiError> {
+  const raw = await res.json().catch(() => null)
+  const body = isRecord(raw) && 'detail' in raw ? normalizeErrorBody(raw.detail, res.status) : normalizeErrorBody(raw, res.status)
+  return new ApiError(res.status, body)
+}
+
+function parseDecreeStreamMessage(frame: string): DecreeStreamMessage | null {
+  let eventName = 'message'
+  const dataLines: string[] = []
+  for (const rawLine of frame.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith(':')) continue
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim()
+      continue
+    }
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trim())
+    }
+  }
+
+  if (!dataLines.length) return null
+  let payload: unknown
+  try {
+    payload = JSON.parse(dataLines.join('\n'))
+  } catch {
+    return null
+  }
+
+  if (!isRecord(payload)) return null
+
+  if (eventName === 'progress') {
+    const stage = typeof payload.stage === 'string' ? payload.stage : 'processing'
+    const message = typeof payload.message === 'string' ? payload.message : ''
+    return { event: 'progress', data: { stage, message } }
+  }
+  if (eventName === 'narrative') {
+    const chunk = typeof payload.chunk === 'string' ? payload.chunk : ''
+    return { event: 'narrative', data: { chunk } }
+  }
+  if (eventName === 'memorial') {
+    const memorialId = typeof payload.memorial_id === 'string' ? payload.memorial_id : ''
+    const title = typeof payload.title === 'string' ? payload.title : ''
+    const chunk = typeof payload.chunk === 'string' ? payload.chunk : ''
+    return { event: 'memorial', data: { memorial_id: memorialId, title, chunk } }
+  }
+  if (eventName === 'error') {
+    const status = typeof payload.status === 'number' ? payload.status : 500
+    const detail = normalizeErrorBody(payload.detail, status)
+    return { event: 'error', data: { status, detail } }
+  }
+  if (eventName === 'final' && isRecord(payload.response)) {
+    return { event: 'final', data: { response: payload.response as unknown as DecreeResponse } }
+  }
+  return null
+}
+
+function consumeSseFrames(
+  source: string,
+  onMessage: (message: DecreeStreamMessage) => void,
+): string {
+  let buffer = source
+  // Supports both LF and CRLF SSE separators.
+  while (true) {
+    let sepIndex = buffer.indexOf('\n\n')
+    let sepLen = 2
+    const crlfIndex = buffer.indexOf('\r\n\r\n')
+    if (crlfIndex !== -1 && (sepIndex === -1 || crlfIndex < sepIndex)) {
+      sepIndex = crlfIndex
+      sepLen = 4
+    }
+    if (sepIndex === -1) break
+
+    const frame = buffer.slice(0, sepIndex).trim()
+    buffer = buffer.slice(sepIndex + sepLen)
+    if (!frame) continue
+    const message = parseDecreeStreamMessage(frame)
+    if (message) onMessage(message)
+  }
+  return buffer
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response
   try {
@@ -24,9 +143,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, { error_code: 'network_error', message: '网络连接失败，请检查后端服务', details: null })
   }
   if (!res.ok) {
-    const raw = await res.json().catch(() => null)
-    const body = raw?.detail ?? raw ?? { error_code: 'network_error', message: `HTTP ${res.status}` }
-    throw new ApiError(res.status, body)
+    throw await toApiError(res)
   }
   return res.json()
 }
@@ -43,6 +160,71 @@ export const api = {
         free_text: freeText ?? null,
       }),
     }),
+
+  decreeStream: async (
+    decrees: StructuredDecree[],
+    sourceScriptId: string | undefined,
+    freeText: string | undefined,
+    onEvent: (event: DecreeStreamMessage) => void,
+  ): Promise<DecreeResponse> => {
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/decree/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decrees,
+          source_script_id: sourceScriptId ?? null,
+          free_text: freeText ?? null,
+        }),
+      })
+    } catch {
+      throw new ApiError(0, { error_code: 'network_error', message: '网络连接失败，请检查后端服务', details: null })
+    }
+
+    if (!res.ok) throw await toApiError(res)
+    if (!res.body) {
+      throw new ApiError(500, { error_code: 'stream_unavailable', message: '浏览器不支持流式响应', details: null })
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let finalResponse: DecreeResponse | null = null
+
+    const handleMessage = (event: DecreeStreamMessage) => {
+      onEvent(event)
+      if (event.event === 'error') {
+        throw new ApiError(event.data.status, event.data.detail)
+      }
+      if (event.event === 'final') {
+        finalResponse = event.data.response
+      }
+    }
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        buffer = consumeSseFrames(buffer, handleMessage)
+      }
+      buffer += decoder.decode()
+      buffer = consumeSseFrames(buffer, handleMessage)
+    } catch (e) {
+      await reader.cancel().catch(() => {})
+      throw e
+    } finally {
+      reader.releaseLock()
+    }
+
+    if (finalResponse) return finalResponse
+    throw new ApiError(500, {
+      error_code: 'stream_incomplete',
+      message: '流式响应未返回最终结果',
+      details: null,
+    })
+  },
 
   parseFreeText: (text: string) =>
     request<StructuredDecree[]>('/decree/parse', {
@@ -113,6 +295,31 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(settings),
     }),
+
+  getAiSettings: (provider?: AIProvider) =>
+    request<AISettings>(`/settings/ai${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`),
+
+  updateAiSettings: (payload: {
+    provider: AIProvider
+    api_key?: string | null
+    base_url?: string | null
+    model?: string | null
+  }) =>
+    request<AISettings>('/settings/ai', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  listAiModels: (payload: {
+    provider?: AIProvider
+    api_key?: string | null
+    base_url?: string | null
+  }) =>
+    request<AIModelListResponse>('/settings/ai/models', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 }
 
 export { ApiError }
+export type { DecreeStreamMessage }

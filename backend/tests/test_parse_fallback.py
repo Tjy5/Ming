@@ -16,6 +16,22 @@ class _AlwaysParseErrorProvider(AIProvider):
     ) -> str:
         return ""
 
+    async def stream_narrative(
+        self,
+        delta_attribution: dict,
+        game_state: GameState,
+        chain_events: list[str],
+        decree: StructuredDecree,
+    ):
+        narrative = await self.generate_narrative(
+            delta_attribution,
+            game_state,
+            chain_events,
+            decree,
+        )
+        if narrative:
+            yield narrative
+
     async def parse_free_input(
         self,
         text: str,

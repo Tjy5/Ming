@@ -2,13 +2,15 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import json
 import logging
 import os
 import re
+from collections.abc import AsyncIterator
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree, Minister, DebateResult, DebateMinister, Memorial, FreeformResult, MinisterReaction
-from models.enums import DecreeType, PersonnelAction, MemorialStatus
+from models.game import GameState, StructuredDecree, Minister, DebateResult, DebateMinister, Memorial, MemorialDraft, FreeformResult, MinisterReaction
+from models.enums import DecreeType, PersonnelAction, MemorialStatus, DiplomacyTarget
 
 PARSE_ERROR_TYPE_PARSE = "parse_error"
 PARSE_ERROR_TYPE_UNAVAILABLE = "service_unavailable"
@@ -82,6 +84,12 @@ class AIProvider(abc.ABC):
     ) -> str: ...
 
     @abc.abstractmethod
+    async def stream_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> AsyncIterator[str]: ...
+
+    @abc.abstractmethod
     async def parse_free_input(
         self, text: str, game_state: GameState,
     ) -> list[StructuredDecree] | dict: ...
@@ -100,7 +108,7 @@ class AIProvider(abc.ABC):
     @abc.abstractmethod
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,
-    ) -> str: ...
+    ) -> MemorialDraft: ...
 
     @abc.abstractmethod
     async def generate_minister_reaction(
@@ -120,6 +128,7 @@ class AIProvider(abc.ABC):
     @abc.abstractmethod
     async def process_freeform(
         self, text: str, game_state: GameState,
+        *, script_context: dict | None = None,
     ) -> FreeformResult | dict: ...
 
 
@@ -207,6 +216,14 @@ class MockProvider(AIProvider):
         vals["chain"] = "".join(f"【{e}】事件爆发！" for e in chain_events) if chain_events else ""
         return tpl.format(**vals)
 
+    async def stream_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> AsyncIterator[str]:
+        narrative = await self.generate_narrative(delta_attribution, game_state, chain_events, decree)
+        if narrative:
+            yield narrative
+
     async def parse_free_input(
         self, text: str, game_state: GameState,
     ) -> list[StructuredDecree] | dict:
@@ -251,8 +268,21 @@ class MockProvider(AIProvider):
 
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,
-    ) -> str:
-        return f"臣{author.name}伏惟陛下圣鉴：{trigger_reason}事关社稷安危，臣不敢不奏。伏乞圣裁。"
+    ) -> MemorialDraft:
+        parts = trigger_reason.split(":", 1)
+        trigger_type = parts[0] if parts[0] else ""
+        entity = parts[1] if len(parts) > 1 else ""
+
+        decrees: list[StructuredDecree] = []
+        if trigger_type == "region_crisis" and entity:
+            decrees = [StructuredDecree(type=DecreeType.DISASTER_RELIEF, target=entity)]
+        elif trigger_type == "rebellion_warning":
+            decrees = [StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)]
+        elif trigger_type == "military_crisis":
+            decrees = [StructuredDecree(type=DecreeType.RECRUIT_TROOPS)]
+
+        content = f"臣{author.name}伏惟陛下圣鉴：{trigger_reason}事关社稷安危，臣不敢不奏。伏乞圣裁。"
+        return MemorialDraft(content=content, suggested_decrees=decrees)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
@@ -288,6 +318,7 @@ class MockProvider(AIProvider):
 
     async def process_freeform(
         self, text: str, game_state: GameState,
+        *, script_context: dict | None = None,
     ) -> FreeformResult | dict:
         minister_names = {m.name for m in game_state.ministers if m.status.value != "removed"}
         region_names = {r.name for r in game_state.regions}
@@ -361,26 +392,35 @@ def get_provider(name: str | None = None) -> AIProvider:
     if name is None:
         load_dotenv()
         name = os.getenv("AI_PROVIDER", "mock")
-    
-    if name == "openai":
+
+    normalized = (name or "").strip()
+    lowered = normalized.lower()
+    if lowered == "z":
+        normalized = "Z"
+    elif lowered in {"hotaru", "h"}:
+        normalized = "h"
+    elif lowered in {"openai", "google", "mock"}:
+        normalized = lowered
+
+    if normalized == "openai":
          from .openai_provider import OpenAIProvider
          return ResilientProvider(OpenAIProvider())
 
-    if name == "google":
+    if normalized == "google":
          from .google_provider import GoogleProvider
          return ResilientProvider(GoogleProvider())
 
-    if name == "h":
+    if normalized == "h":
          from .h_provider import HProvider
          return ResilientProvider(HProvider())
 
-    if name == "Z":
+    if normalized == "Z":
          from .z_provider import ZProvider
          return ResilientProvider(ZProvider())
 
-    cls = _PROVIDERS.get(name)
+    cls = _PROVIDERS.get(normalized)
     if cls is None:
-        raise ValueError(f"Unknown AI provider: {name}")
+        raise ValueError(f"Unknown AI provider: {normalized}")
     return ResilientProvider(cls())
 
 
@@ -392,8 +432,8 @@ class ResilientProvider(AIProvider):
     def __init__(
         self,
         inner: AIProvider,
-        timeout: float = 30.0,
-        retries: int = 3,
+        timeout: float | None = None,
+        retries: int | None = None,
         parse_timeout: float | None = None,
         parse_retries: int | None = None,
         freeform_timeout: float | None = None,
@@ -402,8 +442,12 @@ class ResilientProvider(AIProvider):
         turn_commentary_retries: int | None = None,
     ):
         self._inner = inner
-        self._timeout = max(0.1, timeout)
-        self._retries = max(1, retries)
+        env_timeout = _env_float("AI_TIMEOUT", 30.0)
+        env_retries = _env_int("AI_RETRIES", 3)
+        base_timeout = timeout if timeout is not None else env_timeout
+        base_retries = retries if retries is not None else env_retries
+        self._timeout = max(0.1, base_timeout)
+        self._retries = max(1, base_retries)
         env_parse_timeout = _env_float("AI_PARSE_TIMEOUT", 60.0)
         env_parse_retries = _env_int("AI_PARSE_RETRIES", 1)
         env_freeform_timeout = _env_float("AI_FREEFORM_TIMEOUT", 90.0)
@@ -459,6 +503,43 @@ class ResilientProvider(AIProvider):
                 if attempt == self._retries - 1:
                     return "（AI服务响应异常，但政令已执行）"
         return "（AI服务响应异常，但政令已执行）"
+
+    async def stream_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> AsyncIterator[str]:
+        emitted_any = False
+        for attempt in range(self._retries):
+            stream_iter = None
+            try:
+                stream_iter = self._inner.stream_narrative(
+                    delta_attribution, game_state, chain_events, decree,
+                )
+                while True:
+                    chunk = await asyncio.wait_for(
+                        anext(stream_iter),
+                        timeout=self._timeout,
+                    )
+                    if not chunk:
+                        continue
+                    emitted_any = True
+                    yield chunk
+            except StopAsyncIteration:
+                return
+            except Exception as e:
+                self._log_retry_failure("stream_narrative", attempt + 1, self._retries, e)
+                if emitted_any:
+                    return
+                if attempt == self._retries - 1:
+                    yield "（AI服务响应异常，但政令已执行）"
+                    return
+            finally:
+                close = getattr(stream_iter, "aclose", None)
+                if callable(close):
+                    try:
+                        await close()
+                    except Exception:
+                        pass
 
     async def parse_free_input(
         self, text: str, game_state: GameState,
@@ -541,7 +622,7 @@ class ResilientProvider(AIProvider):
 
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,
-    ) -> str:
+    ) -> MemorialDraft:
         for attempt in range(self._retries):
             try:
                 return await asyncio.wait_for(
@@ -606,11 +687,12 @@ class ResilientProvider(AIProvider):
 
     async def process_freeform(
         self, text: str, game_state: GameState,
+        *, script_context: dict | None = None,
     ) -> FreeformResult | dict:
         for attempt in range(self._freeform_retries):
             try:
                 result = await asyncio.wait_for(
-                    self._inner.process_freeform(text, game_state),
+                    self._inner.process_freeform(text, game_state, script_context=script_context),
                     timeout=self._freeform_timeout,
                 )
                 return result
@@ -841,6 +923,61 @@ def _validate_decrees(decrees: list[StructuredDecree]) -> list[StructuredDecree]
     return validated
 
 
+def _normalize_decree_type(raw: str) -> str:
+    return raw.strip().lower().replace(" ", "_")
+
+
+def validate_memorial_decrees(
+    decrees: list[dict], state: GameState,
+) -> list[StructuredDecree]:
+    region_names = {r.name for r in state.regions}
+    minister_names = {m.name for m in state.ministers}
+    diplomacy_values = {t.value for t in DiplomacyTarget}
+
+    result: list[StructuredDecree] = []
+    for d in decrees:
+        if not isinstance(d, dict):
+            continue
+        raw_type = d.get("type", "")
+        if not isinstance(raw_type, str):
+            continue
+        normalized = _normalize_decree_type(raw_type)
+        try:
+            dtype = DecreeType(normalized)
+        except ValueError:
+            continue
+        target = d.get("target")
+        if isinstance(target, str):
+            target = target.strip() or None
+        else:
+            target = None
+        if dtype == DecreeType.DISASTER_RELIEF and (not target or target not in region_names):
+            continue
+        if dtype == DecreeType.PERSONNEL and (not target or target not in minister_names):
+            continue
+        if dtype == DecreeType.DIPLOMACY and (not target or target not in diplomacy_values):
+            continue
+        result.append(StructuredDecree(type=dtype, target=target))
+    return result
+
+
+def parse_memorial_draft(
+    raw_json: str,
+    author_name: str,
+    game_state: GameState,
+) -> MemorialDraft:
+    data = json.loads(extract_json_object_text(raw_json))
+    content = str(data.get("content", "")).strip()
+    raw_decrees = data.get("suggested_decrees", [])
+    validated = validate_memorial_decrees(
+        raw_decrees if isinstance(raw_decrees, list) else [], game_state,
+    )
+    return MemorialDraft(
+        content=content or f"臣{author_name}伏奏…",
+        suggested_decrees=validated,
+    )
+
+
 # ── Freeform Shared Helpers ─────────────────────────────
 
 from models.enums import MinisterStatus as _MS
@@ -925,8 +1062,18 @@ def _serialize_game_state(state: GameState) -> str:
     return "\n".join(lines)
 
 
-def build_freeform_user_prompt(text: str, state: GameState) -> str:
-    return f"玩家指令：{text}\n\n当前游戏状态：\n{_serialize_game_state(state)}"
+def build_freeform_user_prompt(
+    text: str, state: GameState, script_context: dict | None = None,
+) -> str:
+    parts = [f"玩家指令：{text}"]
+    if script_context:
+        parts.append(f"\n当前事件背景：{script_context.get('title', '')}")
+        parts.append(script_context.get("description", ""))
+        actions = script_context.get("suggested_actions")
+        if actions:
+            parts.append("参考行动方向：" + "、".join(actions))
+    parts.append(f"\n当前游戏状态：\n{_serialize_game_state(state)}")
+    return "\n".join(parts)
 
 
 def parse_freeform_response(data: dict) -> FreeformResult | dict:

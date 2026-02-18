@@ -180,6 +180,20 @@ export interface RegionChange {
   control_after: string
   threat_before: string
   threat_after: string
+  garrison_before?: number | null
+  garrison_after?: number | null
+  civil_morale_before?: number | null
+  civil_morale_after?: number | null
+  rebellion_risk_before?: number | null
+  rebellion_risk_after?: number | null
+  disaster_level_before?: number | null
+  disaster_level_after?: number | null
+  tax_collected_before?: number | null
+  tax_collected_after?: number | null
+  tax_rate_before?: number | null
+  tax_rate_after?: number | null
+  tax_contribution_before?: string | null
+  tax_contribution_after?: string | null
 }
 
 export interface MinisterChange {
@@ -188,6 +202,13 @@ export interface MinisterChange {
   loyalty_after: number
   status_before: string
   status_after: string
+}
+
+export interface RegionDetail {
+  region: string
+  field: string
+  delta: number
+  source: string
 }
 
 export interface TurnSummary {
@@ -202,6 +223,7 @@ export interface TurnSummary {
   region_changes: RegionChange[]
   minister_changes: MinisterChange[]
   pending_memorials_count: number
+  region_details?: RegionDetail[] | null
 }
 
 export type ModalType =
@@ -236,7 +258,7 @@ export interface DecreeResponse {
 export interface ErrorResponse {
   error_code: string
   message: string
-  details?: { ai_narrative?: string } | null
+  details?: Record<string, unknown> | null
 }
 
 export interface DebateMinister {
@@ -259,6 +281,22 @@ export interface Capabilities {
   portrait_supported: boolean
   assembly_supported: boolean
   memorial_enabled: boolean
+}
+
+export type AIProvider = 'mock' | 'openai' | 'google' | 'h' | 'Z'
+
+export interface AISettings {
+  provider: AIProvider
+  api_key: string
+  base_url: string
+  model: string
+  provider_options: AIProvider[]
+}
+
+export interface AIModelListResponse {
+  provider: AIProvider
+  models: string[]
+  source: string
 }
 
 export interface SaveEntry {

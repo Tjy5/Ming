@@ -204,7 +204,7 @@ class TestApplyAiEffects:
         attr = {}
         apply_ai_effects(state, {"global.treasury": 10}, attr)
         assert "treasury" in attr
-        assert "ai_effects" in attr["treasury"]
+        assert "旨意影响" in attr["treasury"]
 
     def test_abilities_delta(self):
         state = make_state()
@@ -497,6 +497,11 @@ class _FreeformFailProvider(AIProvider):
 
     async def generate_narrative(self, *a, **kw) -> str:
         return ""
+
+    async def stream_narrative(self, *a, **kw):
+        narrative = await self.generate_narrative(*a, **kw)
+        if narrative:
+            yield narrative
 
     async def parse_free_input(self, text, game_state):
         return await MockProvider().parse_free_input(text, game_state)

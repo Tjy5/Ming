@@ -39,6 +39,14 @@ interface Store {
 
 const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false, assembly_supported: false, memorial_enabled: false }
 
+function insertModalByPriority(queue: ModalItem[], modal: ModalItem): ModalItem[] {
+  const next = [...queue]
+  let i = next.length
+  while (i > 0 && next[i - 1].priority < modal.priority) i--
+  next.splice(i, 0, modal)
+  return next
+}
+
 export const useStore = create<Store>((set) => ({
   state: null,
   loading: false,
@@ -61,11 +69,13 @@ export const useStore = create<Store>((set) => ({
   pushModal: (item) => set((s) => {
     const m = { ...item, priority: item.priority ?? MODAL_PRIORITIES[item.type] }
     if (!s.currentModal) return { currentModal: m }
-    const q = [...s.modalQueue]
-    let i = q.length
-    while (i > 0 && q[i - 1].priority < m.priority) i--
-    q.splice(i, 0, m)
-    return { modalQueue: q }
+    if (m.priority > s.currentModal.priority) {
+      return {
+        currentModal: m,
+        modalQueue: insertModalByPriority(s.modalQueue, s.currentModal),
+      }
+    }
+    return { modalQueue: insertModalByPriority(s.modalQueue, m) }
   }),
   popModal: () => set((s) => {
     if (s.modalQueue.length === 0) return { currentModal: null }

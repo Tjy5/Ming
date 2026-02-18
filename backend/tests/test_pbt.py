@@ -127,17 +127,20 @@ def test_transition_commutativity(data):
 
 # ── 13.6 Conditional injection False leaves no trace ──
 
-@given(risk=st.integers(min_value=0, max_value=39))
+@given(risk=st.integers(min_value=0, max_value=100))
 @settings(max_examples=30)
 def test_condition_false_no_trace(risk):
+    # yuan-chonghuan-arrest at 1629/12 requires "jisi-invasion" resolved;
+    # without that prerequisite, it should never inject.
     state = GameState(
-        time=GameTime(year=1627, month=12, era_name="天启", era_year=7),
-        factions=[Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=risk)],
+        time=GameTime(year=1629, month=12, era_name="崇祯", era_year=2),
+        factions=[Faction(name="test", satisfaction=50, influence=25, rebellion_risk=risk)],
         regions=[Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)],
     )
+    state.resolved_script_ids = set()  # prerequisite NOT met
     inject_script_events(state)
-    assert not any(e.script_id == "eunuch-backlash" for e in state.active_events)
-    assert "eunuch-backlash" not in state.resolved_script_ids
+    assert not any(e.script_id == "yuan-chonghuan-arrest" for e in state.active_events)
+    assert "yuan-chonghuan-arrest" not in state.resolved_script_ids
 
 
 # ── 13.7 Save migration idempotency ─────────────────
@@ -169,7 +172,7 @@ def test_opening_effects_clamp(treasury, prestige):
     state = create_initial_state()
     state.treasury = treasury
     state.court_prestige = prestige
-    evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
+    evt = next(e for e in state.active_events if e.script_id == "chongzhen-accession-1627-08")
     for choice in evt.choices:
         if choice.decrees:
             s = create_initial_state()

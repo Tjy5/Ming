@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
-import type { StructuredDecree, DecreeResponse, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, Memorial, CourtAssembly } from './types/game'
+import type { StructuredDecree, DecreeResponse, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, CourtAssembly } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
 import FactionPanel from './components/FactionPanel'
@@ -14,9 +14,9 @@ import MultiConfirm from './components/MultiConfirm'
 import SavePanel from './components/SavePanel'
 import ScriptEventModal from './components/ScriptEventModal'
 import DebatePanel from './components/DebatePanel'
-import TurnSummaryModal from './components/TurnSummaryModal'
 import MemorialPanel from './components/MemorialPanel'
 import CourtAssemblyView from './components/CourtAssemblyView'
+import AiSettingsModal from './components/AiSettingsModal'
 import './App.css'
 
 type RightTab = 'faction' | 'minister' | 'assembly'
@@ -37,6 +37,7 @@ function App() {
   } = useStore()
 
   const [showSaves, setShowSaves] = useState(false)
+  const [showAiSettings, setShowAiSettings] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<RightTab>('faction')
@@ -57,7 +58,6 @@ function App() {
   }, [])
 
   function queueTurnResultModals(res: DecreeResponse) {
-    const hasMajorEvents = !!res.turn_summary?.major_events?.length
     pushModal({
       type: 'narrative',
       priority: 50,
@@ -65,14 +65,11 @@ function App() {
         narrative: res.narrative,
         delta: res.delta,
         ministerReactions: res.minister_reactions,
-        turnSummary: hasMajorEvents ? undefined : (res.turn_summary ?? undefined),
+        turnSummary: res.turn_summary ?? undefined,
       } satisfies NarrativePayload,
     })
-    if (hasMajorEvents && res.turn_summary) {
-      pushModal({ type: 'turn_summary', priority: 40, payload: res.turn_summary })
-    }
     if (res.memorial_triggers?.length) {
-      pushModal({ type: 'memorial', priority: 30, payload: res.memorial_triggers })
+      showToast(`新增 ${res.memorial_triggers.length} 份奏折，请在下方“奏折”入口批复`)
     }
   }
 
@@ -121,18 +118,18 @@ function App() {
     }
   }, [state, loading, pushModal])
 
-  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string) {
-    if (!state) return
+  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string): Promise<string | null> {
+    if (!state) return 'no_state'
     if (decreeInFlight.current) {
       showToast('正在处理上一道政令，请稍候')
-      return
+      return 'in_flight'
     }
     decreeInFlight.current = true
     setLoading(true)
     setError(null)
     setPrevState(state)
     try {
-      const res: DecreeResponse = await api.decree(decrees, sourceScriptId, freeText)
+      const res = await api.decree(decrees, sourceScriptId, freeText)
       setState(res.state)
       if (res.minister_reactions?.length) setLastReactions(res.minister_reactions)
       if (res.game_over) {
@@ -140,18 +137,24 @@ function App() {
       } else {
         queueTurnResultModals(res)
       }
+      return null
     } catch (e) {
       if (e instanceof ApiError) {
+        if (e.body.error_code === 'FREEFORM_EMPTY') {
+          return 'FREEFORM_EMPTY'
+        }
         if (e.status === 409) {
           showToast(e.body.message || '正在处理上一道政令，请稍候')
         } else {
-          const ai = e.body.details?.ai_narrative
+          const aiRaw = e.body.details?.ai_narrative
+          const ai = typeof aiRaw === 'string' ? aiRaw : null
           if (ai) pushModal({ type: 'narrative', priority: 50, payload: { narrative: ai, delta: {} } })
           else showToast(e.body.message)
         }
       } else {
         showToast('网络错误，请重试')
       }
+      return 'error'
     } finally {
       decreeInFlight.current = false
       setLoading(false)
@@ -162,8 +165,8 @@ function App() {
     if (!state) return
     const trimmed = text.trim()
     if (!trimmed) return
-    if (trimmed.length > 1000) {
-      showToast('政令文本过长（最多1000字）')
+    if (trimmed.length > 200) {
+      showToast('政令文本过长（最多200字）')
       return
     }
     await executeDecrees([], undefined, trimmed)
@@ -203,6 +206,10 @@ function App() {
       setLoading(true)
       const res = await api.resolveMemorial(id, action)
       setState(res.state)
+      const pendingAfter = res.state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
+      if (currentModal?.type === 'memorial' && pendingAfter.length === 0) {
+        popModal()
+      }
       const labels = { approved: '准奏', rejected: '驳回', deferred: '留中' }
       showToast(`奏折已${labels[action]}`)
     } catch (e) {
@@ -287,9 +294,17 @@ function App() {
     if (migrationNote) showToast(migrationNote)
   }
 
+  function handleAiSettingsSaved(message: string) {
+    setShowAiSettings(false)
+    showToast(message)
+    capsFetched.current = false
+    void fetchCapabilities()
+  }
+
   const hasBlockingEvent = !!state?.active_events.some(
     e => e.is_scripted && e.is_blocking && e.choices.length > 0,
   )
+  const pendingMemorials = state?.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
 
   if (!state) {
     return (
@@ -306,6 +321,7 @@ function App() {
         prevState={prevState}
         onSave={handleSave}
         onShowSaves={() => setShowSaves(true)}
+        onOpenAiSettings={() => setShowAiSettings(true)}
         onNewGame={handleNewGame}
       />
       <div className="main-area">
@@ -344,11 +360,10 @@ function App() {
       <div className="bottom-panel">
         <EventBar
           events={state.active_events}
-          pendingMemorials={state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred').length ?? 0}
+          pendingMemorials={pendingMemorials.length}
           onScriptClick={(e) => pushModal({ type: 'script_event', priority: 10, payload: e })}
           onMemorialClick={() => {
-            const pending = state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
-            if (pending.length) pushModal({ type: 'memorial', priority: 30, payload: pending })
+            if (pendingMemorials.length) pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
           }}
         />
         <ActionArea
@@ -368,7 +383,12 @@ function App() {
 
       {loading && (
         <div className="loading-overlay">
-          <div className="spinner" />
+          <div className="streaming-panel">
+            <div className="streaming-header">
+              <div className="spinner" />
+              <span>正在处理政令……</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -385,16 +405,9 @@ function App() {
         )
       })()}
 
-      {currentModal?.type === 'turn_summary' && (
-        <TurnSummaryModal
-          summary={currentModal.payload as TurnSummary}
-          onClose={popModal}
-        />
-      )}
-
       {currentModal?.type === 'memorial' && (
         <MemorialPanel
-          memorials={currentModal.payload as Memorial[]}
+          memorials={pendingMemorials}
           onResolve={handleMemorialResolve}
           onClose={popModal}
         />
@@ -434,10 +447,10 @@ function App() {
       {(currentModal?.type === 'script_event_blocking' || currentModal?.type === 'script_event') && (
         <ScriptEventModal
           event={currentModal.payload as GameEvent}
-          state={state}
-          onChoose={(decrees, scriptId) => {
-            popModal()
-            executeDecrees(decrees, scriptId)
+          onChoose={async (decrees, scriptId, freeText) => {
+            const errorCode = await executeDecrees(decrees, scriptId, freeText)
+            if (!errorCode) popModal()
+            return errorCode
           }}
         />
       )}
@@ -456,6 +469,13 @@ function App() {
           onLoad={handleLoadSave}
           onClose={() => setShowSaves(false)}
           hasUnsaved={state.decree_count > 0}
+        />
+      )}
+
+      {showAiSettings && (
+        <AiSettingsModal
+          onClose={() => setShowAiSettings(false)}
+          onSaved={handleAiSettingsSaved}
         />
       )}
 

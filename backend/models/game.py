@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from typing import Optional
 from pydantic import BaseModel, Field
 
 from .enums import (
@@ -61,6 +62,11 @@ class StructuredDecree(BaseModel):
 
 
 # ── Memorial ────────────────────────────────────────────
+
+class MemorialDraft(BaseModel):
+    content: str
+    suggested_decrees: list[StructuredDecree] = Field(default_factory=list)
+
 
 class Memorial(BaseModel):
     id: str
@@ -142,6 +148,20 @@ class RegionChange(BaseModel):
     control_after: str
     threat_before: str
     threat_after: str
+    garrison_before: Optional[int] = None
+    garrison_after: Optional[int] = None
+    civil_morale_before: Optional[int] = None
+    civil_morale_after: Optional[int] = None
+    rebellion_risk_before: Optional[int] = None
+    rebellion_risk_after: Optional[int] = None
+    disaster_level_before: Optional[int] = None
+    disaster_level_after: Optional[int] = None
+    tax_collected_before: Optional[int] = None
+    tax_collected_after: Optional[int] = None
+    tax_rate_before: Optional[float] = None
+    tax_rate_after: Optional[float] = None
+    tax_contribution_before: Optional[str] = None
+    tax_contribution_after: Optional[str] = None
 
 
 class MinisterChange(BaseModel):
@@ -150,6 +170,13 @@ class MinisterChange(BaseModel):
     loyalty_after: int
     status_before: str
     status_after: str
+
+
+class RegionDetail(BaseModel):
+    region: str
+    field: str
+    delta: float
+    source: str
 
 
 class TurnSummary(BaseModel):
@@ -164,6 +191,7 @@ class TurnSummary(BaseModel):
     faction_changes: list[FactionChange] = Field(default_factory=list)
     region_changes: list[RegionChange] = Field(default_factory=list)
     minister_changes: list[MinisterChange] = Field(default_factory=list)
+    region_details: Optional[list[RegionDetail]] = None
     pending_memorials_count: int = 0
 
 
@@ -326,7 +354,7 @@ INITIAL_MINISTERS = [
 
 def create_initial_state() -> GameState:
     state = GameState(
-        time=GameTime(year=1627, month=10, era_name="天启", era_year=7),
+        time=GameTime(year=1627, month=8, era_name="天启", era_year=7),
         treasury=100, population=100, military_supply=80,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],

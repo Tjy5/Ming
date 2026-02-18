@@ -126,7 +126,7 @@ export default function CourtAssemblyView(props: Props) {
 /* ── Panel mode (right sidebar tab) ── */
 function AssemblyPanel({ state, capabilities, loading, onConvene, onAdopt, onSilence }: PanelProps) {
   const [selectedType, setSelectedType] = useState<DecreeType>(DECREE_TYPES[0])
-  const [lastAssembly, setLastAssembly] = useState<CourtAssembly | null>(null)
+  const [lastAssembly] = useState<CourtAssembly | null>(null)
 
   const topics = DEBATE_TOPICS[selectedType] ?? []
   const canConvene = capabilities.assembly_supported && !loading

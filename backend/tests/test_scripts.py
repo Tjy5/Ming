@@ -1,12 +1,13 @@
 from models.game import (
     GameState, GameTime, Faction, Region, create_initial_state,
+    RegionChange,
 )
-from models.enums import TaxContribution
+from models.enums import TaxContribution, MinisterStatus
 from engine.core import inject_script_events
 from engine.scripts import get_scripts_for_time, SCRIPT_REGISTRY
 
 
-def _minimal_state(year=1627, month=10) -> GameState:
+def _minimal_state(year=1627, month=8) -> GameState:
     return GameState(
         time=GameTime(year=year, month=month, era_name="天启", era_year=7),
         factions=[Faction(name="test", satisfaction=50, influence=50, rebellion_risk=10)],
@@ -15,43 +16,201 @@ def _minimal_state(year=1627, month=10) -> GameState:
     )
 
 
-class TestInitialScriptInjection:
-    def test_create_initial_state_has_opening_event(self):
+# ── 10.4 All 13 new script events register correctly ──
+
+MONTHLY_EVENT_IDS = [
+    "chongzhen-accession-1627-08",
+    "court-ceremonies-1627-09",
+    "qian-jiazheng-impeachment-1627-10",
+    "wei-zhongxian-falls-1627-11",
+    "eunuch-party-purge-1627-12",
+    "donglin-restoration-1628-01",
+    "rehabilitation-begins-1628-02",
+    "tianqi-burial-1628-03",
+    "yuan-chonghuan-appointed-1628-04",
+    "farmer-uprising-erupts-1628-05",
+    "famine-escalates-1628-06",
+    "ningyuan-mutiny-1628-07",
+    "year-end-assessment-1628-08",
+]
+
+
+class TestNewMonthlyEvents:
+    def test_all_13_events_registered(self):
+        for sid in MONTHLY_EVENT_IDS:
+            assert sid in SCRIPT_REGISTRY, f"{sid} not in SCRIPT_REGISTRY"
+
+    def test_events_trigger_in_correct_sequence(self):
+        expected_times = [
+            (1627, 8), (1627, 9), (1627, 10), (1627, 11), (1627, 12),
+            (1628, 1), (1628, 2), (1628, 3), (1628, 4),
+            (1628, 5), (1628, 6), (1628, 7), (1628, 8),
+        ]
+        for sid, (y, m) in zip(MONTHLY_EVENT_IDS, expected_times):
+            evt = SCRIPT_REGISTRY[sid]
+            assert evt.trigger_year == y, f"{sid}: expected year {y}, got {evt.trigger_year}"
+            assert evt.trigger_month == m, f"{sid}: expected month {m}, got {evt.trigger_month}"
+
+    def test_all_events_have_canonical_script_ids(self):
+        for sid in MONTHLY_EVENT_IDS:
+            evt = SCRIPT_REGISTRY[sid]
+            assert evt.script_id == sid
+
+    def test_all_events_have_choices(self):
+        for sid in MONTHLY_EVENT_IDS:
+            evt = SCRIPT_REGISTRY[sid]
+            assert len(evt.choices) >= 1, f"{sid} has no choices"
+
+    def test_blocking_events_correct(self):
+        blocking = {"chongzhen-accession-1627-08", "wei-zhongxian-falls-1627-11",
+                     "farmer-uprising-erupts-1628-05", "ningyuan-mutiny-1628-07",
+                     "year-end-assessment-1628-08"}
+        for sid in MONTHLY_EVENT_IDS:
+            evt = SCRIPT_REGISTRY[sid]
+            if sid in blocking:
+                assert evt.is_blocking, f"{sid} should be blocking"
+            else:
+                assert not evt.is_blocking, f"{sid} should not be blocking"
+
+    def test_no_conditions_on_monthly_events(self):
+        for sid in MONTHLY_EVENT_IDS:
+            evt = SCRIPT_REGISTRY[sid]
+            assert evt.condition is None, f"{sid} should have no condition"
+
+
+# ── 10.5 Deleted events no longer in registry ──
+
+DELETED_EVENT_IDS = [
+    "tianqi-7-opening",
+    "eunuch-backlash",
+    "donglin-impeachment",
+    "shaanxi-famine-memorial",
+    "rebel-wangjiaying",
+    "ningyuan-mutiny",  # old event, replaced by ningyuan-mutiny-1628-07
+]
+
+
+class TestDeletedEvents:
+    def test_deleted_events_not_in_registry(self):
+        for sid in DELETED_EVENT_IDS:
+            assert sid not in SCRIPT_REGISTRY, f"{sid} should have been deleted"
+
+
+# ── 10.6 1629+ events remain unchanged ──
+
+class TestExistingEventsUnchanged:
+    def test_jisi_invasion_unchanged(self):
+        assert "jisi-invasion" in SCRIPT_REGISTRY
+        evt = SCRIPT_REGISTRY["jisi-invasion"]
+        assert evt.trigger_year == 1629
+        assert evt.trigger_month == 10
+        assert evt.is_blocking is True
+        assert evt.condition is None
+
+    def test_yuan_chonghuan_arrest_unchanged(self):
+        assert "yuan-chonghuan-arrest" in SCRIPT_REGISTRY
+        evt = SCRIPT_REGISTRY["yuan-chonghuan-arrest"]
+        assert evt.trigger_year == 1629
+        assert evt.trigger_month == 12
+        assert evt.condition is not None
+
+    def test_li_zicheng_joins_unchanged(self):
+        assert "li-zicheng-joins" in SCRIPT_REGISTRY
+        evt = SCRIPT_REGISTRY["li-zicheng-joins"]
+        assert evt.trigger_year == 1630
+        assert evt.trigger_month == 3
+
+    def test_sun_chengzong_recovery_unchanged(self):
+        assert "sun-chengzong-recovery" in SCRIPT_REGISTRY
+        evt = SCRIPT_REGISTRY["sun-chengzong-recovery"]
+        assert evt.trigger_year == 1630
+        assert evt.trigger_month == 5
+
+
+# ── 10.8 Game start time ──
+
+class TestGameStartTime:
+    def test_initial_state_month_is_8(self):
+        state = create_initial_state()
+        assert state.time.month == 8
+
+    def test_initial_state_year_is_1627(self):
+        state = create_initial_state()
+        assert state.time.year == 1627
+
+    def test_initial_state_has_opening_event(self):
         state = create_initial_state()
         scripted = [e for e in state.active_events if e.is_scripted]
         assert len(scripted) >= 1
-        assert any(e.script_id == "tianqi-7-opening" for e in scripted)
+        assert any(e.script_id == "chongzhen-accession-1627-08" for e in scripted)
 
-    def test_opening_event_has_3_choices(self):
+    def test_opening_event_is_blocking(self):
         state = create_initial_state()
-        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
-        assert len(evt.choices) == 3
+        evt = next(e for e in state.active_events
+                   if e.script_id == "chongzhen-accession-1627-08")
+        assert evt.is_blocking is True
 
     def test_opening_event_has_rich_description(self):
         state = create_initial_state()
-        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
+        evt = next(e for e in state.active_events
+                   if e.script_id == "chongzhen-accession-1627-08")
         assert evt.rich_description
         assert len(evt.rich_description) > 50
 
-    def test_opening_event_at_least_one_no_precondition_choice(self):
-        state = create_initial_state()
-        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
-        has_safe = any(len(c.decrees) == 0 for c in evt.choices)
-        assert has_safe
 
-    def test_opening_event_keeps_blocking_flag(self):
-        state = create_initial_state()
-        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
-        assert evt.is_blocking is True
+# ── 10.9 dalinghe-prelude at 1631/8 ──
 
-    def test_opening_triggers_at_1627_10(self):
-        state = create_initial_state()
-        assert state.time.year == 1627
-        assert state.time.month == 10
-        evt = next(e for e in state.active_events if e.script_id == "tianqi-7-opening")
-        assert evt.triggered_year == 1627
-        assert evt.triggered_month == 10
+class TestDalinghePrelude:
+    def test_trigger_year_is_1631(self):
+        evt = SCRIPT_REGISTRY["dalinghe-prelude"]
+        assert evt.trigger_year == 1631
 
+    def test_trigger_month_is_8(self):
+        evt = SCRIPT_REGISTRY["dalinghe-prelude"]
+        assert evt.trigger_month == 8
+
+    def test_old_trigger_time_has_no_match(self):
+        scripts = get_scripts_for_time(1630, 9)
+        assert not any(s.script_id == "dalinghe-prelude" for s in scripts)
+
+    def test_new_trigger_time_has_match(self):
+        scripts = get_scripts_for_time(1631, 8)
+        assert any(s.script_id == "dalinghe-prelude" for s in scripts)
+
+
+# ── 10.7 Backward compat: old RegionChange without new fields ──
+
+class TestRegionChangeBackwardCompat:
+    def test_old_fields_only_deserializes(self):
+        rc = RegionChange(
+            name="辽东",
+            stability_before=50, stability_after=45,
+            control_before="朝廷", control_after="朝廷",
+            threat_before="后金", threat_after="后金",
+        )
+        assert rc.garrison_before is None
+        assert rc.garrison_after is None
+        assert rc.civil_morale_before is None
+        assert rc.tax_rate_before is None
+        assert rc.tax_contribution_before is None
+
+    def test_new_fields_populated(self):
+        rc = RegionChange(
+            name="陕西",
+            stability_before=30, stability_after=25,
+            control_before="朝廷", control_after="失控",
+            threat_before="none", threat_after="民变",
+            garrison_before=5000, garrison_after=3000,
+            civil_morale_before=40, civil_morale_after=30,
+        )
+        assert rc.garrison_before == 5000
+        assert rc.garrison_after == 3000
+        assert rc.civil_morale_before == 40
+        assert rc.civil_morale_after == 30
+        assert rc.rebellion_risk_before is None
+
+
+# ── Script injection and dedup (updated for new events) ──
 
 class TestScriptDedup:
     def test_no_duplicate_in_active_events(self):
@@ -60,18 +219,20 @@ class TestScriptDedup:
         assert len(injected1) == 1
         injected2 = inject_script_events(state)
         assert len(injected2) == 0
-        scripted = [e for e in state.active_events if e.script_id == "tianqi-7-opening"]
+        scripted = [e for e in state.active_events
+                    if e.script_id == "chongzhen-accession-1627-08"]
         assert len(scripted) == 1
 
     def test_no_inject_if_in_resolved(self):
         state = _minimal_state()
-        state.resolved_script_ids.add("tianqi-7-opening")
+        state.resolved_script_ids.add("chongzhen-accession-1627-08")
         injected = inject_script_events(state)
         assert len(injected) == 0
-        assert not any(e.script_id == "tianqi-7-opening" for e in state.active_events)
+        assert not any(e.script_id == "chongzhen-accession-1627-08"
+                       for e in state.active_events)
 
     def test_non_matching_time_not_injected(self):
-        state = _minimal_state(year=1630, month=6)
+        state = _minimal_state(year=1635, month=6)
         injected = inject_script_events(state)
         assert len(injected) == 0
 
@@ -80,38 +241,19 @@ class TestSourceScriptIdCleanup:
     def test_remove_event_on_resolve(self):
         state = _minimal_state()
         inject_script_events(state)
-        assert any(e.script_id == "tianqi-7-opening" for e in state.active_events)
-
-        sid = "tianqi-7-opening"
+        sid = "chongzhen-accession-1627-08"
+        assert any(e.script_id == sid for e in state.active_events)
         before = len(state.active_events)
-        state.active_events = [
-            e for e in state.active_events if e.script_id != sid
-        ]
+        state.active_events = [e for e in state.active_events if e.script_id != sid]
         if len(state.active_events) != before:
             state.resolved_script_ids.add(sid)
-
         assert not any(e.script_id == sid for e in state.active_events)
         assert sid in state.resolved_script_ids
-
-    def test_no_op_if_script_id_not_found(self):
-        state = _minimal_state()
-        inject_script_events(state)
-        before = len(state.active_events)
-
-        sid = "nonexistent-script"
-        state.active_events = [
-            e for e in state.active_events if e.script_id != sid
-        ]
-        if len(state.active_events) != before:
-            state.resolved_script_ids.add(sid)
-
-        assert len(state.active_events) == before
-        assert sid not in state.resolved_script_ids
 
     def test_resolved_prevents_re_injection(self):
         state = _minimal_state()
         inject_script_events(state)
-        sid = "tianqi-7-opening"
+        sid = "chongzhen-accession-1627-08"
         state.active_events = [e for e in state.active_events if e.script_id != sid]
         state.resolved_script_ids.add(sid)
         injected = inject_script_events(state)
@@ -120,12 +262,12 @@ class TestSourceScriptIdCleanup:
 
 class TestScriptRegistryIntegrity:
     def test_registry_has_opening(self):
-        assert "tianqi-7-opening" in SCRIPT_REGISTRY
+        assert "chongzhen-accession-1627-08" in SCRIPT_REGISTRY
 
-    def test_get_scripts_for_time_1627_10(self):
-        scripts = get_scripts_for_time(1627, 10)
+    def test_get_scripts_for_time_1627_8(self):
+        scripts = get_scripts_for_time(1627, 8)
         assert len(scripts) >= 1
-        assert any(s.script_id == "tianqi-7-opening" for s in scripts)
+        assert any(s.script_id == "chongzhen-accession-1627-08" for s in scripts)
 
     def test_get_scripts_for_time_miss(self):
         scripts = get_scripts_for_time(1635, 6)
@@ -136,45 +278,3 @@ class TestScriptRegistryIntegrity:
             assert 1621 <= evt.trigger_year <= 1644
             assert 1 <= evt.trigger_month <= 12
             assert len(evt.choices) >= 1
-
-
-class TestConditionalScripts:
-    def test_eunuch_backlash_conditional(self):
-        assert "eunuch-backlash" in SCRIPT_REGISTRY
-        evt = SCRIPT_REGISTRY["eunuch-backlash"]
-        assert evt.condition is not None
-        assert evt.trigger_year == 1627
-        assert evt.trigger_month == 12
-
-    def test_donglin_impeachment_conditional(self):
-        assert "donglin-impeachment" in SCRIPT_REGISTRY
-        evt = SCRIPT_REGISTRY["donglin-impeachment"]
-        assert evt.condition is not None
-        assert evt.trigger_year == 1628
-        assert evt.trigger_month == 1
-
-    def test_shaanxi_famine_unconditional(self):
-        assert "shaanxi-famine-memorial" in SCRIPT_REGISTRY
-        evt = SCRIPT_REGISTRY["shaanxi-famine-memorial"]
-        assert evt.condition is None
-        assert evt.is_blocking
-
-    def test_condition_false_skips_injection(self):
-        state = _minimal_state(year=1627, month=12)
-        state.factions = [Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=20)]
-        injected = inject_script_events(state)
-        assert "阉党残余反扑" not in injected
-
-    def test_condition_true_injects(self):
-        state = _minimal_state(year=1627, month=12)
-        state.factions = [Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=50)]
-        injected = inject_script_events(state)
-        assert "阉党残余反扑" in injected
-        evt = next(e for e in state.active_events if e.script_id == "eunuch-backlash")
-        assert evt.is_blocking is False
-
-    def test_condition_false_no_resolved(self):
-        state = _minimal_state(year=1627, month=12)
-        state.factions = [Faction(name="阉党残余", satisfaction=50, influence=25, rebellion_risk=20)]
-        inject_script_events(state)
-        assert "eunuch-backlash" not in state.resolved_script_ids

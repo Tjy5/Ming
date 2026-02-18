@@ -3,22 +3,26 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
 import openai
 from dotenv import load_dotenv
 
-from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction
+from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, PersonnelAction, MemorialStatus
 from .provider import (
     AIProvider,
+    MockProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
     build_debate_prompt,
     DEBATE_SYSTEM_PROMPT,
     parse_debate_response,
     extract_json_object_text,
+    validate_memorial_decrees,
+    parse_memorial_draft,
     _FREEFORM_SYSTEM_PROMPT,
     build_freeform_user_prompt as _build_freeform_user_prompt,
     parse_freeform_response as _parse_freeform_response,
@@ -42,6 +46,19 @@ def _env_str(name: str) -> str | None:
     return value or None
 
 
+def _env_float(name: str) -> float | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    value = raw.strip()
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 class OpenAIProvider(AIProvider):
     def __init__(self):
         trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
@@ -55,6 +72,7 @@ class OpenAIProvider(AIProvider):
         self.parse_model = self.model
         self.freeform_model = self.model
         self.turn_commentary_model = self.model
+        self._config_prefix = "OPENAI"
         self._configure_task_models("OPENAI")
 
     def _configure_task_models(
@@ -68,6 +86,7 @@ class OpenAIProvider(AIProvider):
         use_simple_for_freeform: bool = True,
         use_simple_for_turn_commentary: bool = True,
     ) -> None:
+        self._config_prefix = prefix
         simple_model = _env_str(f"{prefix}_SIMPLE_MODEL")
         parse_simple = simple_model if use_simple_for_parse else None
         freeform_simple = simple_model if use_simple_for_freeform else None
@@ -92,6 +111,117 @@ class OpenAIProvider(AIProvider):
             or self.model
         )
 
+    def _chat_completion_extra_kwargs(
+        self,
+        *,
+        task_name: str,
+        model: str,
+    ) -> dict[str, Any]:
+        return {}
+
+    def _env_sampling_value(
+        self,
+        *,
+        task_name: str,
+        key: str,
+    ) -> float | None:
+        task_key = task_name.upper()
+        candidates = (
+            f"{self._config_prefix}_{task_key}_{key}",
+            f"AI_{task_key}_{key}",
+            f"{self._config_prefix}_{key}",
+            f"AI_{key}",
+        )
+        for env_name in candidates:
+            value = _env_float(env_name)
+            if value is not None:
+                return value
+        return None
+
+    @staticmethod
+    def _validate_temperature(value: float | None) -> float | None:
+        if value is None:
+            return None
+        if 0.0 <= value <= 2.0:
+            return value
+        return None
+
+    @staticmethod
+    def _validate_top_p(value: float | None) -> float | None:
+        if value is None:
+            return None
+        if 0.0 < value <= 1.0:
+            return value
+        return None
+
+    def _resolve_sampling_params(
+        self,
+        *,
+        task_name: str,
+        default_temperature: float,
+        default_top_p: float | None,
+    ) -> tuple[float, float | None]:
+        env_temperature = self._env_sampling_value(
+            task_name=task_name,
+            key="TEMPERATURE",
+        )
+        env_top_p = self._env_sampling_value(
+            task_name=task_name,
+            key="TOP_P",
+        )
+
+        temperature = self._validate_temperature(env_temperature)
+        if temperature is None:
+            if env_temperature is not None:
+                logging.warning(
+                    "Ignore invalid %s temperature %.3f; keep default %.3f",
+                    task_name,
+                    env_temperature,
+                    default_temperature,
+                )
+            temperature = default_temperature
+
+        top_p = self._validate_top_p(env_top_p)
+        if env_top_p is not None and top_p is None:
+            logging.warning(
+                "Ignore invalid %s top_p %.3f; keep default",
+                task_name,
+                env_top_p,
+            )
+            top_p = default_top_p
+        elif top_p is None:
+            top_p = default_top_p
+
+        return temperature, top_p
+
+    def _build_chat_completion_kwargs(
+        self,
+        *,
+        task_name: str,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float,
+        top_p: float | None = None,
+        response_format: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        resolved_temperature, resolved_top_p = self._resolve_sampling_params(
+            task_name=task_name,
+            default_temperature=temperature,
+            default_top_p=top_p,
+        )
+        kwargs: dict[str, Any] = {
+            "messages": messages,
+            "temperature": resolved_temperature,
+        }
+        if resolved_top_p is not None:
+            kwargs["top_p"] = resolved_top_p
+        if response_format is not None:
+            kwargs["response_format"] = response_format
+        kwargs.update(
+            self._chat_completion_extra_kwargs(task_name=task_name, model=model),
+        )
+        return kwargs
+
     async def _chat_completion_with_fallback(
         self,
         *,
@@ -99,14 +229,17 @@ class OpenAIProvider(AIProvider):
         model: str,
         messages: list[dict[str, str]],
         temperature: float,
+        top_p: float | None = None,
         response_format: dict[str, str] | None = None,
     ) -> Any:
-        kwargs: dict[str, Any] = {
-            "messages": messages,
-            "temperature": temperature,
-        }
-        if response_format is not None:
-            kwargs["response_format"] = response_format
+        kwargs = self._build_chat_completion_kwargs(
+            task_name=task_name,
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            top_p=top_p,
+            response_format=response_format,
+        )
 
         try:
             return await self.client.chat.completions.create(
@@ -123,9 +256,17 @@ class OpenAIProvider(AIProvider):
                 type(first_error).__name__,
                 self.model,
             )
+            fallback_kwargs = self._build_chat_completion_kwargs(
+                task_name=task_name,
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                top_p=top_p,
+                response_format=response_format,
+            )
             return await self.client.chat.completions.create(
                 model=self.model,
-                **kwargs,
+                **fallback_kwargs,
             )
 
     async def generate_narrative(
@@ -135,7 +276,8 @@ class OpenAIProvider(AIProvider):
         prompt = self._build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
         
         try:
-            response = await self.client.chat.completions.create(
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_narrative",
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"},
@@ -147,6 +289,72 @@ class OpenAIProvider(AIProvider):
         except Exception as e:
             logging.error(f"Error generating narrative: {e}")
             return "（AI服务响应异常，但政令已执行）"
+
+    @staticmethod
+    def _stream_chunk_text(chunk: Any) -> str:
+        choices = getattr(chunk, "choices", None)
+        if not choices:
+            return ""
+        delta = getattr(choices[0], "delta", None)
+        if delta is None:
+            return ""
+        content = getattr(delta, "content", None)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                    continue
+                text = getattr(item, "text", None)
+                if isinstance(text, str):
+                    parts.append(text)
+                    continue
+                if isinstance(item, dict):
+                    value = item.get("text")
+                    if isinstance(value, str):
+                        parts.append(value)
+            return "".join(parts)
+        return ""
+
+    async def stream_narrative(
+        self, delta_attribution: dict, game_state: GameState,
+        chain_events: list[str], decree: StructuredDecree,
+    ) -> AsyncIterator[str]:
+        prompt = self._build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
+        messages = [
+            {"role": "system", "content": "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"},
+            {"role": "user", "content": prompt},
+        ]
+        kwargs = self._build_chat_completion_kwargs(
+            task_name="generate_narrative",
+            model=self.model,
+            messages=messages,
+            temperature=0.7,
+        )
+        emitted_any = False
+        try:
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                stream=True,
+                **kwargs,
+            )
+            async for chunk in stream:
+                text = self._stream_chunk_text(chunk)
+                if text:
+                    emitted_any = True
+                    yield text
+            return
+        except Exception as e:
+            logging.error("Error streaming narrative: %s", e)
+        if emitted_any:
+            return
+        fallback = await self.generate_narrative(
+            delta_attribution, game_state, chain_events, decree,
+        )
+        if fallback:
+            yield fallback
 
     async def parse_free_input(
         self, text: str, game_state: GameState,
@@ -208,7 +416,8 @@ class OpenAIProvider(AIProvider):
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
         prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
         try:
-            response = await self.client.chat.completions.create(
+            response = await self._chat_completion_with_fallback(
+                task_name="rejection_narrative",
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是一名为国分忧的大臣。请解释为何不能执行某项政令。请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"},
@@ -224,7 +433,8 @@ class OpenAIProvider(AIProvider):
         self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
     ) -> DebateResult | None:
         prompt = build_debate_prompt(topic, minister_a, minister_b, game_state)
-        response = await self.client.chat.completions.create(
+        response = await self._chat_completion_with_fallback(
+            task_name="generate_debate_narrative",
             model=self.model,
             messages=[
                 {"role": "system", "content": DEBATE_SYSTEM_PROMPT},
@@ -254,28 +464,38 @@ class OpenAIProvider(AIProvider):
 
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,
-    ) -> str:
+    ) -> MemorialDraft:
+        decree_types = ", ".join(t.value for t in DecreeType)
         prompt = (
             f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
             f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
             f"触发原因：{trigger_reason}\n"
             f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
-            "请以该大臣的口吻撰写一份明朝风格的奏折，200-500字。"
-            "要求：引用具体地名人名，体现大臣性格，提出具体建议。"
+            "请以该大臣的口吻撰写一份明朝风格的奏折（200-500字），并推荐1-3条建议政令。\n"
+            f"可用政令type：{decree_types}\n"
+            '严格输出JSON：{{"content":"奏折正文","suggested_decrees":[{{"type":"...","target":"..."}}]}}'
         )
         try:
-            response = await self.client.chat.completions.create(
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_memorial",
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。"},
+                    {"role": "system", "content": "你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。"},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.7,
+                response_format={"type": "json_object"},
             )
-            return response.choices[0].message.content.strip()
+            draft = parse_memorial_draft(
+                response.choices[0].message.content or "", author.name, game_state,
+            )
+            if not draft.suggested_decrees and trigger_reason.split(":", 1)[0] != "faction_crisis":
+                mock = await MockProvider().generate_memorial(trigger_reason, author, game_state)
+                draft.suggested_decrees = mock.suggested_decrees
+            return draft
         except Exception as e:
-            logging.error(f"generate_memorial error: {e}")
-            raise
+            logging.error("OpenAIProvider generate_memorial fallback: %s", e)
+            return await MockProvider().generate_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
@@ -287,7 +507,8 @@ class OpenAIProvider(AIProvider):
             "请以该大臣口吻写一句30-50字的反应，体现其性格特点。"
         )
         try:
-            response = await self.client.chat.completions.create(
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_minister_reaction",
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "你是崇祯模拟器的大臣反应生成器。输出一句简短的大臣反应，30-50字。"},
@@ -310,7 +531,8 @@ class OpenAIProvider(AIProvider):
                          f"文治{p.abilities.civil}/武略{p.abilities.military}")
         prompt = "\n".join(parts)
         try:
-            response = await self.client.chat.completions.create(
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_assembly_debate",
                 model=self.model,
                 messages=[
                     {"role": "system", "content": (
@@ -367,8 +589,9 @@ class OpenAIProvider(AIProvider):
 
     async def process_freeform(
         self, text: str, game_state: GameState,
+        *, script_context: dict | None = None,
     ) -> FreeformResult | dict:
-        prompt = _build_freeform_user_prompt(text, game_state)
+        prompt = _build_freeform_user_prompt(text, game_state, script_context)
         try:
             response = await self._chat_completion_with_fallback(
                 task_name="process_freeform",

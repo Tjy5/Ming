@@ -48,6 +48,7 @@ export default function ActionArea({
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
   const [showTopics, setShowTopics] = useState(false)
   const actionLocked = loading || debateLoading || hasBlockingEvent
+  const textLocked = loading || debateLoading
 
   // Open edict panel from prefilled decree (debate result)
   const activeEdictType = prefilledDecree ? prefilledDecree.type : edictType
@@ -143,11 +144,11 @@ export default function ActionArea({
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && !actionLocked && handleSubmit()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && !textLocked && handleSubmit()}
           placeholder="输入政令（如：加征辽饷）"
-          disabled={actionLocked}
+          disabled={textLocked}
         />
-        <button onClick={handleSubmit} disabled={actionLocked || !text.trim()}>下旨</button>
+        <button onClick={handleSubmit} disabled={textLocked || !text.trim()}>下旨</button>
       </div>
 
       {activeEdictType && (
