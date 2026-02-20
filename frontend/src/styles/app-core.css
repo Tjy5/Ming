@@ -662,6 +662,92 @@ body {
   filter: brightness(1.15);
 }
 
+/* ── OfficialRankModal ─────────────────────────────────── */
+.official-rank-modal {
+  max-width: 760px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+}
+.orm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.orm-title {
+  color: var(--accent-gold);
+  font-size: 1.05rem;
+}
+.orm-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.orm-group {
+  margin-bottom: 16px;
+}
+.orm-group-label {
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+  border-bottom: 1px solid #333;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+.orm-leaves {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+}
+.orm-leaf-wrap {
+  display: flex;
+  flex-direction: column;
+}
+.orm-leaf {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid #333;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.orm-leaf:hover { border-color: var(--accent-gold); }
+.orm-leaf-active { border-color: var(--accent-gold); }
+.orm-leaf-name { color: var(--text-dim); }
+.orm-holders { color: var(--text-main); }
+.orm-vacant { color: var(--green); }
+.orm-panel {
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--bg-dark);
+  border: 1px solid #444;
+  border-radius: 3px;
+  max-height: 140px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.orm-empty { font-size: 0.8rem; color: var(--text-dim); }
+.orm-candidate {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--bg-card);
+  border: 1px solid #444;
+  border-radius: 2px;
+  color: var(--text-main);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-family: inherit;
+  text-align: left;
+}
+.orm-candidate:hover { border-color: var(--accent-gold); }
+.orm-abilities { color: var(--text-dim); font-size: 0.78rem; }
+
 /* ── Delta Summary ─────────────────────────────────────── */
 .delta-list {
   list-style: none;

@@ -12,7 +12,7 @@ from models.enums import (
     DecreeType, MinisterStatus, PersonnelAction, TaxContribution,
 )
 from engine.core import process_decree, apply_minister_transition, inject_script_events
-from api.routes import select_debate_ministers
+from api.debate_helpers import select_debate_ministers
 from db.saves import _migrate_save
 
 

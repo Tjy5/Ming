@@ -148,6 +148,12 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
                 executed.add(m.name)
             elif decree.sub_action == PersonnelAction.APPOINT and m.status == MinisterStatus.IDLE:
                 m.status = MinisterStatus.ACTIVE
+                pos = decree.parameters.get("position", "") if decree.parameters else ""
+                if pos:
+                    for other in state.ministers:
+                        if other.name != m.name and other.status == MinisterStatus.ACTIVE and other.position == pos:
+                            other.position = ""
+                m.position = pos
             break
     return dismissed, executed
 
@@ -155,6 +161,12 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
 # ── Passive Drift ────────────────────────────────────────
 
 def apply_passive_drift(state: GameState, attr: dict) -> None:
+    """Apply per-turn passive world drift.
+
+    This models maintenance costs, region self-evolution under threats/disasters,
+    baseline loyalty decay, and penalties from unattended memorial workload.
+    All numeric changes are recorded into ``attr`` for narrative/summary attribution.
+    """
     # unconditional administrative & grain & military upkeep
     state.national_treasury -= 1
     state.grain -= 6
@@ -222,6 +234,7 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
 # ── Base Effects ─────────────────────────────────────────
 
 def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -> None:
+    """Apply direct decree effect table deltas to global state fields."""
     effects = DECREE_EFFECTS[decree.type]
     for field, delta in effects.items():
         if delta == 0:
@@ -233,6 +246,7 @@ def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -
 # ── Faction Reactions ────────────────────────────────────
 
 def apply_faction_reactions(state: GameState, decree: StructuredDecree, attr: dict) -> None:
+    """Apply faction satisfaction/risk shifts driven by decree stance and influence."""
     for faction in state.factions:
         stance = FACTION_STANCE.get(faction.name, {})
         modifier = stance.get(decree.type, 0)
@@ -1145,8 +1159,15 @@ def process_decree(
     decree: StructuredDecree | None = None,
     freeform: FreeformResult | None = None,
 ) -> tuple[dict, dict, list[str], dict | None, list[MinisterReaction], TurnSummary]:
-    """Returns (delta, attribution, triggered_events, game_over, minister_reactions, turn_summary).
-    decree=None and freeform=None means a 'wait' turn (passive drift only).
+    """Execute one policy resolution pipeline and return its full outcome.
+
+    Returns:
+    (delta, attribution, triggered_events, game_over, minister_reactions, turn_summary)
+
+    Notes:
+    - ``decree is None`` and ``freeform is None`` is treated as a wait turn.
+    - Structured and freeform branches both merge into the same downstream chain:
+      chain events -> clamp -> region control -> tax/revenue -> memorial/event updates.
     """
     attr: dict = {}
     reactions: list[MinisterReaction] = []

@@ -11,6 +11,8 @@ from ai.provider import (
     _is_non_retryable_portrait_error,
 )
 from api import routes
+from api import state as api_state
+from api.schemas import PortraitRequest
 from models.game import DebateResult, GameState, Minister, StructuredDecree, create_initial_state
 
 
@@ -155,13 +157,13 @@ def test_resilient_provider_stops_retry_on_non_retryable_error():
 def test_portrait_endpoint_cools_down_after_failure():
     inner = _AlwaysNonePortraitProvider()
     provider = ResilientProvider(inner, retries=1)
-    req = routes.PortraitRequest(minister_name="徐光启", description="明朝官员")
+    req = PortraitRequest(minister_name="徐光启", description="明朝官员")
 
-    old_provider = routes._provider
-    old_cooldown = routes._portrait_cooldown_until
+    old_provider = api_state._provider
+    old_cooldown = api_state._portrait_cooldown_until
     try:
-        routes._provider = provider
-        routes._portrait_cooldown_until = 0.0
+        api_state._provider = provider
+        api_state._portrait_cooldown_until = 0.0
 
         with pytest.raises(HTTPException) as first:
             asyncio.run(routes.create_portrait(req))
@@ -176,8 +178,8 @@ def test_portrait_endpoint_cools_down_after_failure():
         assert second.value.detail["error_code"] == "portrait_generation_cooldown"
         assert inner.calls == first_calls
     finally:
-        routes._provider = old_provider
-        routes._portrait_cooldown_until = old_cooldown
+        api_state._provider = old_provider
+        api_state._portrait_cooldown_until = old_cooldown
 
 
 def test_turn_commentary_has_dedicated_timeout_and_retry():

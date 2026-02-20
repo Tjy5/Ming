@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
-import type { StructuredDecree, DecreeResponse, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
+import type { StructuredDecree, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
 import FactionPanel from './components/FactionPanel'
@@ -18,8 +18,10 @@ import MemorialPanel from './components/MemorialPanel'
 import CourtAssemblyView from './components/CourtAssemblyView'
 import AiSettingsModal from './components/AiSettingsModal'
 import MinisterDialogue from './components/MinisterDialogue'
+import OfficialRankModal from './components/OfficialRankModal'
+import { useDecreeExecution } from './hooks/useDecreeExecution'
+import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
-import { isAbortError, showCancelToast } from './utils/toast'
 
 type RightTab = 'faction' | 'minister' | 'assembly'
 type NarrativePayload = {
@@ -40,6 +42,7 @@ function App() {
 
   const [showSaves, setShowSaves] = useState(false)
   const [showAiSettings, setShowAiSettings] = useState(false)
+  const [showOfficialRank, setShowOfficialRank] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<RightTab>('faction')
@@ -49,10 +52,6 @@ function App() {
   const toastTimer = useRef<number>(0)
   const capsFetched = useRef(false)
   const capsFetchInFlight = useRef(false)
-  const [decreeInFlight, setDecreeInFlight] = useState(false)
-  const [advanceMonthInFlight, setAdvanceMonthInFlight] = useState(false)
-  const decreeAbortController = useRef<AbortController | null>(null)
-  const advanceMonthAbortController = useRef<AbortController | null>(null)
   const memorialResolveInFlight = useRef(false)
   const blockingPushedFor = useRef<string | null>(null)
   const [memorialResolving, setMemorialResolving] = useState(false)
@@ -63,22 +62,6 @@ function App() {
     window.clearTimeout(toastTimer.current)
     toastTimer.current = window.setTimeout(() => setToast(null), 3000)
   }, [])
-
-  function queueTurnResultModals(res: DecreeResponse) {
-    pushModal({
-      type: 'narrative',
-      priority: 95,
-      payload: {
-        narrative: res.narrative,
-        delta: res.delta,
-        ministerReactions: res.minister_reactions,
-        turnSummary: res.turn_summary ?? undefined,
-      } satisfies NarrativePayload,
-    })
-    if (res.memorial_triggers?.length) {
-      showToast(`新增 ${res.memorial_triggers.length} 份奏折，请在下方“奏折”入口批复`)
-    }
-  }
 
   const fetchCapabilities = useCallback(async () => {
     if (capsFetched.current || capsFetchInFlight.current) return
@@ -111,14 +94,6 @@ function App() {
   // Cleanup toast timer
   useEffect(() => () => { window.clearTimeout(toastTimer.current) }, [])
 
-  // Cleanup abort controllers on unmount
-  useEffect(() => {
-    return () => {
-      if (decreeAbortController.current) decreeAbortController.current.abort()
-      if (advanceMonthAbortController.current) advanceMonthAbortController.current.abort()
-    }
-  }, [])
-
   // Auto-open blocking scripted events
   useEffect(() => {
     if (!state || loading) return
@@ -132,66 +107,6 @@ function App() {
       blockingPushedFor.current = null
     }
   }, [state, loading, pushModal])
-
-  async function executeDecrees(decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string): Promise<string | null> {
-    if (!state) return 'no_state'
-    if (decreeInFlight) {
-      showToast('正在处理上一道政令，请稍候')
-      return 'in_flight'
-    }
-    setDecreeInFlight(true)
-    setLoading(true)
-    setError(null)
-    setPrevState(state)
-    if (decreeAbortController.current) decreeAbortController.current.abort()
-    decreeAbortController.current = new AbortController()
-    try {
-      const res = await api.decree(decrees, sourceScriptId, freeText, decreeAbortController.current.signal)
-      setState(res.state)
-      if (res.minister_reactions?.length) setLastReactions(res.minister_reactions)
-      if (res.game_over) {
-        setGameOver(res.game_over)
-      } else {
-        queueTurnResultModals(res)
-      }
-      return null
-    } catch (e) {
-      if (isAbortError(e)) {
-        showCancelToast(showToast)
-        return 'cancelled'
-      }
-      if (e instanceof ApiError) {
-        if (e.body.error_code === 'FREEFORM_EMPTY') {
-          return 'FREEFORM_EMPTY'
-        }
-        if (e.status === 409) {
-          showToast(e.body.message || '正在处理上一道政令，请稍候')
-        } else {
-          const aiRaw = e.body.details?.ai_narrative
-          const ai = typeof aiRaw === 'string' ? aiRaw : null
-          if (ai) pushModal({ type: 'narrative', priority: 95, payload: { narrative: ai, delta: {} } })
-          else showToast(e.body.message)
-        }
-      } else {
-        showToast('网络错误，请重试')
-      }
-      return 'error'
-    } finally {
-      setDecreeInFlight(false)
-      setLoading(false)
-    }
-  }
-
-  async function handleFreeText(text: string) {
-    if (!state) return
-    const trimmed = text.trim()
-    if (!trimmed) return
-    if (trimmed.length > 200) {
-      showToast('政令文本过长（最多200字）')
-      return
-    }
-    await executeDecrees([], undefined, trimmed)
-  }
 
   async function handleDebateStart(topic: string, category: DecreeType) {
     setDebateLoading(true)
@@ -281,44 +196,6 @@ function App() {
     }
   }
 
-  async function handleAdvanceMonth() {
-    if (!state || loading || advanceMonthInFlight || !!currentModal || hasBlockingEvent || decreeInFlight) return
-    setAdvanceMonthInFlight(true)
-    setLoading(true)
-    setError(null)
-    if (advanceMonthAbortController.current) advanceMonthAbortController.current.abort()
-    advanceMonthAbortController.current = new AbortController()
-    try {
-      const res = await api.advanceMonth(advanceMonthAbortController.current.signal)
-      setState(res.state)
-      if (res.triggered_events?.length) {
-        res.triggered_events.forEach((eventName) => {
-          const evt = res.state.active_events.find((e) => e.name === eventName)
-          if (evt) {
-            pushModal({ type: 'script_event', priority: 10, payload: evt })
-          }
-        })
-      }
-      showToast(`进入 ${res.state.time.era_name}${res.state.time.era_year}年${res.state.time.month}月`)
-      if (res.game_over) {
-        setGameOver(res.game_over)
-      }
-    } catch (e) {
-      if (isAbortError(e)) {
-        showCancelToast(showToast)
-        return
-      }
-      if (e instanceof ApiError && e.status === 409) {
-        showToast(e.body.message || '正在处理，请稍候')
-      } else {
-        showToast(e instanceof ApiError ? e.body.message : '操作失败')
-      }
-    } finally {
-      setLoading(false)
-      setAdvanceMonthInFlight(false)
-    }
-  }
-
   function handleLoadSave(s: GameState, migrationNote?: string) {
     reset()
     setState(s)
@@ -371,6 +248,37 @@ function App() {
   const hasBlockingEvent = !!state?.active_events.some(
     e => e.is_scripted && e.is_blocking && e.choices.length > 0,
   )
+  const {
+    decreeInFlight,
+    executeDecrees,
+    handleFreeText,
+  } = useDecreeExecution({
+    state,
+    setState,
+    setLoading,
+    setError,
+    setPrevState,
+    setGameOver,
+    pushModal,
+    showToast,
+    onReactions: setLastReactions,
+  })
+  const {
+    advanceMonthInFlight,
+    handleAdvanceMonth,
+  } = useAdvanceMonth({
+    state,
+    loading,
+    currentModal,
+    hasBlockingEvent,
+    decreeInFlight,
+    setState,
+    setLoading,
+    setError,
+    setGameOver,
+    pushModal,
+    showToast,
+  })
   const pendingMemorials = state?.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
 
   if (!state) {
@@ -407,6 +315,10 @@ function App() {
               className={`rp-tab${rightTab === 'assembly' ? ' active' : ''}`}
               onClick={() => setRightTab('assembly')}
             >朝议</button>
+            <button
+              className="rp-tab"
+              onClick={() => setShowOfficialRank(true)}
+            >官职</button>
           </div>
           <div className="right-panel-body">
             {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
@@ -555,6 +467,16 @@ function App() {
         <AiSettingsModal
           onClose={() => setShowAiSettings(false)}
           onSaved={handleAiSettingsSaved}
+        />
+      )}
+
+      {showOfficialRank && (
+        <OfficialRankModal
+          ministers={state.ministers}
+          onClose={() => setShowOfficialRank(false)}
+          onAppoint={async (name, position) => {
+            await executeDecrees([{ type: 'personnel', sub_action: 'appoint', target: name, parameters: { position } }])
+          }}
         />
       )}
 
