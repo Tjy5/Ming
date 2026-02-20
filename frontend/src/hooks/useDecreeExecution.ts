@@ -57,6 +57,8 @@ export function useDecreeExecution({
     decrees: StructuredDecree[],
     sourceScriptId?: string,
     freeText?: string,
+    loyaltyEffects?: [string, number][],
+    stateEffects?: Record<string, number>,
   ): Promise<string | null> => {
     if (!state) return 'no_state'
     if (decreeInFlight) {
@@ -70,7 +72,7 @@ export function useDecreeExecution({
     if (decreeAbortController.current) decreeAbortController.current.abort()
     decreeAbortController.current = new AbortController()
     try {
-      const res = await api.decree(decrees, sourceScriptId, freeText, decreeAbortController.current.signal)
+      const res = await api.decree(decrees, sourceScriptId, freeText, decreeAbortController.current.signal, loyaltyEffects, stateEffects)
       setState(res.state)
       if (res.minister_reactions?.length) onReactions(res.minister_reactions)
       if (res.game_over) {

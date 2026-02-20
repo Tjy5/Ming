@@ -160,7 +160,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   newGame: (signal?: AbortSignal) => request<GameState>('/game/new', { method: 'POST', signal }),
 
-  decree: (decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string, signal?: AbortSignal) =>
+  decree: (
+    decrees: StructuredDecree[],
+    sourceScriptId?: string,
+    freeText?: string,
+    signal?: AbortSignal,
+    loyaltyEffects?: [string, number][],
+    stateEffects?: Record<string, number>,
+  ) =>
     request<DecreeResponse>('/decree', {
       method: 'POST',
       signal,
@@ -168,6 +175,8 @@ export const api = {
         decrees,
         source_script_id: sourceScriptId ?? null,
         free_text: freeText ?? null,
+        loyalty_effects: loyaltyEffects ?? null,
+        state_effects: stateEffects ?? null,
       }),
     }),
 
@@ -176,6 +185,8 @@ export const api = {
     sourceScriptId: string | undefined,
     freeText: string | undefined,
     onEvent: (event: DecreeStreamMessage) => void,
+    loyaltyEffects?: [string, number][],
+    stateEffects?: Record<string, number>,
   ): Promise<DecreeResponse> => {
     let res: Response
     try {
@@ -186,6 +197,8 @@ export const api = {
           decrees,
           source_script_id: sourceScriptId ?? null,
           free_text: freeText ?? null,
+          loyalty_effects: loyaltyEffects ?? null,
+          state_effects: stateEffects ?? null,
         }),
       })
     } catch {
@@ -222,7 +235,7 @@ export const api = {
       buffer += decoder.decode()
       buffer = consumeSseFrames(buffer, handleMessage)
     } catch (e) {
-      await reader.cancel().catch(() => {})
+      await reader.cancel().catch(() => { })
       throw e
     } finally {
       reader.releaseLock()
@@ -283,7 +296,7 @@ export const api = {
     }),
 
   resolveMemorial: (id: string, action: MemorialStatus) =>
-    request<{ state: GameState; action: string }>(`/memorial/${id}/resolve`, {
+    request<{ state: GameState; action: string; narrative?: string; delta?: Record<string, number> }>(`/memorial/${id}/resolve`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),

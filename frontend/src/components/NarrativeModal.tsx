@@ -78,10 +78,10 @@ interface Props {
 }
 
 export default function NarrativeModal({ narrative, delta, ministerReactions = [], turnSummary, onClose }: Props) {
-  const [deltaOpen, setDeltaOpen] = useState(false)
+  const entries = Object.entries(delta).filter(([, v]) => v !== 0)
+  const [deltaOpen, setDeltaOpen] = useState(entries.length > 0)
   const [summaryOpen, setSummaryOpen] = useState(true)
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set())
-  const entries = Object.entries(delta).filter(([, v]) => v !== 0)
 
   return (
     <div className="modal-overlay" onClick={onClose}>

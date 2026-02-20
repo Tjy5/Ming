@@ -151,6 +151,7 @@ function App() {
       }
       const labels = { approved: '准奏', rejected: '驳回', deferred: '留中' }
       showToast(`奏折已${labels[action]}`)
+      return { narrative: res.narrative, delta: res.delta }
     } catch (e) {
       if (e instanceof ApiError && (e.body.error_code === 'memorial_not_found' || e.body.error_code === 'already_resolved')) {
         try {
@@ -396,7 +397,7 @@ function App() {
 
       {currentModal?.type === 'memorial' && (
         <MemorialPanel
-          memorials={pendingMemorials}
+          memorials={state?.memorials?.filter(m => m.status !== 'rejected') ?? []}
           resolving={memorialResolving}
           onResolve={handleMemorialResolve}
           onClose={popModal}
@@ -438,8 +439,8 @@ function App() {
         <ScriptEventModal
           event={currentModal.payload as GameEvent}
           onBack={popModal}
-          onChoose={async (decrees, scriptId, freeText) => {
-            const errorCode = await executeDecrees(decrees, scriptId, freeText)
+          onChoose={async (decrees, scriptId, freeText, loyaltyEffects, stateEffects) => {
+            const errorCode = await executeDecrees(decrees, scriptId, freeText, loyaltyEffects, stateEffects)
             if (!errorCode) removeScriptModalById(scriptId)
             return errorCode
           }}

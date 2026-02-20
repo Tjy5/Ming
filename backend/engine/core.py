@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 _LOCK_TIMEOUT_DEFAULT_SECONDS = 5
 _LOCK_TIMEOUT_MIN_SECONDS = 1
 _LOCK_TIMEOUT_MAX_SECONDS = 30
+_MONTHLY_LIMITED = {"tax_increase", "tax_decrease", "recruit_troops", "disband_troops", "harsh_punishment", "disaster_relief", "diplomacy"}
 
 
 def _parse_lock_timeout_seconds(raw: str | None) -> int:
@@ -101,6 +102,8 @@ def check_preconditions(state: GameState, decree: StructuredDecree) -> str | Non
                 "treasury": state.national_treasury,
                 "military_supply": state.military_strength,
             })
+    if decree.type.value in _MONTHLY_LIMITED and decree.type.value in state.decrees_this_month:
+        return "本月已下达此类政令"
     return None
 
 
@@ -945,6 +948,7 @@ def advance_month(state: GameState) -> tuple[list[str], dict | None, list[str]]:
     Returns (triggered_events, game_over, newly_activated_minister_names).
     """
     advance_time(state)
+    state.decrees_this_month = {}
     state.decree_count += 1
     new_ministers = _activate_entered_ministers(state)
     triggered_events = inject_script_events(state)
@@ -1252,6 +1256,8 @@ def process_decree(
     recalc_tax_collected(state, decree_tax_modifier)
     collect_tax_revenue(state, attr)
     clamp_state(state)
+    if decree and decree.type.value in _MONTHLY_LIMITED:
+        state.decrees_this_month[decree.type.value] = True
     # after_snapshot for turn summary (post-clamp)
     after_snapshot = state.model_dump()
     # 6.5 memorial triggers (post-clamp)

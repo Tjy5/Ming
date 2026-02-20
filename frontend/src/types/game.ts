@@ -108,6 +108,7 @@ export interface GameState {
   history_log: HistoryEntry[]
   history_total_count?: number
   decree_count: number
+  decrees_this_month: Record<string, boolean>
   event_cooldowns: Record<string, number>
   resolved_script_ids: string[]
   memorials?: Memorial[]
@@ -312,6 +313,13 @@ export interface DecreeResponse {
   minister_reactions: MinisterReaction[]
   turn_summary: TurnSummary | null
   memorial_triggers: Memorial[]
+}
+
+export interface MemorialResolveResponse {
+  state: GameState
+  action: string
+  narrative?: string
+  delta?: Record<string, number>
 }
 
 export interface ErrorResponse {

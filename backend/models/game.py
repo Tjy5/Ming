@@ -326,6 +326,7 @@ class GameState(BaseModel):
     active_events: list[GameEvent] = Field(default_factory=list)
     history_log: list[HistoryEntry] = Field(default_factory=list)
     decree_count: int = 0
+    decrees_this_month: dict[str, bool] = Field(default_factory=dict)
     event_cooldowns: dict[str, int] = Field(default_factory=dict)
     resolved_script_ids: set[str] = Field(default_factory=set)
     memorials: list[Memorial] = Field(default_factory=list)

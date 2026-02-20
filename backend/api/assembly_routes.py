@@ -264,7 +264,8 @@ async def assembly_decree(req: AssemblyDecreeRequest):
         if decision in {"adopt", "override"} and assembly.decree_type:
             decree = StructuredDecree(type=assembly.decree_type)
             try:
-                decree_effects = await process_decree(state, decree)
+                if not check_preconditions(state, decree):
+                    decree_effects = await process_decree(state, decree)
             except Exception as e:
                 logging.error(f"Failed to execute decree in assembly: {e}")
 

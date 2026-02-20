@@ -636,26 +636,34 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
         memorial.status = MemorialStatus(req.action)
 
+        narrative = ""
+        accumulated_delta: dict = {}
+
         if req.action == "approved" and memorial.suggested_decrees:
             provider = _get_provider()
+            last_decree = last_attr = last_triggered = None
             for decree in memorial.suggested_decrees:
                 reason = check_preconditions(state, decree)
-                if reason:
+                if reason and reason != "本月已下达此类政令":
                     continue
-                target_err = validate_target(decree, state)
-                if target_err:
+                if validate_target(decree, state):
                     continue
-                delta, attr, triggered, game_over, reactions, summary = process_decree(state, decree)
-                narrative = await provider.generate_narrative(attr, state, triggered, decree)
+                delta, attr, triggered, game_over, _reactions, _summary = process_decree(state, decree)
+                for k, v in delta.items():
+                    accumulated_delta[k] = accumulated_delta.get(k, 0) + v
+                last_decree, last_attr, last_triggered = decree, attr, triggered
                 state.history_log.append(HistoryEntry(
                     year=state.time.year, month=state.time.month,
                     decree_type=decree.type.value, decree_desc=decree.target or "",
-                    delta=delta, narrative=narrative,
+                    delta=delta, narrative="",
                 ))
                 if game_over:
                     break
+            if last_decree is not None:
+                narrative = await provider.generate_narrative(last_attr, state, last_triggered, last_decree)
+                state.history_log[-1].narrative = narrative
 
-        return {"state": state.model_dump(), "action": req.action}
+        return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta}
 
 
 # ── 6.15 POST /api/minister/{name}/dialogue ───────────

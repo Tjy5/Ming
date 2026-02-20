@@ -16,6 +16,10 @@ const TREE = [
   { group: '地方', leaves: ['巡抚', '总兵'] },
 ]
 
+function positionMatchesLeaf(position: string, leaf: string): boolean {
+  return position === leaf || position.includes(leaf) || leaf.includes(position)
+}
+
 export default function OfficialRankModal({ ministers, onClose, onAppoint }: Props) {
   const [expandedLeaf, setExpandedLeaf] = useState<string | null>(null)
   const [appointing, setAppointing] = useState(false)
@@ -24,7 +28,7 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
 
   async function handleAppoint(name: string, position: string) {
     if (appointing) return
-    const holders = ministers.filter(m => m.position === position && m.status === 'active')
+    const holders = ministers.filter(m => positionMatchesLeaf(m.position, position) && m.status === 'active')
     if (holders.length > 0) {
       if (!window.confirm(`确认将 ${name} 任命为 ${position}？原任职者将失去该职位。`)) return
     }
@@ -50,7 +54,7 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
               <div className="orm-group-label">{group}</div>
               <div className="orm-leaves">
                 {leaves.map(leaf => {
-                  const holders = ministers.filter(m => m.position === leaf && m.status === 'active')
+                  const holders = ministers.filter(m => positionMatchesLeaf(m.position, leaf) && m.status === 'active')
                   const isExpanded = expandedLeaf === leaf
                   return (
                     <div key={leaf} className="orm-leaf-wrap">

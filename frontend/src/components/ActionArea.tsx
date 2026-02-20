@@ -121,18 +121,19 @@ export default function ActionArea({
           >
             {CATEGORY_DECREES[tab].map(type => {
               const ok = checkPrecondition(state, type)
+              const usedThisMonth = !!state.decrees_this_month[type]
               return (
                 <button
                   key={type}
                   className="decree-btn"
-                  disabled={!ok || actionLocked}
+                  disabled={!ok || actionLocked || usedThisMonth}
                   title={ok ? DECREE_LABELS[type] : PRECONDITION_MESSAGES[type]}
                   onClick={() => {
                     if (actionLocked) return
                     setEdictType(type)
                   }}
                 >
-                  {DECREE_LABELS[type]}
+                  {usedThisMonth ? '本月已用' : DECREE_LABELS[type]}
                 </button>
               )
             })}

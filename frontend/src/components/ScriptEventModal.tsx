@@ -4,7 +4,7 @@ import type { GameEvent, StructuredDecree } from '../types/game'
 
 interface Props {
   event: GameEvent
-  onChoose: (decrees: StructuredDecree[], scriptId: string, freeText?: string) => Promise<string | null>
+  onChoose: (decrees: StructuredDecree[], scriptId: string, freeText?: string, loyaltyEffects?: [string, number][], stateEffects?: Record<string, number>) => Promise<string | null>
   onBack: () => void
 }
 
@@ -15,6 +15,32 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [warning, setWarning] = useState<string | null>(null)
   const [hintOpen, setHintOpen] = useState(false)
+  const [showFreeText, setShowFreeText] = useState(false)
+
+  const hasChoices = event.choices && event.choices.length > 0
+
+  async function handleChoiceClick(choiceIndex: number) {
+    if (submitting) return
+    const choice = event.choices[choiceIndex]
+    setWarning(null)
+    setSubmitting(true)
+    try {
+      const errorCode = await onChoose(
+        choice.decrees,
+        scriptId,
+        undefined,
+        choice.loyalty_effects,
+        choice.state_effects ? Object.fromEntries(
+          Object.entries(choice.state_effects).filter(([, v]) => typeof v === 'number')
+        ) as Record<string, number> : undefined,
+      )
+      if (errorCode === 'FREEFORM_EMPTY') {
+        setWarning('旨意不明，请重新输入')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   async function handleSubmit() {
     const trimmed = freeText.trim()
@@ -56,33 +82,74 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
             )}
           </div>
         )}
-        <div className="script-freetext">
-          <textarea
-            maxLength={200}
-            value={freeText}
-            onChange={e => { setFreeText(e.target.value); setWarning(null) }}
-            placeholder="输入你的旨意（如：罢免魏忠贤、加征辽饷、按兵不动...）"
-            disabled={submitting}
-          />
-          <div className="script-freetext-footer">
-            {warning && <span className="script-warning">{warning}</span>}
-            <span className="char-count">{freeText.length}/200</span>
-            <button
-              className="modal-btn"
-              disabled={submitting}
-              onClick={onBack}
-            >
-              返回
-            </button>
-            <button
-              className="modal-btn primary"
-              disabled={!freeText.trim() || submitting}
-              onClick={handleSubmit}
-            >
-              {submitting ? '处理中…' : '颁旨'}
-            </button>
+
+        {/* Choice Buttons */}
+        {hasChoices && (
+          <div className="script-choices">
+            {event.choices.map((choice, i) => (
+              <button
+                key={i}
+                className={`script-choice-btn${submitting ? ' disabled' : ''}`}
+                disabled={submitting}
+                onClick={() => handleChoiceClick(i)}
+                title={choice.description}
+              >
+                <span className="sc-label">{choice.label}</span>
+                {choice.description && (
+                  <span className="sc-desc">{choice.description}</span>
+                )}
+              </button>
+            ))}
           </div>
-        </div>
+        )}
+
+        {/* Free text toggle / input */}
+        {hasChoices && !showFreeText && (
+          <button
+            className="script-freetext-toggle"
+            onClick={() => setShowFreeText(true)}
+            disabled={submitting}
+          >
+            ✍ 自行拟旨
+          </button>
+        )}
+
+        {(!hasChoices || showFreeText) && (
+          <div className="script-freetext">
+            <textarea
+              maxLength={200}
+              value={freeText}
+              onChange={e => { setFreeText(e.target.value); setWarning(null) }}
+              placeholder="输入你的旨意（如：罢免魏忠贤、加征辽饷、按兵不动...）"
+              disabled={submitting}
+            />
+            <div className="script-freetext-footer">
+              {warning && <span className="script-warning">{warning}</span>}
+              <span className="char-count">{freeText.length}/200</span>
+              <button
+                className="modal-btn"
+                disabled={submitting}
+                onClick={hasChoices ? () => setShowFreeText(false) : onBack}
+              >
+                {hasChoices ? '返回选项' : '返回'}
+              </button>
+              <button
+                className="modal-btn primary"
+                disabled={!freeText.trim() || submitting}
+                onClick={handleSubmit}
+              >
+                {submitting ? '处理中…' : '颁旨'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Back button when choices are shown */}
+        {hasChoices && !showFreeText && (
+          <div className="script-freetext-footer" style={{ justifyContent: 'flex-end', padding: '8px 0 0' }}>
+            <button className="modal-btn" disabled={submitting} onClick={onBack}>返回</button>
+          </div>
+        )}
       </div>
     </div>
   )

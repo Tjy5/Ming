@@ -63,6 +63,7 @@ function MinisterCard({ minister, reaction, onClick }: {
             <span key={t} className="mp-tag">{t}</span>
           ))}
         </div>
+        {minister.historical_note && <div className="mp-historical-note">{minister.historical_note}</div>}
         <div className="mp-abilities">
           {ABILITY_LABELS.map(({ key, label, color }) => (
             <div key={key} className="mp-ability-row">
