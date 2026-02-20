@@ -1,0 +1,615 @@
+/* ── Edict Redesign (xuan-paper) ──────────────────────── */
+.edict-panel {
+  background: #f5e6c8;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  border: 2px solid var(--accent-gold);
+  border-radius: 4px;
+  padding: 24px;
+  max-width: 420px;
+  width: 90%;
+  position: relative;
+  overflow: hidden;
+  color: #2a1a0a;
+}
+
+.edict-panel.sealing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+}
+
+.edict-header {
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: #4a2a0a;
+  text-align: center;
+  margin-bottom: 16px;
+  letter-spacing: 4px;
+}
+
+.edict-vertical-title {
+  position: absolute;
+  right: 10px;
+  top: 20px;
+  writing-mode: vertical-rl;
+  font-size: 0.7rem;
+  color: #8a6a4a;
+  letter-spacing: 2px;
+}
+
+.edict-warn {
+  background: rgba(224, 64, 64, 0.12);
+  border: 1px solid var(--red);
+  color: var(--red);
+  font-size: 0.8rem;
+  padding: 6px 10px;
+  border-radius: 2px;
+  margin-bottom: 12px;
+}
+
+.edict-targets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.edict-target-btn {
+  background: rgba(42, 26, 10, 0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  padding: 8px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color 0.15s;
+}
+
+.edict-target-btn:hover {
+  border-color: #8b4513;
+}
+
+.edict-target-btn.selected {
+  border-color: #8b4513;
+  color: #8b4513;
+  background: rgba(139, 69, 19, 0.1);
+}
+
+.edict-personnel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.edict-personnel select,
+.edict-personnel input {
+  background: rgba(42, 26, 10, 0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  padding: 6px 10px;
+  font-family: inherit;
+}
+
+.edict-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.edict-cancel {
+  padding: 6px 16px;
+  background: rgba(42, 26, 10, 0.08);
+  border: 1px solid #b8a080;
+  color: #4a2a0a;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+}
+
+.edict-cancel:hover {
+  border-color: #8b4513;
+}
+
+.edict-seal-btn {
+  padding: 6px 20px;
+  background: linear-gradient(180deg, #c23b22, #8b2020);
+  border: 1px solid var(--accent-gold);
+  color: #f5e6c8;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 2px;
+  letter-spacing: 2px;
+}
+
+.edict-seal-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+}
+
+.edict-seal-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* seal stamp redesign */
+.seal-stamp {
+  width: 64px;
+  height: 64px;
+  border: 3px solid #c23b22;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #c23b22;
+  background: rgba(194, 59, 34, 0.08);
+  position: relative;
+}
+
+.seal-ink-spread {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(194, 59, 34, 0.3) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* keyword tags */
+.edict-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.edict-keyword {
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  border: 1px solid #b8a080;
+  background: rgba(42, 26, 10, 0.05);
+  color: #4a2a0a;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.edict-keyword:hover {
+  border-color: #8b4513;
+}
+
+.edict-keyword.active {
+  border-color: #c23b22;
+  background: rgba(194, 59, 34, 0.1);
+  color: #c23b22;
+  font-weight: bold;
+}
+
+.edict-keyword.inert {
+  cursor: default;
+  opacity: 0.5;
+}
+
+/* ── Turn Summary Modal ──────────────────────────────── */
+.turn-summary-modal {
+  max-width: 700px;
+  background: linear-gradient(180deg, #1f1a16, #14100e);
+  border: 2px solid var(--accent-gold);
+  position: relative;
+}
+
+.turn-summary-modal::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(201, 168, 76, 0.15);
+  pointer-events: none;
+}
+
+.ts-header {
+  text-align: center;
+  border-bottom: 1px solid #333;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.ts-header::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+}
+
+.ts-header h2 {
+  color: var(--accent-gold);
+  font-size: 1.3rem;
+  letter-spacing: 2px;
+}
+
+.ts-commentary {
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+  margin-bottom: 20px;
+  padding: 0 20px;
+}
+
+.ts-section {
+  margin-bottom: 16px;
+}
+
+.ts-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.ts-col h3,
+.ts-section h3 {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  border-bottom: 1px solid #333;
+  padding-bottom: 4px;
+  margin-bottom: 8px;
+}
+
+.ts-event-list {
+  list-style: none;
+}
+
+.ts-event-list li {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  display: flex;
+  gap: 6px;
+}
+
+.ts-event-list li.urg-critical .ts-bullet {
+  color: var(--red);
+  text-shadow: 0 0 4px var(--red);
+}
+
+.ts-event-list li.urg-high .ts-bullet {
+  color: var(--yellow);
+}
+
+.ts-bullet {
+  color: var(--accent-gold);
+}
+
+.ts-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ts-indicator-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 2px 0;
+}
+
+.ts-label {
+  color: var(--text-dim);
+}
+
+.ts-val {
+  font-weight: bold;
+}
+
+.ts-trend-up {
+  color: var(--green);
+  font-size: 0.9rem;
+}
+
+.ts-trend-down {
+  color: var(--red);
+  font-size: 0.9rem;
+}
+
+.ts-trend-neutral {
+  color: var(--text-dim);
+}
+
+.ts-changes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-region-diffs {
+  display: flex;
+  flex-direction: column;
+}
+
+.ts-collapse-toggle {
+  background: none;
+  border: none;
+  color: var(--gold, #c9a55a);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 2px 0;
+  text-decoration: underline;
+}
+
+.ts-attribution {
+  margin-top: 8px;
+  padding: 0 12px;
+}
+
+.ts-attr-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.ts-attr-list li {
+  padding: 2px 0;
+}
+
+.ts-change-item {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 8px;
+  border-radius: 2px;
+  font-size: 0.85rem;
+}
+
+.ts-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.ts-alert {
+  color: var(--red);
+  font-weight: bold;
+  font-size: 0.75rem;
+  margin-top: 2px;
+}
+
+.ts-more {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.ts-empty {
+  font-size: 0.8rem;
+  color: #555;
+  font-style: italic;
+  padding: 4px;
+}
+
+.ts-footer {
+  margin-top: 24px;
+  border-top: 1px solid #333;
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ts-hint {
+  color: var(--yellow);
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.ts-close-btn {
+  margin-left: auto;
+  background: var(--accent-gold);
+  color: #000;
+  font-weight: bold;
+  padding: 8px 24px;
+  border: none;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: inherit;
+}
+
+/* ── Memorial Panel ──────────────────────────────────── */
+.memorial-modal {
+  max-width: 600px;
+  background: linear-gradient(180deg, #1f1816, #14100e);
+  border: 2px solid var(--accent-gold);
+}
+
+.memorial-header {
+  text-align: center;
+  color: var(--accent-gold);
+  letter-spacing: 2px;
+}
+
+.memorial-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 20px;
+  font-size: 0.9rem;
+}
+
+.memorial-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.memorial-card {
+  background: var(--bg-card);
+  border: 1px solid #444;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.memorial-card.urg-critical {
+  border-left: 3px solid var(--red);
+}
+
+.memorial-card.urg-high {
+  border-left: 3px solid var(--yellow);
+}
+
+.memorial-card.urg-medium {
+  border-left: 3px solid var(--gray);
+}
+
+.memorial-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.memorial-card-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.memorial-urg {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  font-weight: bold;
+}
+
+.memorial-urg.urg-critical {
+  background: rgba(224, 64, 64, 0.2);
+  color: var(--red);
+}
+
+.memorial-urg.urg-high {
+  background: rgba(229, 184, 41, 0.2);
+  color: var(--yellow);
+}
+
+.memorial-urg.urg-medium {
+  background: rgba(102, 102, 102, 0.2);
+  color: var(--gray);
+}
+
+.memorial-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.memorial-title {
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.memorial-author {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.memorial-expand {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.memorial-detail {
+  padding: 0 10px 10px;
+  border-top: 1px solid #333;
+}
+
+.memorial-content {
+  font-size: 0.85rem;
+  line-height: 1.7;
+  padding: 8px 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.memorial-content p {
+  margin-bottom: 6px;
+}
+
+.memorial-reason {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.memorial-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.mem-btn {
+  padding: 5px 14px;
+  border: 1px solid #444;
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  border-radius: 2px;
+  transition: filter 0.15s;
+}
+
+.mem-btn:hover {
+  filter: brightness(1.15);
+}
+
+.mem-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.mem-btn.mem-approve {
+  background: rgba(76, 175, 80, 0.15);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.mem-btn.mem-reject {
+  background: rgba(224, 64, 64, 0.15);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.mem-btn.mem-defer {
+  color: var(--text-dim);
+}
+
+.memorial-badge {
+  background: var(--red);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: bold;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.memorial-notify {
+  background: rgba(224, 64, 64, 0.08);
+  border: 1px solid rgba(224, 64, 64, 0.3);
+  border-radius: 3px;
+}
+

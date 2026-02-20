@@ -27,7 +27,8 @@ from engine.core import (
 )
 from engine.tables import FACTION_STANCE
 from engine.scripts import SCRIPT_REGISTRY, get_scripts_for_time
-from api.routes import select_assembly_participants, _apply_state_effects
+from api.assembly_helpers import select_assembly_participants
+from api.helpers import apply_state_effects as _apply_state_effects
 from db.saves import _migrate_save
 
 

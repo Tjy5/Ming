@@ -1,0 +1,986 @@
+/* ── Court Assembly ──────────────────────────────────── */
+.assembly-modal {
+  max-width: 640px;
+  background: linear-gradient(180deg, #1a1816, #12100e);
+  border: 2px solid var(--accent-gold);
+}
+
+.assembly-header {
+  text-align: center;
+  color: var(--accent-gold);
+  letter-spacing: 2px;
+}
+
+.assembly-panel {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.assembly-convene-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.as-title {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.assembly-select {
+  background: var(--bg-card);
+  border: 1px solid #444;
+  color: var(--text-main);
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  border-radius: 2px;
+}
+
+.assembly-topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assembly-topic-btn {
+  text-align: left;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  border: 1px solid #444;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: border-color 0.15s;
+}
+
+.assembly-topic-btn:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+.assembly-topic-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.assembly-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.assembly-topic {
+  font-size: 0.95rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+  text-align: center;
+  letter-spacing: 1px;
+}
+
+.assembly-participants {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.assembly-participant {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-card);
+  padding: 4px 8px;
+  border-radius: 2px;
+  font-size: 0.75rem;
+}
+
+.ap-name {
+  font-weight: bold;
+}
+
+.ap-faction {
+  color: var(--text-dim);
+}
+
+.ap-position {
+  color: var(--accent-gold);
+  font-size: 0.7rem;
+}
+
+.assembly-debate {
+  background: var(--bg-card);
+  border: 1px solid #3a3222;
+  border-radius: 4px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.assembly-debate p {
+  margin-bottom: 6px;
+}
+
+.assembly-debate p:last-child {
+  margin-bottom: 0;
+}
+
+.assembly-consensus {
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  text-align: center;
+  font-weight: bold;
+}
+
+.assembly-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-card {
+  background: var(--bg-card);
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 10px;
+}
+
+.sg-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.sg-title {
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: var(--accent-gold);
+}
+
+.sg-supporters {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.sg-desc {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.sg-adopt-btn {
+  padding: 5px 14px;
+  background: linear-gradient(180deg, var(--accent-red), #4a0e0e);
+  border: 1px solid var(--accent-gold);
+  color: var(--accent-gold);
+  font-weight: bold;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: filter 0.15s;
+}
+
+.sg-adopt-btn:hover {
+  filter: brightness(1.2);
+}
+
+.sg-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--yellow);
+}
+
+.assembly-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+/* ── Minister Dialogue ────────────────────────────────── */
+.minister-dialogue-modal {
+  background: var(--bg-panel);
+  border: 2px solid var(--accent-gold);
+  border-radius: 8px;
+  width: min(800px, 95vw);
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+}
+
+.md-content {
+  display: flex;
+  height: 100%;
+}
+
+.md-left {
+  width: 30%;
+  border-right: 1px solid #333;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.md-portrait {
+  width: 120px;
+  height: 120px;
+  border-radius: 6px;
+  border: 2px solid var(--accent-gold);
+  margin-bottom: 16px;
+  object-fit: cover;
+}
+
+.md-portrait-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: bold;
+  color: var(--text-main);
+}
+
+.md-minister-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--accent-gold);
+  margin-bottom: 4px;
+}
+
+.md-minister-pos {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.md-minister-faction {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+}
+
+.md-loyalty-section {
+  width: 100%;
+  margin-top: auto;
+}
+
+.md-loyalty-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+}
+
+.md-right {
+  width: 70%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0,0,0,0.2);
+}
+
+.md-messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.md-empty-hint {
+  text-align: center;
+  color: var(--text-dim);
+  margin-top: 40px;
+  font-style: italic;
+}
+
+.md-message-user, .md-message-minister {
+  display: flex;
+  max-width: 85%;
+}
+
+.md-message-user { align-self: flex-end; }
+.md-message-minister { align-self: flex-start; }
+
+.md-bubble {
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.md-message-user .md-bubble {
+  background: var(--accent-gold);
+  color: #1a1a1a;
+  border-bottom-right-radius: 2px;
+}
+
+.md-message-minister .md-bubble {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border-bottom-left-radius: 2px;
+  border: 1px solid #444;
+}
+
+.md-input-area {
+  padding: 16px;
+  border-top: 1px solid #333;
+  display: flex;
+  gap: 12px;
+}
+
+.md-input-area input {
+  flex: 1;
+  background: var(--bg-dark);
+  border: 1px solid #444;
+  color: var(--text-main);
+  padding: 10px 16px;
+  border-radius: 20px;
+  font-family: inherit;
+}
+
+.md-input-area input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+
+.md-input-area button {
+  background: var(--accent-gold);
+  color: #1a1a1a;
+  border: none;
+  padding: 0 24px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.md-input-area button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.md-loyalty-notification {
+  position: absolute;
+  bottom: 80px;
+  background: var(--bg-panel);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 10;
+}
+
+.md-loyalty-notification.pos { color: var(--green); border: 1px solid var(--green); }
+.md-loyalty-notification.neg { color: var(--red); border: 1px solid var(--red); }
+
+.md-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.md-close-btn:hover { color: var(--text-main); }
+
+/* ── Court Assembly Multi-Phase UI ────────────────────────────────── */
+.court-assembly-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background: #1a1a1a;
+  border: 1px solid var(--accent-gold);
+  border-radius: 8px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.assembly-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid var(--accent-gold);
+  padding-bottom: 10px;
+}
+
+.assembly-title {
+  font-size: 1.5rem;
+  color: var(--accent-gold);
+  margin: 0;
+  font-weight: bold;
+}
+
+.assembly-phase-indicator {
+  display: flex;
+  gap: 8px;
+}
+
+.phase-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #333;
+  transition: all 0.3s ease;
+}
+
+.phase-dot.active {
+  background: var(--accent-gold);
+  box-shadow: 0 0 8px var(--accent-gold);
+}
+
+.assembly-error {
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid var(--red);
+  color: var(--red);
+  padding: 10px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.assembly-error button {
+  background: none;
+  border: none;
+  color: var(--red);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.phase-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.phase-title {
+  font-size: 1.2rem;
+  color: var(--accent-gold);
+  margin: 0 0 15px 0;
+  text-align: center;
+}
+
+.assembly-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid #333;
+}
+
+.assembly-close-btn {
+  background: #333;
+  color: var(--text-main);
+  border: 1px solid #555;
+  padding: 8px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.assembly-close-btn:hover {
+  background: #444;
+}
+
+/* ── Petition Phase ── */
+.petition-view {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.petition-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.petition-card {
+  background: #252525;
+  border: 1px solid #444;
+  padding: 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.petition-card:hover {
+  border-color: var(--accent-gold);
+}
+
+.petition-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.minister-name {
+  font-weight: bold;
+  color: var(--accent-gold);
+}
+
+.urgency-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-weight: bold;
+}
+
+.urg-high {
+  background: var(--red);
+  color: white;
+}
+
+.urg-mid {
+  background: #f0ad4e;
+  color: black;
+}
+
+.urg-low {
+  background: #777;
+  color: white;
+}
+
+.petition-content {
+  color: var(--text-main);
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.petition-btn {
+  background: var(--accent-gold);
+  color: #000;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: opacity 0.2s;
+}
+
+.petition-btn:hover {
+  opacity: 0.8;
+}
+
+.petition-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.phase-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.skip-btn {
+  background: #555;
+  color: var(--text-main);
+  border: 1px solid #777;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.skip-btn:hover {
+  background: #666;
+}
+
+.skip-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Debate Phase ── */
+.debate-view {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.debate-topic-box {
+  background: #252525;
+  border: 2px solid var(--accent-gold);
+  padding: 15px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.topic-label {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+
+.topic-text {
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.debate-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.debate-col h4 {
+  color: var(--accent-gold);
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+}
+
+.debate-col.support h4 {
+  color: #5cb85c;
+}
+
+.debate-col.oppose h4 {
+  color: #d9534f;
+}
+
+.speech-card {
+  background: #2a2a2a;
+  border-left: 4px solid var(--accent-gold);
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 2px;
+}
+
+.speech-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.faction-tag {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  background: #333;
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+.rage-mini-btn {
+  background: var(--red);
+  color: white;
+  border: none;
+  padding: 2px 8px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: bold;
+  transition: opacity 0.2s;
+}
+
+.rage-mini-btn:hover {
+  opacity: 0.8;
+}
+
+.speech-content {
+  color: var(--text-main);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.debate-neutral {
+  margin-top: 10px;
+}
+
+.debate-neutral h4 {
+  color: #999;
+  margin: 0 0 10px 0;
+}
+
+.neutral-speeches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rage-btn {
+  background: var(--red);
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+
+.rage-btn:hover {
+  opacity: 0.8;
+}
+
+.rage-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.next-btn {
+  background: var(--accent-gold);
+  color: #000;
+  padding: 10px 20px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: opacity 0.2s;
+}
+
+.next-btn:hover {
+  opacity: 0.8;
+}
+
+.next-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Vote Phase ── */
+.vote-view {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.vote-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-label {
+  width: 60px;
+  color: var(--text-main);
+  font-weight: bold;
+}
+
+.stat-bar {
+  flex: 1;
+  height: 24px;
+  background: #333;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stat-bar .fill {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.stat-bar .fill.support {
+  background: #5cb85c;
+}
+
+.stat-bar .fill.oppose {
+  background: #d9534f;
+}
+
+.stat-bar .fill.abstain {
+  background: #777;
+}
+
+.stat-count {
+  width: 40px;
+  text-align: right;
+  color: var(--text-main);
+  font-weight: bold;
+}
+
+.vote-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.vote-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  background: #252525;
+  border-radius: 4px;
+}
+
+.voter {
+  font-weight: bold;
+  color: var(--accent-gold);
+  min-width: 80px;
+}
+
+.vote-val {
+  font-weight: bold;
+  min-width: 50px;
+}
+
+.vote-val.pos {
+  color: #5cb85c;
+}
+
+.vote-val.neg {
+  color: #d9534f;
+}
+
+.vote-val.neu {
+  color: #777;
+}
+
+.vote-reason {
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+/* ── Decree Phase ── */
+.decree-view {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.decree-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.decree-opt-btn {
+  background: #2a2a2a;
+  border: 1px solid var(--accent-gold);
+  padding: 15px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.decree-opt-btn:hover {
+  background: rgba(201, 168, 76, 0.1);
+  border-color: var(--accent-gold);
+  transform: translateX(5px);
+}
+
+.decree-opt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.opt-title {
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.opt-desc {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ── Assembly Panel (right sidebar) ── */
+.assembly-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+}
+
+.assembly-convene-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.as-title {
+  font-size: 1.1rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.assembly-select {
+  background: #2a2a2a;
+  color: var(--text-main);
+  border: 1px solid #555;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.assembly-start-btn {
+  background: var(--accent-gold);
+  color: #000;
+  border: none;
+  padding: 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: opacity 0.2s;
+}
+
+.assembly-start-btn:hover {
+  opacity: 0.8;
+}
+
+.assembly-start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Assembly Modal ── */
+.assembly-modal {
+  max-width: 900px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.assembly-modal .court-assembly-view {
+  max-height: none;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-style: italic;
+}
