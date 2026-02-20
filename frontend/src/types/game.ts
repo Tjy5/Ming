@@ -10,7 +10,8 @@ export type TaxContribution = 'low' | 'medium' | 'high'
 export type PersonnelAction = 'appoint' | 'dismiss' | 'execute'
 export type DiplomacyTarget = '后金' | '蒙古' | '朝鲜'
 export type EventUrgency = '高' | '中' | '低'
-export type MinisterStatus = 'active' | 'idle' | 'removed'
+export type MinisterStatus = 'active' | 'idle' | 'removed' | 'not_yet_entered'
+export type AssemblyPhase = 'idle' | 'petition' | 'debate' | 'vote' | 'decree'
 
 export interface GameTime {
   year: number
@@ -53,12 +54,18 @@ export interface Minister {
   abilities: MinisterAbilities
   status: MinisterStatus
   loyalty: number
+  position: string
+  entry_year: number
+  entry_month: number
+  historical_note: string
 }
 
 export interface EventChoice {
   label: string
   description: string
   decrees: StructuredDecree[]
+  loyalty_effects?: [string, number][]
+  state_effects?: Partial<Record<string, number | string | boolean>>
 }
 
 export interface GameEvent {
@@ -72,6 +79,7 @@ export interface GameEvent {
   is_scripted: boolean
   is_blocking: boolean
   script_id: string | null
+  historical_hint?: string
 }
 
 export interface HistoryEntry {
@@ -85,9 +93,11 @@ export interface HistoryEntry {
 
 export interface GameState {
   time: GameTime
-  treasury: number
+  national_treasury: number
+  imperial_treasury: number
+  grain: number
   population: number
-  military_supply: number
+  military_strength: number
   civil_morale: number
   military_morale: number
   court_prestige: number
@@ -101,6 +111,12 @@ export interface GameState {
   event_cooldowns: Record<string, number>
   resolved_script_ids: string[]
   memorials?: Memorial[]
+  last_assembly?: CourtAssembly | null
+  last_assembly_month?: number
+  memorial_cooldowns?: Record<string, number>
+  consecutive_waits?: number
+  loyalty_zero_triggered?: string[]
+  minister_conversations?: Record<string, ConversationMessage[]>
 }
 
 export interface StructuredDecree {
@@ -148,14 +164,41 @@ export interface PolicySuggestion {
   supporter_names: string[]
 }
 
+export interface AssemblyPetition {
+  minister_name: string
+  content: string
+  urgency: '高' | '中' | '低'
+}
+
+export interface AssemblySpeech {
+  minister_name: string
+  faction: string
+  content: string
+  stance: '赞成' | '反对' | '中立'
+}
+
+export interface AssemblyVote {
+  minister_name: string
+  vote: '赞成' | '反对' | '弃权'
+  reason: string
+}
+
 export interface CourtAssembly {
   topic: string
-  decree_type: DecreeType
+  current_topic?: string
+  decree_type: DecreeType | null
+  phase?: AssemblyPhase
   participants: AssemblyParticipant[]
+  petitions?: AssemblyPetition[]
+  speeches?: AssemblySpeech[]
+  votes?: AssemblyVote[]
   suggestions: PolicySuggestion[]
   debate_text: string
   consensus: string
   silenced: boolean
+  rage_used?: boolean
+  silenced_factions?: string[]
+  final_decision?: string | null
 }
 
 export interface IndicatorTrend {
@@ -224,6 +267,7 @@ export interface TurnSummary {
   minister_changes: MinisterChange[]
   pending_memorials_count: number
   region_details?: RegionDetail[] | null
+  action_implications?: string[]
 }
 
 export type ModalType =
@@ -236,10 +280,25 @@ export type ModalType =
   | 'debate'
   | 'script_event'
 
-export interface ModalItem {
-  type: ModalType
+interface BaseModalItem {
   priority: number
-  payload: unknown
+}
+
+export type ModalItem =
+  | (BaseModalItem & { type: 'game_over'; payload: { result: 'victory' | 'defeat'; message: string } })
+  | (BaseModalItem & { type: 'script_event_blocking'; payload: GameEvent })
+  | (BaseModalItem & { type: 'narrative'; payload: { narrative: string; delta: Record<string, number>; ministerReactions?: MinisterReaction[]; turnSummary?: TurnSummary } })
+  | (BaseModalItem & { type: 'turn_summary'; payload: TurnSummary })
+  | (BaseModalItem & { type: 'memorial'; payload: Memorial[] })
+  | (BaseModalItem & { type: 'assembly'; payload: CourtAssembly })
+  | (BaseModalItem & { type: 'debate'; payload: { result: DebateResult; topic: string } })
+  | (BaseModalItem & { type: 'script_event'; payload: GameEvent })
+
+export interface ConversationMessage {
+  id: string
+  role: 'user' | 'minister'
+  content: string
+  timestamp: number
 }
 
 export interface DecreeResponse {
@@ -259,6 +318,20 @@ export interface ErrorResponse {
   error_code: string
   message: string
   details?: Record<string, unknown> | null
+}
+
+export interface DialogueMessage {
+  role: 'user' | 'minister'
+  content: string
+  timestamp?: number
+}
+
+export interface DialogueResponse {
+  reply: string
+  loyalty_change: number
+  mood: string
+  conversation_id: string
+  state: GameState
 }
 
 export interface DebateMinister {
@@ -282,6 +355,8 @@ export interface Capabilities {
   assembly_supported: boolean
   memorial_enabled: boolean
 }
+
+export const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false, assembly_supported: false, memorial_enabled: false }
 
 export type AIProvider = 'mock' | 'openai' | 'google' | 'h' | 'Z'
 
@@ -339,30 +414,30 @@ export const TARGET_REQUIRED: Partial<Record<DecreeType, string>> = {
 }
 
 export interface PreconditionRule {
-  field: keyof Pick<GameState, 'treasury' | 'population' | 'military_supply' | 'civil_morale' | 'military_morale' | 'court_prestige'>
+  field: keyof Pick<GameState, 'national_treasury' | 'imperial_treasury' | 'grain' | 'population' | 'military_strength' | 'civil_morale' | 'military_morale' | 'court_prestige'>
   op: '>' | '>='
   threshold: number
 }
 
 export const PRECONDITIONS: Record<DecreeType, PreconditionRule[]> = {
-  tax_increase: [{ field: 'civil_morale', op: '>', threshold: 10 }],
-  tax_decrease: [{ field: 'treasury', op: '>', threshold: 20 }],
-  recruit_troops: [{ field: 'treasury', op: '>=', threshold: 20 }, { field: 'population', op: '>=', threshold: 10 }],
-  disband_troops: [{ field: 'military_supply', op: '>', threshold: 10 }],
+  tax_increase: [{ field: 'civil_morale', op: '>', threshold: 5 }],
+  tax_decrease: [{ field: 'national_treasury', op: '>', threshold: 8 }],
+  recruit_troops: [{ field: 'national_treasury', op: '>=', threshold: 8 }, { field: 'population', op: '>=', threshold: 1200 }],
+  disband_troops: [{ field: 'military_strength', op: '>', threshold: 8 }],
   personnel: [{ field: 'court_prestige', op: '>', threshold: 10 }],
-  diplomacy: [{ field: 'treasury', op: '>=', threshold: 10 }],
-  disaster_relief: [{ field: 'treasury', op: '>=', threshold: 30 }],
+  diplomacy: [{ field: 'national_treasury', op: '>=', threshold: 5 }],
+  disaster_relief: [{ field: 'national_treasury', op: '>=', threshold: 6 }, { field: 'grain', op: '>=', threshold: 120 }],
   harsh_punishment: [{ field: 'court_prestige', op: '>', threshold: 5 }],
 }
 
 export const PRECONDITION_MESSAGES: Record<DecreeType, string> = {
-  tax_increase: '民心不足，恐激民变（需要民心>10）',
-  tax_decrease: '国库不足，无力减税（需要钱粮>20）',
-  recruit_troops: '钱粮或人口不足，无法征兵（需要钱粮>=20且人口>=10）',
-  disband_troops: '军备不足（需要军备>10）',
+  tax_increase: '民心过低，仓促加税恐激民变（需要民心>5）',
+  tax_decrease: '国库存银不足，无力减税（需要国库>8万两）',
+  recruit_troops: '银粮或人口不足，无法征兵（需要国库>=8万两且人口>=1200万人）',
+  disband_troops: '兵力不足（需要兵力>8万人）',
   personnel: '朝廷威望不足（需要威望>10）',
-  diplomacy: '国库不足，无力外交（需要钱粮>=10）',
-  disaster_relief: '国库不足，无法赈灾（需要钱粮>=30）',
+  diplomacy: '国库存银不足，无力外交（需要国库>=5万两）',
+  disaster_relief: '银粮不足，无法赈灾（需要国库>=6万两且粮草>=120万石）',
   harsh_punishment: '朝廷威望不足（需要威望>5）',
 }
 

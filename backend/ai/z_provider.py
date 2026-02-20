@@ -10,21 +10,31 @@ from .openai_provider import OpenAIProvider
 
 load_dotenv()
 
+
+def _read_required_openai_config(
+    api_key_env: str,
+    base_url_env: str,
+    error_message: str,
+) -> tuple[str, str]:
+    api_key = (os.getenv(api_key_env) or "").strip()
+    base_url = (os.getenv(base_url_env) or "").strip()
+    if not api_key or not base_url:
+        raise ValueError(error_message)
+    return api_key, base_url
+
+
 class ZProvider(OpenAIProvider):
     def __init__(self):
         super().__init__()
         
         trust_env_proxy = os.getenv("OPENAI_TRUST_ENV_PROXY", "0").lower() in ("1", "true", "yes", "on")
         http_client = httpx.AsyncClient(trust_env=trust_env_proxy)
-        
-        api_key = os.getenv("Z_API_KEY")
-        base_url = os.getenv("Z_BASE_URL")
-        
-        if not api_key or not base_url:
-            # Fallback to hardcoded values if not in env, as requested by user in prompt
-            # But normally we expect them in env. I will write them to env later.
-            # For now, let's allow them to be None and rely on .env being updated.
-            pass
+
+        api_key, base_url = _read_required_openai_config(
+            "Z_API_KEY",
+            "Z_BASE_URL",
+            "Z_API_KEY and Z_BASE_URL must be set in .env",
+        )
 
         # Clean base_url if it contains /chat/completions
         if base_url and base_url.endswith("/chat/completions"):

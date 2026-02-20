@@ -470,7 +470,7 @@ class OpenAIProvider(AIProvider):
             f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
             f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
             f"触发原因：{trigger_reason}\n"
-            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
+            f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
             "请以该大臣的口吻撰写一份明朝风格的奏折（200-500字），并推荐1-3条建议政令。\n"
             f"可用政令type：{decree_types}\n"
             '严格输出JSON：{{"content":"奏折正文","suggested_decrees":[{{"type":"...","target":"..."}}]}}'
@@ -525,7 +525,7 @@ class OpenAIProvider(AIProvider):
         self, topic: str, participants: list[Minister], game_state: GameState,
     ) -> dict | None:
         parts = [f"议题：{topic}\n当前国情：{game_state.time.year}年{game_state.time.month}月，"
-                 f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n参与大臣："]
+                 f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n参与大臣："]
         for p in participants:
             parts.append(f"- {p.name}（{p.faction}），性格：{'、'.join(p.personality_tags)}，"
                          f"文治{p.abilities.civil}/武略{p.abilities.military}")
@@ -568,7 +568,7 @@ class OpenAIProvider(AIProvider):
             f"时间：{year}年{month}月\n"
             f"本月大事：{events_text}\n"
             f"政令与局势影响：{implications_text}\n"
-            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+            f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
             "请写一段50-100字的朝政总评，明朝奏报风格，概括本月朝政态势。"
             "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
         )
@@ -612,6 +612,102 @@ class OpenAIProvider(AIProvider):
         except Exception as e:
             logging.error(f"OpenAI process_freeform error: {e}")
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
+    async def generate_minister_dialogue(
+        self, minister: Minister, message: str, game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        tags = "、".join(minister.personality_tags) if minister.personality_tags else "无"
+        recent_events = "；".join(e.name for e in game_state.active_events[:3]) if game_state.active_events else "无"
+
+        history_lines: list[str] = []
+        for item in conversation_history[-20:]:
+            role = str(item.get("role", "")).strip().lower()
+            content = str(item.get("content", "")).strip()
+            if not content:
+                continue
+            if role == "user":
+                speaker = "皇帝"
+            elif role == "assistant":
+                speaker = minister.name
+            else:
+                speaker = role or "未知"
+            history_lines.append(f"{speaker}: {content}")
+
+        history_text = "\n".join(history_lines) if history_lines else "无"
+        prompt = (
+            f"大臣：{minister.name}\n"
+            f"官职：{minister.position or '朝臣'}\n"
+            f"派系：{minister.faction}\n"
+            f"性格：{tags}\n"
+            f"忠诚度：{minister.loyalty}/100\n"
+            f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
+            f"国库：{game_state.national_treasury}万两，内帑：{game_state.imperial_treasury}万两，粮草：{game_state.grain}万石\n"
+            f"民心：{game_state.civil_morale}，军心：{game_state.military_morale}，威望：{game_state.court_prestige}\n"
+            f"近期事件：{recent_events}\n\n"
+            f"历史对话：\n{history_text}\n\n"
+            f"皇帝本轮问话：{message}\n"
+            "请严格输出JSON对象，不要输出额外说明。"
+        )
+        try:
+            response = await self._chat_completion_with_fallback(
+                task_name="generate_minister_dialogue",
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": (
+                        "你是崇祯朝大臣角色扮演引擎。"
+                        "必须以第一人称回复皇帝，语气要符合该大臣身份、派系与性格。"
+                        "回复内容要结合当前国情与对话历史。"
+                        "仅输出JSON：{\"reply\":\"...\",\"loyalty_change\":0,\"mood\":\"neutral\"}。"
+                        "loyalty_change 必须是 -3 到 3 的整数。"
+                        "mood 只能是 support、neutral、oppose。"
+                    )},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.6,
+                response_format={"type": "json_object"},
+            )
+            content = (response.choices[0].message.content or "").strip()
+            data = json.loads(extract_json_object_text(content))
+
+            reply = str(data.get("reply", "")).strip()
+            if not reply:
+                raise ValueError("dialogue reply is empty")
+
+            raw_loyalty_change = data.get("loyalty_change", 0)
+            try:
+                loyalty_change = int(raw_loyalty_change)
+            except (TypeError, ValueError):
+                loyalty_change = 0
+            loyalty_change = max(-3, min(3, loyalty_change))
+
+            raw_mood = str(data.get("mood", "neutral")).strip().lower()
+            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
+
+            return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}
+        except Exception as e:
+            logging.error("OpenAI generate_minister_dialogue error: %s", e)
+            fallback = await MockProvider().generate_minister_dialogue(
+                minister, message, game_state, conversation_history,
+            )
+            raw_loyalty_change = fallback.get("loyalty_change", 0)
+            try:
+                loyalty_change = int(raw_loyalty_change)
+            except (TypeError, ValueError):
+                loyalty_change = 0
+            loyalty_change = max(-3, min(3, loyalty_change))
+
+            raw_mood = str(fallback.get("mood", "neutral")).strip().lower()
+            mood_map = {
+                "恭顺": "support",
+                "欣慰": "support",
+                "愤怒": "oppose",
+                "阳奉阴违": "oppose",
+                "惶恐": "neutral",
+            }
+            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else mood_map.get(raw_mood, "neutral")
+            reply = str(fallback.get("reply", "")).strip() or f"臣{minister.name}谨遵圣意。"
+            return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}
 
     def _build_narrative_prompt(self, delta, state, events, decree):
         region_names = [r.name for r in state.regions]

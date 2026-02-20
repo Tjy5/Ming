@@ -1,19 +1,19 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Minister, MinisterAbilities, MinisterReaction } from '../types/game'
-import { getPortraitUrl } from '../utils/portraits'
+import { FACTION_COLORS } from '../shared/constants/factions'
+import { Portrait } from '../shared/components/Portrait'
 
 interface Props {
   ministers?: Minister[] | null
   reactions?: MinisterReaction[]
+  onMinisterClick?: (minister: Minister) => void
 }
 
-const FACTION_COLORS: Record<string, string> = {
-  '东林党': '#4a7c59',
-  '阉党残余': '#8b4513',
-  '勋贵集团': '#6b5b95',
-  '边将势力': '#4682b4',
-}
+const FACTION_ORDER = [
+  '东林党', '阉党残余', '勋贵集团', '辽东边将',
+  '中原剿匪系', '温体仁派', '周延儒派', '中立派',
+]
 
 const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: string }[] = [
   { key: 'civil', label: '文', color: 'var(--green)' },
@@ -21,40 +21,19 @@ const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: stri
   { key: 'diplomacy', label: '略', color: 'var(--accent-gold)' },
 ]
 
-function Placeholder({ name, faction }: { name: string; faction: string }) {
-  const bg = FACTION_COLORS[faction] ?? '#555'
-  return (
-    <div className="mp-avatar mp-placeholder" style={{ backgroundColor: bg }}>
-      {name.charAt(0) || '?'}
-    </div>
-  )
-}
-
-function Portrait({ minister }: { minister: Minister }) {
-  const [loadFailed, setLoadFailed] = useState(false)
-
-  if (loadFailed) {
-    return <Placeholder name={minister.name} faction={minister.faction} />
-  }
-
-  return (
-    <img
-      className="mp-avatar"
-      src={getPortraitUrl(minister.name)}
-      alt={minister.name}
-      onError={() => setLoadFailed(true)}
-    />
-  )
-}
-
 function loyaltyColor(v: number) {
   if (v > 60) return 'var(--green)'
   if (v >= 30) return 'var(--yellow)'
   return 'var(--red)'
 }
 
-function MinisterCard({ minister, reaction }: { minister: Minister; reaction?: MinisterReaction }) {
+function MinisterCard({ minister, reaction, onClick }: {
+  minister: Minister
+  reaction?: MinisterReaction
+  onClick?: (m: Minister) => void
+}) {
   const idle = minister.status === 'idle'
+  const notEntered = minister.status === 'not_yet_entered'
   const [showReaction, setShowReaction] = useState(false)
 
   const reactionKey = reaction ? `${reaction.minister_name}:${reaction.reaction_type}:${reaction.loyalty_change}` : ''
@@ -66,11 +45,19 @@ function MinisterCard({ minister, reaction }: { minister: Minister; reaction?: M
     return () => clearTimeout(t)
   }, [reactionKey])
 
+  const cls = ['mp-card']
+  if (idle) cls.push('mp-idle')
+  if (notEntered) cls.push('mp-not-entered')
+  if (onClick) cls.push('mp-clickable')
+
   return (
-    <div className={`mp-card${idle ? ' mp-idle' : ''}`}>
+    <div className={cls.join(' ')} onClick={() => onClick?.(minister)}>
       <Portrait minister={minister} />
       <div className="mp-info">
-        <div className="mp-name">{minister.name}</div>
+        <div className="mp-name">
+          {minister.name}
+          {minister.position && <span className="mp-position">{minister.position}</span>}
+        </div>
         <div className="mp-tags">
           {minister.personality_tags.map(t => (
             <span key={t} className="mp-tag">{t}</span>
@@ -102,6 +89,7 @@ function MinisterCard({ minister, reaction }: { minister: Minister; reaction?: M
         </div>
       </div>
       {idle && <div className="mp-idle-badge">赋闲</div>}
+      {notEntered && <div className="mp-not-entered-badge">未入朝</div>}
       <AnimatePresence>
         {showReaction && reaction && (
           <motion.div
@@ -118,45 +106,95 @@ function MinisterCard({ minister, reaction }: { minister: Minister; reaction?: M
   )
 }
 
-export default function MinisterPanel({ ministers, reactions }: Props) {
-  const safeMinisters = Array.isArray(ministers) ? ministers.filter(m => m.status !== 'removed') : []
+export default function MinisterPanel({ ministers, reactions, onMinisterClick }: Props) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [showNotEntered, setShowNotEntered] = useState(false)
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(FACTION_ORDER.slice(0, 3)))
+
+  const toggleFaction = useCallback((fname: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(fname)) next.delete(fname)
+      else next.add(fname)
+      return next
+    })
+  }, [])
+
+  const filtered = useMemo(() => {
+    if (!Array.isArray(ministers)) return []
+    return ministers.filter(m => {
+      if (m.status === 'removed') return false
+      if (!showNotEntered && m.status === 'not_yet_entered') return false
+      if (searchTerm) {
+        const q = searchTerm.toLowerCase()
+        return m.name.toLowerCase().includes(q) || m.position.toLowerCase().includes(q)
+      }
+      return true
+    })
+  }, [ministers, searchTerm, showNotEntered])
+
   const reactionMap = useMemo(() => {
     const m = new Map<string, MinisterReaction>()
     reactions?.forEach(r => m.set(r.minister_name, r))
     return m
   }, [reactions])
-  const grouped = safeMinisters.reduce<Record<string, Minister[]>>((acc, m) => {
-    ;(acc[m.faction] ??= []).push(m)
-    return acc
-  }, {})
 
-  const knownFactionOrder = ['东林党', '阉党残余', '勋贵集团', '边将势力']
-  const knownFactions = knownFactionOrder.filter(fname => grouped[fname]?.length)
+  const grouped = useMemo(() => {
+    return filtered.reduce<Record<string, Minister[]>>((acc, m) => {
+      ;(acc[m.faction] ??= []).push(m)
+      return acc
+    }, {})
+  }, [filtered])
+
+  const knownFactions = FACTION_ORDER.filter(f => grouped[f]?.length)
   const unknownFactions = Object.keys(grouped)
-    .filter(fname => !knownFactionOrder.includes(fname))
+    .filter(f => !FACTION_ORDER.includes(f))
     .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
   const displayFactions = [...knownFactions, ...unknownFactions]
 
-  if (!displayFactions.length) {
+  if (!displayFactions.length && !searchTerm) {
     return <div className="minister-panel minister-panel-empty">暂无大臣数据</div>
   }
 
   return (
     <div className="minister-panel">
+      <div className="mp-controls">
+        <input
+          className="mp-search"
+          placeholder="搜索姓名/官职..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+        <label className="mp-toggle">
+          <input type="checkbox" checked={showNotEntered} onChange={e => setShowNotEntered(e.target.checked)} />
+          <span>未登场</span>
+        </label>
+      </div>
+
       {displayFactions.map(fname => {
         const members = grouped[fname]
         if (!members?.length) return null
+        const isExpanded = expanded.has(fname)
         return (
           <div key={fname} className="mp-faction-group">
-            <div className="mp-faction-header" style={{ borderLeftColor: FACTION_COLORS[fname] ?? '#555' }}>
-              {fname}
+            <div
+              className="mp-faction-header"
+              style={{ borderLeftColor: FACTION_COLORS[fname] ?? '#555' }}
+              onClick={() => toggleFaction(fname)}
+            >
+              <span>{fname} ({members.length})</span>
+              <span className="mp-faction-arrow">{isExpanded ? '▼' : '▶'}</span>
             </div>
-            {members.map(m => (
-              <MinisterCard key={m.name} minister={m} reaction={reactionMap.get(m.name)} />
+            {isExpanded && members.map(m => (
+              <MinisterCard key={m.name} minister={m} reaction={reactionMap.get(m.name)} onClick={onMinisterClick} />
             ))}
           </div>
         )
       })}
+
+      {displayFactions.length === 0 && searchTerm && (
+        <div className="mp-no-result">无匹配结果</div>
+      )}
     </div>
   )
 }

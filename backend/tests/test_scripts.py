@@ -1,10 +1,10 @@
 from models.game import (
     GameState, GameTime, Faction, Region, create_initial_state,
-    RegionChange,
+    RegionChange, GameEvent,
 )
 from models.enums import TaxContribution, MinisterStatus
-from engine.core import inject_script_events
-from engine.scripts import get_scripts_for_time, SCRIPT_REGISTRY
+from engine.core import inject_script_events, _script_to_event
+from engine.scripts import get_scripts_for_time, SCRIPT_REGISTRY, ScriptEvent, ScriptChoice, _register
 
 
 def _minimal_state(year=1627, month=8) -> GameState:
@@ -32,6 +32,17 @@ MONTHLY_EVENT_IDS = [
     "famine-escalates-1628-06",
     "ningyuan-mutiny-1628-07",
     "year-end-assessment-1628-08",
+]
+
+CONDITIONAL_MONTHLY_EVENT_IDS = {
+    "qian-jiazheng-impeachment-1627-10",
+    "wei-zhongxian-falls-1627-11",
+}
+
+BRANCH_EVENT_IDS = [
+    "post-wei-vacuum-1627-10",
+    "post-wei-remnant-settlement-1627-11",
+    "liaodong-command-vacancy-1629-12",
 ]
 
 
@@ -75,7 +86,15 @@ class TestNewMonthlyEvents:
     def test_no_conditions_on_monthly_events(self):
         for sid in MONTHLY_EVENT_IDS:
             evt = SCRIPT_REGISTRY[sid]
-            assert evt.condition is None, f"{sid} should have no condition"
+            if sid in CONDITIONAL_MONTHLY_EVENT_IDS:
+                assert evt.condition is not None, f"{sid} should have branching condition"
+            else:
+                assert evt.condition is None, f"{sid} should have no condition"
+
+    def test_branch_events_registered(self):
+        for sid in BRANCH_EVENT_IDS:
+            assert sid in SCRIPT_REGISTRY, f"{sid} not in SCRIPT_REGISTRY"
+            assert SCRIPT_REGISTRY[sid].condition is not None, f"{sid} should be conditional"
 
 
 # ── 10.5 Deleted events no longer in registry ──
@@ -237,6 +256,45 @@ class TestScriptDedup:
         assert len(injected) == 0
 
 
+class TestKeyFigureLifeDeathBranching:
+    def _state_for_month(self, year: int, month: int) -> GameState:
+        state = create_initial_state()
+        state.time.year = year
+        state.time.month = month
+        state.active_events = []
+        state.resolved_script_ids = set()
+        return state
+
+    def _set_minister_status(self, state: GameState, name: str, status: MinisterStatus) -> None:
+        minister = next(m for m in state.ministers if m.name == name)
+        minister.status = status
+
+    def test_wei_removed_triggers_october_fallback(self):
+        state = self._state_for_month(1627, 10)
+        self._set_minister_status(state, "魏忠贤", MinisterStatus.REMOVED)
+        inject_script_events(state)
+        ids = {e.script_id for e in state.active_events}
+        assert "post-wei-vacuum-1627-10" in ids
+        assert "qian-jiazheng-impeachment-1627-10" not in ids
+
+    def test_wei_removed_triggers_november_fallback(self):
+        state = self._state_for_month(1627, 11)
+        self._set_minister_status(state, "魏忠贤", MinisterStatus.REMOVED)
+        inject_script_events(state)
+        ids = {e.script_id for e in state.active_events}
+        assert "post-wei-remnant-settlement-1627-11" in ids
+        assert "wei-zhongxian-falls-1627-11" not in ids
+
+    def test_yuan_removed_triggers_1629_12_fallback(self):
+        state = self._state_for_month(1629, 12)
+        state.resolved_script_ids.add("jisi-invasion")
+        self._set_minister_status(state, "袁崇焕", MinisterStatus.REMOVED)
+        inject_script_events(state)
+        ids = {e.script_id for e in state.active_events}
+        assert "liaodong-command-vacancy-1629-12" in ids
+        assert "yuan-chonghuan-arrest" not in ids
+
+
 class TestSourceScriptIdCleanup:
     def test_remove_event_on_resolve(self):
         state = _minimal_state()
@@ -278,3 +336,77 @@ class TestScriptRegistryIntegrity:
             assert 1621 <= evt.trigger_year <= 1644
             assert 1 <= evt.trigger_month <= 12
             assert len(evt.choices) >= 1
+            assert evt.historical_hint.strip(), f"{sid} has empty historical_hint"
+            assert len(evt.historical_hint) >= 120, f"{sid} historical_hint too short"
+            assert "。" in evt.historical_hint, f"{sid} historical_hint should contain complete sentences"
+            assert "**" not in evt.historical_hint, f"{sid} historical_hint should not use markdown bold markers"
+
+
+# ── Historical hint tests ──────────────────────────────
+
+class TestHistoricalHintConversion:
+    def test_script_to_event_passes_historical_hint(self):
+        evt = SCRIPT_REGISTRY["chongzhen-accession-1627-08"]
+        ge = _script_to_event(evt, 1627, 8)
+        assert ge.historical_hint == evt.historical_hint
+
+    def test_all_events_hint_survives_conversion(self):
+        for sid, evt in SCRIPT_REGISTRY.items():
+            ge = _script_to_event(evt, evt.trigger_year, evt.trigger_month)
+            assert ge.historical_hint == evt.historical_hint, f"{sid} hint mismatch"
+
+
+class TestRegisterRejectsEmptyHint:
+    def test_empty_string_rejected(self):
+        size_before = len(SCRIPT_REGISTRY)
+        import pytest
+        with pytest.raises(ValueError, match="must have non-empty historical_hint"):
+            _register(ScriptEvent(
+                script_id="test-empty-hint",
+                trigger_year=1627, trigger_month=8,
+                title="test", rich_description="test",
+                choices=[ScriptChoice(label="a", description="b")],
+                historical_hint="",
+            ))
+        assert len(SCRIPT_REGISTRY) == size_before
+
+    def test_whitespace_only_rejected(self):
+        size_before = len(SCRIPT_REGISTRY)
+        import pytest
+        with pytest.raises(ValueError, match="must have non-empty historical_hint"):
+            _register(ScriptEvent(
+                script_id="test-whitespace-hint",
+                trigger_year=1627, trigger_month=8,
+                title="test", rich_description="test",
+                choices=[ScriptChoice(label="a", description="b")],
+                historical_hint="   \n\t  ",
+            ))
+        assert len(SCRIPT_REGISTRY) == size_before
+
+    def test_none_rejected(self):
+        size_before = len(SCRIPT_REGISTRY)
+        import pytest
+        with pytest.raises(ValueError, match="must have non-empty historical_hint"):
+            _register(ScriptEvent(
+                script_id="test-none-hint",
+                trigger_year=1627, trigger_month=8,
+                title="test", rich_description="test",
+                choices=[ScriptChoice(label="a", description="b")],
+                historical_hint=None,  # type: ignore[arg-type]
+            ))
+        assert len(SCRIPT_REGISTRY) == size_before
+
+
+class TestRegistryCompleteness:
+    def test_registry_count_is_21(self):
+        assert len(SCRIPT_REGISTRY) == 21
+
+
+class TestGameEventBackwardCompat:
+    def test_old_save_without_historical_hint(self):
+        ge = GameEvent.model_validate({
+            "name": "x",
+            "triggered_year": 1627,
+            "triggered_month": 8,
+        })
+        assert ge.historical_hint == ""

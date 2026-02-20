@@ -66,6 +66,9 @@ class _AlwaysParseErrorProvider(AIProvider):
     async def generate_turn_commentary(self, summary_data, game_state):
         return ""
 
+    async def generate_minister_dialogue(self, *a, **kw):
+        return {}
+
     async def process_freeform(self, text, game_state):
         return parse_error("not implemented")
 

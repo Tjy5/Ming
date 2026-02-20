@@ -120,6 +120,66 @@ class AIProvider(abc.ABC):
         self, topic: str, participants: list[Minister], game_state: GameState,
     ) -> dict | None: ...
 
+    async def generate_petitions(
+        self, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        petitions: list[dict] = []
+        for minister in participants:
+            urgency = "中"
+            if minister.abilities.military >= 80:
+                urgency = "高"
+            elif minister.abilities.civil < 40 and minister.loyalty < 40:
+                urgency = "低"
+            petitions.append({
+                "minister_name": minister.name,
+                "content": f"臣{minister.name}谨奏：当下{minister.faction}所忧之政务，宜速议定施行。",
+                "urgency": urgency,
+            })
+        return petitions
+
+    async def generate_debate_speeches(
+        self, topic: str, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        decree_type = infer_decree_type_from_topic(topic) or DecreeType.PERSONNEL
+        speeches: list[dict] = []
+        for minister in participants:
+            tendency = await self.calculate_vote_tendency(minister, decree_type, game_state)
+            stance = "中立"
+            if tendency == "赞成":
+                stance = "赞成"
+            elif tendency == "反对":
+                stance = "反对"
+            speeches.append({
+                "minister_name": minister.name,
+                "faction": minister.faction,
+                "content": f"臣{minister.name}以为'{topic}'当{('力行' if stance == '赞成' else '慎行' if stance == '反对' else '缓议')}，请陛下裁断。",
+                "stance": stance,
+            })
+        return speeches
+
+    async def calculate_vote_tendency(
+        self, minister: Minister, decree_type: DecreeType, game_state: GameState,
+    ) -> str:
+        try:
+            from engine.tables import FACTION_STANCE
+            faction_stance = int(FACTION_STANCE.get(minister.faction, {}).get(decree_type, 0))
+        except Exception:
+            faction_stance = 0
+        score = faction_stance + (minister.loyalty - 50) / 3
+        if score >= 12:
+            return "赞成"
+        if score <= -12:
+            return "反对"
+        return "弃权"
+
+    async def generate_action_implications(
+        self, summary_data: dict, game_state: GameState,
+    ) -> list[str]:
+        """Generate action implications for turn summary using AI.
+        Returns empty list on failure. Max 3 items.
+        """
+        return []
+
     @abc.abstractmethod
     async def generate_turn_commentary(
         self, summary_data: dict, game_state: GameState,
@@ -130,6 +190,12 @@ class AIProvider(abc.ABC):
         self, text: str, game_state: GameState,
         *, script_context: dict | None = None,
     ) -> FreeformResult | dict: ...
+
+    @abc.abstractmethod
+    async def generate_minister_dialogue(
+        self, minister: Minister, message: str, game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict: ...
 
 
 # ── Mock Provider ────────────────────────────────────────
@@ -179,6 +245,28 @@ EXECUTION_SUFFIX_RE = re.compile(rf"(?:把|将)?([^\s,，。、]{{2,4}})(?:{_EXE
 REGION_KEYWORDS = re.compile(r"京畿|辽东|陕西|江南|中原|山东|云贵|川蜀")
 DIPLOMACY_KEYWORDS = re.compile(r"后金|蒙古|朝鲜")
 PERSON_PATTERN = re.compile(r"(?:把|将|令|命)?([^\s,，。、]{2,4})(?:调|贬|擢|免|罢|任|撤)")
+
+
+_TOPIC_DECREE_HINTS: list[tuple[DecreeType, tuple[str, ...]]] = [
+    (DecreeType.TAX_INCREASE, ("加税", "赋税", "税负", "税赋")),
+    (DecreeType.TAX_DECREASE, ("减税", "免税", "税负减免")),
+    (DecreeType.RECRUIT_TROOPS, ("募兵", "征兵", "增兵", "练兵")),
+    (DecreeType.DISBAND_TROOPS, ("裁兵", "撤军", "裁撤")),
+    (DecreeType.PERSONNEL, ("任命", "罢免", "任免", "廷推", "官职")),
+    (DecreeType.DIPLOMACY, ("外交", "议和", "出使", "盟约")),
+    (DecreeType.DISASTER_RELIEF, ("赈灾", "救灾", "灾荒", "赈济")),
+    (DecreeType.HARSH_PUNISHMENT, ("严刑", "峻法", "重典", "惩治")),
+]
+
+
+def infer_decree_type_from_topic(topic: str) -> DecreeType | None:
+    text = (topic or "").strip()
+    if not text:
+        return None
+    for decree_type, keywords in _TOPIC_DECREE_HINTS:
+        if any(keyword in text for keyword in keywords):
+            return decree_type
+    return None
 
 
 def _try_parse_execution(text: str, game_state: GameState) -> list[StructuredDecree] | None:
@@ -294,7 +382,49 @@ class MockProvider(AIProvider):
     async def generate_assembly_debate(
         self, topic: str, participants: list[Minister], game_state: GameState,
     ) -> dict | None:
-        return None
+        speeches = await self.generate_debate_speeches(topic, participants, game_state)
+        speech_by_name = {
+            str(item.get("minister_name")): str(item.get("content", ""))
+            for item in speeches
+            if isinstance(item, dict) and item.get("minister_name")
+        }
+        supporters = [
+            str(item.get("minister_name"))
+            for item in speeches
+            if isinstance(item, dict) and item.get("stance") == "赞成"
+        ]
+        opposers = [
+            str(item.get("minister_name"))
+            for item in speeches
+            if isinstance(item, dict) and item.get("stance") == "反对"
+        ]
+        consensus = "divided"
+        if len(supporters) > len(opposers):
+            consensus = "support"
+        elif len(opposers) > len(supporters):
+            consensus = "oppose"
+        decree_type = infer_decree_type_from_topic(topic) or DecreeType.PERSONNEL
+        return {
+            "debate_text": "\n".join(f"{s['minister_name']}：{s['content']}" for s in speeches if isinstance(s, dict)),
+            "participants": [
+                {"name": p.name, "position": p.position or "朝臣", "argument_text": speech_by_name.get(p.name, "")}
+                for p in participants
+            ],
+            "suggestions": [{
+                "title": f"就'{topic}'拟议",
+                "description": "请陛下依朝议结果酌定施行。",
+                "decree_type": decree_type.value,
+                "supporter_names": supporters[:8],
+            }],
+            "consensus": consensus,
+            "speeches": speeches,
+        }
+
+    async def generate_action_implications(
+        self, summary_data: dict, game_state: GameState,
+    ) -> list[str]:
+        rule_based = summary_data.get("rule_based_implications", [])
+        return [str(x) for x in (rule_based or [])][:3]
 
     async def generate_turn_commentary(
         self, summary_data: dict, game_state: GameState,
@@ -337,7 +467,7 @@ class MockProvider(AIProvider):
         # tax increase
         if re.search(r"加税|加征|增税", text):
             return FreeformResult(
-                effects={"global.treasury": 30, "global.civil_morale": -10},
+                effects={"global.national_treasury": 30, "global.civil_morale": -10},
                 narrative="朕下旨加征赋税，国库稍有充盈，然百姓多有怨言。",
                 rationale="加税",
             )
@@ -345,7 +475,7 @@ class MockProvider(AIProvider):
         # tax decrease
         if re.search(r"减税|免税|降税", text):
             return FreeformResult(
-                effects={"global.treasury": -20, "global.civil_morale": 10},
+                effects={"global.national_treasury": -20, "global.civil_morale": 10},
                 narrative="朕体恤百姓，减免赋税，民心稍安。",
                 rationale="减税",
             )
@@ -355,12 +485,39 @@ class MockProvider(AIProvider):
         if re.search(r"赈灾|赈济|救灾", text) and region_match:
             rname = region_match.group(0)
             return FreeformResult(
-                effects={"global.treasury": -30, f"region.{rname}.disaster_level": -15},
+                effects={"global.national_treasury": -30, f"region.{rname}.disaster_level": -15},
                 narrative=f"朕拨银赈济{rname}，灾民感恩戴德。",
                 rationale=f"赈济{rname}",
             )
 
         return parse_error("无法识别具体政务意图")
+
+    async def generate_minister_dialogue(
+        self, minister: Minister, message: str, game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        import random
+
+        loyalty_change = random.randint(-1, 1)
+        if loyalty_change > 0:
+            mood = "support"
+        elif loyalty_change < 0:
+            mood = "oppose"
+        else:
+            mood = "neutral"
+
+        if minister.faction == "东林党":
+            reply = f"臣{minister.name}谨遵圣旨。然臣以为此事关乎社稷，望陛下三思而后行。"
+        elif minister.faction == "阉党残余":
+            reply = f"臣{minister.name}叩首。陛下圣明，臣当竭力奉行。"
+        else:
+            reply = f"臣{minister.name}领旨。臣当尽心竭力，不负陛下厚望。"
+
+        return {
+            "reply": reply,
+            "loyalty_change": loyalty_change,
+            "mood": mood
+        }
 
 
 async def _local_rule_parse(
@@ -665,6 +822,72 @@ class ResilientProvider(AIProvider):
                     return None
         return None
 
+    async def generate_petitions(
+        self, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        for attempt in range(self._retries):
+            try:
+                petitions = await asyncio.wait_for(
+                    self._inner.generate_petitions(participants, game_state),
+                    timeout=self._timeout,
+                )
+                if petitions:
+                    return petitions
+            except Exception as e:
+                self._log_retry_failure("generate_petitions", attempt + 1, self._retries, e)
+                if attempt == self._retries - 1:
+                    return await MockProvider().generate_petitions(participants, game_state)
+        return await MockProvider().generate_petitions(participants, game_state)
+
+    async def generate_debate_speeches(
+        self, topic: str, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        for attempt in range(self._retries):
+            try:
+                speeches = await asyncio.wait_for(
+                    self._inner.generate_debate_speeches(topic, participants, game_state),
+                    timeout=self._timeout,
+                )
+                if speeches:
+                    return speeches
+            except Exception as e:
+                self._log_retry_failure("generate_debate_speeches", attempt + 1, self._retries, e)
+                if attempt == self._retries - 1:
+                    return await MockProvider().generate_debate_speeches(topic, participants, game_state)
+        return await MockProvider().generate_debate_speeches(topic, participants, game_state)
+
+    async def calculate_vote_tendency(
+        self, minister: Minister, decree_type: DecreeType, game_state: GameState,
+    ) -> str:
+        for attempt in range(self._retries):
+            try:
+                vote = await asyncio.wait_for(
+                    self._inner.calculate_vote_tendency(minister, decree_type, game_state),
+                    timeout=self._timeout,
+                )
+                if vote in {"赞成", "反对", "弃权"}:
+                    return vote
+                return "弃权"
+            except Exception as e:
+                self._log_retry_failure("calculate_vote_tendency", attempt + 1, self._retries, e)
+                if attempt == self._retries - 1:
+                    return await MockProvider().calculate_vote_tendency(minister, decree_type, game_state)
+        return await MockProvider().calculate_vote_tendency(minister, decree_type, game_state)
+
+    async def generate_action_implications(
+        self, summary_data: dict, game_state: GameState,
+    ) -> list[str]:
+        for attempt in range(self._retries):
+            try:
+                result = await asyncio.wait_for(
+                    self._inner.generate_action_implications(summary_data, game_state),
+                    timeout=self._timeout,
+                )
+                return [str(x) for x in (result or [])][:3]
+            except Exception as e:
+                self._log_retry_failure("generate_action_implications", attempt + 1, self._retries, e)
+        return await MockProvider().generate_action_implications(summary_data, game_state)
+
     async def generate_turn_commentary(
         self, summary_data: dict, game_state: GameState,
     ) -> str:
@@ -708,6 +931,22 @@ class ResilientProvider(AIProvider):
             PARSE_ERROR_TYPE_UNAVAILABLE,
         )
 
+    async def generate_minister_dialogue(
+        self, minister: Minister, message: str, game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        for attempt in range(self._retries):
+            try:
+                return await asyncio.wait_for(
+                    self._inner.generate_minister_dialogue(minister, message, game_state, conversation_history),
+                    timeout=self._timeout,
+                )
+            except Exception as e:
+                self._log_retry_failure("generate_minister_dialogue", attempt + 1, self._retries, e)
+                if attempt == self._retries - 1:
+                    return await MockProvider().generate_minister_dialogue(minister, message, game_state, conversation_history)
+        return await MockProvider().generate_minister_dialogue(minister, message, game_state, conversation_history)
+
 
 # ── Shared Helpers ────────────────────────────────────────
 
@@ -726,7 +965,7 @@ def build_debate_prompt(
         f"性格：{_tags(minister_b)}，"
         f"文治{minister_b.abilities.civil}/武略{minister_b.abilities.military}/外交{minister_b.abilities.diplomacy}\n\n"
         f"当前国情：{game_state.time.year}年{game_state.time.month}月，"
-        f"国库{game_state.treasury}，民心{game_state.civil_morale}，"
+        f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，"
         f"军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
         "请严格输出JSON，不要输出额外说明文字。"
     )
@@ -997,9 +1236,9 @@ _FREEFORM_SYSTEM_PROMPT = """\
 }
 
 可修改字段白名单（effects 中只能使用以下路径）：
-- global.treasury (int delta, 范围0-200)
+- global.national_treasury (int delta, 范围0-200)
 - global.population (int delta, 范围0-200)
-- global.military_supply (int delta, 范围0-200)
+- global.military_strength (int delta, 范围0-200)
 - global.civil_morale (int delta, 范围0-100)
 - global.military_morale (int delta, 范围0-100)
 - global.court_prestige (int delta, 范围0-100)
@@ -1032,7 +1271,7 @@ _FREEFORM_SYSTEM_PROMPT = """\
 def _serialize_game_state(state: GameState) -> str:
     t = state.time
     lines = [f"当前时间：{t.era_name}{t.era_year}年（{t.year}年）{t.month}月"]
-    lines.append(f"国库={state.treasury} 人口={state.population} 军需={state.military_supply} "
+    lines.append(f"国库={state.national_treasury} 人口={state.population} 军需={state.military_strength} "
                  f"民心={state.civil_morale} 军心={state.military_morale} 威望={state.court_prestige}")
 
     lines.append("\n大臣：")

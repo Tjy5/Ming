@@ -54,6 +54,15 @@ class MinisterStatus(str, Enum):
     ACTIVE = "active"
     IDLE = "idle"
     REMOVED = "removed"
+    NOT_YET_ENTERED = "not_yet_entered"
+
+
+class AssemblyPhase(str, Enum):
+    IDLE = "idle"
+    PETITION = "petition"
+    DEBATE = "debate"
+    VOTE = "vote"
+    DECREE = "decree"
 
 
 class MemorialStatus(str, Enum):

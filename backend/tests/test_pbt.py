@@ -24,7 +24,8 @@ st_prestige = st.integers(min_value=0, max_value=100)
 def make_state(court_prestige=75, ministers=None) -> GameState:
     return GameState(
         time=GameTime(year=1630, month=6, era_name="崇祯", era_year=3),
-        treasury=100, population=100, military_supply=80,
+        national_treasury=20, imperial_treasury=10, grain=500,
+        population=15000, military_strength=40,
         civil_morale=60, military_morale=70,
         court_prestige=court_prestige,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
@@ -45,7 +46,8 @@ def test_silence_preserves_non_prestige(prestige):
     state.court_prestige += change
 
     after = state.model_dump()
-    for key in ("treasury", "population", "military_supply", "civil_morale", "military_morale"):
+    for key in ("national_treasury", "imperial_treasury", "grain", "population",
+                "military_strength", "civil_morale", "military_morale"):
         assert after[key] == before[key]
     assert after["factions"] == before["factions"]
     assert after["regions"] == before["regions"]
@@ -164,23 +166,23 @@ def test_save_migration_idempotent(year):
 # ── 13.8 Opening script effects clamp ────────────────
 
 @given(
-    treasury=st.integers(min_value=0, max_value=200),
+    national_treasury=st.integers(min_value=0, max_value=10000),
     prestige=st.integers(min_value=0, max_value=100),
 )
 @settings(max_examples=30)
-def test_opening_effects_clamp(treasury, prestige):
+def test_opening_effects_clamp(national_treasury, prestige):
     state = create_initial_state()
-    state.treasury = treasury
+    state.national_treasury = national_treasury
     state.court_prestige = prestige
     evt = next(e for e in state.active_events if e.script_id == "chongzhen-accession-1627-08")
     for choice in evt.choices:
         if choice.decrees:
             s = create_initial_state()
-            s.treasury = treasury
+            s.national_treasury = national_treasury
             s.court_prestige = prestige
             process_decree(s, choice.decrees[0])
             assert 0 <= s.court_prestige <= 100
-            assert 0 <= s.treasury <= 200
+            assert 0 <= s.national_treasury <= 10000
 
 
 # ── 13.9 Debate API validation leaves state unchanged ─

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { GameState, DecreeType, StructuredDecree, PersonnelAction } from '../types/game'
 import { DECREE_LABELS, REGION_NAMES, DIPLOMACY_TARGETS, PRECONDITION_MESSAGES } from '../types/game'
@@ -35,7 +35,19 @@ export default function EdictWritingPanel({
   const [shaking, setShaking] = useState(false)
   const [inkSpread, setInkSpread] = useState(false)
   const submitted = useRef(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const timerRef = useRef<number[]>([])
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+      timerRef.current.forEach(id => window.clearTimeout(id))
+    }
+  }, [])
 
   const canIssue = checkPrecondition(state, type)
   const needsTarget = type === 'disaster_relief' || type === 'diplomacy' || type === 'personnel'
@@ -64,18 +76,19 @@ export default function EdictWritingPanel({
   function onSealLanded() {
     if (submitted.current) return
     // Sound
-    new Audio('/seal.mp3').play().catch(() => {})
+    if (!audioRef.current) audioRef.current = new Audio('/seal.mp3')
+    audioRef.current.play().catch((err) => console.error('Audio playback failed:', err))
     // Shake
     setShaking(true)
-    setTimeout(() => {
+    timerRef.current.push(window.setTimeout(() => {
       setShaking(false)
       // Ink spread
       setInkSpread(true)
-      setTimeout(() => {
+      timerRef.current.push(window.setTimeout(() => {
         submitted.current = true
         onConfirm(buildDecree())
-      }, 600)
-    }, 200)
+      }, 600))
+    }, 200))
   }
 
   const stampAnimate = shaking

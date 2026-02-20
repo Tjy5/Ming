@@ -12,13 +12,15 @@ interface Props {
   onOpenAiSettings: () => void
 }
 
-const RESOURCES: { key: keyof GameState; label: string; max: number }[] = [
-  { key: 'treasury', label: '钱粮', max: 200 },
-  { key: 'population', label: '人口', max: 200 },
-  { key: 'military_supply', label: '军备', max: 200 },
-  { key: 'civil_morale', label: '民心', max: 100 },
-  { key: 'military_morale', label: '军心', max: 100 },
-  { key: 'court_prestige', label: '威望', max: 100 },
+const RESOURCES: { key: keyof GameState; label: string; max: number; unit: string }[] = [
+  { key: 'national_treasury', label: '国库', unit: '万两', max: 1000 },
+  { key: 'imperial_treasury', label: '内帑', unit: '万两', max: 500 },
+  { key: 'grain', label: '粮草', unit: '万石', max: 5000 },
+  { key: 'population', label: '人口', unit: '万人', max: 20000 },
+  { key: 'military_strength', label: '兵力', unit: '万人', max: 500 },
+  { key: 'civil_morale', label: '民心', unit: '%', max: 100 },
+  { key: 'military_morale', label: '军心', unit: '%', max: 100 },
+  { key: 'court_prestige', label: '威望', unit: '%', max: 100 },
 ]
 
 function barColor(val: number, max: number): string {
@@ -47,7 +49,7 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
   return (
     <div className="resource-bar">
       <HistoricalCalendar {...state.time} />
-      {RESOURCES.map(({ key, label, max }) => {
+      {RESOURCES.map(({ key, label, max, unit }) => {
         const val = state[key] as number
         const prev = prevState ? (prevState[key] as number) : val
         const diff = val - prev
@@ -56,7 +58,7 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
           <div className="resource-item" key={key}>
             <div className="resource-label">
               <span>{label}</span>
-              <span className={`val ${cls}`}>{val}</span>
+              <span className={`val ${cls}`}>{val}<small>{unit}</small></span>
             </div>
             <div className="progress-track">
               <div

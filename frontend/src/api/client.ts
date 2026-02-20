@@ -7,6 +7,7 @@ import type {
   ErrorResponse,
   DebateResult,
   Capabilities,
+  DialogueResponse,
   Minister,
   DecreeType,
   CourtAssembly,
@@ -17,6 +18,13 @@ import type {
 } from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
+
+interface AdvanceMonthResponse {
+  state: GameState
+  triggered_events: string[]
+  game_over: { result: 'victory' | 'defeat'; message: string } | null
+  new_ministers: Minister[]
+}
 
 class ApiError extends Error {
   status: number
@@ -139,7 +147,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { 'Content-Type': 'application/json' },
       ...init,
     })
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.name === 'AbortError') throw e
     throw new ApiError(0, { error_code: 'network_error', message: '网络连接失败，请检查后端服务', details: null })
   }
   if (!res.ok) {
@@ -149,11 +158,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  newGame: () => request<GameState>('/game/new', { method: 'POST' }),
+  newGame: (signal?: AbortSignal) => request<GameState>('/game/new', { method: 'POST', signal }),
 
-  decree: (decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string) =>
+  decree: (decrees: StructuredDecree[], sourceScriptId?: string, freeText?: string, signal?: AbortSignal) =>
     request<DecreeResponse>('/decree', {
       method: 'POST',
+      signal,
       body: JSON.stringify({
         decrees,
         source_script_id: sourceScriptId ?? null,
@@ -266,12 +276,58 @@ export const api = {
   getMinisters: () =>
     request<Minister[]>('/ministers'),
 
+  ministerDialogue: (name: string, message: string, conversationId?: string) =>
+    request<DialogueResponse>(`/minister/${encodeURIComponent(name)}/dialogue`, {
+      method: 'POST',
+      body: JSON.stringify({ message, conversation_id: conversationId ?? null }),
+    }),
+
   resolveMemorial: (id: string, action: MemorialStatus) =>
     request<{ state: GameState; action: string }>(`/memorial/${id}/resolve`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),
 
+  // Multi-phase assembly APIs
+  startAssembly: () =>
+    request<CourtAssembly>('/assembly/start', { method: 'POST' }),
+
+  startAssemblyDebate: (topic: string, decreeType?: DecreeType | null, signal?: AbortSignal) =>
+    request<CourtAssembly>('/assembly/debate', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({ topic, decree_type: decreeType ?? null }),
+    }),
+
+  startAssemblyVote: (decreeType?: DecreeType | null, signal?: AbortSignal) =>
+    request<{ assembly: CourtAssembly; support_count: number; oppose_count: number; abstain_count: number }>('/assembly/vote', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({ decree_type: decreeType ?? null }),
+    }),
+
+  finalizeAssembly: (decision: 'adopt' | 'override' | 'dismiss', signal?: AbortSignal) =>
+    request<{
+      assembly: CourtAssembly
+      state: GameState
+      majority_vote: string
+      vote_counts: Record<string, number>
+      faction_changes: Record<string, number>
+      decree_effects?: unknown
+    }>('/assembly/decree', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({ decision }),
+    }),
+
+  imperialRage: (targetFaction: string, signal?: AbortSignal) =>
+    request<{ state: GameState; assembly: CourtAssembly; effects: Record<string, number> }>('/assembly/rage', {
+      method: 'POST',
+      signal,
+      body: JSON.stringify({ target_faction: targetFaction }),
+    }),
+
+  // Legacy assembly APIs (kept for backward compatibility)
   conveneAssembly: (topic: string, decreeType: DecreeType) =>
     request<CourtAssembly>('/court-assembly/convene', {
       method: 'POST',
@@ -319,7 +375,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  advanceMonth: (signal?: AbortSignal) => request<AdvanceMonthResponse>('/advance-month', { method: 'POST', signal }),
 }
 
 export { ApiError }
-export type { DecreeStreamMessage }
+export type { DecreeStreamMessage, AdvanceMonthResponse }

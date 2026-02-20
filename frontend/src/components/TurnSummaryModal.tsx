@@ -23,6 +23,18 @@ const RF_LABELS: Record<string, string> = {
   rebellion_risk: '叛乱度', disaster_level: '灾害', tax_collected: '税收',
   tax_rate: '税率', control: '控制', threat: '威胁', tax_contribution: '贡赋',
 }
+const INDICATOR_LABELS: Record<string, string> = {
+  national_treasury: '国库',
+  imperial_treasury: '内帑',
+  grain: '粮草',
+  population: '人口',
+  military_strength: '兵力',
+  civil_morale: '民心',
+  military_morale: '军心',
+  court_prestige: '威望',
+  treasury: '钱粮',
+  military_supply: '军备',
+}
 const THREAT_ZH: Record<string, string> = { none: '无' }
 const TAX_ZH: Record<string, string> = { low: '低', medium: '中', high: '高' }
 const STATUS_ZH: Record<string, string> = { active: '在任', idle: '闲置', removed: '罢免' }
@@ -97,7 +109,7 @@ export default function TurnSummaryModal({ summary, onClose }: Props) {
             <div className="ts-indicators">
               {summary.indicator_trends.map(t => (
                 <div key={t.name} className="ts-indicator-row">
-                  <span className="ts-label">{t.name}</span>
+                  <span className="ts-label">{INDICATOR_LABELS[t.name] ?? t.name}</span>
                   <span className="ts-val">{t.before} → {t.after} <TrendArrow before={t.before} after={t.after} /></span>
                 </div>
               ))}

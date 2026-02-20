@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import math
+import os
 import uuid
 
 from models.game import (
@@ -21,8 +23,38 @@ from .tables import (
     PRECONDITION_MESSAGES, TARGET_MISSING_MESSAGES,
     WRITABLE_FIELDS, VALID_STATUS_TRANSITIONS,
     DECREE_LABELS,
+    CONSECUTIVE_WAIT_THRESHOLD, WAIT_PRESTIGE_PENALTY, WAIT_MORALE_PENALTY,
+    PENDING_MEMORIAL_THRESHOLD, PENDING_MEMORIAL_PRESTIGE_PENALTY,
+    APPOINT_LOYALTY_BONUS, DISMISS_LOYALTY_PENALTY,
+    EXECUTION_SATISFACTION_PENALTY, EXECUTION_REBELLION_RISK,
 )
 from .scripts import get_scripts_for_time, ScriptEvent
+
+logger = logging.getLogger(__name__)
+
+_LOCK_TIMEOUT_DEFAULT_SECONDS = 5
+_LOCK_TIMEOUT_MIN_SECONDS = 1
+_LOCK_TIMEOUT_MAX_SECONDS = 30
+
+
+def _parse_lock_timeout_seconds(raw: str | None) -> int:
+    if raw is None:
+        return _LOCK_TIMEOUT_DEFAULT_SECONDS
+    value = raw.strip()
+    if not value:
+        return _LOCK_TIMEOUT_DEFAULT_SECONDS
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return _LOCK_TIMEOUT_DEFAULT_SECONDS
+    if not (_LOCK_TIMEOUT_MIN_SECONDS <= parsed <= _LOCK_TIMEOUT_MAX_SECONDS):
+        return _LOCK_TIMEOUT_DEFAULT_SECONDS
+    return parsed
+
+
+LOCK_TIMEOUT_SECONDS = _parse_lock_timeout_seconds(
+    os.getenv("LOCK_TIMEOUT_SECONDS"),
+)
 
 
 # ── Era Config ──────────────────────────────────────────
@@ -61,9 +93,13 @@ def check_preconditions(state: GameState, decree: StructuredDecree) -> str | Non
         if not ok:
             tpl = PRECONDITION_MESSAGES.get(decree.type, "前置条件不满足")
             return tpl.format(**{
-                "treasury": state.treasury, "population": state.population,
-                "military_supply": state.military_supply, "civil_morale": state.civil_morale,
+                "national_treasury": state.national_treasury, "imperial_treasury": state.imperial_treasury,
+                "grain": state.grain, "population": state.population,
+                "military_strength": state.military_strength, "civil_morale": state.civil_morale,
                 "military_morale": state.military_morale, "court_prestige": state.court_prestige,
+                # backward-compatible placeholders for legacy templates
+                "treasury": state.national_treasury,
+                "military_supply": state.military_strength,
             })
     return None
 
@@ -82,8 +118,12 @@ def validate_target(decree: StructuredDecree, state: GameState | None = None) ->
     elif req == "person":
         if not decree.target or not decree.sub_action:
             return TARGET_MISSING_MESSAGES[decree.type]
-        if state is not None and not _minister_exists(state, decree.target):
-            return "任免目标人物不存在"
+        if state is not None:
+            target = next((m for m in state.ministers if m.name == decree.target), None)
+            if target is None:
+                return "任免目标人物不存在"
+            if target.status == MinisterStatus.NOT_YET_ENTERED:
+                return "该人物尚未入朝，当前不可任免"
     elif req == "diplomacy_target":
         if not decree.target or decree.target not in DIPLOMACY_TARGETS:
             return TARGET_MISSING_MESSAGES[decree.type]
@@ -103,7 +143,7 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
             if decree.sub_action == PersonnelAction.DISMISS and m.status == MinisterStatus.ACTIVE:
                 m.status = MinisterStatus.IDLE
                 dismissed.add(m.name)
-            elif decree.sub_action == PersonnelAction.EXECUTE and m.status != MinisterStatus.REMOVED:
+            elif decree.sub_action == PersonnelAction.EXECUTE and m.status in {MinisterStatus.ACTIVE, MinisterStatus.IDLE}:
                 m.status = MinisterStatus.REMOVED
                 executed.add(m.name)
             elif decree.sub_action == PersonnelAction.APPOINT and m.status == MinisterStatus.IDLE:
@@ -115,14 +155,27 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
 # ── Passive Drift ────────────────────────────────────────
 
 def apply_passive_drift(state: GameState, attr: dict) -> None:
+    # unconditional administrative & grain & military upkeep
+    state.national_treasury -= 1
+    state.grain -= 6
+    state.military_strength -= 1
+    _attr_add(attr, "national_treasury", "自然变化", -1)
+    _attr_add(attr, "grain", "自然变化", -6)
+    _attr_add(attr, "military_strength", "自然变化", -1)
+
     for r in state.regions:
         if r.threat != RegionThreat.NONE:
-            r.stability -= 3
-            r.civil_morale -= 2
-            r.disaster_level += 3
-            _attr_add(attr, f"{r.name}_stability", "自然变化", -3)
-            _attr_add(attr, f"{r.name}_civil_morale", "自然变化", -2)
-            _attr_add(attr, f"{r.name}_disaster_level", "自然变化", 3)
+            r.stability -= 2
+            r.civil_morale -= 1
+            r.disaster_level += 2
+            _attr_add(attr, f"{r.name}_stability", "自然变化", -2)
+            _attr_add(attr, f"{r.name}_civil_morale", "自然变化", -1)
+            _attr_add(attr, f"{r.name}_disaster_level", "自然变化", 2)
+        elif r.disaster_level > 20:
+            r.stability -= 1
+            r.civil_morale -= 1
+            _attr_add(attr, f"{r.name}_stability", "自然变化", -1)
+            _attr_add(attr, f"{r.name}_civil_morale", "自然变化", -1)
         if r.stability < 30:
             r.rebellion_risk += 2
             r.tax_rate -= 0.02
@@ -131,7 +184,7 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
         if r.civil_morale < 30:
             r.rebellion_risk += 1
             _attr_add(attr, f"{r.name}_rebellion_risk", "自然变化", 1)
-    if state.treasury < 50:
+    if state.national_treasury < 10 or state.grain < 200:
         state.military_morale -= 1
         _attr_add(attr, "military_morale", "自然变化", -1)
     if any(r.stability < 20 for r in state.regions):
@@ -142,16 +195,28 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
         _attr_add(attr, "court_prestige", "自然变化", -1)
     # loyalty passive decay
     for m in state.ministers:
+        if m.status == MinisterStatus.NOT_YET_ENTERED:
+            continue
         m.loyalty -= 1
         _attr_add(attr, f"{m.name}_loyalty", "自然变化", -1)
+    # military strength: stable garrisoned regions provide trained manpower
+    supply_prod = sum(
+        1 for r in state.regions
+        if r.stability >= 50 and r.garrison >= 10000
+        and r.control == RegionControl.COURT
+    )
+    if supply_prod > 0:
+        gain = min(supply_prod, 3)
+        state.military_strength += gain
+        _attr_add(attr, "military_strength", "军备生产", gain)
     # 怠政惩罚: pending/deferred memorials > 5
     pending_count = sum(
         1 for mem in state.memorials
         if mem.status in {MemorialStatus.PENDING, MemorialStatus.DEFERRED}
     )
-    if pending_count > 5:
-        state.court_prestige -= 3
-        _attr_add(attr, "court_prestige", "自然变化", -3)
+    if pending_count > PENDING_MEMORIAL_THRESHOLD:
+        state.court_prestige -= PENDING_MEMORIAL_PRESTIGE_PENALTY
+        _attr_add(attr, "court_prestige", "自然变化", -PENDING_MEMORIAL_PRESTIGE_PENALTY)
 
 
 # ── Base Effects ─────────────────────────────────────────
@@ -206,8 +271,8 @@ def apply_loyalty_modification(
         if m.status != MinisterStatus.ACTIVE:
             # only apply dismiss -20 if actually dismissed this turn
             if dismissed and m.name in dismissed:
-                m.loyalty -= 20
-                _attr_add(attr, f"{m.name}_loyalty", "loyalty_modification", -20)
+                m.loyalty -= DISMISS_LOYALTY_PENALTY
+                _attr_add(attr, f"{m.name}_loyalty", "loyalty_modification", -DISMISS_LOYALTY_PENALTY)
             continue
         stance = FACTION_STANCE.get(m.faction, {}).get(decree.type, 0)
         delta = 0
@@ -218,9 +283,9 @@ def apply_loyalty_modification(
         # personnel special: appoint +15, dismiss -20
         if decree.type == DecreeType.PERSONNEL and decree.target == m.name:
             if decree.sub_action == PersonnelAction.APPOINT:
-                delta += 15
+                delta += APPOINT_LOYALTY_BONUS
             elif decree.sub_action == PersonnelAction.DISMISS:
-                delta -= 20
+                delta -= DISMISS_LOYALTY_PENALTY
         if delta == 0:
             continue
         m.loyalty += delta
@@ -275,18 +340,18 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
     for r in state.regions:
         if dt == DecreeType.TAX_INCREASE:
             if r.stability < 30:
-                penalty = -15
-            elif r.stability < 60:
                 penalty = -8
-            else:
+            elif r.stability < 60:
                 penalty = -5
+            else:
+                penalty = -3
             r.stability += penalty
-            r.civil_morale -= 3
-            r.rebellion_risk += 2
+            r.civil_morale -= 2
+            r.rebellion_risk += 1
             _attr_add(attr, f"{r.name}_stability", source, penalty)
-            _attr_add(attr, f"{r.name}_civil_morale", source, -3)
-            _attr_add(attr, f"{r.name}_rebellion_risk", source, 2)
-            tax_mod = 1.15
+            _attr_add(attr, f"{r.name}_civil_morale", source, -2)
+            _attr_add(attr, f"{r.name}_rebellion_risk", source, 1)
+            tax_mod = 1.20
         elif dt == DecreeType.TAX_DECREASE:
             r.stability += 3
             r.civil_morale += 2
@@ -309,14 +374,14 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
                 _attr_add(attr, f"{r.name}_garrison", source, -3000)
         elif dt == DecreeType.DISASTER_RELIEF:
             if decree.target and r.name == decree.target:
-                r.stability += 20
-                r.civil_morale += 8
-                r.disaster_level -= 15
-                r.rebellion_risk -= 5
-                _attr_add(attr, f"{r.name}_stability", source, 20)
-                _attr_add(attr, f"{r.name}_civil_morale", source, 8)
-                _attr_add(attr, f"{r.name}_disaster_level", source, -15)
-                _attr_add(attr, f"{r.name}_rebellion_risk", source, -5)
+                r.stability += 22
+                r.civil_morale += 10
+                r.disaster_level -= 18
+                r.rebellion_risk -= 8
+                _attr_add(attr, f"{r.name}_stability", source, 22)
+                _attr_add(attr, f"{r.name}_civil_morale", source, 10)
+                _attr_add(attr, f"{r.name}_disaster_level", source, -18)
+                _attr_add(attr, f"{r.name}_rebellion_risk", source, -8)
         elif dt == DecreeType.HARSH_PUNISHMENT:
             if r.stability < 40:
                 r.stability -= 8
@@ -335,12 +400,34 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
 
 def update_region_control(state: GameState) -> None:
     for r in state.regions:
-        if r.control == RegionControl.COURT and r.stability < 10:
+        if r.control == RegionControl.COURT and r.stability < 15:
             r.control = RegionControl.UNSTABLE
-        elif r.control == RegionControl.UNSTABLE and r.stability == 0:
+        elif r.control == RegionControl.UNSTABLE and r.stability <= 5:
             r.control = RegionControl.FALLEN
-        elif r.control == RegionControl.UNSTABLE and r.stability > 30:
+        elif r.control == RegionControl.UNSTABLE and r.stability > 35 and r.rebellion_risk < 60:
             r.control = RegionControl.COURT
+        elif r.control == RegionControl.FALLEN and r.stability >= 25 and r.rebellion_risk <= 70:
+            r.control = RegionControl.UNSTABLE
+
+
+def apply_region_control_consequences(state: GameState, attr: dict) -> None:
+    """Fallen/unstable regions bleed national resources each turn."""
+    fallen = sum(1 for r in state.regions if r.control == RegionControl.FALLEN)
+    unstable = sum(1 for r in state.regions if r.control == RegionControl.UNSTABLE)
+    if fallen == 0 and unstable == 0:
+        return
+    treasury_loss = fallen * 3 + unstable
+    civil_loss = fallen
+    military_loss = max(0, fallen - 1)
+    prestige_loss = fallen * 2 + (1 if unstable > 2 else 0)
+    state.national_treasury -= treasury_loss
+    state.civil_morale -= civil_loss
+    state.military_morale -= military_loss
+    state.court_prestige -= prestige_loss
+    _attr_add(attr, "national_treasury", "疆域失控", -treasury_loss)
+    _attr_add(attr, "civil_morale", "疆域失控", -civil_loss)
+    _attr_add(attr, "military_morale", "疆域失控", -military_loss)
+    _attr_add(attr, "court_prestige", "疆域失控", -prestige_loss)
 
 
 # ── Chain Events ─────────────────────────────────────────
@@ -357,10 +444,10 @@ CHAIN_EVENTS = [
     },
     {
         "name": "边军哗变",
-        "check": lambda s: s.military_morale < 25 and s.treasury < 20,
+        "check": lambda s: s.military_morale < 25 and s.national_treasury < 8,
         "apply": lambda s, a: _chain_apply(s, a, "边军哗变", [
             ("辽东", "stability", -20), ("辽东", "rebellion_risk", 15),
-        ], faction_effects=[("边将势力", "rebellion_risk", 25)]),
+        ], faction_effects=[("辽东边将", "rebellion_risk", 25)]),
     },
     {
         "name": "朝堂危机",
@@ -369,12 +456,12 @@ CHAIN_EVENTS = [
     },
     {
         "name": "江南税变",
-        "check": lambda s: s.treasury < 10 and _region(s, "江南").stability > 50,
+        "check": lambda s: s.national_treasury < 5 and _region(s, "江南").stability > 50,
         "apply": lambda s, a: _chain_jiangnan(s, a),
     },
     {
         "name": "后金入寇",
-        "check": lambda s: _region(s, "辽东").stability < 15 and s.military_supply < 30,
+        "check": lambda s: _region(s, "辽东").stability < 15 and s.military_strength < 15,
         "apply": lambda s, a: _chain_apply(s, a, "后金入寇", [
             ("辽东", "stability", -20), ("京畿", "stability", -10),
             ("辽东", "disaster_level", 20), ("京畿", "disaster_level", 10),
@@ -383,20 +470,93 @@ CHAIN_EVENTS = [
 ]
 
 
-def _region(state: GameState, name: str):
-    return next(r for r in state.regions if r.name == name)
+def _region(state: GameState, name: str, *, context: str = "_region"):
+    region = next((r for r in state.regions if r.name == name), None)
+    if region is None:
+        logger.warning(
+            "Entity not found",
+            extra={
+                "entity_type": "region",
+                "entity_name": name,
+                "context": context,
+            },
+        )
+    return region
+
+
+def _faction(state: GameState, name: str, *, context: str = "_faction"):
+    faction = next((fc for fc in state.factions if fc.name == name), None)
+    if faction is None:
+        logger.warning(
+            "Entity not found",
+            extra={
+                "entity_type": "faction",
+                "entity_name": name,
+                "context": context,
+            },
+        )
+    return faction
+
+
+def _minister(state: GameState, name: str, *, context: str = "_minister"):
+    minister = next((m for m in state.ministers if m.name == name), None)
+    if minister is None:
+        logger.warning(
+            "Entity not found",
+            extra={
+                "entity_type": "minister",
+                "entity_name": name,
+                "context": context,
+            },
+        )
+    return minister
 
 
 def _chain_apply(state, attr, event_name, region_effects, faction_effects=None, global_effects=None):
+    context = f"_chain_apply:{event_name}"
     for rname, field, delta in region_effects:
-        r = _region(state, rname)
+        r = _region(state, rname, context=context)
+        if r is None:
+            continue
+        if not hasattr(r, field):
+            logger.warning(
+                "Entity field not found",
+                extra={
+                    "entity_type": "region",
+                    "entity_name": f"{rname}.{field}",
+                    "context": context,
+                },
+            )
+            continue
         setattr(r, field, getattr(r, field) + delta)
         _attr_add(attr, f"{rname}_{field}", event_name, delta)
     for fname, field, delta in (faction_effects or []):
-        f = next(fc for fc in state.factions if fc.name == fname)
+        f = _faction(state, fname, context=context)
+        if f is None:
+            continue
+        if not hasattr(f, field):
+            logger.warning(
+                "Entity field not found",
+                extra={
+                    "entity_type": "faction",
+                    "entity_name": f"{fname}.{field}",
+                    "context": context,
+                },
+            )
+            continue
         setattr(f, field, getattr(f, field) + delta)
         _attr_add(attr, f"{fname}_{field}", event_name, delta)
     for field, delta in (global_effects or []):
+        if not hasattr(state, field):
+            logger.warning(
+                "Entity field not found",
+                extra={
+                    "entity_type": "global",
+                    "entity_name": field,
+                    "context": context,
+                },
+            )
+            continue
         setattr(state, field, getattr(state, field) + delta)
         _attr_add(attr, field, event_name, delta)
 
@@ -410,15 +570,17 @@ def _chain_crisis(state, attr):
 
 
 def _chain_jiangnan(state, attr):
-    r = _region(state, "江南")
+    r = _region(state, "江南", context="_chain_jiangnan")
+    if r is None:
+        return
     r.stability -= 15
     r.civil_morale -= 10
     r.tax_rate -= 0.2
     _attr_add(attr, "江南_stability", "江南税变", -15)
     _attr_add(attr, "江南_civil_morale", "江南税变", -10)
     _attr_add(attr, "江南_tax_rate", "江南税变", -0.2)
-    state.treasury += 10
-    _attr_add(attr, "treasury", "江南税变", 10)
+    state.national_treasury += 10
+    _attr_add(attr, "national_treasury", "江南税变", 10)
 
 
 def _time_to_months(year: int, month: int) -> int:
@@ -535,16 +697,16 @@ def detect_memorial_triggers(state: GameState, attr: dict) -> list[Memorial]:
 
     # 4. military crisis: morale < 25 or supply < 20
     morale_crisis = state.military_morale < 25
-    supply_crisis = state.military_supply < 20
+    supply_crisis = state.military_strength < 20
     if morale_crisis or supply_crisis:
         dev = 0
         if morale_crisis:
             dev += 25 - state.military_morale
         if supply_crisis:
-            dev += 20 - state.military_supply
+            dev += 20 - state.military_strength
         urg = "critical" if morale_crisis and supply_crisis else "high"
         _add("military_crisis", "national",
-             _pick_minister_by_ability(state, "military", faction="边将势力"),
+             _pick_minister_by_ability(state, "military", faction="辽东边将"),
              "边军军情急报", urg, dev)
 
     # sort: urgency desc, deviation desc, minister index asc → take top 2
@@ -570,24 +732,48 @@ def detect_chain_events(state: GameState, attr: dict) -> list[str]:
     for evt in CHAIN_EVENTS:
         name = evt["name"]
         cooldown_until = state.event_cooldowns.get(name, 0)
-        if current_months <= cooldown_until:
+        if current_months < cooldown_until:
             continue
-        if evt["check"](state):
+        try:
+            should_fire = evt["check"](state)
+        except Exception:
+            logger.warning(
+                "Chain event check failed",
+                extra={
+                    "entity_type": "chain_event",
+                    "entity_name": name,
+                    "context": "detect_chain_events:check",
+                },
+            )
+            continue
+        if should_fire:
             to_fire.append(evt)
     # apply phase
     triggered = []
     for evt in to_fire:
-        evt["apply"](state, attr)
-        triggered.append(evt["name"])
-        state.event_cooldowns[evt["name"]] = current_months + 3
+        name = evt["name"]
+        try:
+            evt["apply"](state, attr)
+        except Exception:
+            logger.warning(
+                "Chain event apply failed",
+                extra={
+                    "entity_type": "chain_event",
+                    "entity_name": name,
+                    "context": "detect_chain_events:apply",
+                },
+            )
+            continue
+        triggered.append(name)
+        state.event_cooldowns[name] = current_months + 3
     return triggered
 
 
 def assign_urgency(event_name: str, attr: dict) -> EventUrgency:
     max_mag = 0
     for key, sources in attr.items():
-        if isinstance(sources, dict) and "chain_event" in sources:
-            max_mag = max(max_mag, abs(sources["chain_event"]))
+        if isinstance(sources, dict) and event_name in sources:
+            max_mag = max(max_mag, abs(sources[event_name]))
     if max_mag > 15:
         return EventUrgency.HIGH
     if max_mag >= 5:
@@ -595,7 +781,7 @@ def assign_urgency(event_name: str, attr: dict) -> EventUrgency:
     return EventUrgency.LOW
 
 
-_BASE_TAX = {TaxContribution.LOW: 20, TaxContribution.MEDIUM: 35, TaxContribution.HIGH: 55}
+_BASE_TAX = {TaxContribution.LOW: 120, TaxContribution.MEDIUM: 220, TaxContribution.HIGH: 360}
 
 
 def recalc_tax_collected(state: GameState, decree_tax_modifier: float) -> None:
@@ -604,6 +790,32 @@ def recalc_tax_collected(state: GameState, decree_tax_modifier: float) -> None:
         base = _BASE_TAX[r.tax_contribution]
         stability_factor = r.stability / 100.0
         r.tax_collected = math.floor(base * r.tax_rate * stability_factor * decree_tax_modifier)
+
+
+def collect_tax_revenue(state: GameState, attr: dict) -> tuple[int, int]:
+    """Collect regional tax and split monthly income into silver and grain.
+    Fallen regions contribute nothing; unstable regions contribute half.
+    Returns (treasury_income, grain_income)."""
+    total = 0
+    for r in state.regions:
+        if r.control == RegionControl.FALLEN:
+            continue
+        amount = r.tax_collected
+        if r.control == RegionControl.UNSTABLE:
+            amount = amount // 2
+        total += amount
+    # scale down: raw sum is per-year base, divide by 12 for monthly income
+    monthly_total = max(0, math.floor(total / 12))
+    if monthly_total <= 0:
+        return 0, 0
+
+    treasury_income = math.floor(monthly_total * 0.7)
+    grain_income = monthly_total - treasury_income
+    state.national_treasury += treasury_income
+    state.grain += grain_income
+    _attr_add(attr, "national_treasury", "税收", treasury_income)
+    _attr_add(attr, "grain", "税收", grain_income)
+    return treasury_income, grain_income
 
 
 # ── Event Lifecycle ──────────────────────────────────────
@@ -628,7 +840,7 @@ def _script_to_event(se: ScriptEvent, year: int, month: int) -> GameEvent:
         choices=[
             EventChoice(
                 label=c.label, description=c.description, decrees=c.decrees,
-                loyalty_effects=[list(item) for item in c.loyalty_effects],
+                loyalty_effects=list(c.loyalty_effects),
                 state_effects=dict(c.state_effects),
             )
             for c in se.choices
@@ -636,6 +848,7 @@ def _script_to_event(se: ScriptEvent, year: int, month: int) -> GameEvent:
         is_scripted=True,
         is_blocking=se.is_blocking,
         script_id=se.script_id,
+        historical_hint=se.historical_hint,
     )
 
 
@@ -678,17 +891,51 @@ def _is_final_judgement_time(state: GameState) -> bool:
 
 
 def check_game_end(state: GameState) -> dict | None:
-    if all(r.control == RegionControl.FALLEN for r in state.regions):
+    fallen_count = sum(1 for r in state.regions if r.control == RegionControl.FALLEN)
+    unstable_count = sum(1 for r in state.regions if r.control == RegionControl.UNSTABLE)
+
+    if fallen_count == len(state.regions):
         return {"result": "defeat", "message": "社稷倾覆，大明亡矣"}
+    if fallen_count >= 6:
+        return {"result": "defeat", "message": "山河崩裂，六镇沦陷"}
+    if fallen_count >= 4 and state.court_prestige < 40:
+        return {"result": "defeat", "message": "半壁江山尽失，朝纲不可复支"}
     if state.court_prestige <= 0:
         return {"result": "defeat", "message": "天子威严尽失，朝纲崩坏"}
     if _is_final_judgement_time(state):
-        if (all(r.control == RegionControl.COURT for r in state.regions)
-                and all(f.rebellion_risk <= 20 for f in state.factions)
-                and state.court_prestige > 80):
+        if (fallen_count == 0
+                and unstable_count <= 1
+                and all(f.rebellion_risk <= 35 for f in state.factions)
+                and state.court_prestige >= 70):
             return {"result": "victory", "message": "中兴大明，力挽狂澜"}
         return {"result": "defeat", "message": "甲申之变，历史重演"}
     return None
+
+
+def _activate_entered_ministers(state: GameState) -> list[str]:
+    current = _time_to_months(state.time.year, state.time.month)
+    activated: list[str] = []
+    for m in state.ministers:
+        if m.status != MinisterStatus.NOT_YET_ENTERED:
+            continue
+        if _time_to_months(m.entry_year, m.entry_month) <= current:
+            m.status = MinisterStatus.ACTIVE
+            activated.append(m.name)
+    return activated
+
+
+def advance_month(state: GameState) -> tuple[list[str], dict | None, list[str]]:
+    """Advance game time by one month and inject script events.
+
+    passive_drift stays in process_decree (per-decree), not month advancement.
+    Returns (triggered_events, game_over, newly_activated_minister_names).
+    """
+    advance_time(state)
+    state.decree_count += 1
+    new_ministers = _activate_entered_ministers(state)
+    triggered_events = inject_script_events(state)
+    game_over = check_game_end(state)
+    return triggered_events, game_over, new_ministers
 
 
 # ── AI Freeform: validation & application ─────────────
@@ -899,7 +1146,7 @@ def process_decree(
     freeform: FreeformResult | None = None,
 ) -> tuple[dict, dict, list[str], dict | None, list[MinisterReaction], TurnSummary]:
     """Returns (delta, attribution, triggered_events, game_over, minister_reactions, turn_summary).
-    decree=None and freeform=None means a 'wait' turn (passive drift + time advance only).
+    decree=None and freeform=None means a 'wait' turn (passive drift only).
     """
     attr: dict = {}
     reactions: list[MinisterReaction] = []
@@ -909,6 +1156,17 @@ def process_decree(
 
     # 1. passive drift
     apply_passive_drift(state, attr)
+
+    # 1.5 consecutive wait penalty
+    if decree is None and freeform is None:
+        state.consecutive_waits += 1
+        if state.consecutive_waits >= CONSECUTIVE_WAIT_THRESHOLD:
+            state.court_prestige -= WAIT_PRESTIGE_PENALTY
+            state.civil_morale -= WAIT_MORALE_PENALTY
+            _attr_add(attr, "court_prestige", "怠政", -WAIT_PRESTIGE_PENALTY)
+            _attr_add(attr, "civil_morale", "怠政", -WAIT_MORALE_PENALTY)
+    else:
+        state.consecutive_waits = 0
 
     decree_tax_modifier = 1.0
 
@@ -924,10 +1182,10 @@ def process_decree(
             if target_m:
                 for f in state.factions:
                     if f.name == target_m.faction:
-                        f.satisfaction -= 15
-                        f.rebellion_risk += 10
-                        _attr_add(attr, f"{f.name}_satisfaction", "execution_backlash", -15)
-                        _attr_add(attr, f"{f.name}_rebellion_risk", "execution_backlash", 10)
+                        f.satisfaction -= EXECUTION_SATISFACTION_PENALTY
+                        f.rebellion_risk += EXECUTION_REBELLION_RISK
+                        _attr_add(attr, f"{f.name}_satisfaction", "execution_backlash", -EXECUTION_SATISFACTION_PENALTY)
+                        _attr_add(attr, f"{f.name}_rebellion_risk", "execution_backlash", EXECUTION_REBELLION_RISK)
 
         # reactions from AI (validated)
         reactions = _validate_freeform_reactions(freeform.reactions, state)
@@ -948,10 +1206,10 @@ def process_decree(
             if target_m:
                 for f in state.factions:
                     if f.name == target_m.faction:
-                        f.satisfaction -= 15
-                        f.rebellion_risk += 10
-                        _attr_add(attr, f"{f.name}_satisfaction", "execution_backlash", -15)
-                        _attr_add(attr, f"{f.name}_rebellion_risk", "execution_backlash", 10)
+                        f.satisfaction -= EXECUTION_SATISFACTION_PENALTY
+                        f.rebellion_risk += EXECUTION_REBELLION_RISK
+                        _attr_add(attr, f"{f.name}_satisfaction", "execution_backlash", -EXECUTION_SATISFACTION_PENALTY)
+                        _attr_add(attr, f"{f.name}_rebellion_risk", "execution_backlash", EXECUTION_REBELLION_RISK)
         # 3.6 loyalty modification
         apply_loyalty_modification(state, decree, attr, dismissed)
         # 3.7 minister reactions
@@ -962,18 +1220,23 @@ def process_decree(
     # ── Merge point: shared pipeline ──
     # 5. chain events
     triggered = detect_chain_events(state, attr)
-    # 5.5 tax recalculation
-    recalc_tax_collected(state, decree_tax_modifier)
     # 6. clamp
     clamp_state(state)
-    # after_snapshot for turn summary (post-clamp, pre-time_advance)
+    # 6.1 region control (before tax so fallen regions stop paying)
+    update_region_control(state)
+    # 6.2 cascading impact from territorial loss
+    apply_region_control_consequences(state, attr)
+    clamp_state(state)
+    # 6.3 tax recalculation & revenue (uses up-to-date control state)
+    recalc_tax_collected(state, decree_tax_modifier)
+    collect_tax_revenue(state, attr)
+    clamp_state(state)
+    # after_snapshot for turn summary (post-clamp)
     after_snapshot = state.model_dump()
     # 6.5 memorial triggers (post-clamp)
     triggered_memorials = detect_memorial_triggers(state, attr)
     if triggered_memorials:
         state.memorials.extend(triggered_memorials)
-    # region control
-    update_region_control(state)
     # expire old events
     expire_events(state)
     # add chain-triggered events
@@ -996,18 +1259,12 @@ def process_decree(
                     name=warning_name, urgency=EventUrgency.HIGH,
                     triggered_year=state.time.year, triggered_month=state.time.month,
                 ))
-    # time
-    advance_time(state)
-    state.decree_count += 1
-    # script events after time advance
-    script_triggered = inject_script_events(state)
-    triggered.extend(script_triggered)
-    # game end
-    game_over = check_game_end(state)
-    # delta (full before/after including time advance)
+    # time advancement removed - now in advance_month()
+    game_over = None
+    # delta (full before/after decree pipeline, without time advance)
     after = state.model_dump()
     delta = _compute_delta(before_snapshot, after)
-    # turn summary (uses pre-time_advance snapshots per D17)
+    # turn summary (uses post-clamp snapshots per D17)
     summary = generate_turn_summary(
         before_snapshot,
         after_snapshot,
@@ -1028,7 +1285,7 @@ def _validate_freeform_reactions(
     """Validate AI-provided reactions: drop invalid minister refs, fill defaults."""
     active_names = {
         m.name: m for m in state.ministers
-        if m.status != MinisterStatus.REMOVED
+        if m.status in {MinisterStatus.ACTIVE, MinisterStatus.IDLE}
     }
     validated: list[MinisterReaction] = []
     for r in raw_reactions:
@@ -1050,12 +1307,14 @@ def _validate_freeform_reactions(
 
 # ── Turn Summary ────────────────────────────────────────
 
-_GLOBAL_INDICATORS = ("treasury", "population", "military_supply", "civil_morale", "military_morale", "court_prestige")
+_GLOBAL_INDICATORS = ("national_treasury", "imperial_treasury", "grain", "population", "military_strength", "civil_morale", "military_morale", "court_prestige")
 _PENDING_STATUSES = {MemorialStatus.PENDING.value, MemorialStatus.DEFERRED.value}
 _INDICATOR_LABELS = {
-    "treasury": "国库",
+    "national_treasury": "国库",
+    "imperial_treasury": "内帑",
+    "grain": "粮储",
     "population": "人口",
-    "military_supply": "军备",
+    "military_strength": "军力",
     "civil_morale": "民心",
     "military_morale": "军心",
     "court_prestige": "朝廷威望",
@@ -1064,6 +1323,7 @@ _MINISTER_STATUS_LABELS = {
     "active": "在朝",
     "idle": "闲置",
     "removed": "革除",
+    "not_yet_entered": "未入朝",
 }
 
 
@@ -1300,7 +1560,7 @@ def generate_turn_summary(
 
 def _compute_delta(before: dict, after: dict) -> dict:
     delta = {}
-    for key in ("treasury", "population", "military_supply", "civil_morale", "military_morale", "court_prestige"):
+    for key in ("national_treasury", "imperial_treasury", "grain", "population", "military_strength", "civil_morale", "military_morale", "court_prestige"):
         d = after[key] - before[key]
         if d != 0:
             delta[key] = d

@@ -2,10 +2,13 @@ import { useState } from 'react'
 import type { MinisterReaction, TurnSummary, RegionChange } from '../types/game'
 
 const FIELD_LABELS: Record<string, string> = {
-  treasury: '钱粮', population: '人口', military_supply: '军备',
+  national_treasury: '国库', imperial_treasury: '内帑', grain: '粮草',
+  population: '人口', military_strength: '兵力',
+  treasury: '钱粮', military_supply: '军备',
   civil_morale: '民心', military_morale: '军心', court_prestige: '威望',
   stability: '稳定度', rebellion_risk: '叛乱度', tax_collected: '税收',
   disaster_level: '灾害', tax_rate: '税率', garrison: '驻军',
+  control: '控制', threat: '威胁', tax_contribution: '贡赋',
   satisfaction: '满意度',
 }
 
@@ -124,7 +127,7 @@ export default function NarrativeModal({ narrative, delta, ministerReactions = [
                     <ul className="narrative-summary-list">
                       {turnSummary.indicator_trends.map((t) => (
                         <li key={t.name}>
-                          {t.name}: {t.before} → {t.after}
+                          {FIELD_LABELS[t.name] ?? t.name}: {t.before} → {t.after}
                         </li>
                       ))}
                     </ul>

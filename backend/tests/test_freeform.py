@@ -29,7 +29,8 @@ from ai.provider import (
 def make_state(**overrides) -> GameState:
     defaults = dict(
         time=GameTime(year=1630, month=6, era_name="崇祯", era_year=3),
-        treasury=100, population=100, military_supply=80,
+        national_treasury=20, imperial_treasury=10, grain=500,
+        population=15000, military_strength=40,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
@@ -56,16 +57,16 @@ def _faction(state: GameState, name: str) -> Faction:
 class TestValidateAiEffects:
     def test_valid_global_effects(self):
         state = make_state()
-        effects = {"global.treasury": 20, "global.civil_morale": -5}
+        effects = {"global.national_treasury": 20, "global.civil_morale": -5}
         valid = validate_ai_effects(effects, state)
         assert valid == effects
 
     def test_invalid_path_ignored(self):
         state = make_state()
-        effects = {"global.nonexistent": 10, "global.treasury": 5}
+        effects = {"global.nonexistent": 10, "global.national_treasury": 5}
         valid = validate_ai_effects(effects, state)
         assert "global.nonexistent" not in valid
-        assert valid["global.treasury"] == 5
+        assert valid["global.national_treasury"] == 5
 
     def test_unknown_minister_ignored(self):
         state = make_state()
@@ -95,13 +96,13 @@ class TestValidateAiEffects:
 
     def test_nested_value_rejected(self):
         state = make_state()
-        effects = {"global.treasury": {"nested": 1}}
+        effects = {"global.national_treasury": {"nested": 1}}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 0
 
     def test_bool_value_rejected(self):
         state = make_state()
-        effects = {"global.treasury": True}
+        effects = {"global.national_treasury": True}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 0
 
@@ -158,11 +159,11 @@ class TestValidateAiEffects:
 
 class TestApplyAiEffects:
     def test_global_delta_applied(self):
-        state = make_state(treasury=100, civil_morale=60)
+        state = make_state(national_treasury=20, civil_morale=60)
         attr = {}
-        effects = {"global.treasury": 20, "global.civil_morale": -10}
+        effects = {"global.national_treasury": 20, "global.civil_morale": -10}
         apply_ai_effects(state, effects, attr)
-        assert state.treasury == 120
+        assert state.national_treasury == 40
         assert state.civil_morale == 50
 
     def test_minister_loyalty_delta(self):
@@ -202,9 +203,9 @@ class TestApplyAiEffects:
     def test_attribution_recorded(self):
         state = make_state()
         attr = {}
-        apply_ai_effects(state, {"global.treasury": 10}, attr)
-        assert "treasury" in attr
-        assert "旨意影响" in attr["treasury"]
+        apply_ai_effects(state, {"global.national_treasury": 10}, attr)
+        assert "national_treasury" in attr
+        assert "旨意影响" in attr["national_treasury"]
 
     def test_abilities_delta(self):
         state = make_state()
@@ -220,13 +221,12 @@ class TestApplyAiEffects:
         # no crash, no changes
 
     def test_clamp_after_apply(self):
-        state = make_state(treasury=100)
+        state = make_state(national_treasury=20)
         attr = {}
-        apply_ai_effects(state, {"global.treasury": 999}, attr)
-        # apply_ai_effects does NOT clamp; clamp happens in pipeline
-        assert state.treasury == 1099
+        apply_ai_effects(state, {"global.national_treasury": 999}, attr)
+        assert state.national_treasury == 1019
         clamp_state(state)
-        assert state.treasury == 200
+        assert state.national_treasury == 1019
 
 
 # ── 7.2 add_ai_new_events ───────────────────────────────
@@ -290,7 +290,7 @@ class TestProcessDecreeFreeform:
     def test_freeform_basic_execution(self):
         state = make_state()
         freeform = FreeformResult(
-            effects={"global.treasury": -30, "global.civil_morale": 10},
+            effects={"global.national_treasury": -30, "global.civil_morale": 10},
             narrative="朕下旨减税，体恤百姓。",
             rationale="减税",
         )
@@ -300,22 +300,20 @@ class TestProcessDecreeFreeform:
         assert isinstance(delta, dict)
         assert isinstance(attr, dict)
         assert isinstance(summary, TurnSummary)
-        assert state.decree_count > 0
 
     def test_freeform_effects_applied(self):
-        state = make_state(treasury=100)
+        state = make_state(national_treasury=20)
         freeform = FreeformResult(
-            effects={"global.treasury": -20},
+            effects={"global.national_treasury": -20},
             narrative="测试",
             rationale="测试",
         )
-        process_decree(state, freeform=freeform)
-        # treasury = 100 - 20 + passive_drift effects, then clamped
-        # at minimum, the -20 should be reflected
-        assert state.treasury < 100  # considering passive_drift may add small amounts
+        _, attr, _, _, _, _ = process_decree(state, freeform=freeform)
+        # national_treasury effect should be recorded in attribution.
+        assert attr.get("national_treasury", {}).get("旨意影响") == -20
 
     def test_freeform_chain_events_trigger(self):
-        state = make_state(civil_morale=5, treasury=5, military_morale=5)
+        state = make_state(civil_morale=5, national_treasury=1, military_morale=5)
         freeform = FreeformResult(
             effects={"global.civil_morale": -5},
             narrative="测试",
@@ -326,20 +324,20 @@ class TestProcessDecreeFreeform:
         assert isinstance(triggered, list)
 
     def test_freeform_clamp_works(self):
-        state = make_state(treasury=190)
+        state = make_state(national_treasury=9990)
         freeform = FreeformResult(
-            effects={"global.treasury": 50},
+            effects={"global.national_treasury": 50},
             narrative="测试",
             rationale="测试",
         )
         process_decree(state, freeform=freeform)
-        assert state.treasury <= 200
+        assert state.national_treasury <= 10000
 
     def test_freeform_new_events_added(self):
         state = make_state()
         before_events = len(state.active_events)
         freeform = FreeformResult(
-            effects={"global.treasury": -10},
+            effects={"global.national_treasury": -10},
             narrative="测试",
             rationale="测试",
             new_events=[{"name": "AI创建事件", "urgency": "高"}],
@@ -352,17 +350,18 @@ class TestProcessDecreeFreeform:
         state = make_state()
         before_month = state.time.month
         freeform = FreeformResult(
-            effects={"global.treasury": 5},
+            effects={"global.national_treasury": 5},
             narrative="测试",
             rationale="测试",
         )
         process_decree(state, freeform=freeform)
-        assert state.time.month != before_month or state.time.year > 1630
+        # time advancement is handled by advance_month(), not process_decree()
+        assert state.time.month == before_month
 
     def test_freeform_reactions_validated(self):
         state = make_state()
         freeform = FreeformResult(
-            effects={"global.treasury": 5},
+            effects={"global.national_treasury": 5},
             narrative="测试",
             rationale="测试",
             reactions=[
@@ -405,11 +404,11 @@ class TestProcessDecreeFreeform:
 
     def test_freeform_game_over_check(self):
         state = make_state(
-            treasury=0, civil_morale=0, military_morale=0,
+            national_treasury=0, civil_morale=0, military_morale=0,
             court_prestige=0, population=0,
         )
         freeform = FreeformResult(
-            effects={"global.treasury": -10},
+            effects={"global.national_treasury": -10},
             narrative="国库崩溃",
             rationale="测试",
         )
@@ -422,12 +421,13 @@ class TestProcessDecreeFreeform:
         state = make_state()
         before = state.decree_count
         freeform = FreeformResult(
-            effects={"global.treasury": 5},
+            effects={"global.national_treasury": 5},
             narrative="测试",
             rationale="测试",
         )
         process_decree(state, freeform=freeform)
-        assert state.decree_count == before + 1
+        # decree_count is incremented in advance_month(), not process_decree()
+        assert state.decree_count == before
 
 
 # ── 7.4 Parse prompt: execution vs harsh_punishment ──────
@@ -527,6 +527,9 @@ class _FreeformFailProvider(AIProvider):
     async def generate_turn_commentary(self, *a, **kw):
         return ""
 
+    async def generate_minister_dialogue(self, *a, **kw):
+        return {}
+
     async def process_freeform(self, text, game_state):
         return parse_error("freeform not supported")
 
@@ -578,4 +581,4 @@ class TestFreeformFallback:
         state = create_initial_state()
         result = asyncio.run(provider.process_freeform("加税", state))
         assert isinstance(result, FreeformResult)
-        assert "global.treasury" in result.effects
+        assert "global.national_treasury" in result.effects

@@ -5,6 +5,7 @@ import type { Memorial } from '../types/game'
 
 interface Props {
   memorials: Memorial[]
+  resolving?: boolean
   onResolve: (id: string, action: 'approved' | 'rejected' | 'deferred') => void
   onClose: () => void
 }
@@ -17,7 +18,7 @@ function sortByUrgency(a: Memorial, b: Memorial) {
   return (URGENCY_ORDER[a.urgency] ?? 3) - (URGENCY_ORDER[b.urgency] ?? 3)
 }
 
-export default function MemorialPanel({ memorials, onResolve, onClose }: Props) {
+export default function MemorialPanel({ memorials, resolving = false, onResolve, onClose }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const sorted = [...memorials].sort(sortByUrgency)
 
@@ -57,9 +58,9 @@ export default function MemorialPanel({ memorials, onResolve, onClose }: Props) 
                       <div className="memorial-reason">触发: {m.trigger_reason}</div>
                       {actionable && (
                         <div className="memorial-actions">
-                          <button className="mem-btn mem-approve" onClick={() => onResolve(m.id, 'approved')}>准奏</button>
-                          <button className="mem-btn mem-reject" onClick={() => onResolve(m.id, 'rejected')}>驳回</button>
-                          <button className="mem-btn mem-defer" onClick={() => onResolve(m.id, 'deferred')}>留中</button>
+                          <button className="mem-btn mem-approve" disabled={resolving} onClick={() => onResolve(m.id, 'approved')}>准奏</button>
+                          <button className="mem-btn mem-reject" disabled={resolving} onClick={() => onResolve(m.id, 'rejected')}>驳回</button>
+                          <button className="mem-btn mem-defer" disabled={resolving} onClick={() => onResolve(m.id, 'deferred')}>留中</button>
                         </div>
                       )}
                     </div>

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import logging
 import os
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -20,14 +21,23 @@ from pydantic import BaseModel, Field
 from models.game import (
     GameState, Minister, StructuredDecree, DecreeResponse, HistoryEntry,
     ErrorResponse, create_initial_state, INITIAL_MINISTERS, INITIAL_FACTIONS,
-    CourtAssembly, AssemblyParticipant, PolicySuggestion, clamp_state,
-    FreeformResult, Memorial, MemorialDraft,
+    CourtAssembly, AssemblyParticipant, PolicySuggestion, AssemblyPetition, AssemblySpeech, AssemblyVote, clamp_state,
+    FreeformResult, Memorial, MemorialDraft, DialogueRequest, DialogueResponse,
 )
-from models.enums import DecreeType, MinisterStatus, MemorialStatus
-from engine.core import process_decree, check_preconditions, validate_target
+from models.enums import DecreeType, MinisterStatus, MemorialStatus, AssemblyPhase
+from engine.core import (
+    LOCK_TIMEOUT_SECONDS,
+    advance_month,
+    process_decree,
+    check_preconditions,
+    validate_target,
+)
 from engine.tables import FACTION_STANCE
 from engine.scripts import SCRIPT_REGISTRY
-from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE, MockProvider, get_provider, get_rule_parse_fallback, set_rule_parse_fallback
+from ai.provider import (
+    PARSE_ERROR_TYPE_UNAVAILABLE, MockProvider, get_provider, get_rule_parse_fallback,
+    set_rule_parse_fallback, infer_decree_type_from_topic,
+)
 from db.saves import (
     init_db, save_game, load_game, list_saves, delete_save, auto_save,
     SaveNotFoundError, CorruptSaveError, StorageError,
@@ -35,16 +45,47 @@ from db.saves import (
 
 router = APIRouter(prefix="/api")
 
+
+def _resource_busy_detail() -> dict[str, object]:
+    return {
+        "error": "resource_busy",
+        "message": "服务器繁忙，请稍后重试",
+        "retry_after": 2,
+    }
+
+
+class _TimedLock:
+    def __init__(self, timeout_seconds: int):
+        self._lock = asyncio.Lock()
+        self._timeout_seconds = timeout_seconds
+
+    def locked(self) -> bool:
+        return self._lock.locked()
+
+    async def __aenter__(self):
+        try:
+            await asyncio.wait_for(self._lock.acquire(), timeout=self._timeout_seconds)
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(409, detail=_resource_busy_detail()) from exc
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self._lock.locked():
+            self._lock.release()
+
+
 # ── In-memory state ─────────────────────────────────────
 
 _state: GameState | None = None
-_lock = asyncio.Lock()
+_lock = _TimedLock(LOCK_TIMEOUT_SECONDS)
 _provider = None
 _portrait_lock = asyncio.Lock()
 _portrait_cooldown_until = 0.0
 _PORTRAIT_COOLDOWN_SECONDS = 300
 _ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
 _SECRET_MASK = "********"
+_MAX_DIALOGUE_ROUNDS = 10
+_MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
 
 _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
     "mock": {"api_key_env": None, "base_url_env": None, "model_env": None},
@@ -447,7 +488,7 @@ class DecreeRequest(BaseModel):
     decrees: list[StructuredDecree] = Field(default_factory=list)
     free_text: str | None = None
     source_script_id: str | None = None
-    loyalty_effects: list[list] | None = None
+    loyalty_effects: list[tuple[str, int]] | None = None
     state_effects: dict[str, int] | None = None
 
 
@@ -470,14 +511,11 @@ def _apply_state_effects(state: GameState, effects: dict[str, int]) -> None:
                 setattr(obj, field, current + delta)
 
 
-def _apply_loyalty_effects(state: GameState, effects: list[list]) -> None:
-    for item in effects:
-        if not isinstance(item, (list, tuple)) or len(item) != 2:
-            continue
-        name, delta = item[0], item[1]
+def _apply_loyalty_effects(state: GameState, effects: list[tuple[str, int]]) -> None:
+    for name, delta in effects:
         m = next((m for m in state.ministers if m.name == name), None)
-        if m is not None and isinstance(delta, (int, float)):
-            m.loyalty += int(delta)
+        if m is not None:
+            m.loyalty += delta
 
 
 class ParseRequest(BaseModel):
@@ -509,6 +547,23 @@ class ConveneAssemblyRequest(BaseModel):
 
 class AdoptSuggestionRequest(BaseModel):
     suggestion_index: int
+
+
+class AssemblyDebateRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=80)
+    decree_type: str | None = None
+
+
+class AssemblyVoteRequest(BaseModel):
+    decree_type: str | None = None
+
+
+class AssemblyDecreeRequest(BaseModel):
+    decision: str
+
+
+class AssemblyRageRequest(BaseModel):
+    target_faction: str
 
 
 class AISettingsRequest(BaseModel):
@@ -615,11 +670,6 @@ async def _execute_decree_core(
                 error_code="INVALID_SCRIPT_ID",
                 message="无效的脚本事件ID",
             ).model_dump())
-    if _lock.locked():
-        raise HTTPException(409, detail=ErrorResponse(
-            error_code="decree_in_progress",
-            message="正在处理上一道政令，请稍候",
-        ).model_dump())
 
     _mem_triggers: list[Memorial] = []
 
@@ -672,6 +722,11 @@ async def _execute_decree_core(
                 _mem_triggers = state.memorials[mem_count_before:]
 
                 if _summary:
+                    ai_implications = await provider.generate_action_implications(
+                        {"rule_based_implications": _summary.action_implications}, state,
+                    )
+                    if ai_implications:
+                        _summary.action_implications = ai_implications
                     _summary.commentary = await provider.generate_turn_commentary(
                         _summary.model_dump(), state,
                     )
@@ -682,9 +737,6 @@ async def _execute_decree_core(
                     decree_desc=(free_text or "")[:50],
                     delta=delta, narrative=freeform.narrative,
                 ))
-
-                if state.decree_count % 5 == 0:
-                    auto_save(state)
 
                 if stream_narrative_callback and freeform.narrative:
                     await stream_narrative_callback(freeform.narrative)
@@ -760,6 +812,11 @@ async def _execute_decree_core(
                 )
 
                 if _summary:
+                    ai_implications = await provider.generate_action_implications(
+                        {"rule_based_implications": _summary.action_implications}, state,
+                    )
+                    if ai_implications:
+                        _summary.action_implications = ai_implications
                     _summary.commentary = await provider.generate_turn_commentary(
                         _summary.model_dump(), state,
                     )
@@ -770,9 +827,6 @@ async def _execute_decree_core(
                     decree_desc=decree.target or "",
                     delta=delta, narrative=narrative,
                 ))
-
-                if state.decree_count % 5 == 0:
-                    auto_save(state)
 
                 last_response = DecreeResponse(
                     state=state, delta=delta, attribution=attribution,
@@ -809,6 +863,11 @@ async def _execute_decree_core(
             if stream_narrative_callback:
                 await stream_narrative_callback(narrative)
             if _summary:
+                ai_implications = await provider.generate_action_implications(
+                    {"rule_based_implications": _summary.action_implications}, state,
+                )
+                if ai_implications:
+                    _summary.action_implications = ai_implications
                 _summary.commentary = await provider.generate_turn_commentary(
                     _summary.model_dump(), state,
                 )
@@ -817,8 +876,6 @@ async def _execute_decree_core(
                 decree_type="wait", decree_desc="",
                 delta=delta, narrative=narrative,
             ))
-            if state.decree_count % 5 == 0:
-                auto_save(state)
             last_response = DecreeResponse(
                 state=state, delta=delta, attribution=attribution,
                 narrative=narrative, newly_triggered_events=triggered,
@@ -958,7 +1015,31 @@ async def execute_decree_stream(req: DecreeRequest):
     )
 
 
-# ── 6.3 POST /api/decree/parse ─────────────────────────
+# ── 6.3 POST /api/advance-month ───────────────────────
+
+@router.post("/advance-month")
+async def advance_month_endpoint():
+    global _state
+
+    async with _lock:
+        state = _get_state().model_copy(deep=True)
+        triggered_events, game_over, new_ministers = advance_month(state)
+        _state = state
+        auto_save(state)
+
+    activated = [
+        m.model_dump() for m in state.ministers
+        if m.name in new_ministers
+    ]
+    return {
+        "state": state.model_dump(),
+        "triggered_events": triggered_events,
+        "game_over": game_over,
+        "new_ministers": activated,
+    }
+
+
+# ── 6.4 POST /api/decree/parse ─────────────────────────
 
 @router.post("/decree/parse")
 async def parse_decree(req: ParseRequest):
@@ -1097,12 +1178,6 @@ async def start_debate(req: DebateStartRequest):
             message="议题不属于所选分类",
         ).model_dump())
 
-    if _lock.locked():
-        raise HTTPException(409, detail=ErrorResponse(
-            error_code="debate_in_progress",
-            message="正在处理上一场朝议，请稍候",
-        ).model_dump())
-
     async with _lock:
         state = _get_state()
         provider = _get_provider()
@@ -1171,12 +1246,6 @@ async def get_ai_settings(provider: str | None = None):
 
 @router.post("/settings/ai")
 async def update_ai_settings(req: AISettingsRequest):
-    if _lock.locked():
-        raise HTTPException(409, detail=ErrorResponse(
-            error_code="decree_in_progress",
-            message="正在处理上一道政令，请稍候再修改AI设置",
-        ).model_dump())
-
     async with _lock:
         return _apply_ai_settings(
             provider=req.provider,
@@ -1378,19 +1447,410 @@ def _time_to_months(year: int, month: int) -> int:
     return (year - 1) * 12 + month
 
 
+_ASSEMBLY_MIN_PARTICIPANTS = 10
+_ASSEMBLY_MAX_PARTICIPANTS = 15
+_ASSEMBLY_POSITION_WEIGHTS: tuple[tuple[str, int], ...] = (
+    ("首辅", 120),
+    ("次辅", 115),
+    ("大学士", 110),
+    ("尚书", 100),
+    ("侍郎", 90),
+    ("都御史", 85),
+    ("巡抚", 80),
+    ("总督", 80),
+    ("总兵", 78),
+)
+
+
+def _assembly_position_score(position: str) -> int:
+    pos = (position or "").strip()
+    score = 0
+    for key, weight in _ASSEMBLY_POSITION_WEIGHTS:
+        if key in pos:
+            score = max(score, weight)
+    return score
+
+
+def _normalize_petition_urgency(value: str) -> str:
+    raw = (value or "").strip()
+    if raw in {"高", "中", "低"}:
+        return raw
+    return {"high": "高", "medium": "中", "low": "低"}.get(raw.lower(), "中")
+
+
+def _normalize_speech_stance(value: str) -> str:
+    raw = (value or "").strip()
+    if raw in {"赞成", "反对", "中立"}:
+        return raw
+    mapping = {"support": "赞成", "oppose": "反对", "neutral": "中立", "abstain": "中立"}
+    return mapping.get(raw.lower(), "中立")
+
+
+def _normalize_vote_choice(value: str) -> str:
+    raw = (value or "").strip()
+    if raw in {"赞成", "反对", "弃权"}:
+        return raw
+    mapping = {
+        "support": "赞成",
+        "oppose": "反对",
+        "abstain": "弃权",
+        "neutral": "弃权",
+        "中立": "弃权",
+    }
+    return mapping.get(raw.lower(), "弃权")
+
+
+def _resolve_assembly_ministers(state: GameState, assembly: CourtAssembly) -> list[Minister]:
+    active_by_name = {m.name: m for m in state.ministers if m.status == MinisterStatus.ACTIVE}
+    result: list[Minister] = []
+    for p in assembly.participants:
+        m = active_by_name.get(p.name)
+        if m is not None:
+            result.append(m)
+    return result
+
+
+def _require_assembly(state: GameState, allowed: set[AssemblyPhase] | None = None) -> CourtAssembly:
+    assembly = state.last_assembly
+    if assembly is None:
+        raise HTTPException(400, detail=ErrorResponse(
+            error_code="no_assembly",
+            message="当前无进行中的朝会",
+        ).model_dump())
+    if allowed and assembly.phase not in allowed:
+        raise HTTPException(400, detail=ErrorResponse(
+            error_code="invalid_assembly_phase",
+            message=f"当前阶段为 {assembly.phase.value}，无法执行该操作",
+        ).model_dump())
+    return assembly
+
+
 def select_assembly_participants(state: GameState) -> list[Minister]:
     active = [m for m in state.ministers if m.status == MinisterStatus.ACTIVE]
-    seen_factions: set[str] = set()
+    if not active:
+        return []
+    order_map = {m.name: idx for idx, m in enumerate(state.ministers)}
+
+    def score(m: Minister) -> tuple[int, int, int, int]:
+        ability_total = m.abilities.civil + m.abilities.military + m.abilities.diplomacy
+        return (
+            _assembly_position_score(m.position),
+            m.loyalty,
+            ability_total,
+            -order_map.get(m.name, 9999),
+        )
+
+    by_faction: dict[str, list[Minister]] = {}
+    for minister in active:
+        by_faction.setdefault(minister.faction, []).append(minister)
+
     participants: list[Minister] = []
-    sorted_ministers = sorted(active, key=lambda m: (-m.loyalty, state.ministers.index(m)))
-    for m in sorted_ministers:
-        if m.faction in seen_factions:
-            continue
-        seen_factions.add(m.faction)
-        participants.append(m)
-        if len(participants) >= 5:
+    selected_names: set[str] = set()
+    for faction_ministers in by_faction.values():
+        rep = max(faction_ministers, key=score)
+        participants.append(rep)
+        selected_names.add(rep.name)
+
+    remaining = sorted(
+        [m for m in active if m.name not in selected_names],
+        key=score,
+        reverse=True,
+    )
+    target_count = min(_ASSEMBLY_MAX_PARTICIPANTS, max(_ASSEMBLY_MIN_PARTICIPANTS, len(participants)))
+    for minister in remaining:
+        if len(participants) >= target_count:
             break
-    return participants
+        participants.append(minister)
+    return sorted(participants, key=score, reverse=True)[:_ASSEMBLY_MAX_PARTICIPANTS]
+
+
+@router.post("/assembly/start")
+async def assembly_start():
+    async with _lock:
+        state = _get_state()
+        current_month = _time_to_months(state.time.year, state.time.month)
+        if state.last_assembly_month >= current_month:
+            raise HTTPException(400, detail=ErrorResponse(
+                error_code="assembly_cooldown",
+                message="本月已召开过朝会",
+            ).model_dump())
+        participants = select_assembly_participants(state)
+        if len(participants) < _ASSEMBLY_MIN_PARTICIPANTS:
+            raise HTTPException(400, detail=ErrorResponse(
+                error_code="insufficient_ministers",
+                message="在朝大臣不足，无法召开朝会",
+            ).model_dump())
+        state.last_assembly = CourtAssembly(
+            phase=AssemblyPhase.PETITION,
+            participants=[
+                AssemblyParticipant(
+                    name=p.name,
+                    faction=p.faction,
+                    position=p.position or "朝臣",
+                    argument_text="",
+                )
+                for p in participants
+            ],
+        )
+        state.last_assembly_month = current_month
+        return state.last_assembly.model_dump()
+
+
+@router.post("/assembly/petition")
+async def assembly_petition():
+    async with _lock:
+        state = _get_state()
+        assembly = _require_assembly(state, {AssemblyPhase.PETITION})
+        ministers = _resolve_assembly_ministers(state, assembly)
+        provider = _get_provider()
+        raw_petitions = await provider.generate_petitions(ministers, state)
+        petitions: list[AssemblyPetition] = []
+        active_names = {m.name for m in ministers}
+        for item in raw_petitions:
+            if not isinstance(item, dict):
+                continue
+            minister_name = str(item.get("minister_name", "")).strip()
+            content = str(item.get("content", "")).strip()
+            if minister_name not in active_names or not content:
+                continue
+            petitions.append(AssemblyPetition(
+                minister_name=minister_name,
+                content=content,
+                urgency=_normalize_petition_urgency(str(item.get("urgency", "中"))),
+            ))
+        existing = {p.minister_name for p in petitions}
+        for m in ministers:
+            if m.name in existing:
+                continue
+            petitions.append(AssemblyPetition(
+                minister_name=m.name,
+                content=f"臣{m.name}谨奏：{m.faction}所忧政务，望陛下裁断。",
+                urgency="中",
+            ))
+        assembly.petitions = petitions
+        return assembly.model_dump()
+
+
+@router.post("/assembly/debate")
+async def assembly_debate(req: AssemblyDebateRequest):
+    topic = req.topic.strip()
+    if not topic:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_topic",
+            message="议题不能为空",
+        ).model_dump())
+    async with _lock:
+        state = _get_state()
+        assembly = _require_assembly(state, {AssemblyPhase.PETITION, AssemblyPhase.DEBATE})
+        ministers = _resolve_assembly_ministers(state, assembly)
+        provider = _get_provider()
+        raw_speeches = await provider.generate_debate_speeches(topic, ministers, state)
+        speeches: list[AssemblySpeech] = []
+        by_name = {m.name: m for m in ministers}
+        for item in raw_speeches:
+            if not isinstance(item, dict):
+                continue
+            minister_name = str(item.get("minister_name", "")).strip()
+            minister = by_name.get(minister_name)
+            content = str(item.get("content", "")).strip()
+            if minister is None or not content:
+                continue
+            if minister.faction in assembly.silenced_factions:
+                continue
+            speeches.append(AssemblySpeech(
+                minister_name=minister_name,
+                faction=str(item.get("faction") or minister.faction),
+                content=content,
+                stance=_normalize_speech_stance(str(item.get("stance", "中立"))),
+            ))
+        existing = {s.minister_name for s in speeches}
+        for m in ministers:
+            if m.name in existing or m.faction in assembly.silenced_factions:
+                continue
+            speeches.append(AssemblySpeech(
+                minister_name=m.name,
+                faction=m.faction,
+                content=f"臣{m.name}以为此议当慎行，请陛下明断。",
+                stance="中立",
+            ))
+        if req.decree_type:
+            try:
+                assembly.decree_type = DecreeType(req.decree_type)
+            except ValueError:
+                raise HTTPException(422, detail=ErrorResponse(
+                    error_code="invalid_decree_type",
+                    message="无效的政令类型",
+                ).model_dump())
+        elif assembly.decree_type is None:
+            assembly.decree_type = infer_decree_type_from_topic(topic)
+
+        assembly.phase = AssemblyPhase.DEBATE
+        assembly.current_topic = topic
+        assembly.topic = topic
+        assembly.speeches = speeches
+        speech_map = {s.minister_name: s.content for s in speeches}
+        for p in assembly.participants:
+            p.argument_text = speech_map.get(p.name, p.argument_text)
+
+        support_count = sum(1 for s in speeches if s.stance == "赞成")
+        oppose_count = sum(1 for s in speeches if s.stance == "反对")
+        if support_count > oppose_count:
+            assembly.consensus = "support"
+        elif oppose_count > support_count:
+            assembly.consensus = "oppose"
+        else:
+            assembly.consensus = "divided"
+        assembly.debate_text = "\n".join(f"{s.minister_name}：{s.content}" for s in speeches)
+        return assembly.model_dump()
+
+
+@router.post("/assembly/vote")
+async def assembly_vote(req: AssemblyVoteRequest):
+    async with _lock:
+        state = _get_state()
+        assembly = _require_assembly(state, {AssemblyPhase.DEBATE, AssemblyPhase.VOTE})
+        ministers = _resolve_assembly_ministers(state, assembly)
+        decree_type = assembly.decree_type
+        if req.decree_type:
+            try:
+                decree_type = DecreeType(req.decree_type)
+            except ValueError:
+                raise HTTPException(422, detail=ErrorResponse(
+                    error_code="invalid_decree_type",
+                    message="无效的政令类型",
+                ).model_dump())
+        if decree_type is None:
+            decree_type = infer_decree_type_from_topic(assembly.current_topic or assembly.topic) or DecreeType.PERSONNEL
+        assembly.decree_type = decree_type
+        provider = _get_provider()
+        votes: list[AssemblyVote] = []
+        for m in ministers:
+            if m.faction in assembly.silenced_factions:
+                votes.append(AssemblyVote(
+                    minister_name=m.name,
+                    vote="弃权",
+                    reason="受龙颜大怒压制，不得置喙",
+                ))
+                continue
+            tendency = await provider.calculate_vote_tendency(m, decree_type, state)
+            vote = _normalize_vote_choice(str(tendency))
+            votes.append(AssemblyVote(
+                minister_name=m.name,
+                vote=vote,
+                reason=f"派系立场与忠诚度综合判断（忠诚度{m.loyalty}）",
+            ))
+        assembly.phase = AssemblyPhase.VOTE
+        assembly.votes = votes
+        support_count = sum(1 for v in votes if v.vote == "赞成")
+        oppose_count = sum(1 for v in votes if v.vote == "反对")
+        abstain_count = sum(1 for v in votes if v.vote == "弃权")
+        return {
+            "assembly": assembly.model_dump(),
+            "support_count": support_count,
+            "oppose_count": oppose_count,
+            "abstain_count": abstain_count,
+        }
+
+
+@router.post("/assembly/decree")
+async def assembly_decree(req: AssemblyDecreeRequest):
+    decision = (req.decision or "").strip().lower()
+    if decision not in {"adopt", "override", "dismiss"}:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_decision",
+            message="decision 仅支持 adopt/override/dismiss",
+        ).model_dump())
+    async with _lock:
+        state = _get_state()
+        assembly = _require_assembly(state, {AssemblyPhase.VOTE})
+        vote_counts = {"赞成": 0, "反对": 0, "弃权": 0}
+        for v in assembly.votes:
+            if v.vote in vote_counts:
+                vote_counts[v.vote] += 1
+        majority_vote = max(vote_counts, key=vote_counts.get) if assembly.votes else "弃权"
+        faction_changes: dict[str, int] = {}
+        represented_factions = {p.faction for p in assembly.participants}
+
+        # Execute decree if decision is adopt or override
+        decree_effects = None
+        if decision in {"adopt", "override"} and assembly.decree_type:
+            decree = StructuredDecree(type=assembly.decree_type)
+            try:
+                decree_effects = await process_decree(state, decree)
+            except Exception as e:
+                logging.error(f"Failed to execute decree in assembly: {e}")
+
+        if decision == "adopt":
+            if majority_vote == "赞成":
+                state.court_prestige += 2
+            elif majority_vote == "反对":
+                state.court_prestige -= 1
+        elif decision == "override":
+            state.court_prestige += 3
+            for f in state.factions:
+                if f.name in represented_factions:
+                    f.satisfaction -= 8
+                    faction_changes[f.name] = -8
+        else:
+            state.court_prestige -= 2
+            for f in state.factions:
+                if f.name in represented_factions:
+                    f.satisfaction -= 2
+                    faction_changes[f.name] = -2
+
+        assembly.phase = AssemblyPhase.DECREE
+        assembly.final_decision = decision
+        clamp_state(state)
+        result = {
+            "state": state.model_dump(),
+            "assembly": assembly.model_dump(),
+            "majority_vote": majority_vote,
+            "vote_counts": vote_counts,
+            "faction_changes": faction_changes,
+        }
+        if decree_effects:
+            result["decree_effects"] = decree_effects
+        return result
+
+
+@router.post("/assembly/rage")
+async def assembly_rage(req: AssemblyRageRequest):
+    target_faction = (req.target_faction or "").strip()
+    if not target_faction:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_faction",
+            message="target_faction 不能为空",
+        ).model_dump())
+    async with _lock:
+        state = _get_state()
+        assembly = _require_assembly(state, {AssemblyPhase.PETITION, AssemblyPhase.DEBATE, AssemblyPhase.VOTE})
+        if assembly.rage_used:
+            raise HTTPException(400, detail=ErrorResponse(
+                error_code="rage_already_used",
+                message="本次朝会已使用过龙颜大怒",
+            ).model_dump())
+        if not any(f.name == target_faction for f in state.factions):
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="invalid_faction",
+                message="无效的派系名称",
+            ).model_dump())
+        assembly.rage_used = True
+        assembly.silenced = True
+        if target_faction not in assembly.silenced_factions:
+            assembly.silenced_factions.append(target_faction)
+        if assembly.speeches:
+            assembly.speeches = [s for s in assembly.speeches if s.faction != target_faction]
+        faction_effects: dict[str, int] = {}
+        for faction in state.factions:
+            delta = -10 if faction.name == target_faction else -3
+            faction.satisfaction += delta
+            faction_effects[faction.name] = delta
+        clamp_state(state)
+        return {
+            "state": state.model_dump(),
+            "assembly": assembly.model_dump(),
+            "effects": faction_effects,
+        }
 
 
 @router.post("/court-assembly/convene")
@@ -1425,7 +1885,9 @@ async def convene_assembly(req: ConveneAssemblyRequest):
         ai = ai_result if isinstance(ai_result, dict) else {}
 
         assembly = CourtAssembly(
+            phase=AssemblyPhase.DEBATE,
             topic=req.topic,
+            current_topic=req.topic,
             decree_type=decree_type,
             participants=[
                 AssemblyParticipant(
@@ -1463,6 +1925,16 @@ async def convene_assembly(req: ConveneAssemblyRequest):
                 if isinstance(name, str) and name in p_map:
                     p_map[name].position = str(ap.get("position", ""))
                     p_map[name].argument_text = str(ap.get("argument_text", ""))
+
+        assembly.speeches = [
+            AssemblySpeech(
+                minister_name=p.name,
+                faction=p.faction,
+                content=p.argument_text,
+                stance="中立",
+            )
+            for p in assembly.participants if p.argument_text
+        ]
 
         state.last_assembly = assembly
         state.last_assembly_month = current_month
@@ -1512,6 +1984,11 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
         mem_triggers = state.memorials[mem_count_before:]
         narrative = await provider.generate_narrative(attr, state, triggered, decree)
         if summary:
+            ai_implications = await provider.generate_action_implications(
+                {"rule_based_implications": summary.action_implications}, state,
+            )
+            if ai_implications:
+                summary.action_implications = ai_implications
             summary.commentary = await provider.generate_turn_commentary(summary.model_dump(), state)
         state.history_log.append(HistoryEntry(
             year=state.time.year, month=state.time.month,
@@ -1556,3 +2033,74 @@ async def silence_assembly():
         change = min(2, 100 - state.court_prestige)
         state.court_prestige += change
         return {"state": state.model_dump(), "prestige_change": change}
+
+
+# ── 6.15 POST /api/minister/{name}/dialogue ───────────
+
+@router.post("/minister/{minister_name}/dialogue")
+async def minister_dialogue(minister_name: str, req: DialogueRequest):
+    async with _lock:
+        state = _get_state()
+        provider = _get_provider()
+
+        minister = next((m for m in state.ministers if m.name == minister_name), None)
+        if minister is None:
+            raise HTTPException(404, detail=ErrorResponse(
+                error_code="minister_not_found",
+                message=f"大臣 {minister_name} 不存在",
+            ).model_dump())
+
+        if minister.status != MinisterStatus.ACTIVE:
+            raise HTTPException(400, detail=ErrorResponse(
+                error_code="minister_not_active",
+                message=f"大臣 {minister_name} 当前不在朝",
+            ).model_dump())
+
+        conversation_id = req.conversation_id or f"{minister_name}_{int(time.time())}"
+
+        history = state.minister_conversations.setdefault(minister_name, [])
+        history_for_model = [
+            {"role": msg.role, "content": msg.content}
+            for msg in history[-_MAX_DIALOGUE_MESSAGES:]
+        ]
+        history_for_model.append({"role": "user", "content": req.message})
+
+        try:
+            dialogue_result = await provider.generate_minister_dialogue(
+                minister, req.message, state, history_for_model
+            )
+
+            reply = str(dialogue_result.get("reply", "")).strip()
+            if not reply:
+                raise ValueError("AI reply is empty")
+
+            state.append_conversation_message(minister_name, "user", req.message)
+            state.append_conversation_message(minister_name, "assistant", reply)
+
+            raw_loyalty_change = dialogue_result.get("loyalty_change", 0)
+            try:
+                loyalty_change = int(raw_loyalty_change)
+            except (TypeError, ValueError):
+                loyalty_change = 0
+            loyalty_change = max(-3, min(3, loyalty_change))
+
+            if loyalty_change != 0:
+                minister.loyalty = max(0, min(100, minister.loyalty + loyalty_change))
+                clamp_state(state)
+
+            raw_mood = str(dialogue_result.get("mood", "neutral")).strip().lower()
+            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
+
+            return DialogueResponse(
+                reply=reply,
+                loyalty_change=loyalty_change,
+                mood=mood,
+                conversation_id=conversation_id,
+                state=state,
+            ).model_dump()
+
+        except Exception as exc:
+            raise HTTPException(503, detail=ErrorResponse(
+                error_code="dialogue_generation_failed",
+                message=f"对话生成失败: {exc}",
+            ).model_dump())

@@ -74,6 +74,9 @@ class _BaseProvider(AIProvider):
     async def generate_turn_commentary(self, summary_data, game_state):
         return ""
 
+    async def generate_minister_dialogue(self, *a, **kw):
+        return {}
+
     async def process_freeform(self, text, game_state, *, script_context=None):
         return {"error": "not implemented"}
 

@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import json
 import math
-from typing import Optional
-from pydantic import BaseModel, Field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Literal, Optional
+from uuid import uuid4
+
+from pydantic import BaseModel, Field, field_validator
 
 from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
-    PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus,
+    PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus, AssemblyPhase,
 )
+
+MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
 
 # ── Faction ──────────────────────────────────────────────
@@ -34,6 +41,10 @@ class Minister(BaseModel):
     abilities: MinisterAbilities = Field(default_factory=MinisterAbilities)
     status: MinisterStatus = MinisterStatus.ACTIVE
     loyalty: int = Field(default=50, ge=0, le=100)
+    position: str = ""
+    entry_year: int = 1627
+    entry_month: int = Field(default=8, ge=1, le=12)
+    historical_note: str = Field(default="", max_length=200)
 
 
 # ── Region ───────────────────────────────────────────────
@@ -115,13 +126,40 @@ class PolicySuggestion(BaseModel):
 
 
 class CourtAssembly(BaseModel):
-    topic: str
-    decree_type: DecreeType
+    phase: AssemblyPhase = AssemblyPhase.IDLE
+    topic: str = ""
+    current_topic: str = ""
+    decree_type: DecreeType | None = None
     participants: list[AssemblyParticipant] = Field(default_factory=list)
+    petitions: list["AssemblyPetition"] = Field(default_factory=list)
+    speeches: list["AssemblySpeech"] = Field(default_factory=list)
+    votes: list["AssemblyVote"] = Field(default_factory=list)
     suggestions: list[PolicySuggestion] = Field(default_factory=list)
     debate_text: str = ""
     consensus: str = ""
     silenced: bool = False
+    rage_used: bool = False
+    silenced_factions: list[str] = Field(default_factory=list)
+    final_decision: str | None = None
+
+
+class AssemblyPetition(BaseModel):
+    minister_name: str
+    content: str
+    urgency: Literal["高", "中", "低"] = "中"
+
+
+class AssemblySpeech(BaseModel):
+    minister_name: str
+    faction: str
+    content: str
+    stance: Literal["赞成", "反对", "中立"] = "中立"
+
+
+class AssemblyVote(BaseModel):
+    minister_name: str
+    vote: Literal["赞成", "反对", "弃权"] = "弃权"
+    reason: str = ""
 
 
 # ── Turn Summary ────────────────────────────────────────
@@ -216,7 +254,7 @@ class EventChoice(BaseModel):
     label: str
     description: str = ""
     decrees: list[StructuredDecree] = Field(default_factory=list)
-    loyalty_effects: list[list] = Field(default_factory=list)
+    loyalty_effects: list[tuple[str, int]] = Field(default_factory=list)
     state_effects: dict[str, int] = Field(default_factory=dict)
 
 
@@ -231,6 +269,7 @@ class GameEvent(BaseModel):
     is_scripted: bool = False
     is_blocking: bool = False
     script_id: str | None = None
+    historical_hint: str = ""
 
 
 # ── History ──────────────────────────────────────────────
@@ -253,14 +292,29 @@ class GameTime(BaseModel):
     era_year: int = 7
 
 
+# ── ConversationMessage ──────────────────────────────────
+
+class ConversationMessage(BaseModel):
+    id: str
+    role: Literal["user", "assistant"]
+    content: str
+    timestamp: str
+
+
+def _default_conversation_timestamp() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 # ── GameState ────────────────────────────────────────────
 
 class GameState(BaseModel):
     time: GameTime = Field(default_factory=GameTime)
-    # resources (0~200)
-    treasury: int = 100
-    population: int = 100
-    military_supply: int = 80
+    # resources (historical scales)
+    national_treasury: int = Field(default=20, ge=0, le=10000)
+    imperial_treasury: int = Field(default=10, ge=0, le=10000)
+    grain: int = Field(default=500, ge=0, le=50000)
+    population: int = Field(default=15000, ge=0, le=20000)
+    military_strength: int = Field(default=40, ge=0, le=2000)
     # indicators (0~100)
     civil_morale: int = 60
     military_morale: int = 70
@@ -279,6 +333,61 @@ class GameState(BaseModel):
     last_assembly: CourtAssembly | None = None
     loyalty_zero_triggered: set[str] = Field(default_factory=set)
     last_assembly_month: int = 0
+    consecutive_waits: int = 0
+    minister_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
+
+    @field_validator("minister_conversations", mode="before")
+    @classmethod
+    def _normalize_minister_conversations(cls, value):
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            return value
+        normalized: dict[str, list[dict]] = {}
+        for minister_name, messages in value.items():
+            if not isinstance(minister_name, str):
+                continue
+            if not isinstance(messages, list):
+                normalized[minister_name] = []
+                continue
+            sliced = messages[-MAX_MINISTER_CONVERSATION_MESSAGES:]
+            converted: list[dict] = []
+            for idx, message in enumerate(sliced):
+                if isinstance(message, ConversationMessage):
+                    converted.append(message.model_dump())
+                    continue
+                if isinstance(message, dict):
+                    role_raw = str(message.get("role", "assistant")).strip().lower()
+                    role = role_raw if role_raw in {"user", "assistant"} else "assistant"
+                    content = str(message.get("content", ""))
+                    msg_id = str(message.get("id") or f"{minister_name}_{idx}_{uuid4().hex}")
+                    timestamp = str(message.get("timestamp") or _default_conversation_timestamp())
+                    converted.append({
+                        "id": msg_id,
+                        "role": role,
+                        "content": content,
+                        "timestamp": timestamp,
+                    })
+            normalized[minister_name] = converted
+        return normalized
+
+    def append_conversation_message(
+        self,
+        minister_name: str,
+        role: Literal["user", "assistant"],
+        content: str,
+        message_id: str | None = None,
+        timestamp: str | None = None,
+    ) -> None:
+        history = self.minister_conversations.setdefault(minister_name, [])
+        history.append(ConversationMessage(
+            id=message_id or uuid4().hex,
+            role=role,
+            content=content,
+            timestamp=timestamp or _default_conversation_timestamp(),
+        ))
+        if len(history) > MAX_MINISTER_CONVERSATION_MESSAGES:
+            self.minister_conversations[minister_name] = history[-MAX_MINISTER_CONVERSATION_MESSAGES:]
 
 
 # ── DecreeResponse ───────────────────────────────────────
@@ -310,56 +419,68 @@ INITIAL_FACTIONS = [
     Faction(name="东林党", satisfaction=72, influence=65, rebellion_risk=5),
     Faction(name="阉党残余", satisfaction=30, influence=25, rebellion_risk=15),
     Faction(name="勋贵集团", satisfaction=55, influence=40, rebellion_risk=8),
-    Faction(name="边将势力", satisfaction=61, influence=50, rebellion_risk=12),
+    Faction(name="辽东边将", satisfaction=61, influence=50, rebellion_risk=12),
+    Faction(name="中原剿匪系", satisfaction=58, influence=45, rebellion_risk=10),
+    Faction(name="温体仁派", satisfaction=50, influence=35, rebellion_risk=8),
+    Faction(name="周延儒派", satisfaction=55, influence=40, rebellion_risk=6),
+    Faction(name="中立派", satisfaction=60, influence=25, rebellion_risk=3),
 ]
 
 INITIAL_REGIONS = [
     Region(name="京畿", stability=80, garrison=50000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=75, rebellion_risk=10, tax_rate=0.50, tax_collected=40, disaster_level=10),
-    Region(name="辽东", stability=40, garrison=30000, threat=RegionThreat.HOUJIN, tax_contribution=TaxContribution.LOW,
-           civil_morale=35, rebellion_risk=55, tax_rate=0.30, tax_collected=12, disaster_level=40),
-    Region(name="陕西", stability=25, garrison=5000, threat=RegionThreat.REBELLION, tax_contribution=TaxContribution.LOW,
-           civil_morale=20, rebellion_risk=70, tax_rate=0.25, tax_collected=6, disaster_level=60),
+           civil_morale=75, rebellion_risk=10, tax_rate=0.50, tax_collected=88, disaster_level=10),
+    Region(name="辽东", stability=45, garrison=30000, threat=RegionThreat.HOUJIN, tax_contribution=TaxContribution.LOW,
+           civil_morale=35, rebellion_risk=55, tax_rate=0.30, tax_collected=16, disaster_level=40),
+    Region(name="陕西", stability=35, garrison=5000, threat=RegionThreat.REBELLION, tax_contribution=TaxContribution.LOW,
+           civil_morale=20, rebellion_risk=70, tax_rate=0.25, tax_collected=10, disaster_level=60),
     Region(name="江南", stability=85, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.HIGH,
-           civil_morale=80, rebellion_risk=5, tax_rate=0.80, tax_collected=272, disaster_level=5),
+           civil_morale=80, rebellion_risk=5, tax_rate=0.80, tax_collected=244, disaster_level=5),
     Region(name="中原", stability=60, garrison=15000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=55, rebellion_risk=20, tax_rate=0.50, tax_collected=60, disaster_level=15),
+           civil_morale=55, rebellion_risk=20, tax_rate=0.50, tax_collected=66, disaster_level=15),
     Region(name="山东", stability=70, garrison=12000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=65, rebellion_risk=15, tax_rate=0.50, tax_collected=70, disaster_level=10),
+           civil_morale=65, rebellion_risk=15, tax_rate=0.50, tax_collected=77, disaster_level=10),
     Region(name="云贵", stability=50, garrison=8000, threat=RegionThreat.TUSI, tax_contribution=TaxContribution.LOW,
-           civil_morale=45, rebellion_risk=35, tax_rate=0.30, tax_collected=15, disaster_level=30),
+           civil_morale=45, rebellion_risk=35, tax_rate=0.30, tax_collected=18, disaster_level=30),
     Region(name="川蜀", stability=65, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=60, rebellion_risk=15, tax_rate=0.50, tax_collected=65, disaster_level=10),
+           civil_morale=60, rebellion_risk=15, tax_rate=0.50, tax_collected=71, disaster_level=10),
 ]
 
-INITIAL_MINISTERS = [
-    Minister(name="魏忠贤", faction="阉党残余", personality_tags=["贪婪", "阴狠", "善于结党"],
-             abilities=MinisterAbilities(civil=60, military=20, diplomacy=40), loyalty=50),
-    Minister(name="徐光启", faction="东林党", personality_tags=["务实", "博学", "开明"],
-             abilities=MinisterAbilities(civil=90, military=30, diplomacy=70), loyalty=50),
-    Minister(name="孙承宗", faction="边将势力", personality_tags=["刚烈", "忠诚", "善战"],
-             abilities=MinisterAbilities(civil=50, military=95, diplomacy=60), loyalty=50),
-    Minister(name="袁崇焕", faction="边将势力", personality_tags=["刚烈", "自负", "善守"],
-             abilities=MinisterAbilities(civil=30, military=90, diplomacy=40), loyalty=50),
-    Minister(name="周延儒", faction="东林党", personality_tags=["圆滑", "善辩", "投机"],
-             abilities=MinisterAbilities(civil=70, military=20, diplomacy=80), loyalty=50),
-    Minister(name="温体仁", faction="勋贵集团", personality_tags=["阴狠", "善于钻营", "排异"],
-             abilities=MinisterAbilities(civil=65, military=15, diplomacy=55), loyalty=50),
-    Minister(name="卢象升", faction="边将势力", personality_tags=["忠诚", "刚烈", "清廉"],
-             abilities=MinisterAbilities(civil=40, military=85, diplomacy=30), loyalty=50),
-    Minister(name="杨嗣昌", faction="勋贵集团", personality_tags=["务实", "善谋", "优柔"],
-             abilities=MinisterAbilities(civil=75, military=60, diplomacy=65), loyalty=50),
-]
+_MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
+
+
+def _load_initial_ministers() -> list[Minister]:
+    raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
+    ministers = [Minister.model_validate(item) for item in raw]
+    names = [m.name for m in ministers]
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate minister names in ministers.json")
+    return ministers
+
+
+INITIAL_MINISTERS = _load_initial_ministers()
+
+
+def _time_key(year: int, month: int) -> int:
+    return year * 12 + month
 
 
 def create_initial_state() -> GameState:
+    start_key = _time_key(1627, 8)
+    ministers: list[Minister] = []
+    for tpl in INITIAL_MINISTERS:
+        m = tpl.model_copy()
+        if m.status == MinisterStatus.ACTIVE and _time_key(m.entry_year, m.entry_month) > start_key:
+            m.status = MinisterStatus.NOT_YET_ENTERED
+        ministers.append(m)
+
     state = GameState(
         time=GameTime(year=1627, month=8, era_name="天启", era_year=7),
-        treasury=100, population=100, military_supply=80,
+        national_treasury=20, imperial_treasury=10, grain=500,
+        population=15000, military_strength=40,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
-        ministers=[m.model_copy() for m in INITIAL_MINISTERS],
+        ministers=ministers,
     )
     from engine.core import inject_script_events
     inject_script_events(state)
@@ -368,8 +489,20 @@ def create_initial_state() -> GameState:
 
 # ── Clamping ─────────────────────────────────────────────
 
-def clamp_resource(v: int) -> int:
-    return max(0, min(200, math.floor(v)))
+def clamp_treasury(v: int | float) -> int:
+    return max(0, min(10000, math.floor(v)))
+
+
+def clamp_grain(v: int | float) -> int:
+    return max(0, min(50000, math.floor(v)))
+
+
+def clamp_population(v: int | float) -> int:
+    return max(0, min(20000, math.floor(v)))
+
+
+def clamp_military(v: int | float) -> int:
+    return max(0, min(2000, math.floor(v)))
 
 
 def clamp_indicator(v: int) -> int:
@@ -381,9 +514,11 @@ def clamp_garrison(v: int) -> int:
 
 
 def clamp_state(state: GameState) -> None:
-    state.treasury = clamp_resource(state.treasury)
-    state.population = clamp_resource(state.population)
-    state.military_supply = clamp_resource(state.military_supply)
+    state.national_treasury = clamp_treasury(state.national_treasury)
+    state.imperial_treasury = clamp_treasury(state.imperial_treasury)
+    state.grain = clamp_grain(state.grain)
+    state.population = clamp_population(state.population)
+    state.military_strength = clamp_military(state.military_strength)
     state.civil_morale = clamp_indicator(state.civil_morale)
     state.military_morale = clamp_indicator(state.military_morale)
     state.court_prestige = clamp_indicator(state.court_prestige)
@@ -404,3 +539,18 @@ def clamp_state(state: GameState) -> None:
         m.abilities.civil = clamp_indicator(m.abilities.civil)
         m.abilities.military = clamp_indicator(m.abilities.military)
         m.abilities.diplomacy = clamp_indicator(m.abilities.diplomacy)
+
+
+# ── Dialogue Models ─────────────────────────────────────
+
+class DialogueRequest(BaseModel):
+    message: str = Field(max_length=500)
+    conversation_id: str | None = None
+
+
+class DialogueResponse(BaseModel):
+    reply: str
+    loyalty_change: int = Field(ge=-3, le=3)
+    mood: Literal["support", "neutral", "oppose"]
+    conversation_id: str
+    state: GameState

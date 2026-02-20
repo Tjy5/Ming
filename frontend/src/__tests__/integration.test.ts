@@ -5,7 +5,8 @@ import type { GameState, GameEvent, EventChoice, StructuredDecree } from '../typ
 function initialState(): GameState {
   return {
     time: { year: 1627, month: 1, era_name: '天启', era_year: 7 },
-    treasury: 100, population: 100, military_supply: 80,
+    national_treasury: 20, imperial_treasury: 10, grain: 500,
+    population: 15000, military_strength: 40,
     civil_morale: 60, military_morale: 70, court_prestige: 75,
     factions: [], regions: [], ministers: [], active_events: [],
     history_log: [], decree_count: 0, event_cooldowns: {},
@@ -68,11 +69,13 @@ describe('blocking scripted event — at least one executable choice', () => {
 
   it('empty-decree fallback always executable regardless of state', () => {
     const state = initialState()
-    state.treasury = 0
+    state.national_treasury = 0
+    state.imperial_treasury = 0
+    state.grain = 0
     state.civil_morale = 0
     state.court_prestige = 0
     state.military_morale = 0
-    state.military_supply = 0
+    state.military_strength = 0
     state.population = 0
     const fallback: EventChoice = { label: 'safe', description: '', decrees: [] }
     expect(disabledReason(state, fallback.decrees)).toBeNull()

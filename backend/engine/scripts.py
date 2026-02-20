@@ -27,6 +27,7 @@ class ScriptEvent:
     title: str
     rich_description: str
     choices: list[ScriptChoice]
+    historical_hint: str = ""
     is_blocking: bool = False
     condition: Callable[[GameState], bool] | None = None
 
@@ -47,6 +48,8 @@ def _register(evt: ScriptEvent) -> None:
         raise ValueError(f"trigger_month out of range: {evt.trigger_month}")
     if not evt.choices:
         raise ValueError(f"script {evt.script_id} must have at least one choice")
+    if not isinstance(evt.historical_hint, str) or not evt.historical_hint.strip():
+        raise ValueError(f"script {evt.script_id} must have non-empty historical_hint")
     SCRIPT_REGISTRY[evt.script_id] = evt
 
 
@@ -75,6 +78,15 @@ def _minister_active(state, name: str) -> bool:
     return m is not None and m.status == MinisterStatus.ACTIVE
 
 
+def _minister_removed(state, name: str) -> bool:
+    m = next((m for m in state.ministers if m.name == name), None)
+    return m is not None and m.status == MinisterStatus.REMOVED
+
+
+def _minister_alive(state, name: str) -> bool:
+    return not _minister_removed(state, name)
+
+
 # ── Phase 1: Progressive Monthly Scripts (1627/8 ~ 1628/8) ──
 
 _register(ScriptEvent(
@@ -94,7 +106,7 @@ _register(ScriptEvent(
         "**边患：** 辽东后金虎视眈眈，宁远、锦州防线虽存，"
         "然边军粮饷拖欠日久。\n\n"
         "**民困：** 陕西连年大旱，饥民遍野，朝廷赈济杯水车薪。\n\n"
-        "天下大势系于新君一念之间。当如何应对？"
+        "魏忠贤涕泣请辞，实为试探圣意。陛下是准其辞职，还是慰留观察，抑或另有筹谋？"
     ),
     choices=[
         ScriptChoice(
@@ -115,6 +127,14 @@ _register(ScriptEvent(
             loyalty_effects=[("魏忠贤", -30)],
         ),
     ],
+    historical_hint=(
+        "天启七年八月，朱由检入继大统时面对的是“名义皇权在皇帝、实操权力在司礼监”的局面。"
+        "魏忠贤党羽遍布内廷与外朝，任何过快动作都可能引发反噬。"
+        "史料里能看到新君在宫中高度戒备，同时刻意维持表面礼数，不给对手先发制人的借口。\n\n"
+        "更关键的是，他先用时间换情报：谁掌印、谁传旨、谁与东厂相连，都在这个阶段被逐步摸清。"
+        "等到弹劾和人事调整连成线，倒魏就从一次情绪宣泄变成可执行的政治行动。"
+        "这也是崇祯前期最成功的一次权力切换示范。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -126,11 +146,10 @@ _register(ScriptEvent(
     rich_description=(
         "**天启七年，九月。**\n\n"
         "新君追尊生母刘氏为孝纯皇后，册封周氏为皇后。"
-        "朝堂上下，礼仪大典次第举行。\n\n"
-        "然典礼之际，暗流涌动。杨所修、陆澄源等朝臣试探性地"
-        "上疏弹劾魏忠贤心腹崔呈秀，以窥测圣意。"
-        "魏忠贤闻讯，面色微变，连日称病不出。\n\n"
-        "朝中嗅觉敏锐之人已察觉风向将变。陛下当如何应对？"
+        "朝堂礼仪大典次第举行，钟鼓迭奏，百官称贺。\n\n"
+        "然礼成未久，杨所修、陆澄源等朝臣上疏弹劾魏忠贤心腹崔呈秀。"
+        "此疏虽劾一人，实则试探圣意。群臣屏息观望，魏忠贤闻讯连日称病不出。\n\n"
+        "此弹劾奏疏，是据章行事准其罢黜，还是留中不发继续观望，抑或另有打算？"
     ),
     choices=[
         ScriptChoice(
@@ -139,11 +158,18 @@ _register(ScriptEvent(
             decrees=[],
         ),
         ScriptChoice(
-            label="暗中鼓励",
-            description="不公开表态，但私下示意言官继续上疏，壮大倒魏声势。",
+            label="据章行事",
+            description="准许弹劾奏疏，据章罢免崔呈秀",
             decrees=[StructuredDecree(type=DecreeType.PERSONNEL, target="崔呈秀", sub_action=PersonnelAction.DISMISS)],
         ),
     ],
+    historical_hint=(
+        "九月这场看似礼仪性的操作，其实是政治重排。"
+        "追尊生母与册立周后，先解决新君名分与中宫秩序，让宗室和朝臣难以质疑合法性。"
+        "与此同时，客氏离宫并非宫闱细事，而是切断魏忠贤在后宫最稳定的信息与人脉通道。\n\n"
+        "在公开奏章上保持克制，则是为了避免过早逼宫、反而让阉党抱团。"
+        "等到十月弹章密集出现时，朝廷已经完成舆论与人事的双重铺垫，魏党从可守迅速转为难守。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -152,6 +178,7 @@ _register(ScriptEvent(
     trigger_month=10,
     title="钱嘉征弹劾魏忠贤十大罪",
     is_blocking=False,
+    condition=lambda s: _minister_alive(s, "魏忠贤"),
     rich_description=(
         "**天启七年，十月。**\n\n"
         "贡生钱嘉征上疏，历数魏忠贤十大罪状：\n"
@@ -175,6 +202,50 @@ _register(ScriptEvent(
             decrees=[],
         ),
     ],
+    historical_hint=(
+        "钱嘉征十罪疏之所以关键，不只在内容激烈，更在于它把长期私下议论推上公开程序。"
+        "朝廷选择当面宣读而非留中压下，等于向百官发出明确信号：魏忠贤不再受不可碰触的保护。\n\n"
+        "此前崔呈秀等核心羽翼已先后失势，首恶又在殿前受压，阉党的组织协调能力急剧下降。"
+        "从政治技术上看，这是先拆同盟、再击核心的典型案例，十一月的彻底崩盘因此成为大概率事件。"
+    ),
+))
+
+_register(ScriptEvent(
+    script_id="post-wei-vacuum-1627-10",
+    trigger_year=1627,
+    trigger_month=10,
+    title="阉党失首·中枢重排",
+    is_blocking=False,
+    condition=lambda s: _minister_removed(s, "魏忠贤"),
+    rich_description=(
+        "**天启七年，十月。**\n\n"
+        "魏忠贤已在此前政争中被提前处决，朝野震动未歇。"
+        "内廷失去阉党核心后，司礼监与东厂权力链条出现真空，"
+        "各方争夺“后魏时代”的中枢话语权。\n\n"
+        "言官主张乘势清理旧案，亦有人担忧株连过广致官场失序。"
+        "眼下要务，已从“扳倒首恶”转为“重建秩序”。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="乘势追究内廷旧案",
+            description="继续深挖阉党网络，迅速肃清旧势力。",
+            decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)],
+            state_effects={"global.court_prestige": 5},
+        ),
+        ScriptChoice(
+            label="先稳中枢再议清算",
+            description="优先补位关键职司，避免朝局因清算失控。",
+            decrees=[StructuredDecree(type=DecreeType.PERSONNEL, target="徐光启", sub_action=PersonnelAction.APPOINT)],
+            loyalty_effects=[("徐光启", 10)],
+        ),
+    ],
+    historical_hint=(
+        "若魏忠贤在十月前已被提前处决，真实的政治难题就不再是“能否倒魏”，"
+        "而是如何在权力真空期重建内廷与外朝的协同秩序。\n\n"
+        "历史上此类“首恶先除”的局面往往伴随派系抢位与程序失衡。"
+        "谁先掌握人事任命与情报系统，谁就能定义后续清算边界，"
+        "因此秩序重建本身就是新的政治战场。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -183,6 +254,7 @@ _register(ScriptEvent(
     trigger_month=11,
     title="魏忠贤伏诛·阉党崩溃",
     is_blocking=True,
+    condition=lambda s: _minister_alive(s, "魏忠贤"),
     rich_description=(
         "**天启七年，十一月。**\n\n"
         "圣旨下：贬魏忠贤于凤阳守陵。魏忠贤离京南行，"
@@ -211,6 +283,54 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.PERSONNEL, target="魏忠贤", sub_action=PersonnelAction.DISMISS)],
         ),
     ],
+    historical_hint=(
+        "对魏忠贤先外放、后缉拿的转折，说明朝廷已经从试探进入定案阶段。"
+        "外放本可保留最低体面，但其携重资与护卫南行被视作潜在再组织能力，触发了更严厉的追捕决策。\n\n"
+        "阜城自尽并不只是个人结局，它意味着阉党失去可整合的权威中心。"
+        "客氏随后伏法，天启晚期以内廷为轴心的权力结构基本解体，皇帝与文官体系重新占据制度前台。"
+    ),
+))
+
+_register(ScriptEvent(
+    script_id="post-wei-remnant-settlement-1627-11",
+    trigger_year=1627,
+    trigger_month=11,
+    title="首恶先除·余党处置",
+    is_blocking=True,
+    condition=lambda s: _minister_removed(s, "魏忠贤"),
+    rich_description=(
+        "**天启七年，十一月。**\n\n"
+        "魏忠贤既已提前伏法，朝廷不再面临“缉拿首恶”的问题，"
+        "却迎来更棘手的余党善后：内廷旧班底去留未定，地方依附势力观望摇摆。\n\n"
+        "若追查过猛，恐致官场人人自危；若清理过缓，又会纵容旧网潜伏。"
+        "当下决断，将决定新朝能否把“除恶”真正转化为“立制”。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="严办余党，扩大追查",
+            description="以高压手段震慑旧势力，迅速压低反扑风险。",
+            decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)],
+            state_effects={"global.court_prestige": 8},
+        ),
+        ScriptChoice(
+            label="限定追责，避免株连",
+            description="把清算范围收束在骨干层，降低朝堂内耗。",
+            decrees=[],
+            state_effects={"faction.东林党.satisfaction": -5, "faction.勋贵集团.satisfaction": 5},
+        ),
+        ScriptChoice(
+            label="先安边镇，再清理内廷",
+            description="优先稳军心与财政链条，缓步处理余党。",
+            decrees=[StructuredDecree(type=DecreeType.DISASTER_RELIEF, target="陕西")],
+        ),
+    ],
+    historical_hint=(
+        "历史经验显示，首恶先除并不自动意味着政局稳固，"
+        "真正困难在于如何处理“依附网络”与“制度空档”这两类后遗症。\n\n"
+        "过度扩大追责会削弱行政执行力，过度宽纵又会为旧势力复燃留下空间。"
+        "因此善后阶段的核心目标是重建可持续的任官与问责机制，"
+        "而不是仅凭一次强硬动作完成治理转型。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -245,6 +365,12 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
         ),
     ],
+    historical_hint=(
+        "魏忠贤死后，朝廷面对的不是是否清算，而是清算到什么程度。"
+        "逆案分等处理与平反并举，确实在政治伦理上重建了秩序，也给了士林明确交代。\n\n"
+        "但同一时期的固原欠饷兵变提醒人们：阉党问题可以靠惩办收口，财政亏空却无法靠诏令消失。"
+        "边镇军饷、地方税收与中央支出长期失衡，才是崇祯朝此后反复失血的根因。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -260,7 +386,7 @@ _register(ScriptEvent(
         "东林党人纷纷起复。朝堂上下，一扫阉党阴霾，"
         "群臣山呼万岁，誉新君为'中兴之主'。\n\n"
         "然东林党内部亦非铁板一块，门户之见渐生。"
-        "陛下当如何驾驭这股新生力量？"
+        "朝堂缺员待补，东林人选当起用至何等程度：是大举补缺，还是择要任用并兼顾诸派，抑或另有打算？"
     ),
     choices=[
         ScriptChoice(
@@ -275,6 +401,12 @@ _register(ScriptEvent(
             decrees=[],
         ),
     ],
+    historical_hint=(
+        "戮尸示惩、禁内臣出禁门、重用东林旧臣，这三步在短期内形成了朝堂回正的强烈观感。"
+        "它们分别对应惩戒信号、制度边界与干部补位，确实让阉党余势迅速退潮。\n\n"
+        "问题在于，东林内部并非铁板一块，门户与资历之争很快回流。"
+        "也就是说，阉党退场并不自动等于治理升级，崇祯随后仍被迫在频繁换相中维持运转。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -310,6 +442,12 @@ _register(ScriptEvent(
             state_effects={"region.陕西.stability": -5},
         ),
     ],
+    historical_hint=(
+        "为杨涟、左光斗等人平反，首先修复的是朝廷与士大夫之间的道义关系。"
+        "对新君而言，这一步有助于重建政治信用，也能为后续用人打开空间。\n\n"
+        "可陕北现实并不按京师节奏运行：旱灾、饥馑、流民迁徙和地方财政衰竭仍在同时推进。"
+        "于是出现了典型的上层修复与基层失控并存局面，农民起事规模继续扩大。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -325,7 +463,7 @@ _register(ScriptEvent(
         "圣上追赠天启朝被迫害的忠臣，录用遗孤。"
         "然新朝初立，百事待举。吏部奏称：各部缺员甚众，"
         "急需铨选补任。\n\n"
-        "如何充实朝堂？"
+        "各部缺员积压，补官刻不容缓：是大举铨选，还是稳步量才分批补缺，抑或另有筹画？"
     ),
     choices=[
         ScriptChoice(
@@ -339,6 +477,12 @@ _register(ScriptEvent(
             decrees=[],
         ),
     ],
+    historical_hint=(
+        "德陵葬礼完成了天启向崇祯的礼制交接，施凤来、张瑞图等人去位则完成了中枢人事交接。"
+        "形式上看，旧朝痕迹被迅速清理，政治舞台已经换景。\n\n"
+        "但礼制换轨并不能自动产出行政能力。"
+        "财政紧、缺员多、任命急，导致新班底从一开始就处在高压运转状态，后来内阁频繁更替与政策断续，其根源在此时已埋下。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -374,6 +518,12 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
         ),
     ],
+    historical_hint=(
+        "重用袁崇焕并授尚方剑，本质是把辽东战局押注在强统帅与高授权模式上。"
+        "短期看，这能迅速提振边军预期，也便于压平部门间扯皮。\n\n"
+        "但高授权会同步抬高问责强度。"
+        "尤其在辽饷已占国帑大头的条件下，五年平辽这类政治承诺一旦落空，就会反噬君臣互信，后续冲突因此更难缓和。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -398,7 +548,7 @@ _register(ScriptEvent(
             label="急调兵马镇压",
             description="调遣延绥镇兵力围剿，力图将起义扑灭于萌芽。",
             decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
-            state_effects={"global.treasury": -15},
+            state_effects={"global.national_treasury": -15},
         ),
         ScriptChoice(
             label="大举赈灾安民",
@@ -411,6 +561,12 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
         ),
     ],
+    historical_hint=(
+        "焚毁《三朝要典》属于对阉党叙事的收尾动作，而马懋才《备陈大饥疏》揭开的则是社会底层生存线断裂。"
+        "两件事同月并置，恰好显示出政治清明与民生崩坏可以同时发生。\n\n"
+        "朝廷虽尝试拨赈，但在层层转运与地方财政枯竭中折损严重。"
+        "饥民一旦从逃荒转向结社持械，局势就不再是单点治安问题，而是跨府州的持续性军事挑战。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -427,7 +583,9 @@ _register(ScriptEvent(
         "· 王嘉胤部已聚众万余，盘踞府谷、神木一带\n"
         "· 王左挂、苗美等人亦各拥数千之众\n"
         "· 流民所过之处，仓廒空竭，官军莫敢阻挡\n\n"
-        "地方官吏纷纷请旨增兵增饷，然户部已捉襟见肘。"
+        "地方官吏纷纷请旨增兵增饷，然户部已捉襟见肘。\n\n"
+        "国库几近告罄，三策并陈：是增拨赈灾银两以救燃眉，调兵进剿以遏乱势，"
+        "还是放任地方、静观其变，抑或另有筹谋？"
     ),
     choices=[
         ScriptChoice(
@@ -447,6 +605,12 @@ _register(ScriptEvent(
             state_effects={"region.陕西.stability": -8, "region.中原.stability": -5},
         ),
     ],
+    historical_hint=(
+        "到崇祯元年六月，政策难题已不再是赈或剿二选一，而是两者都需要、两者都缺资源。"
+        "中央要求地方兼顾赈灾与催科，实务上常常互相抵消。\n\n"
+        "地方执行差异因此急剧放大：有的先催税后赈济，有的借剿抚扩权。"
+        "结果是流民规模、武装化程度和跨区域流动同步上升，民变从生存性骚动演变为长期战争。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -477,7 +641,7 @@ _register(ScriptEvent(
             label="严惩哗变首恶",
             description="以军法惩处带头闹事之人，以儆效尤。然恐激化军心。",
             decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)],
-            state_effects={"faction.边将势力.satisfaction": -10},
+            state_effects={"faction.辽东边将.satisfaction": -10},
         ),
         ScriptChoice(
             label="令袁崇焕自行处置",
@@ -486,6 +650,12 @@ _register(ScriptEvent(
             state_effects={"region.辽东.stability": -10},
         ),
     ],
+    historical_hint=(
+        "平台召对后的高授权尚未真正落地，宁远欠饷兵变已先爆发，说明辽东治理的断点不在口号，而在支付能力。"
+        "军队对朝廷会不会按时发饷，往往比对任何诏令都更敏感。\n\n"
+        "毕自肃事件使军纪危机公开化：边军对文官系统信任下滑，文官对边军控制能力也同步下降。"
+        "即便当场平乱成功，制度层面的裂缝仍会在后续战事中反复显现。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -510,7 +680,7 @@ _register(ScriptEvent(
             label="攘外为先",
             description="集中财力军力于辽东，优先应对后金威胁。",
             decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
-            state_effects={"global.military_morale": 5, "global.treasury": -20},
+            state_effects={"global.military_morale": 5, "global.national_treasury": -20},
         ),
         ScriptChoice(
             label="安内为先",
@@ -523,6 +693,12 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
         ),
     ],
+    historical_hint=(
+        "崇祯即位首年的成绩与困局并存：倒魏与整饬确有成效，但辽东、陕北与财政三线压力并未缓解。"
+        "换言之，政治层面的纠偏没有转化为国家能力层面的增量。\n\n"
+        "从这一节点开始，明廷逐步进入长期应急治理。"
+        "每一项止痛措施都会消耗下一阶段资源，政策越来越像短期止血而非长期重建，这正是晚明失速的结构性原因。"
+    ),
 ))
 
 
@@ -568,6 +744,12 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.DIPLOMACY, target="后金")],
         ),
     ],
+    historical_hint=(
+        "己巳之变的核心冲击在于后金绕开传统预设战场，直接把压力投送到京畿纵深。"
+        "朝廷只能把保京师置于最高优先级，急诏勤王是现实而非理想选择。\n\n"
+        "京城守住并不等于战略胜利。"
+        "京畿长期被掠造成财政、人口与民心三重损耗，明军也从外线制敌转入内线补漏，战争主动权由此明显下滑。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -576,19 +758,19 @@ _register(ScriptEvent(
     trigger_month=12,
     title="袁崇焕下狱",
     is_blocking=True,
-    condition=lambda s: "jisi-invasion" in s.resolved_script_ids,
+    condition=lambda s: "jisi-invasion" in s.resolved_script_ids and _minister_alive(s, "袁崇焕"),
     rich_description=(
         "**崇祯二年，十二月。**\n\n"
         "京师解围后，朝野对袁崇焕毁誉并起。"
         "有弹劾其通敌卖国者，有言其擅杀毛文龙、纵敌入关者，"
         "亦有力保其忠勇者。风闻交织，真伪难辨。\n\n"
         "若轻断重臣，恐伤军心；若久拖不决，又损朝廷威信。"
-        "圣裁所向，将决定边防命脉。"
+        "陛下是下旨逮捕袁崇焕，还是力保袁崇焕，抑或另有裁断？"
     ),
     choices=[
         ScriptChoice(
             label="逮捕袁崇焕",
-            description="先行收系问罪，以平京师汹汹舆情。边将势力恐大为震动。",
+            description="先行收系问罪，以平京师汹汹舆情。辽东边将恐大为震动。",
             decrees=[StructuredDecree(
                 type=DecreeType.PERSONNEL,
                 target="袁崇焕",
@@ -596,8 +778,8 @@ _register(ScriptEvent(
             )],
             loyalty_effects=[("袁崇焕", -50)],
             state_effects={
-                "faction.边将势力.satisfaction": -25,
-                "faction.边将势力.rebellion_risk": 20,
+                "faction.辽东边将.satisfaction": -25,
+                "faction.辽东边将.rebellion_risk": 20,
             },
         ),
         ScriptChoice(
@@ -612,6 +794,55 @@ _register(ScriptEvent(
             },
         ),
     ],
+    historical_hint=(
+        "京师解围后，围绕袁崇焕的舆论迅速极化，朝廷选择先收系再审，实质是用政治动作压住不确定性。"
+        "这个决策在短期内能稳定舆情，却把边防体系的信任成本推到前线承担。\n\n"
+        "关宁系统随即震荡，协同效率下降，统帅层也形成有功未必可保、失误必遭重责的心理预期。"
+        "后续东北战局的持续失利，与这种组织信号密切相关。"
+    ),
+))
+
+_register(ScriptEvent(
+    script_id="liaodong-command-vacancy-1629-12",
+    trigger_year=1629,
+    trigger_month=12,
+    title="辽东统帅空缺",
+    is_blocking=True,
+    condition=lambda s: "jisi-invasion" in s.resolved_script_ids and _minister_removed(s, "袁崇焕"),
+    rich_description=(
+        "**崇祯二年，十二月。**\n\n"
+        "己巳之变余波未平，袁崇焕却已在此前政争中提前身死。"
+        "辽东前线骤失统帅核心，关宁诸将各自为阵，军令传递日益迟滞。\n\n"
+        "朝廷必须尽快重建指挥链：是集中一人统筹，还是分镇自守，"
+        "将直接决定来年关外战局。"
+    ),
+    choices=[
+        ScriptChoice(
+            label="起复孙承宗统筹辽事",
+            description="以老成宿将重建军令中枢，迅速稳定前线预期。",
+            decrees=[StructuredDecree(type=DecreeType.PERSONNEL, target="孙承宗", sub_action=PersonnelAction.APPOINT)],
+            state_effects={"global.court_prestige": 5},
+        ),
+        ScriptChoice(
+            label="分权诸镇，各守疆界",
+            description="让各镇就地自守，减少中枢调度压力但协同风险上升。",
+            decrees=[],
+            state_effects={"region.辽东.stability": -8, "faction.辽东边将.rebellion_risk": 10},
+        ),
+        ScriptChoice(
+            label="加拨军费维持防线",
+            description="先用军费与补给稳住防线，再图人事重建。",
+            decrees=[StructuredDecree(type=DecreeType.TAX_INCREASE)],
+            state_effects={"global.military_morale": 5},
+        ),
+    ],
+    historical_hint=(
+        "关键统帅若在大战役前后提前身死，战区最先崩塌的通常不是兵力，"
+        "而是命令链和信任链。辽东这类高压防区尤其依赖统一调度。\n\n"
+        "在这种局面下，朝廷要么迅速确立替代中枢，要么接受分镇防御带来的协同损耗。"
+        "两种路径都要付出代价，但拖延决策的代价通常最高，"
+        "因为时间会把“人事问题”放大为“战略失控”。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -635,7 +866,7 @@ _register(ScriptEvent(
             decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
             state_effects={
                 "region.陕西.stability": 10,
-                "global.treasury": -20,
+                "global.national_treasury": -20,
             },
         ),
         ScriptChoice(
@@ -653,6 +884,12 @@ _register(ScriptEvent(
             },
         ),
     ],
+    historical_hint=(
+        "裁撤驿递原本是财政节流措施，但在灾年集中执行，客观上把大量有行动能力的青壮推入失业与负债。"
+        "对国家而言，这等于在治安最脆弱时段主动释放高风险人群。\n\n"
+        "李自成由驿卒转入军伍并参与起事，正是这条社会链条的典型个案。"
+        "节省下来的银两无法逆转国库危机，却换来了更高烈度的地方武装化成本。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -661,7 +898,7 @@ _register(ScriptEvent(
     trigger_month=5,
     title="孙承宗收复遵化四城",
     is_blocking=False,
-    condition=lambda s: _minister_active(s, "孙承宗") and s.military_supply > 40,
+    condition=lambda s: _minister_active(s, "孙承宗") and s.military_strength > 20,
     rich_description=(
         "**崇祯三年，五月。**\n\n"
         "老将孙承宗率军反攻，连克遵化、永平、迁安、滦州四城，"
@@ -677,7 +914,7 @@ _register(ScriptEvent(
             state_effects={
                 "region.辽东.stability": 15,
                 "global.military_morale": 10,
-                "global.treasury": -25,
+                "global.national_treasury": -25,
             },
         ),
         ScriptChoice(
@@ -690,6 +927,12 @@ _register(ScriptEvent(
             },
         ),
     ],
+    historical_hint=(
+        "孙承宗收复遵永四城，证明明军在组织尚稳、火器有效配合时仍具较强战力。"
+        "这类胜利对士气和朝廷威信都非常重要，也能短期扭转只能挨打的舆论。\n\n"
+        "但单场胜利难以覆盖长期资源差距。"
+        "后金在战法、火器和后勤上持续学习，明廷若不能同步修复财政与指挥体系，战场回升就难转化为战略反转。"
+    ),
 ))
 
 _register(ScriptEvent(
@@ -704,7 +947,7 @@ _register(ScriptEvent(
         "后金蓄势准备围攻大凌河，辽东局势再度紧张。"
         "前线请示是增援固守还是收缩防线。\n\n"
         "辽东诸堡互为犄角，一处失守便可能牵动全局。"
-        "兵部连夜会同督抚上奏，请陛下速定方略。"
+        "兵部连夜会同督抚上奏：是增援固守、虽耗军资，还是收缩防线、恐失疆土，抑或另有筹策？"
     ),
     choices=[
         ScriptChoice(
@@ -712,7 +955,7 @@ _register(ScriptEvent(
             description="增兵固守大凌河，消耗军备但可稳住辽东防线。",
             decrees=[StructuredDecree(type=DecreeType.RECRUIT_TROOPS)],
             state_effects={
-                "global.military_supply": -15,
+                "global.military_strength": -15,
                 "region.辽东.stability": 5,
             },
         ),
@@ -723,4 +966,10 @@ _register(ScriptEvent(
             state_effects={"region.辽东.stability": -10},
         ),
     ],
+    historical_hint=(
+        "大凌河前推是一次主动防御尝试，目标是以前沿据点牵制后金、减轻锦州压力。"
+        "思路本身并非失当，问题在于工程、补给与援军体系都要求持续高投入。\n\n"
+        "皇太极转为长围后，明军在守城与解围两线同时受压，最终出现祖大寿降清等连锁后果。"
+        "此役之后，辽东防线由主动布势转向被动固守，战略回旋空间显著收缩。"
+    ),
 ))

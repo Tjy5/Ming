@@ -22,36 +22,36 @@ class TestRecalcTaxCollected:
                          tax_contribution=TaxContribution.MEDIUM)
         state = _make_state([r])
         recalc_tax_collected(state, 1.0)
-        # floor(35 * 0.5 * 0.8 * 1.0) = floor(14.0) = 14
-        assert r.tax_collected == math.floor(35 * 0.5 * (80 / 100) * 1.0)
+        # floor(220 * 0.5 * 0.8 * 1.0) = floor(14.0) = 14
+        assert r.tax_collected == math.floor(220 * 0.5 * (80 / 100) * 1.0)
 
     def test_high_contribution(self):
         r = _make_region(stability=100, tax_rate=0.8,
                          tax_contribution=TaxContribution.HIGH)
         state = _make_state([r])
         recalc_tax_collected(state, 1.0)
-        assert r.tax_collected == math.floor(55 * 0.8 * 1.0 * 1.0)
+        assert r.tax_collected == math.floor(360 * 0.8 * 1.0 * 1.0)
 
     def test_low_contribution(self):
         r = _make_region(stability=60, tax_rate=0.3,
                          tax_contribution=TaxContribution.LOW)
         state = _make_state([r])
         recalc_tax_collected(state, 1.0)
-        assert r.tax_collected == math.floor(20 * 0.3 * 0.6 * 1.0)
+        assert r.tax_collected == math.floor(120 * 0.3 * 0.6 * 1.0)
 
     def test_tax_increase_modifier(self):
         r = _make_region(stability=50, tax_rate=0.5,
                          tax_contribution=TaxContribution.MEDIUM)
         state = _make_state([r])
         recalc_tax_collected(state, 1.15)
-        assert r.tax_collected == math.floor(35 * 0.5 * 0.5 * 1.15)
+        assert r.tax_collected == math.floor(220 * 0.5 * 0.5 * 1.15)
 
     def test_tax_decrease_modifier(self):
         r = _make_region(stability=50, tax_rate=0.5,
                          tax_contribution=TaxContribution.MEDIUM)
         state = _make_state([r])
         recalc_tax_collected(state, 0.85)
-        assert r.tax_collected == math.floor(35 * 0.5 * 0.5 * 0.85)
+        assert r.tax_collected == math.floor(220 * 0.5 * 0.5 * 0.85)
 
     def test_zero_stability(self):
         r = _make_region(stability=0, tax_rate=0.5)
@@ -72,8 +72,8 @@ class TestRecalcTaxCollected:
                           tax_contribution=TaxContribution.LOW)
         state = _make_state([r1, r2])
         recalc_tax_collected(state, 1.0)
-        assert r1.tax_collected == math.floor(55 * 1.0 * 1.0 * 1.0)
-        assert r2.tax_collected == math.floor(20 * 0.3 * 0.5 * 1.0)
+        assert r1.tax_collected == math.floor(360 * 1.0 * 1.0 * 1.0)
+        assert r2.tax_collected == math.floor(120 * 0.3 * 0.5 * 1.0)
 
 
 class TestTaxRateClampAndPrecision:
@@ -115,7 +115,7 @@ class TestTaxRateClampAndPrecision:
         recalc_tax_collected(state, 1.0)
         # recalc should round tax_rate first: 0.3, then floor(35*0.3*1.0*1.0)=10
         assert r.tax_rate == 0.3
-        assert r.tax_collected == math.floor(35 * 0.3 * 1.0 * 1.0)
+        assert r.tax_collected == math.floor(220 * 0.3 * 1.0 * 1.0)
 
     def test_tax_collected_non_negative_after_clamp(self):
         r = _make_region(stability=0, tax_rate=0.0)

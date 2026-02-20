@@ -5,7 +5,8 @@ from models.game import INITIAL_MINISTERS
 def _old_save_data(year: int, regions=None, include_ministers=False) -> dict:
     data = {
         "time": {"year": year, "month": 6},
-        "treasury": 100, "population": 100, "military_supply": 80,
+        "national_treasury": 50, "imperial_treasury": 30, "grain": 20,
+        "population": 15000, "military_strength": 80,
         "civil_morale": 60, "military_morale": 70, "court_prestige": 75,
         "factions": [], "active_events": [], "history_log": [],
         "decree_count": 5, "event_cooldowns": {},

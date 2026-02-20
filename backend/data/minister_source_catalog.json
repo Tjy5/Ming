@@ -1,0 +1,66 @@
+[
+  {
+    "id": "A_MING_SHILU_DB",
+    "tier": "A_PRIMARY",
+    "title": "明實錄、朝鮮王朝實錄、清實錄資料庫（中研院史語所）",
+    "url": "https://www1.ihp.sinica.edu.tw/Bulletin/News/847/Detail",
+    "checked_on": "2026-02-20",
+    "notes": "作为《明实录》数据库入口公告，可用于核实一手史料来源渠道。"
+  },
+  {
+    "id": "A_MINGSHI_INDEX",
+    "tier": "A_PRIMARY",
+    "title": "《明史》总目（维基文库）",
+    "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+    "checked_on": "2026-02-20",
+    "notes": "用于定位《明史》卷次与体例结构。"
+  },
+  {
+    "id": "A_MINGSHI_OFFICE_VOL72",
+    "tier": "A_PRIMARY",
+    "title": "《明史/卷72（職官一）》",
+    "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+    "checked_on": "2026-02-20",
+    "notes": "用于官职名称、品级、机构职责口径统一。"
+  },
+  {
+    "id": "A_MING_SHILU_BOOK",
+    "tier": "A_PRIMARY",
+    "title": "《明實錄附校勘記及附錄》出版说明（中研院史语所）",
+    "url": "https://www1.ihp.sinica.edu.tw/jp/Publications/Book/658",
+    "checked_on": "2026-02-20",
+    "notes": "可作为《明实录》整理与版本信息的权威说明。"
+  },
+  {
+    "id": "B_CBDB_HOME",
+    "tier": "B_DATABASE",
+    "title": "China Biographical Database Project (CBDB) 首页",
+    "url": "https://cbdb.hsites.harvard.edu/",
+    "checked_on": "2026-02-20",
+    "notes": "权威人物数据库，适合核查生卒年、仕历、关系网络。"
+  },
+  {
+    "id": "B_CBDB_ACCESS",
+    "tier": "B_DATABASE",
+    "title": "Accessing CBDB Online",
+    "url": "https://projects.iq.harvard.edu/cbdb/accessing-cbdb-online",
+    "checked_on": "2026-02-20",
+    "notes": "用于确认 CBDB 在线访问与数据查询入口。"
+  },
+  {
+    "id": "B_CBDB_CITE",
+    "tier": "B_DATABASE",
+    "title": "How to Cite CBDB",
+    "url": "https://projects.iq.harvard.edu/cbdb/how-cite-cbdb",
+    "checked_on": "2026-02-20",
+    "notes": "统一项目内 CBDB 引用格式。"
+  },
+  {
+    "id": "C_PROJECT_MINISTERS_JSON",
+    "tier": "C_SECONDARY",
+    "title": "项目初始大臣数据（ministers.json）",
+    "url": "backend/data/ministers.json",
+    "checked_on": "2026-02-20",
+    "notes": "仅作项目原始设定参考，不可替代一手史料。"
+  }
+]

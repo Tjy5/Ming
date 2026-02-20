@@ -5,14 +5,16 @@ import type { GameEvent, StructuredDecree } from '../types/game'
 interface Props {
   event: GameEvent
   onChoose: (decrees: StructuredDecree[], scriptId: string, freeText?: string) => Promise<string | null>
+  onBack: () => void
 }
 
-export default function ScriptEventModal({ event, onChoose }: Props) {
+export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
   const scriptId = event.script_id!
   const text = event.rich_description || event.description
   const [freeText, setFreeText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [warning, setWarning] = useState<string | null>(null)
+  const [hintOpen, setHintOpen] = useState(false)
 
   async function handleSubmit() {
     const trimmed = freeText.trim()
@@ -36,6 +38,24 @@ export default function ScriptEventModal({ event, onChoose }: Props) {
         <div className="script-md-body">
           <Markdown>{text}</Markdown>
         </div>
+        {event.historical_hint && (
+          <div className="script-hint-section">
+            <button
+              type="button"
+              className="script-hint-toggle"
+              aria-expanded={hintOpen}
+              aria-controls="historical-hint-content"
+              onClick={() => setHintOpen(v => !v)}
+            >
+              {hintOpen ? '📜 史实注释（附文）（点击收起）' : '📜 史实注释（附文）（点击展开）'}
+            </button>
+            {hintOpen && (
+              <div id="historical-hint-content" className="script-hint-body">
+                <Markdown>{event.historical_hint}</Markdown>
+              </div>
+            )}
+          </div>
+        )}
         <div className="script-freetext">
           <textarea
             maxLength={200}
@@ -47,6 +67,13 @@ export default function ScriptEventModal({ event, onChoose }: Props) {
           <div className="script-freetext-footer">
             {warning && <span className="script-warning">{warning}</span>}
             <span className="char-count">{freeText.length}/200</span>
+            <button
+              className="modal-btn"
+              disabled={submitting}
+              onClick={onBack}
+            >
+              返回
+            </button>
             <button
               className="modal-btn primary"
               disabled={!freeText.trim() || submitting}

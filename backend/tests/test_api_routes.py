@@ -35,13 +35,13 @@ def _mock_provider():
 def test_execute_decree_is_atomic_when_later_decree_fails_precondition():
     routes._provider = _mock_provider()
     routes._state = create_initial_state()
-    routes._state.treasury = 25
+    routes._state.civil_morale = 12  # HARSH_PUNISHMENT passes (>5), TAX_INCREASE fails after (civil_morale drops to ~2)
     before = routes._state.model_dump()
 
     req = routes.DecreeRequest(
         decrees=[
-            StructuredDecree(type=DecreeType.RECRUIT_TROOPS),
-            StructuredDecree(type=DecreeType.TAX_DECREASE),
+            StructuredDecree(type=DecreeType.HARSH_PUNISHMENT),
+            StructuredDecree(type=DecreeType.TAX_INCREASE),
         ]
     )
 

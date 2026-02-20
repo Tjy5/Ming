@@ -1,0 +1,5679 @@
+[
+  {
+    "name": "韩爌",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "礼部尚书兼东阁大学士",
+      "historical_note": "天启朝被阉党排挤去职，崇祯即位后起复入阁，主持倒魏善后。"
+    },
+    "aliases": [
+      "韓爌"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部尚书兼东阁大学士",
+      "内阁辅臣（崇祯初）"
+    ],
+    "major_contributions": [
+      "崇祯即位后起复入阁，参与倒魏善后与中枢重整。",
+      "以内阁辅臣身份参与早期政务协调。"
+    ],
+    "related_events": [
+      "崇祯初阉党清算",
+      "东林复起"
+    ],
+    "project_role_background": "前期中枢稳定角色，影响朝堂秩序与东林党路线。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "钱谦益",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "礼部侍郎",
+      "historical_note": "文坛盟主，东林后期领袖。才学冠绝当世，然政治立场屡遭非议。"
+    },
+    "aliases": [
+      "錢謙益"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "南明弘光朝礼部尚书（后期）"
+    ],
+    "major_contributions": [
+      "明末文坛与士林核心人物，对士人网络影响显著。",
+      "南明时期继续参与礼部政务。"
+    ],
+    "related_events": [
+      "崇祯初东林复起",
+      "南明弘光政权建立"
+    ],
+    "project_role_background": "偏文治与士林动员角色，可提高文化声望并放大党争效应。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "钱龙锡",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "吏部侍郎",
+      "historical_note": "崇祯初年入阁辅政，后因袁崇焕案受牵连下狱。"
+    },
+    "aliases": [
+      "錢龍錫"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏部侍郎",
+      "入阁辅政（崇祯初）"
+    ],
+    "major_contributions": [
+      "崇祯初参与内阁辅政，涉及早期人事与议政。",
+      "在袁崇焕案中受牵连，体现朝局连带风险。"
+    ],
+    "related_events": [
+      "崇祯初内阁重组",
+      "袁崇焕案"
+    ],
+    "project_role_background": "中枢协同型角色，适合承接人事与议政事件链。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "成基命",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "礼部侍郎",
+      "historical_note": "崇祯初年入阁，以宽厚著称，每遇大狱力主宽减。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "入阁辅政（崇祯初）"
+    ],
+    "major_contributions": [
+      "崇祯初年入阁参与政务，风格偏宽厚持重。",
+      "在重大司法争议中倾向主张宽减。"
+    ],
+    "related_events": [
+      "崇祯初阁臣调整",
+      "明末大狱争议"
+    ],
+    "project_role_background": "温和调和型角色，可用于缓和极端政令副作用。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "文震孟",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "翰林编修",
+      "historical_note": "天启二年状元，因直谏魏忠贤被廷杖削籍。崇祯初复官。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "状元出身"
+    ],
+    "major_contributions": [
+      "以直谏著称，曾因触忤权阉受打击。",
+      "崇祯初复官后成为士人清议代表之一。"
+    ],
+    "related_events": [
+      "天启朝阉党政治",
+      "崇祯初东林复起"
+    ],
+    "project_role_background": "高道德声望谏诤角色，可强化“清议”路线。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "黄道周",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "翰林编修",
+      "historical_note": "理学名臣，以敢言著称。屡因直谏触怒崇祯被贬黜。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "后期南明重臣"
+    ],
+    "major_contributions": [
+      "以理学与直谏著称，多次因言事受挫。",
+      "南明时期继续抗清并殉国。"
+    ],
+    "related_events": [
+      "崇祯朝言官政治",
+      "南明抗清"
+    ],
+    "project_role_background": "高忠诚高原则角色，利于提升道统与士气。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "刘宗周",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "顺天府尹",
+      "historical_note": "蕺山学派创始人，崇祯朝著名谏臣。六次被贬六次起复。"
+    },
+    "aliases": [
+      "劉宗周"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "顺天府尹",
+      "明末著名谏臣"
+    ],
+    "major_contributions": [
+      "以清正与讲学并重著称，长期参与言路监督。",
+      "多次被贬复起，反映明末政治震荡。"
+    ],
+    "related_events": [
+      "崇祯朝党争",
+      "甲申前后士人殉节"
+    ],
+    "project_role_background": "清流标杆角色，对权术型政策容忍度低。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "倪元璐",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "翰林编修",
+      "historical_note": "书法名家。崇祯末户部尚书，城破殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "户部尚书（崇祯末）"
+    ],
+    "major_contributions": [
+      "兼具文名与政务能力，晚期承担财政与中枢职责。",
+      "甲申之变中殉国。"
+    ],
+    "related_events": [
+      "崇祯末财政危机",
+      "甲申之变"
+    ],
+    "project_role_background": "文官财政线核心角色，可承接危机时期忠诚抉择。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "范景文",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "河南巡抚",
+      "historical_note": "崇祯末年入阁，甲申之变自缢殉国，谥文忠。"
+    },
+    "aliases": [
+      "範景文"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "河南巡抚",
+      "入阁（崇祯末）"
+    ],
+    "major_contributions": [
+      "历任地方与中枢职位，治理风格偏务实。",
+      "甲申之变时殉国。"
+    ],
+    "related_events": [
+      "崇祯末中枢更迭",
+      "甲申之变"
+    ],
+    "project_role_background": "地方-中枢转换型角色，适合作为危机期执行官。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "史可法",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "户部主事",
+      "historical_note": "左光斗门生。后督师江北，扬州城破殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "户部主事（早期）",
+      "后期督师江北"
+    ],
+    "major_contributions": [
+      "明末重要军事政治人物，后期组织江北防务。",
+      "扬州失守后殉国，成为抗清象征。"
+    ],
+    "related_events": [
+      "崇祯末北方战局恶化",
+      "南明弘光政权与扬州之役"
+    ],
+    "project_role_background": "高忠诚军事政治核心，可显著影响后期战局与士气。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "姜曰广",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "翰林侍读",
+      "historical_note": "崇祯朝翰林学士，南明弘光朝礼部尚书。"
+    },
+    "aliases": [
+      "姜曰廣"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林侍读",
+      "南明弘光朝礼部尚书"
+    ],
+    "major_contributions": [
+      "崇祯朝以翰林身份参与中枢文政。",
+      "南明时期继续任礼部要职。"
+    ],
+    "related_events": [
+      "崇祯朝阁局变化",
+      "南明弘光政务"
+    ],
+    "project_role_background": "文官制度延续角色，可连接明末与南明阶段叙事。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "高弘图",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "光禄少卿",
+      "historical_note": "崇祯朝工部尚书，南明弘光朝首辅。"
+    },
+    "aliases": [
+      "高弘圖"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "光禄少卿",
+      "南明弘光朝首辅"
+    ],
+    "major_contributions": [
+      "明末至南明过渡期的重要文臣。",
+      "在南明政权中担任首辅参与中枢决策。"
+    ],
+    "related_events": [
+      "甲申后政权重组",
+      "南明弘光朝内阁运作"
+    ],
+    "project_role_background": "过渡政权核心文臣，可影响南迁后政权稳定度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "马世奇",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "翰林编修",
+      "historical_note": "崇祯四年进士，甲申之变殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末殉国士臣"
+    ],
+    "major_contributions": [
+      "以翰林出身进入中枢文臣系统。",
+      "甲申之变殉国。"
+    ],
+    "related_events": [
+      "崇祯末中枢压力",
+      "甲申之变"
+    ],
+    "project_role_background": "高忠诚文臣角色，适合作为“城破殉节”分支触发点。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "吴甡",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "御史",
+      "historical_note": "崇祯中期入阁，曾议剿抚之策。后因故去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "御史",
+      "崇祯中期入阁（后去职）"
+    ],
+    "major_contributions": [
+      "以言官身份参与政策辩论，涉及剿抚路线讨论。",
+      "中期入阁后又因政争退出中枢。"
+    ],
+    "related_events": [
+      "崇祯中期剿抚争论",
+      "内阁更替"
+    ],
+    "project_role_background": "政策争论型角色，可牵引“剿”与“抚”路径分歧。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "瞿式耜",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "吏科给事中",
+      "historical_note": "南明永历朝留守桂林，城破殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏科给事中",
+      "南明永历朝重臣"
+    ],
+    "major_contributions": [
+      "明末言官体系成员，参与朝政监察。",
+      "南明永历政权中坚持抗清并殉国。"
+    ],
+    "related_events": [
+      "崇祯末言路政治",
+      "南明永历抗清"
+    ],
+    "project_role_background": "南明抗清线关键角色，利于构建后期忠义叙事。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "魏忠贤",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "司礼监秉笔太监",
+      "historical_note": "天启朝权阉，号称九千岁。崇祯即位后被贬凤阳，途中自缢。"
+    },
+    "aliases": [
+      "魏忠賢"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "司礼监秉笔太监",
+      "内廷权力核心"
+    ],
+    "major_contributions": [
+      "天启朝主导内廷权力网络，深刻影响官僚任免。",
+      "崇祯初被清算，是明末政治转折关键节点。"
+    ],
+    "related_events": [
+      "阉党专权",
+      "崇祯初清算阉党"
+    ],
+    "project_role_background": "高风险高影响反派核心，决定开局政治难度与朝局走向。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "崔呈秀",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "兵部尚书",
+      "historical_note": "阉党五虎之首，依附魏忠贤把持兵部。崇祯清算阉党时自缢。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部尚书",
+      "阉党骨干"
+    ],
+    "major_contributions": [
+      "作为阉党核心成员参与中枢权力运作。",
+      "崇祯清算阉党时自尽。"
+    ],
+    "related_events": [
+      "阉党专政",
+      "崇祯初阉党清算"
+    ],
+    "project_role_background": "阉党网络关键节点，影响兵部与党争事件触发概率。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "田尔耕",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "锦衣卫指挥使",
+      "historical_note": "阉党五彪之首，掌锦衣卫酷刑迫害异己。崇祯元年被处死。"
+    },
+    "aliases": [
+      "田爾耕"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "锦衣卫指挥使"
+    ],
+    "major_contributions": [
+      "掌锦衣卫期间参与高压政治与案件办理。",
+      "崇祯初因阉党案被处置。"
+    ],
+    "related_events": [
+      "天启末诏狱政治",
+      "崇祯初逆案清算"
+    ],
+    "project_role_background": "强制执法型角色，可改变朝臣恐惧与忠诚结构。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "许显纯",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "北镇抚司",
+      "historical_note": "酷吏，刑杀杨涟、左光斗等东林六君子。崇祯元年伏诛。"
+    },
+    "aliases": [
+      "許顯純"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "北镇抚司"
+    ],
+    "major_contributions": [
+      "以酷吏形象参与阉党时期政治迫害。",
+      "崇祯初被处置，成为清算阉党的标志对象。"
+    ],
+    "related_events": [
+      "东林党案与诏狱",
+      "崇祯初阉党清算"
+    ],
+    "project_role_background": "高压统治代表角色，可作为“严刑路线”副作用参照。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "冯铨",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "文渊阁大学士",
+      "historical_note": "年少入阁，依附魏忠贤。崇祯初被削籍。后降清复起。"
+    },
+    "aliases": [
+      "馮銓"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "文渊阁大学士",
+      "明末降清后复起"
+    ],
+    "major_contributions": [
+      "早年入阁并卷入阉党政治网络。",
+      "明清鼎革中再度出仕，体现士大夫政治选择分化。"
+    ],
+    "related_events": [
+      "崇祯初逆案处理",
+      "明清鼎革中的仕宦转向"
+    ],
+    "project_role_background": "立场可变型高层文臣，适合建模“忠节-现实”抉择分支。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "施凤来",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "武英殿大学士",
+      "historical_note": "阉党阁臣，为人庸碌。崇祯即位后致仕。"
+    },
+    "aliases": [
+      "施鳳來"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "武英殿大学士",
+      "阉党时期阁臣"
+    ],
+    "major_contributions": [
+      "阉党时期在内阁任职，参与中枢文书与票拟流程。",
+      "崇祯即位后退出中枢，反映旧阁臣更替。"
+    ],
+    "related_events": [
+      "崇祯初阉党清算",
+      "内阁人员重组"
+    ],
+    "project_role_background": "旧秩序遗留阁臣，可作为“清算/宽纵”政策影响样本。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张瑞图",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "建极殿大学士",
+      "historical_note": "书法家。因书写魏忠贤生祠碑文列入逆案。崇祯初去职。"
+    },
+    "aliases": [
+      "張瑞圖"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "建极殿大学士",
+      "阉党时期阁臣"
+    ],
+    "major_contributions": [
+      "以阁臣身份参与中枢决策与文书工作。",
+      "因涉阉党政治在崇祯初去职，体现政治追责链条。"
+    ],
+    "related_events": [
+      "阉党专政",
+      "崇祯初逆案处理"
+    ],
+    "project_role_background": "兼具文化名望与政治争议的角色，可触发名望与信誉冲突事件。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "阮大铖",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "太常少卿",
+      "historical_note": "戏曲家。依附阉党被列入逆案，南明时复起祸乱朝政。"
+    },
+    "aliases": [
+      "阮大鋮"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "太常少卿",
+      "阉党系文臣"
+    ],
+    "major_contributions": [
+      "阉党时期参与朝局运作并形成争议政治标签。",
+      "后期在南明再度活跃，体现人物政治立场波动。"
+    ],
+    "related_events": [
+      "崇祯初阉党清算",
+      "南明朝局分化"
+    ],
+    "project_role_background": "高争议文臣角色，适合建模“名声-实用”两难决策。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "李永贞",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "司礼监太监",
+      "historical_note": "魏忠贤心腹太监。崇祯清算阉党时被处死。"
+    },
+    "aliases": [
+      "李永貞"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "司礼监太监",
+      "魏忠贤心腹内臣"
+    ],
+    "major_contributions": [
+      "阉党时期作为内廷执行层参与权力网络运作。",
+      "崇祯初被清算，成为内廷整肃对象之一。"
+    ],
+    "related_events": [
+      "阉党专权",
+      "崇祯初内廷整肃"
+    ],
+    "project_role_background": "阉党执行节点角色，影响内廷风险与朝臣恐惧值。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "朱纯臣",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "成国公",
+      "historical_note": "世袭成国公，掌京营。甲申之变降李自成，后被处死。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "成国公",
+      "掌京营（后期）"
+    ],
+    "major_contributions": [
+      "作为勋贵集团代表长期参与京营权力结构。",
+      "甲申之变中的政治选择对明廷威望造成冲击。"
+    ],
+    "related_events": [
+      "京营整饬争论",
+      "甲申之变"
+    ],
+    "project_role_background": "勋贵军事资源节点，可影响京师防务执行力度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张维贤",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "英国公",
+      "historical_note": "协助崇祯即位有功。崇祯三年病逝。"
+    },
+    "aliases": [
+      "張維賢"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "英国公",
+      "勋贵集团核心"
+    ],
+    "major_contributions": [
+      "在崇祯初政治过渡阶段维持勋贵体系稳定。",
+      "代表传统勋贵与文官系统之间的协调关系。"
+    ],
+    "related_events": [
+      "崇祯即位初期权力重组",
+      "京营权责调整"
+    ],
+    "project_role_background": "勋贵稳定器角色，可降低短期军政震荡。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "徐允祯",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "定国公",
+      "historical_note": "世袭定国公。甲申之变降贼被杀。"
+    },
+    "aliases": [
+      "徐允禎"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "定国公",
+      "勋贵集团成员"
+    ],
+    "major_contributions": [
+      "参与勋贵集团对京营和朝局的传统影响。",
+      "甲申之变中的立场变化体现勋贵体系脆弱性。"
+    ],
+    "related_events": [
+      "勋贵集团权力分配",
+      "甲申之变"
+    ],
+    "project_role_background": "中低忠诚勋贵样本，可用于“战时服从度”机制。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "巩永固",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "驸马都尉",
+      "historical_note": "尚乐安公主。甲申之变自焚殉国，为勋贵中罕见忠烈。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "驸马都尉",
+      "皇亲勋贵"
+    ],
+    "major_contributions": [
+      "以皇亲身份连接内廷与勋贵体系。",
+      "甲申之变中殉国，体现勋贵内部忠节分化。"
+    ],
+    "related_events": [
+      "崇祯朝皇亲政治",
+      "甲申之变"
+    ],
+    "project_role_background": "高忠诚皇亲角色，利于提升危机情境下朝廷凝聚度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "刘文炳",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "新城侯",
+      "historical_note": "崇祯外戚。甲申之变投井殉国。"
+    },
+    "aliases": [
+      "劉文炳"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "新城侯",
+      "勋贵外戚系统"
+    ],
+    "major_contributions": [
+      "以外戚勋贵身份参与朝廷军事与礼制网络。",
+      "甲申之变中殉国，代表部分勋贵的忠君选择。"
+    ],
+    "related_events": [
+      "勋贵与外戚互动",
+      "甲申之变"
+    ],
+    "project_role_background": "外戚勋贵稳定角色，可影响宫廷政治信任链条。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "徐弘基",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "魏国公",
+      "historical_note": "世袭魏国公，镇守南京。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "魏国公",
+      "南京勋贵体系核心"
+    ],
+    "major_contributions": [
+      "在南京地区维持传统勋贵秩序与资源分配。",
+      "为南方政务与军事调度提供勋贵支持基础。"
+    ],
+    "related_events": [
+      "南北军政资源分化",
+      "明末南京防务讨论"
+    ],
+    "project_role_background": "南方权力支点角色，影响南迁与地方协同事件。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "周奎",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "嘉定伯",
+      "historical_note": "崇祯岳父。为人悭吝，甲申之变时拒捐军饷。降贼后被杀。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "嘉定伯",
+      "皇亲系统成员"
+    ],
+    "major_contributions": [
+      "以皇亲身份介入朝廷财政与捐输争议。",
+      "甲申之变前后其行为成为舆论批评焦点。"
+    ],
+    "related_events": [
+      "崇祯末财政征敛争议",
+      "甲申之变"
+    ],
+    "project_role_background": "低公信皇亲样本，适合触发“民意反噬”机制。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "李国桢",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "襄城伯",
+      "historical_note": "崇祯末提督京营，城破降贼。"
+    },
+    "aliases": [
+      "李國楨"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "襄城伯",
+      "京营提督（后期）"
+    ],
+    "major_contributions": [
+      "参与京营后期指挥体系运作。",
+      "城防失守阶段的选择对政权合法性造成打击。"
+    ],
+    "related_events": [
+      "京师防务危机",
+      "甲申之变"
+    ],
+    "project_role_background": "战时执行风险角色，可影响守城事件结果。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "朱国弼",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "保国公",
+      "historical_note": "世袭保国公。后降清。"
+    },
+    "aliases": [
+      "朱國弼"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "保国公",
+      "勋贵集团成员"
+    ],
+    "major_contributions": [
+      "代表世袭勋贵在晚明政治中的持续存在。",
+      "明清鼎革中的政治选择反映勋贵群体分裂。"
+    ],
+    "related_events": [
+      "勋贵集团路线分化",
+      "明清鼎革"
+    ],
+    "project_role_background": "勋贵流动性样本，适合“忠诚衰减”系统建模。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "袁崇焕",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "辽东巡抚",
+      "historical_note": "宁远大捷功臣。崇祯二年督师蓟辽，己巳之变后被捕下狱凌迟。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "辽东巡抚",
+      "督师蓟辽（后期）"
+    ],
+    "major_contributions": [
+      "辽东防务核心将领，参与构建边防抗后金体系。",
+      "己巳之变后被捕处置，成为崇祯朝军事政治转折点。"
+    ],
+    "related_events": [
+      "宁远防务",
+      "己巳之变",
+      "袁崇焕案"
+    ],
+    "project_role_background": "辽东战略核心角色，对边防强度与朝廷信任高度敏感。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "孙承宗",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "兵部尚书兼东阁大学士",
+      "historical_note": "天启朝督师辽东，构建关宁锦防线。崇祯末高阳城破殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部尚书兼东阁大学士",
+      "辽东督师（天启末）"
+    ],
+    "major_contributions": [
+      "在辽东防务与关宁体系建设中具有关键影响。",
+      "晚期仍以资深将相身份参与边防讨论。"
+    ],
+    "related_events": [
+      "关宁防线建设",
+      "崇祯初辽东战略争论"
+    ],
+    "project_role_background": "高威望老成将相，可提高辽东防务决策质量。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "满桂",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "总兵",
+      "historical_note": "蒙古裔名将。宁锦大捷有功。己巳之变中战死永定门外。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "总兵",
+      "辽东边军将领"
+    ],
+    "major_contributions": [
+      "参与辽东边防作战，是明末重要武将之一。",
+      "在己巳之变勤王作战中阵亡。"
+    ],
+    "related_events": [
+      "辽东防务作战",
+      "己巳之变"
+    ],
+    "project_role_background": "高武力将领角色，可提升前线作战效能与军心。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "赵率教",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "总兵",
+      "historical_note": "宁锦大捷功臣。己巳之变中率部勤王，战死遵化。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "总兵",
+      "辽东边将"
+    ],
+    "major_contributions": [
+      "参与宁锦体系防务并承担勤王任务。",
+      "在战时行动中阵亡，反映前线将领损耗压力。"
+    ],
+    "related_events": [
+      "宁锦防线作战",
+      "己巳之变勤王"
+    ],
+    "project_role_background": "前线冲锋型武将，适合触发高风险战役事件。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "毛文龙",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "东江总兵",
+      "historical_note": "镇守皮岛牵制后金。崇祯二年被袁崇焕矫诏斩杀。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "东江总兵",
+      "皮岛体系主将"
+    ],
+    "major_contributions": [
+      "通过东江镇牵制后金，形成海陆边缘战略支点。",
+      "其被处置引发边镇指挥权争议与连锁影响。"
+    ],
+    "related_events": [
+      "东江镇经营",
+      "袁崇焕斩毛文龙"
+    ],
+    "project_role_background": "高争议边将角色，可显著影响辽东-海防联动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "祖大寿",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "副总兵",
+      "historical_note": "关宁军核心将领。大凌河被围后诈降，后松锦之战再降清。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "副总兵",
+      "关宁军核心将领"
+    ],
+    "major_contributions": [
+      "长期活跃于关宁军体系，影响辽东战局走向。",
+      "在关键战事中的立场变化对边防稳定冲击明显。"
+    ],
+    "related_events": [
+      "大凌河之战",
+      "松锦战事"
+    ],
+    "project_role_background": "边军忠诚波动样本，适合“降附风险”机制。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "何可纲",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "副总兵",
+      "historical_note": "关宁军勇将。大凌河之战中拒降，被祖大寿杀害以表降意。"
+    },
+    "aliases": [
+      "何可綱"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "副总兵",
+      "关宁军将领"
+    ],
+    "major_contributions": [
+      "作为关宁军将领参与辽东防务与作战。",
+      "在大凌河相关事件中殉难，成为忠义叙事对象。"
+    ],
+    "related_events": [
+      "关宁军作战",
+      "大凌河相关事件"
+    ],
+    "project_role_background": "高忠诚边将角色，可提升将领群体士气。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "吴三桂",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "千总",
+      "historical_note": "祖大寿外甥。崇祯末总兵山海关，引清兵入关。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "千总（早期）",
+      "山海关总兵（后期）"
+    ],
+    "major_contributions": [
+      "崛起于辽东军系，后成为山海关关键将领。",
+      "其政治军事选择对明清鼎革进程影响巨大。"
+    ],
+    "related_events": [
+      "辽东军政变迁",
+      "山海关局势转折"
+    ],
+    "project_role_background": "高波动战略角色，显著影响边关开闭与政权结局分支。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "曹文诏",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "参将",
+      "historical_note": "辽东悍将，号称'军中有一曹，流贼闻之心胆摇'。陕北围剿中战死。"
+    },
+    "aliases": [
+      "曹文詔"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "中原剿匪主将"
+    ],
+    "major_contributions": [
+      "以剿寇作战能力著称，是明末前线悍将。",
+      "在中原战场阵亡后对军心造成冲击。"
+    ],
+    "related_events": [
+      "中原剿寇战事",
+      "明军前线将领损耗"
+    ],
+    "project_role_background": "高武力前线将领，可提升短期战绩但损耗风险高。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "黄龙",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "参将",
+      "historical_note": "毛文龙死后继任东江总兵。后金攻旅顺时战死。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "东江总兵（后续）"
+    ],
+    "major_contributions": [
+      "承接东江镇防务，维持海上牵制体系。",
+      "在对后金作战中阵亡，反映东江系持续高压。"
+    ],
+    "related_events": [
+      "东江镇防务延续",
+      "辽东海防压力"
+    ],
+    "project_role_background": "海防牵制型将领，影响边海联防稳定性。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "刘兴祚",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "副将",
+      "historical_note": "原为后金汉官，暗通明朝。回归后任副将，不久战死。"
+    },
+    "aliases": [
+      "劉興祚"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "副将",
+      "辽东边军联络角色"
+    ],
+    "major_contributions": [
+      "具备边疆双向接触经验，具有情报与联络价值。",
+      "回归明方后不久战亡，体现边镇高风险环境。"
+    ],
+    "related_events": [
+      "辽东边情渗透与反渗透",
+      "边镇将领高损耗"
+    ],
+    "project_role_background": "边情节点角色，可触发情报收益与暴露风险并存机制。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "金国凤",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "参将",
+      "historical_note": "守松山、杏山有功。后在宁远被围战死。"
+    },
+    "aliases": [
+      "金國鳳"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "辽东守备将领"
+    ],
+    "major_contributions": [
+      "参与松山、杏山等地防务。",
+      "后续战事中阵亡，折射辽东防线人员损耗。"
+    ],
+    "related_events": [
+      "松山杏山防务",
+      "辽东守城消耗战"
+    ],
+    "project_role_background": "守备型武将，偏向防线稳固与消耗管理。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "尤世禄",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "宣府总兵",
+      "historical_note": "己巳之变勤王将领之一。"
+    },
+    "aliases": [
+      "尤世祿"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "宣府总兵",
+      "勤王将领"
+    ],
+    "major_contributions": [
+      "承担北边重镇兵务并参与京畿勤王。",
+      "在边防调度中影响京师外围防线稳态。"
+    ],
+    "related_events": [
+      "宣府镇防务",
+      "己巳之变勤王体系"
+    ],
+    "project_role_background": "边镇机动角色，适合提升京畿外围应急能力。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "杨鹤",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "右佥都御史",
+      "historical_note": "崇祯初任三边总督主抚。因招抚失败被逮下狱。杨嗣昌之父。"
+    },
+    "aliases": [
+      "楊鶴"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "右佥都御史",
+      "三边总督（主抚路线）"
+    ],
+    "major_contributions": [
+      "在崇祯初主导抚剿策略中的“抚”向尝试。",
+      "招抚失败后被问责，体现政策容错率低。"
+    ],
+    "related_events": [
+      "崇祯初剿抚争论",
+      "三边总督更替"
+    ],
+    "project_role_background": "政策分歧关键角色，可触发“抚”路线收益与反噬。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "杨嗣昌",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "兵部主事",
+      "historical_note": "崇祯中期兵部尚书，提出'四正六隅、十面张网'之策。襄阳失守后忧惧而死。"
+    },
+    "aliases": [
+      "楊嗣昌"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部主事（早期）",
+      "兵部尚书（后期）"
+    ],
+    "major_contributions": [
+      "提出系统性剿寇部署方案，主导中期军事策略。",
+      "后期战局恶化导致其政治与心理压力集中爆发。"
+    ],
+    "related_events": [
+      "四正六隅部署",
+      "襄阳失守后政局震荡"
+    ],
+    "project_role_background": "中期军事总策划角色，能显著影响全国战线压力分配。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "卢象升",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "大名知府",
+      "historical_note": "文武全才。崇祯十一年总督天下勤王兵马，巨鹿之战孤军奋战殉国。"
+    },
+    "aliases": [
+      "盧象升"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "大名知府（早期）",
+      "总督天下勤王兵马（后期）"
+    ],
+    "major_contributions": [
+      "兼具文官治理与军事指挥能力。",
+      "在大战中殉国，成为明末忠勇将臣代表。"
+    ],
+    "related_events": [
+      "勤王军组织",
+      "巨鹿战事"
+    ],
+    "project_role_background": "高忠诚复合型将臣，可提高军纪与士气，但替代成本高。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "陈奇瑜",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "陕西参议",
+      "historical_note": "崇祯七年任五省总督，车厢峡围困义军几获全胜，因受降失策被罢。"
+    },
+    "aliases": [
+      "陳奇瑜"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "陕西参议",
+      "五省总督"
+    ],
+    "major_contributions": [
+      "曾在围剿战役中形成局部优势。",
+      "因受降决策失当导致政治责任追究。"
+    ],
+    "related_events": [
+      "车厢峡围剿",
+      "剿抚政策反复"
+    ],
+    "project_role_background": "成败波动型统帅角色，适合“战果-问责”联动机制。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "孙传庭",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "吏部主事",
+      "historical_note": "崇祯朝名将。黑水峪擒获高迎祥。后潼关战败殉国。'传庭死而明亡'。"
+    },
+    "aliases": [
+      "孫傳庭"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏部主事（早期）",
+      "中后期统兵将领"
+    ],
+    "major_contributions": [
+      "在剿寇战场屡建战功，是后期支柱将领之一。",
+      "战败殉难后，明廷战略回旋空间进一步收缩。"
+    ],
+    "related_events": [
+      "高迎祥被擒",
+      "潼关战事"
+    ],
+    "project_role_background": "后期核心将领角色，决定中原防线韧性上限。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "洪承畴",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "陕西参政",
+      "historical_note": "崇祯朝陕西巡抚、蓟辽总督。松锦之战兵败降清。"
+    },
+    "aliases": [
+      "洪承疇"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "陕西参政",
+      "蓟辽总督（后期）"
+    ],
+    "major_contributions": [
+      "长期活跃于剿寇与边防一线，具备大规模统筹能力。",
+      "关键战事后立场变化，成为明末政治象征事件。"
+    ],
+    "related_events": [
+      "松锦战事",
+      "明清鼎革中的将帅转向"
+    ],
+    "project_role_background": "高能力高不确定性统帅，适合建模“忠诚-胜负”耦合。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "左良玉",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "参将",
+      "historical_note": "悍将。崇祯末拥兵自重，号称八十万军。南明时率军东下，病死途中。"
+    },
+    "aliases": [
+      "左良玉"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将（早期）",
+      "后期拥兵大将"
+    ],
+    "major_contributions": [
+      "在中后期战场长期保持较强军事实力。",
+      "后期军政关系紧张，形成尾大不掉风险。"
+    ],
+    "related_events": [
+      "中原战场长期消耗",
+      "南明初期兵权博弈"
+    ],
+    "project_role_background": "强兵自重型角色，显著影响军纪与中央控制力。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "贺人龙",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "参将",
+      "historical_note": "骁勇善战但桀骜不驯。多次临阵脱逃致友军覆没。后被孙传庭诱杀。"
+    },
+    "aliases": [
+      "賀人龍"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "中原剿寇将领"
+    ],
+    "major_contributions": [
+      "作战能力强但服从性与协同稳定性不足。",
+      "后期被处置，体现军纪整肃代价。"
+    ],
+    "related_events": [
+      "剿寇战场协同失灵",
+      "将领整肃行动"
+    ],
+    "project_role_background": "高战力低纪律样本，适合“军纪-战力权衡”事件。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "曹变蛟",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "千总",
+      "historical_note": "曹文诏侄。松锦之战中突阵直捣清军大帐，功败垂成被俘殉国。"
+    },
+    "aliases": [
+      "曹變蛟"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "千总",
+      "中后期前线将领"
+    ],
+    "major_contributions": [
+      "在关键战事中承担突击任务，作战风格激进。",
+      "最终被俘殉难，体现高风险突击战代价。"
+    ],
+    "related_events": [
+      "松锦战事",
+      "前线突击作战"
+    ],
+    "project_role_background": "突击型将领，可短期提升战果但损失概率高。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "傅宗龙",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "巡抚",
+      "historical_note": "崇祯十四年出狱任三边总督。项城之战兵败被俘殉国。"
+    },
+    "aliases": [
+      "傅宗龍"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "巡抚",
+      "三边总督（后期）"
+    ],
+    "major_contributions": [
+      "在困难局势下承接高压统筹任务。",
+      "战败殉难，反映后期统帅资源衰减。"
+    ],
+    "related_events": [
+      "三边战务重组",
+      "后期战场失利"
+    ],
+    "project_role_background": "危机接盘型将臣，适合“残局统筹”剧情分支。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "丁启睿",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "御史",
+      "historical_note": "崇祯中期总督剿匪，朱仙镇之战大败，革职论死。"
+    },
+    "aliases": [
+      "丁啟睿"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "御史",
+      "中期总督剿匪"
+    ],
+    "major_contributions": [
+      "参与中期剿寇部署并承担战场责任。",
+      "重大失利后被问责，体现军政责任链。"
+    ],
+    "related_events": [
+      "中期剿匪统筹",
+      "朱仙镇相关失利"
+    ],
+    "project_role_background": "中位统帅样本，适合验证问责机制对士气与忠诚影响。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "熊文灿",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "福建巡抚",
+      "historical_note": "以招抚郑芝龙著称。崇祯十年总理剿匪，因张献忠复叛被处死。"
+    },
+    "aliases": [
+      "熊文燦"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "福建巡抚",
+      "总理剿匪（后期）"
+    ],
+    "major_contributions": [
+      "在招抚与地方军政协调中扮演重要角色。",
+      "后因局势反复遭重罚，反映政策转向代价。"
+    ],
+    "related_events": [
+      "招抚政策实践",
+      "张献忠复叛后的追责"
+    ],
+    "project_role_background": "招抚路线代表角色，适合“宽抚-反复”风险建模。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "温体仁",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "礼部侍郎",
+      "historical_note": "崇祯三年入阁，独相八年为崇祯朝最久。以排挤异己著称，终被罢免。"
+    },
+    "aliases": [
+      "溫體仁"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎（早期）",
+      "首辅（中期）"
+    ],
+    "major_contributions": [
+      "长期主导中枢运作，是崇祯朝中期权力核心。",
+      "通过人事与议程控制深刻影响党争格局。"
+    ],
+    "related_events": [
+      "崇祯中期内阁主导权",
+      "党争与铨选控制"
+    ],
+    "project_role_background": "中枢权术核心角色，可显著改变朝堂派系平衡。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "王应熊",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "礼部尚书",
+      "historical_note": "温体仁党羽。崇祯六年入阁。"
+    },
+    "aliases": [
+      "王應熊"
+    ],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部尚书",
+      "入阁辅政"
+    ],
+    "major_contributions": [
+      "作为温体仁系重要成员参与中枢决策。",
+      "体现中期内阁系谱与用人网络延伸。"
+    ],
+    "related_events": [
+      "温体仁系上升",
+      "崇祯中期阁局调整"
+    ],
+    "project_role_background": "派系协同角色，可增强特定派系的政策执行能力。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已补职责、贡献、事件与来源框架；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "吴宗达",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "礼部侍郎",
+      "historical_note": "温体仁推举入阁，为人中庸，少有建树。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：温体仁推举入阁，为人中庸，少有建树。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "闵洪学",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "吏部尚书",
+      "historical_note": "温体仁心腹，任吏部尚书操控铨选。后被弹劾去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏部尚书",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：温体仁心腹，任吏部尚书操控铨选。后被弹劾去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张至发",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "吏部侍郎",
+      "historical_note": "温体仁罢相后继任首辅，才具平庸，未几去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：温体仁罢相后继任首辅，才具平庸，未几去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "薛国观",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "礼科给事中",
+      "historical_note": "崇祯中期首辅。因建议借助勋戚捐饷得罪权贵，被赐自尽。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼科给事中",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯中期首辅。因建议借助勋戚捐饷得罪权贵，被赐自尽。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "王永光",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "兵部尚书",
+      "historical_note": "崇祯初年兵部尚书。立场偏温体仁一系。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部尚书",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯初年兵部尚书。立场偏温体仁一系。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "周延儒",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "翰林编修",
+      "historical_note": "连中会元状元。两度拜相。崇祯末虚报军功被赐自尽。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：连中会元状元。两度拜相。崇祯末虚报军功被赐自尽。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "贺逢圣",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "翰林编修",
+      "historical_note": "周延儒同年密友。崇祯末入阁。张献忠破武昌时投水殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：周延儒同年密友。崇祯末入阁。张献忠破武昌时投水殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "冯元飙",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "兵部侍郎",
+      "historical_note": "崇祯末年兵部尚书，因局势恶化屡请辞。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯末年兵部尚书，因局势恶化屡请辞。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "陈演",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "翰林编修",
+      "historical_note": "崇祯末年首辅。甲申之变前阻挠南迁之议。降贼后被杀。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯末年首辅。甲申之变前阻挠南迁之议。降贼后被杀。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "吴昌时",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "翰林",
+      "historical_note": "周延儒心腹门客。操纵政事，后与周延儒同被处死。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：周延儒心腹门客。操纵政事，后与周延儒同被处死。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张四知",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "吏部侍郎",
+      "historical_note": "崇祯中期阁臣。庸碌无为。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "吏部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯中期阁臣。庸碌无为。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "蒋德璟",
+    "base_profile": {
+      "faction": "周延儒派",
+      "position": "翰林编修",
+      "historical_note": "崇祯十五年入阁。以财政实务见长。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯十五年入阁。以财政实务见长。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯后期内阁更替",
+      "甲申前后中枢决策"
+    ],
+    "project_role_background": "后期中枢博弈角色，影响政策执行与信誉波动。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "徐光启",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "礼部侍郎",
+      "historical_note": "科学家、农学家。翻译《几何原本》，编纂《农政全书》。崇祯五年病逝。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：科学家、农学家。翻译《几何原本》，编纂《农政全书》。崇祯五年病逝。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "毕自严",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "户部尚书",
+      "historical_note": "崇祯朝理财名臣。精于钱粮出纳，力图开源节流。后因故去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "户部尚书",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯朝理财名臣。精于钱粮出纳，力图开源节流。后因故去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "王在晋",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "兵部尚书",
+      "historical_note": "曾督师辽东主守。与孙承宗战略分歧。崇祯初年任兵部尚书。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部尚书",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：曾督师辽东主守。与孙承宗战略分歧。崇祯初年任兵部尚书。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "李邦华",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "兵部侍郎",
+      "historical_note": "以整饬京营著称。甲申之变前力主太子南迁。城破殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：以整饬京营著称。甲申之变前力主太子南迁。城破殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "李标",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "大学士",
+      "historical_note": "崇祯初年首辅。为人温和中正，后因朝争去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "大学士",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯初年首辅。为人温和中正，后因朝争去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "来宗道",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "大学士",
+      "historical_note": "崇祯初年阁臣。才能平庸但无大过。不久去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "大学士",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯初年阁臣。才能平庸但无大过。不久去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "宋应星",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "教谕",
+      "historical_note": "科学家。著《天工开物》，记录明代手工业和农业技术。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "教谕",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：科学家。著《天工开物》，记录明代手工业和农业技术。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "孙元化",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "登莱巡抚",
+      "historical_note": "徐光启弟子，精通西洋火器。登莱兵变后被冤杀。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "登莱巡抚",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：徐光启弟子，精通西洋火器。登莱兵变后被冤杀。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "杨廷麟",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "翰林编修",
+      "historical_note": "崇祯末年守赣州。南明时殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林编修",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯末年守赣州。南明时殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "方岳贡",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "知府",
+      "historical_note": "崇祯末户部尚书入阁。甲申之变殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "知府",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯末户部尚书入阁。甲申之变殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "堵胤锡",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "知县",
+      "historical_note": "南明重臣。联合大顺余部抗清，鞠躬尽瘁。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "知县",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：南明重臣。联合大顺余部抗清，鞠躬尽瘁。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "范复粹",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "礼部侍郎",
+      "historical_note": "崇祯中期首辅。庸碌自保，无大建树。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯中期首辅。庸碌自保，无大建树。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "魏藻德",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "翰林",
+      "historical_note": "崇祯十六年状元首辅。甲申之变降李自成，被拷饷至死。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "翰林",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯十六年状元首辅。甲申之变降李自成，被拷饷至死。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "陈新甲",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "兵部主事",
+      "historical_note": "崇祯中期兵部尚书。秘密议和泄露，被崇祯处死。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "兵部主事",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯中期兵部尚书。秘密议和泄露，被崇祯处死。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "陈子龙",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "进士",
+      "historical_note": "文学家、抗清志士。编辑《皇明经世文编》。清兵南下后投水殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "进士",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：文学家、抗清志士。编辑《皇明经世文编》。清兵南下后投水殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "何腾蛟",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "南阳知府",
+      "historical_note": "南明湖广总督。联合各路抗清力量，兵败被俘殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "南阳知府",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：南明湖广总督。联合各路抗清力量，兵败被俘殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "何如宠",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "礼部侍郎",
+      "historical_note": "崇祯初年入阁。为人宽厚，不喜党争。不久以疾去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "礼部侍郎",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯初年入阁。为人宽厚，不喜党争。不久以疾去职。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯初东林复起",
+      "明末党争与言路政治"
+    ],
+    "project_role_background": "清议与文官路线角色，影响士林声望与朝堂议政风向。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "郑三俊",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "刑部尚书",
+      "historical_note": "崇祯朝吏部尚书。以清正著称，后被弹劾下狱。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "刑部尚书",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯朝吏部尚书。以清正著称，后被弹劾下狱。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯初东林复起",
+      "明末党争与言路政治"
+    ],
+    "project_role_background": "清议与文官路线角色，影响士林声望与朝堂议政风向。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "王体乾",
+    "base_profile": {
+      "faction": "阉党残余",
+      "position": "司礼监掌印太监",
+      "historical_note": "天启朝掌印太监。魏忠贤倒台后被免，后死于狱中。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "司礼监掌印太监",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：天启朝掌印太监。魏忠贤倒台后被免，后死于狱中。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯初阉党清算",
+      "内廷权力重组"
+    ],
+    "project_role_background": "高风险旧势力角色，影响内廷稳定与清算事件链。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张世泽",
+    "base_profile": {
+      "faction": "勋贵集团",
+      "position": "英国公世子",
+      "historical_note": "张维贤之孙。袭爵英国公。甲申之变降贼后被杀。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "英国公世子",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：张维贤之孙。袭爵英国公。甲申之变降贼后被杀。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "京营与勋贵政治",
+      "甲申之变前后朝局动荡"
+    ],
+    "project_role_background": "军政资源型角色，影响京营执行与皇亲勋贵态度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "周文郁",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "参将",
+      "historical_note": "辽东边将。曾随袁崇焕勤王。著有《边事小纪》记录辽东战事。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：辽东边将。曾随袁崇焕勤王。著有《边事小纪》记录辽东战事。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "辽东防务",
+      "己巳之变及后续边患"
+    ],
+    "project_role_background": "边防作战角色，影响辽东战线强度与边患压力。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "马世龙",
+    "base_profile": {
+      "faction": "辽东边将",
+      "position": "总兵",
+      "historical_note": "孙承宗麾下名将。镇守辽东多年。后因柳河之败贬官。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "总兵",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：孙承宗麾下名将。镇守辽东多年。后因柳河之败贬官。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "辽东防务",
+      "己巳之变及后续边患"
+    ],
+    "project_role_background": "边防作战角色，影响辽东战线强度与边患压力。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "白广恩",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "参将",
+      "historical_note": "骁将。松锦之战后降清。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：骁将。松锦之战后降清。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "中原流寇战事",
+      "剿抚路线争议"
+    ],
+    "project_role_background": "剿寇统帅角色，影响中原战线与军费消耗。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "猛如虎",
+    "base_profile": {
+      "faction": "中原剿匪系",
+      "position": "参将",
+      "historical_note": "勇将。多次参与围剿流寇。后战死沙场。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "参将",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：勇将。多次参与围剿流寇。后战死沙场。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "中原流寇战事",
+      "剿抚路线争议"
+    ],
+    "project_role_background": "剿寇统帅角色，影响中原战线与军费消耗。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "唐世济",
+    "base_profile": {
+      "faction": "温体仁派",
+      "position": "御史",
+      "historical_note": "温体仁党羽。善于迎合上意。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "御史",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：温体仁党羽。善于迎合上意。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯中期内阁博弈",
+      "党争与铨选"
+    ],
+    "project_role_background": "中枢权术角色，影响内阁控制力与党争强度。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "张国维",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "御史",
+      "historical_note": "崇祯末兵部尚书。治水有功。南明时兵败投水殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "御史",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：崇祯末兵部尚书。治水有功。南明时兵败投水殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "吴甘来",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "御史",
+      "historical_note": "以直言著称。甲申之变自缢殉国。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "御史",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：以直言著称。甲申之变自缢殉国。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  },
+  {
+    "name": "方孔炤",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "湖广佥事",
+      "historical_note": "方以智之父。崇祯朝湖广巡抚，镇压土司有功。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "湖广佥事",
+      "明末政局参与者（项目设定）"
+    ],
+    "major_contributions": [
+      "依据项目基线记载：方以智之父。崇祯朝湖广巡抚，镇压土司有功。",
+      "在本项目中作为可交互历史角色，参与明末关键政务或战事决策。"
+    ],
+    "related_events": [
+      "崇祯朝中枢与地方治理",
+      "甲申前后政局震荡"
+    ],
+    "project_role_background": "平衡执行角色，影响跨派协同与政务稳定。",
+    "sources": [
+      {
+        "title": "《明史》总目（维基文库）",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2",
+        "tier": "A_PRIMARY",
+        "locator": "全书卷目索引，待补各人物具体卷次"
+      },
+      {
+        "title": "《明史/卷72（職官一）》",
+        "url": "https://zh.wikisource.org/wiki/%E6%98%8E%E5%8F%B2/%E5%8D%B772",
+        "tier": "A_PRIMARY",
+        "locator": "官职名称与机构口径校验"
+      },
+      {
+        "title": "China Biographical Database Project (CBDB) 首页",
+        "url": "https://cbdb.hsites.harvard.edu/",
+        "tier": "B_DATABASE",
+        "locator": "人物生平与仕历待逐条核定"
+      },
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "in_review",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-02-20",
+      "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
+    }
+  }
+]

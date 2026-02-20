@@ -36,7 +36,8 @@ from db.saves import _migrate_save
 def make_state(**overrides) -> GameState:
     defaults = dict(
         time=GameTime(year=1630, month=6, era_name="崇祯", era_year=3),
-        treasury=100, population=100, military_supply=80,
+        national_treasury=20, imperial_treasury=10, grain=500,
+        population=15000, military_strength=40,
         civil_morale=60, military_morale=70, court_prestige=75,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
@@ -87,7 +88,7 @@ class TestMinisterLoyalty:
 
     def test_initial_ministers_loyalty(self):
         for m in INITIAL_MINISTERS:
-            assert m.loyalty == 50
+            assert 0 <= m.loyalty <= 100
 
 
 # ── 20.2 apply_loyalty_modification correctness ─────────
@@ -119,7 +120,7 @@ class TestApplyLoyaltyModification:
         attr = {}
         apply_loyalty_modification(state, decree, attr)
         # 东林党 stance=-15 → floor(-15*0.5)=-8 → loyalty=42
-        donglin = _minister(state, "徐光启")
+        donglin = _minister(state, "韩爌")
         assert donglin.loyalty == 50 + math.floor(-15 * 0.5)
 
     def test_idle_minister_skipped(self):
@@ -180,7 +181,7 @@ class TestDetectMemorialTriggers:
         for f in state.factions:
             f.rebellion_risk = 60
         state.military_morale = 25
-        state.military_supply = 20
+        state.military_strength = 20
         attr = {}
         triggered = detect_memorial_triggers(state, attr)
         assert len(triggered) == 0
@@ -195,11 +196,11 @@ class TestDetectMemorialTriggers:
 
     def test_rebellion_warning_triggers(self):
         state = make_state()
-        _faction(state, "边将势力").rebellion_risk = 65
+        _faction(state, "辽东边将").rebellion_risk = 65
         attr = {}
         triggered = detect_memorial_triggers(state, attr)
         reasons = [m.trigger_reason for m in triggered]
-        assert any("rebellion_warning:边将势力" in r for r in reasons)
+        assert any("rebellion_warning:辽东边将" in r for r in reasons)
 
     def test_military_crisis_triggers(self):
         state = make_state()
@@ -216,7 +217,7 @@ class TestDetectMemorialTriggers:
         for r in state.regions:
             r.stability = 5
         state.military_morale = 10
-        state.military_supply = 10
+        state.military_strength = 10
         attr = {}
         triggered = detect_memorial_triggers(state, attr)
         assert len(triggered) <= 2
@@ -308,12 +309,12 @@ class TestGenerateTurnSummary:
     def test_indicator_trends(self):
         state = make_state()
         before = state.model_dump()
-        state.treasury += 10
+        state.national_treasury += 10
         state.civil_morale -= 5
         after = state.model_dump()
         summary = generate_turn_summary(before, after, [], [], state)
         names = {t.name for t in summary.indicator_trends}
-        assert "treasury" in names
+        assert "national_treasury" in names
         assert "civil_morale" in names
 
     def test_no_change_no_trend(self):
@@ -493,6 +494,18 @@ class TestScriptEventsPhase3:
         assert evt.condition(state) is False
         state.resolved_script_ids = {"jisi-invasion"}
         assert evt.condition(state) is True
+        _minister(state, "袁崇焕").status = MinisterStatus.REMOVED
+        assert evt.condition(state) is False
+
+    def test_liaodong_command_vacancy_condition(self):
+        scripts = get_scripts_for_time(1629, 12)
+        evt = next((s for s in scripts if s.script_id == "liaodong-command-vacancy-1629-12"), None)
+        assert evt is not None
+        state = make_state()
+        state.resolved_script_ids = {"jisi-invasion"}
+        assert evt.condition(state) is False
+        _minister(state, "袁崇焕").status = MinisterStatus.REMOVED
+        assert evt.condition(state) is True
 
     def test_li_zicheng_condition(self):
         scripts = get_scripts_for_time(1630, 3)
@@ -510,11 +523,11 @@ class TestScriptEventsPhase3:
         assert evt is not None
         state = make_state()
         _minister(state, "孙承宗").status = MinisterStatus.ACTIVE
-        state.military_supply = 41
+        state.military_strength = 21
         assert evt.condition(state) is True
-        state.military_supply = 40
+        state.military_strength = 20
         assert evt.condition(state) is False
-        state.military_supply = 50
+        state.military_strength = 30
         _minister(state, "孙承宗").status = MinisterStatus.IDLE
         assert evt.condition(state) is False
 
@@ -533,6 +546,7 @@ class TestScriptEventsPhase3:
             "jisi-invasion",
             "yuan-chonghuan-arrest", "li-zicheng-joins",
             "sun-chengzong-recovery", "dalinghe-prelude",
+            "liaodong-command-vacancy-1629-12",
         ]
         for sid in phase3_ids:
             assert sid in SCRIPT_REGISTRY
@@ -571,13 +585,15 @@ class TestProcessDecreePipeline:
         state = make_state()
         before_month = state.time.month
         process_decree(state, StructuredDecree(type=DecreeType.TAX_INCREASE))
-        assert state.time.month == before_month + 1 or (before_month == 12 and state.time.month == 1)
+        # time advancement is handled by advance_month(), not process_decree()
+        assert state.time.month == before_month
 
     def test_decree_count_increments(self):
         state = make_state()
         before = state.decree_count
         process_decree(state, StructuredDecree(type=DecreeType.TAX_INCREASE))
-        assert state.decree_count == before + 1
+        # decree_count is incremented in advance_month(), not process_decree()
+        assert state.decree_count == before
 
     def test_reactions_populated(self):
         state = make_state()
@@ -683,10 +699,10 @@ class TestMemorialBoundaryValues:
     @pytest.mark.parametrize("risk,expected", [(61, True), (60, False)])
     def test_rebellion_warning_boundary(self, risk, expected):
         state = make_state()
-        _faction(state, "边将势力").rebellion_risk = risk
+        _faction(state, "辽东边将").rebellion_risk = risk
         attr = {}
         triggered = detect_memorial_triggers(state, attr)
-        found = any("rebellion_warning:边将势力" in m.trigger_reason for m in triggered)
+        found = any("rebellion_warning:辽东边将" in m.trigger_reason for m in triggered)
         assert found == expected
 
 
@@ -741,7 +757,7 @@ def test_max_2_order_invariant(seed):
     for r in state.regions:
         r.stability = 5
     state.military_morale = 10
-    state.military_supply = 10
+    state.military_strength = 10
 
     attr = {}
     triggered = detect_memorial_triggers(state, attr)
@@ -768,8 +784,8 @@ class TestApprovedMemorialNoRecursion:
         # when we set it to approved, the decree is just data
         mem.status = MemorialStatus.APPROVED
         # no automatic process_decree call happens from model change
-        # verify state didn't change (treasury unchanged)
-        assert state.treasury == 100
+        # verify state didn't change (national_treasury unchanged)
+        assert state.national_treasury == 20
 
 
 # ── 20.16 PBT: pipeline step order consistency ──────────
@@ -808,14 +824,14 @@ def test_pipeline_step_order_consistency(seed):
 # ── 20.17 PBT: clamp idempotency ────────────────────────
 
 @given(
-    treasury=st.integers(min_value=-50, max_value=250),
+    national_treasury=st.integers(min_value=-50, max_value=10250),
     morale=st.integers(min_value=-50, max_value=150),
     loyalty=st.integers(min_value=-50, max_value=150),
 )
 @settings(max_examples=50)
-def test_clamp_idempotent(treasury, morale, loyalty):
+def test_clamp_idempotent(national_treasury, morale, loyalty):
     state = make_state()
-    state.treasury = treasury
+    state.national_treasury = national_treasury
     state.civil_morale = morale
     state.ministers[0].loyalty = loyalty
     clamp_state(state)
@@ -918,23 +934,25 @@ class TestAssemblyParticipantSelection:
     def test_one_per_faction(self):
         state = make_state()
         participants = select_assembly_participants(state)
-        factions = [p.faction for p in participants]
-        assert len(factions) == len(set(factions))
+        # Each faction's top representative must be included
+        factions_represented = {p.faction for p in participants}
+        all_factions = {f.name for f in state.factions}
+        assert factions_represented == all_factions
 
     def test_max_5(self):
         state = make_state()
         participants = select_assembly_participants(state)
-        assert len(participants) <= 5
+        assert len(participants) <= 15
 
     def test_tie_break_by_loyalty(self):
         state = make_state()
         # make two ministers in same faction with different loyalty
-        m1 = _minister(state, "孙承宗")  # 边将势力
-        m2 = _minister(state, "袁崇焕")  # 边将势力
+        m1 = _minister(state, "孙承宗")  # 辽东边将
+        m2 = _minister(state, "袁崇焕")  # 辽东边将
         m1.loyalty = 80
         m2.loyalty = 30
         participants = select_assembly_participants(state)
-        border_participants = [p for p in participants if p.faction == "边将势力"]
+        border_participants = [p for p in participants if p.faction == "辽东边将"]
         assert len(border_participants) == 1
         assert border_participants[0].name == "孙承宗"
 
@@ -1028,9 +1046,9 @@ class TestAdoptSuggestionBounds:
 class TestScriptStateEffectsOrder:
     def test_state_effects_applied(self):
         state = make_state()
-        initial_treasury = state.treasury
-        _apply_state_effects(state, {"global.treasury": -20})
-        assert state.treasury == initial_treasury - 20
+        initial_national_treasury = state.national_treasury
+        _apply_state_effects(state, {"global.national_treasury": -20})
+        assert state.national_treasury == initial_national_treasury - 20
 
     def test_region_state_effect(self):
         state = make_state()
@@ -1040,18 +1058,18 @@ class TestScriptStateEffectsOrder:
 
     def test_faction_state_effect(self):
         state = make_state()
-        initial_sat = _faction(state, "边将势力").satisfaction
-        _apply_state_effects(state, {"faction.边将势力.satisfaction": -25})
-        assert _faction(state, "边将势力").satisfaction == initial_sat - 25
+        initial_sat = _faction(state, "辽东边将").satisfaction
+        _apply_state_effects(state, {"faction.辽东边将.satisfaction": -25})
+        assert _faction(state, "辽东边将").satisfaction == initial_sat - 25
 
     def test_script_with_state_effects_and_decrees(self):
         """Verify state_effects + decrees + loyalty_effects + clamp order."""
         state = make_state()
         # simulate the route's execution order
-        initial_treasury = state.treasury
+        initial_national_treasury = state.national_treasury
         # 1. state_effects first
-        _apply_state_effects(state, {"global.treasury": -20})
-        assert state.treasury == initial_treasury - 20
+        _apply_state_effects(state, {"global.national_treasury": -20})
+        assert state.national_treasury == initial_national_treasury - 20
         # 2. decree execution
         decree = StructuredDecree(type=DecreeType.TAX_INCREASE)
         process_decree(state, decree)
@@ -1062,7 +1080,7 @@ class TestScriptStateEffectsOrder:
         # 4. clamp
         clamp_state(state)
         assert 0 <= target.loyalty <= 100
-        assert 0 <= state.treasury <= 200
+        assert 0 <= state.national_treasury <= 10000
 
     def test_jisi_invasion_state_effects(self):
         evt = SCRIPT_REGISTRY["jisi-invasion"]
@@ -1075,7 +1093,7 @@ class TestScriptStateEffectsOrder:
         evt = SCRIPT_REGISTRY["yuan-chonghuan-arrest"]
         choice0 = evt.choices[0]
         assert ("袁崇焕", -50) in choice0.loyalty_effects
-        assert "faction.边将势力.satisfaction" in choice0.state_effects
+        assert "faction.辽东边将.satisfaction" in choice0.state_effects
 
 
 # ── 10.12 DECREE_LABELS consistency between backend and frontend ──

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import json
 import sqlite3
 from datetime import datetime, timezone
@@ -99,6 +100,45 @@ def _migrate_save(data: dict) -> list[str]:
         t.setdefault("era_year", y - era["start_year"] + 1)
         notes.append("补充了年号信息")
 
+    # ── resource migration ──
+    treasury_raw = data.pop("treasury", None)
+    treasury_legacy = max(0, math.floor(treasury_raw)) if isinstance(treasury_raw, (int, float)) else None
+
+    resource_migrated = False
+    if "national_treasury" not in data:
+        if treasury_legacy is not None:
+            data["national_treasury"] = math.floor(treasury_legacy * 0.5)
+            resource_migrated = True
+        else:
+            data["national_treasury"] = 20
+    if "imperial_treasury" not in data:
+        if treasury_legacy is not None:
+            data["imperial_treasury"] = math.floor(treasury_legacy * 0.3)
+            resource_migrated = True
+        else:
+            data["imperial_treasury"] = 10
+    if "grain" not in data:
+        if treasury_legacy is not None:
+            data["grain"] = math.floor(treasury_legacy * 0.2)
+            resource_migrated = True
+        else:
+            data["grain"] = 500
+    if resource_migrated:
+        notes.append("迁移了旧国库至国库/内帑/粮储")
+
+    military_raw = data.pop("military_supply", None)
+    if "military_strength" not in data:
+        if isinstance(military_raw, (int, float)):
+            data["military_strength"] = max(0, math.floor(military_raw))
+            notes.append("迁移了旧军备至军力")
+        else:
+            data["military_strength"] = 40
+
+    population_raw = data.get("population")
+    if isinstance(population_raw, (int, float)) and population_raw < 1000:
+        data["population"] = max(0, math.floor(population_raw)) * 150
+        notes.append("按万人口口径调整了人口数据")
+
     # ── region migration ──
     region_migrated = False
     for r in data.get("regions", []):
@@ -141,6 +181,62 @@ def _migrate_save(data: dict) -> list[str]:
         if loyalty_migrated:
             notes.append("补充了大臣忠诚度数据")
 
+        init_map = {m.name: m for m in INITIAL_MINISTERS}
+
+        if len(data["ministers"]) < 50:
+            t_data = data.get("time", {})
+            raw_year = t_data.get("year", 1627)
+            raw_month = t_data.get("month", 8)
+            try:
+                curr_key = int(raw_year) * 12 + int(raw_month)
+            except (TypeError, ValueError):
+                curr_key = 1627 * 12 + 8
+
+            existing = []
+            existing_names: set[str] = set()
+            for old_m in data["ministers"]:
+                name = old_m.get("name")
+                existing_names.add(name)
+                if name in init_map:
+                    im = init_map[name]
+                    old_m.setdefault("position", im.position)
+                    old_m.setdefault("entry_year", im.entry_year)
+                    old_m.setdefault("entry_month", im.entry_month)
+                    old_m.setdefault("historical_note", im.historical_note)
+                else:
+                    old_m.setdefault("position", "")
+                    old_m.setdefault("entry_year", 1627)
+                    old_m.setdefault("entry_month", 8)
+                    old_m.setdefault("historical_note", "")
+                existing.append(old_m)
+
+            for im in INITIAL_MINISTERS:
+                if im.name not in existing_names:
+                    nm = im.model_dump()
+                    nm["loyalty"] = 50
+                    entry_key = im.entry_year * 12 + im.entry_month
+                    if entry_key > curr_key:
+                        nm["status"] = "not_yet_entered"
+                    existing.append(nm)
+
+            data["ministers"] = existing
+            notes.append("已扩充大臣至100+人")
+        else:
+            fields_patched = False
+            for m in data["ministers"]:
+                needs_patch = any(
+                    k not in m for k in ("position", "entry_year", "entry_month", "historical_note")
+                )
+                if needs_patch:
+                    fields_patched = True
+                    im = init_map.get(m.get("name"))
+                    m.setdefault("position", im.position if im else "")
+                    m.setdefault("entry_year", im.entry_year if im else 1627)
+                    m.setdefault("entry_month", im.entry_month if im else 8)
+                    m.setdefault("historical_note", im.historical_note if im else "")
+            if fields_patched:
+                notes.append("补全了大臣生平属性")
+
     # ── resolved_script_ids ──
     if "resolved_script_ids" not in data:
         data["resolved_script_ids"] = []
@@ -156,6 +252,10 @@ def _migrate_save(data: dict) -> list[str]:
         data["loyalty_zero_triggered"] = []
     if "last_assembly_month" not in data:
         data["last_assembly_month"] = 0
+    if "consecutive_waits" not in data:
+        data["consecutive_waits"] = 0
+    if "minister_conversations" not in data:
+        data["minister_conversations"] = {}
 
     return notes
 

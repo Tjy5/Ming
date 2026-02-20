@@ -26,6 +26,7 @@ from .provider import (
     _FREEFORM_SYSTEM_PROMPT,
     build_freeform_user_prompt as _build_freeform_user_prompt,
     parse_freeform_response as _parse_freeform_response,
+    infer_decree_type_from_topic,
 )
 
 load_dotenv()
@@ -47,7 +48,7 @@ class GoogleProvider(AIProvider):
             api_key=api_key,
             http_options=types.HttpOptions(base_url=base_url),
         )
-        self.model = os.getenv("GOOGLE_MODEL_NAME") or os.getenv("OPENAI_MODEL_NAME", "gemini-3-flash-preview")
+        self.model = os.getenv("GOOGLE_MODEL_NAME") or os.getenv("OPENAI_MODEL_NAME", "gemini-2.0-flash-exp")
 
     @staticmethod
     def _safety_off() -> list:
@@ -57,6 +58,40 @@ class GoogleProvider(AIProvider):
             types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
             types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
         ]
+
+    @staticmethod
+    def _load_json_payload(text: str) -> dict | list | None:
+        content = (text or "").strip()
+        if not content:
+            return None
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(extract_json_object_text(content))
+            except Exception:
+                return None
+
+    @staticmethod
+    def _normalize_urgency(value: str) -> str:
+        raw = (value or "").strip()
+        if raw in {"高", "中", "低"}:
+            return raw
+        mapping = {"high": "高", "medium": "中", "low": "低"}
+        return mapping.get(raw.lower(), "中")
+
+    @staticmethod
+    def _normalize_stance(value: str) -> str:
+        raw = (value or "").strip()
+        if raw in {"赞成", "反对", "中立"}:
+            return raw
+        mapping = {
+            "support": "赞成",
+            "oppose": "反对",
+            "neutral": "中立",
+            "abstain": "中立",
+        }
+        return mapping.get(raw.lower(), "中立")
 
     async def generate_narrative(
         self, delta_attribution: dict, game_state: GameState,
@@ -240,7 +275,7 @@ class GoogleProvider(AIProvider):
             f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
             f"上奏大臣：{author.name}（{author.faction}），性格：{'、'.join(author.personality_tags)}\n"
             f"触发原因：{trigger_reason}\n"
-            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
+            f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
             "请以该大臣的口吻撰写一份明朝风格的奏折（200-500字），并推荐1-3条建议政令。\n"
             f"可用政令type：{decree_types}\n"
             '严格输出JSON：{{"content":"奏折正文","suggested_decrees":[{{"type":"...","target":"..."}}]}}'
@@ -282,33 +317,278 @@ class GoogleProvider(AIProvider):
         )
         return response.text.strip()
 
+    async def generate_minister_dialogue(
+        self, minister: Minister, message: str, game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        tags = "、".join(minister.personality_tags) if minister.personality_tags else "无"
+        recent_events = "；".join(e.name for e in game_state.active_events[:3]) if game_state.active_events else "无"
+
+        history_lines: list[str] = []
+        for item in conversation_history[-20:]:
+            role = str(item.get("role", "")).strip().lower()
+            content = str(item.get("content", "")).strip()
+            if not content:
+                continue
+            if role == "user":
+                speaker = "皇帝"
+            elif role == "assistant":
+                speaker = minister.name
+            else:
+                speaker = role or "未知"
+            history_lines.append(f"{speaker}: {content}")
+
+        history_text = "\n".join(history_lines) if history_lines else "无"
+        prompt = (
+            f"大臣：{minister.name}\n"
+            f"官职：{minister.position or '朝臣'}\n"
+            f"派系：{minister.faction}\n"
+            f"性格：{tags}\n"
+            f"忠诚度：{minister.loyalty}/100\n"
+            f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
+            f"国库：{game_state.national_treasury}万两，内帑：{game_state.imperial_treasury}万两，粮草：{game_state.grain}万石\n"
+            f"民心：{game_state.civil_morale}，军心：{game_state.military_morale}，威望：{game_state.court_prestige}\n"
+            f"近期事件：{recent_events}\n\n"
+            f"历史对话：\n{history_text}\n\n"
+            f"皇帝本轮问话：{message}\n"
+            "请严格输出JSON对象，不要输出额外说明。"
+        )
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=(
+                        "你是崇祯朝大臣角色扮演引擎。"
+                        "必须以第一人称回复皇帝，语气要符合该大臣身份、派系与性格。"
+                        "回复内容要结合当前国情与对话历史。"
+                        "仅输出JSON：{\"reply\":\"...\",\"loyalty_change\":0,\"mood\":\"neutral\"}。"
+                        "loyalty_change 必须是 -3 到 3 的整数。"
+                        "mood 只能是 support、neutral、oppose。"
+                    ),
+                    temperature=0.6,
+                    response_mime_type="application/json",
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            content = (response.text or "").strip()
+            data = json.loads(extract_json_object_text(content))
+
+            reply = str(data.get("reply", "")).strip()
+            if not reply:
+                raise ValueError("dialogue reply is empty")
+
+            raw_loyalty_change = data.get("loyalty_change", 0)
+            try:
+                loyalty_change = int(raw_loyalty_change)
+            except (TypeError, ValueError):
+                loyalty_change = 0
+            loyalty_change = max(-3, min(3, loyalty_change))
+
+            raw_mood = str(data.get("mood", "neutral")).strip().lower()
+            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
+
+            return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}
+        except Exception as e:
+            logging.error(f"Google generate_minister_dialogue error: {e}")
+            fallback = await MockProvider().generate_minister_dialogue(
+                minister, message, game_state, conversation_history
+            )
+            raw_loyalty_change = fallback.get("loyalty_change", 0)
+            try:
+                loyalty_change = int(raw_loyalty_change)
+            except (TypeError, ValueError):
+                loyalty_change = 0
+            loyalty_change = max(-3, min(3, loyalty_change))
+
+            raw_mood = str(fallback.get("mood", "neutral")).strip().lower()
+            mood_map = {"恭顺": "support", "欣慰": "support", "愤怒": "oppose", "阳奉阴违": "oppose", "惶恐": "neutral"}
+            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else mood_map.get(raw_mood, "neutral")
+            reply = str(fallback.get("reply", "")).strip() or f"臣{minister.name}谨遵圣意。"
+            return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}
+
+    async def generate_petitions(
+        self, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        if not participants:
+            return []
+        prompt_lines = [
+            f"当前时间：{game_state.time.year}年{game_state.time.month}月",
+            f"国库{game_state.national_treasury}，内帑{game_state.imperial_treasury}，粮草{game_state.grain}",
+            "参与朝会大臣：",
+        ]
+        for p in participants:
+            prompt_lines.append(
+                f"- {p.name}（{p.faction}，{p.position or '朝臣'}，忠诚{p.loyalty}）"
+            )
+        prompt_lines.append(
+            "请为每位大臣生成一条奏事。只输出JSON，格式："
+            '{"petitions":[{"minister_name":"...","content":"...","urgency":"高|中|低"}]}'
+        )
+        raw_petitions: list = []
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents="\n".join(prompt_lines),
+                config=types.GenerateContentConfig(
+                    system_instruction="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
+                    temperature=0.6,
+                    response_mime_type="application/json",
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            payload = self._load_json_payload(response.text or "")
+            if isinstance(payload, dict):
+                raw_petitions = payload.get("petitions", [])
+            elif isinstance(payload, list):
+                raw_petitions = payload
+        except Exception as e:
+            logging.error("Google generate_petitions error: %s", e)
+
+        petitions: list[dict] = []
+        by_name = {m.name: m for m in participants}
+        for item in raw_petitions:
+            if not isinstance(item, dict):
+                continue
+            minister_name = str(item.get("minister_name", "")).strip()
+            if minister_name not in by_name:
+                continue
+            content = str(item.get("content", "")).strip()
+            if not content:
+                continue
+            petitions.append({
+                "minister_name": minister_name,
+                "content": content,
+                "urgency": self._normalize_urgency(str(item.get("urgency", "中"))),
+            })
+
+        existing = {p["minister_name"] for p in petitions}
+        fallback = await super().generate_petitions(participants, game_state)
+        for item in fallback:
+            name = str(item.get("minister_name", "")).strip()
+            if name and name not in existing:
+                petitions.append(item)
+        return petitions
+
+    async def generate_debate_speeches(
+        self, topic: str, participants: list[Minister], game_state: GameState,
+    ) -> list[dict]:
+        if not participants:
+            return []
+        prompt_lines = [
+            f"议题：{topic}",
+            f"时间：{game_state.time.year}年{game_state.time.month}月",
+            "参与朝会大臣：",
+        ]
+        for p in participants:
+            tags = "、".join(p.personality_tags) if p.personality_tags else "无"
+            prompt_lines.append(
+                f"- {p.name}（{p.faction}，忠诚{p.loyalty}，性格：{tags}）"
+            )
+        prompt_lines.append(
+            "请为每位大臣生成一条发言。仅输出JSON："
+            '{"speeches":[{"minister_name":"...","faction":"...","content":"...","stance":"赞成|反对|中立"}]}'
+        )
+        raw_speeches: list = []
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents="\n".join(prompt_lines),
+                config=types.GenerateContentConfig(
+                    system_instruction="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
+                    temperature=0.7,
+                    response_mime_type="application/json",
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            payload = self._load_json_payload(response.text or "")
+            if isinstance(payload, dict):
+                raw_speeches = payload.get("speeches", [])
+            elif isinstance(payload, list):
+                raw_speeches = payload
+        except Exception as e:
+            logging.error("Google generate_debate_speeches error: %s", e)
+
+        speeches: list[dict] = []
+        by_name = {m.name: m for m in participants}
+        for item in raw_speeches:
+            if not isinstance(item, dict):
+                continue
+            minister_name = str(item.get("minister_name", "")).strip()
+            minister = by_name.get(minister_name)
+            if minister is None:
+                continue
+            content = str(item.get("content", "")).strip()
+            if not content:
+                continue
+            speeches.append({
+                "minister_name": minister_name,
+                "faction": str(item.get("faction") or minister.faction),
+                "content": content,
+                "stance": self._normalize_stance(str(item.get("stance", "中立"))),
+            })
+
+        existing = {s["minister_name"] for s in speeches}
+        fallback = await super().generate_debate_speeches(topic, participants, game_state)
+        for item in fallback:
+            name = str(item.get("minister_name", "")).strip()
+            if name and name not in existing:
+                speeches.append(item)
+        return speeches
+
+    async def calculate_vote_tendency(
+        self, minister: Minister, decree_type: DecreeType, game_state: GameState,
+    ) -> str:
+        vote = await super().calculate_vote_tendency(minister, decree_type, game_state)
+        if vote == "弃权":
+            if minister.loyalty >= 85:
+                return "赞成"
+            if minister.loyalty <= 20:
+                return "反对"
+        return vote
+
     async def generate_assembly_debate(
         self, topic: str, participants: list[Minister], game_state: GameState,
     ) -> dict | None:
-        parts = [f"议题：{topic}\n当前国情：{game_state.time.year}年{game_state.time.month}月，"
-                 f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n参与大臣："]
-        for p in participants:
-            parts.append(f"- {p.name}（{p.faction}），性格：{'、'.join(p.personality_tags)}，"
-                         f"文治{p.abilities.civil}/武略{p.abilities.military}")
-        prompt = "\n".join(parts)
-        response = await self.client.aio.models.generate_content(
-            model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=(
-                    "你是崇祯模拟器的朝会辩论生成器。输出JSON：{"
-                    "\"debate_text\":\"300-500字多人对话\","
-                    "\"participants\":[{\"name\":\"...\",\"position\":\"...\",\"argument_text\":\"...\"}],"
-                    "\"suggestions\":[{\"title\":\"...\",\"description\":\"...\",\"decree_type\":\"...\",\"supporter_names\":[]}],"
-                    "\"consensus\":\"共识描述\"}"
-                ),
-                temperature=0.8,
-                response_mime_type="application/json",
+        speeches = await self.generate_debate_speeches(topic, participants, game_state)
+        if not speeches:
+            return await MockProvider().generate_assembly_debate(topic, participants, game_state)
+
+        speech_map = {
+            str(s.get("minister_name")): str(s.get("content", ""))
+            for s in speeches if isinstance(s, dict) and s.get("minister_name")
+        }
+        support_count = sum(1 for s in speeches if isinstance(s, dict) and s.get("stance") == "赞成")
+        oppose_count = sum(1 for s in speeches if isinstance(s, dict) and s.get("stance") == "反对")
+        if support_count > oppose_count:
+            consensus = "support"
+        elif oppose_count > support_count:
+            consensus = "oppose"
+        else:
+            consensus = "divided"
+
+        decree_type = infer_decree_type_from_topic(topic) or DecreeType.PERSONNEL
+        supporters = [
+            str(s.get("minister_name"))
+            for s in speeches if isinstance(s, dict) and s.get("stance") == "赞成"
+        ]
+        return {
+            "debate_text": "\n".join(
+                f"{s['minister_name']}：{s['content']}" for s in speeches if isinstance(s, dict)
             ),
-        )
-        content = (response.text or "").strip()
-        if not content:
-            return None
-        return json.loads(extract_json_object_text(content))
+            "participants": [
+                {"name": p.name, "position": p.position or "朝臣", "argument_text": speech_map.get(p.name, "")}
+                for p in participants
+            ],
+            "suggestions": [{
+                "title": f"就'{topic}'拟议",
+                "description": "请陛下据朝议定夺。",
+                "decree_type": decree_type.value,
+                "supporter_names": supporters[:8],
+            }],
+            "consensus": consensus,
+            "speeches": speeches,
+        }
 
     async def generate_turn_commentary(
         self, summary_data: dict, game_state: GameState,
@@ -323,7 +603,7 @@ class GoogleProvider(AIProvider):
             f"时间：{year}年{month}月\n"
             f"本月大事：{events_text}\n"
             f"政令与局势影响：{implications_text}\n"
-            f"国库{game_state.treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+            f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
             "请写一段50-100字的朝政总评，明朝奏报风格，概括本月朝政态势。"
             "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
         )

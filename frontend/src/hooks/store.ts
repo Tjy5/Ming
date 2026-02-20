@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import type { GameState, DecreeType, PreconditionRule, Capabilities, ModalItem, ModalType } from '../types/game'
-import { PRECONDITIONS } from '../types/game'
+import { PRECONDITIONS, DEFAULT_CAPABILITIES } from '../types/game'
 
 export const MODAL_PRIORITIES: Record<ModalType, number> = {
   game_over: 100,
   script_event_blocking: 90,
-  narrative: 50,
+  narrative: 95,
   turn_summary: 40,
   memorial: 30,
   assembly: 20,
@@ -36,8 +36,6 @@ interface Store {
   clearModals: () => void
   reset: () => void
 }
-
-const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false, assembly_supported: false, memorial_enabled: false }
 
 function insertModalByPriority(queue: ModalItem[], modal: ModalItem): ModalItem[] {
   const next = [...queue]
@@ -86,16 +84,19 @@ export const useStore = create<Store>((set) => ({
 
   reset: () => set({
     state: null, loading: false, error: null,
-    gameOver: null, prevState: null,
+    gameOver: null, prevState: null, capabilities: DEFAULT_CAPABILITIES,
     debateLoading: false, currentModal: null, modalQueue: [],
   }),
 }))
 
 function evalRule(state: GameState, rule: PreconditionRule): boolean {
-  const val = state[rule.field] as number
+  const val = state[rule.field]
+  if (typeof val !== 'number') return false
   return rule.op === '>' ? val > rule.threshold : val >= rule.threshold
 }
 
 export function checkPrecondition(state: GameState, type: DecreeType): boolean {
-  return PRECONDITIONS[type].every((r) => evalRule(state, r))
+  const rules = PRECONDITIONS[type]
+  if (!rules) return false
+  return rules.every((r) => evalRule(state, r))
 }
