@@ -174,7 +174,8 @@ export default function NarrativeModal({ narrative, delta, ministerReactions = [
                                   className="collapse-toggle"
                                   onClick={() => setExpandedRegions(s => {
                                     const n = new Set(s)
-                                    collapsed ? n.add(r.name) : n.delete(r.name)
+                                    if (collapsed) n.add(r.name)
+                                    else n.delete(r.name)
                                     return n
                                   })}
                                 >

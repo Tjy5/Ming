@@ -10,7 +10,7 @@ from models.game import (
     GameEvent, HistoryEntry, MinisterReaction, Memorial,
     TurnSummary, IndicatorTrend, FactionChange, RegionChange, MinisterChange,
     RegionDetail,
-    FreeformResult,
+    FreeformResult, MissionState,
     clamp_state,
 )
 from models.enums import (
@@ -941,6 +941,50 @@ def _activate_entered_ministers(state: GameState) -> list[str]:
     return activated
 
 
+def _tick_missions(state: GameState) -> None:
+    """Advance on_mission ministers; complete or clear as needed."""
+    for m in state.ministers:
+        if m.status == MinisterStatus.REMOVED:
+            m.current_mission = None
+            continue
+        if m.status != MinisterStatus.ON_MISSION or m.current_mission is None:
+            continue
+        m.current_mission.progress_months += 1
+        if m.current_mission.progress_months >= m.current_mission.total_months:
+            mission = m.current_mission
+            # apply effects
+            attr: dict = {}
+            apply_ai_effects(state, mission.effects, attr)
+            clamp_state(state)
+            # complete: clear mission, restore active
+            m.current_mission = None
+            m.status = MinisterStatus.ACTIVE
+            # generate memorial
+            memorial = Memorial(
+                id=str(uuid.uuid4()),
+                author_name=m.name,
+                author_faction=m.faction,
+                title=f"{m.name}完成任务：{mission.name}",
+                content=f"臣{m.name}奉命出使，历时{mission.total_months}月，任务【{mission.name}】已竣事，特此复命。",
+                suggested_decrees=[],
+                trigger_reason=f"mission_complete:{m.name}",
+                urgency="medium",
+                created_year=state.time.year,
+                created_month=state.time.month,
+                status=MemorialStatus.PENDING,
+            )
+            state.memorials.append(memorial)
+            state.history_log.append(HistoryEntry(
+                year=state.time.year,
+                month=state.time.month,
+                decree_type="mission_complete",
+                decree_desc=f"{m.name}完成任务：{mission.name}",
+                delta={k: v for k, v in mission.effects.items() if isinstance(v, (int, float))},
+                narrative=f"{m.name}完成任务【{mission.name}】，归朝复命。",
+            ))
+
+
+
 def advance_month(state: GameState) -> tuple[list[str], dict | None, list[str]]:
     """Advance game time by one month and inject script events.
 
@@ -951,6 +995,7 @@ def advance_month(state: GameState) -> tuple[list[str], dict | None, list[str]]:
     state.decrees_this_month = {}
     state.decree_count += 1
     new_ministers = _activate_entered_ministers(state)
+    _tick_missions(state)
     triggered_events = inject_script_events(state)
     game_over = check_game_end(state)
     return triggered_events, game_over, new_ministers
@@ -1129,7 +1174,7 @@ def apply_ai_effects(
     return dismissed, executed
 
 
-def add_ai_new_events(state: GameState, new_events: list[dict]) -> None:
+def add_ai_new_events(state: GameState, new_events: list) -> None:
     """Validate and add AI-created events to active_events. Max 3 per turn."""
     if not isinstance(new_events, list):
         return
@@ -1137,6 +1182,13 @@ def add_ai_new_events(state: GameState, new_events: list[dict]) -> None:
     for evt in new_events:
         if added >= 3:
             break
+        if isinstance(evt, GameEvent):
+            if evt.triggered_year > 0 and evt.triggered_year < state.time.year:
+                logger.warning("add_ai_new_events: triggered_year in past, discarding", extra={"entity_name": evt.name, "entity_type": "event", "context": "add_ai_new_events"})
+                continue
+            state.active_events.append(evt)
+            added += 1
+            continue
         if not isinstance(evt, dict):
             continue
         name = evt.get("name")
@@ -1156,7 +1208,64 @@ def add_ai_new_events(state: GameState, new_events: list[dict]) -> None:
         added += 1
 
 
-# ── Main Pipeline ────────────────────────────────────────
+_MISSION_TOTAL_MONTHS_RANGE = (2, 12)
+
+
+def _apply_mission_decree(state: GameState, freeform: FreeformResult) -> bool:
+    """Handle _mission_<name> key in freeform effects. Returns True if handled."""
+    mission_key = next(
+        (k for k in freeform.effects if isinstance(k, str) and k.startswith("_mission_")),
+        None,
+    )
+    if mission_key is None:
+        return False
+    minister_name = mission_key[len("_mission_"):]
+    minister = next((m for m in state.ministers if m.name == minister_name), None)
+    if minister is None or minister.status != MinisterStatus.ACTIVE:
+        logger.warning("Mission decree: minister not active", extra={"entity_name": minister_name, "entity_type": "minister", "context": "_apply_mission_decree"})
+        return False
+
+    payload = freeform.effects.get(mission_key)
+    if not isinstance(payload, dict):
+        return False
+
+    mission_name = str(payload.get("name", "")).strip()
+    if not mission_name:
+        return False
+    try:
+        total_months = int(payload.get("total_months", 0))
+    except (TypeError, ValueError):
+        return False
+    if not (_MISSION_TOTAL_MONTHS_RANGE[0] <= total_months <= _MISSION_TOTAL_MONTHS_RANGE[1]):
+        return False
+    try:
+        cost = int(payload.get("cost", 0))
+    except (TypeError, ValueError):
+        cost = 0
+    if cost < 0:
+        return False
+    if state.national_treasury < cost:
+        return False
+
+    raw_effects = payload.get("effects", {})
+    if not isinstance(raw_effects, dict):
+        raw_effects = {}
+    # whitelist-filter effects using pattern matcher
+    valid_effects = {k: v for k, v in raw_effects.items() if _match_writable_pattern(k) is not None}
+
+    state.national_treasury -= cost
+    minister.status = MinisterStatus.ON_MISSION
+    minister.current_mission = MissionState(
+        name=mission_name,
+        progress_months=0,
+        total_months=total_months,
+        cost=cost,
+        effects=valid_effects,
+    )
+    return True
+
+
+
 
 def process_decree(
     state: GameState,
@@ -1197,8 +1306,11 @@ def process_decree(
 
     if freeform is not None:
         # ── Freeform branch ──
-        # validate + apply AI effects
-        valid_effects = validate_ai_effects(freeform.effects, state)
+        # handle _mission_<name> key before standard effects
+        _apply_mission_decree(state, freeform)
+        # validate + apply AI effects (skip _mission_ keys)
+        filtered_effects = {k: v for k, v in freeform.effects.items() if not k.startswith("_mission_")}
+        valid_effects = validate_ai_effects(filtered_effects, state)
         dismissed, executed = apply_ai_effects(state, valid_effects, attr)
 
         # execution backlash (same logic as structured path)

@@ -1,23 +1,18 @@
 import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import type { GameState, DecreeType, StructuredDecree, Capabilities } from '../types/game'
+import type { GameState, DecreeType, StructuredDecree, ModalItem } from '../types/game'
 import { DECREE_LABELS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
 import EdictWritingPanel from './EdictWritingPanel'
-import TopicSelector from './TopicSelector'
 
 interface Props {
   state: GameState
   loading: boolean
-  capabilities: Capabilities
   hasBlockingEvent: boolean
-  debateLoading: boolean
   onDecree: (decrees: StructuredDecree[]) => void
   onFreeText: (text: string) => void
-  onDebateStart: (topic: string, category: DecreeType) => void
-  prefilledDecree?: StructuredDecree | null
-  prefilledKeywords?: string[]
-  onPrefilledClear?: () => void
+  onAdvanceMonth: () => void
+  advanceMonthInFlight: boolean
+  currentModal: ModalItem | null
 }
 
 type Category = '内政' | '军事' | '外交' | '其他'
@@ -31,27 +26,16 @@ const CATEGORY_DECREES: Record<Category, DecreeType[]> = {
   其他: ['personnel'],
 }
 
-const CATEGORY_TO_DECREE_TYPE: Record<Category, DecreeType> = {
-  内政: 'tax_increase',
-  军事: 'recruit_troops',
-  外交: 'diplomacy',
-  其他: 'personnel',
-}
-
 export default function ActionArea({
-  state, loading, capabilities, hasBlockingEvent, debateLoading,
-  onDecree, onFreeText, onDebateStart,
-  prefilledDecree, prefilledKeywords, onPrefilledClear,
+  state, loading, hasBlockingEvent,
+  onDecree, onFreeText, onAdvanceMonth, advanceMonthInFlight,
+  currentModal,
 }: Props) {
   const [text, setText] = useState('')
   const [tab, setTab] = useState<Category>('内政')
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
-  const [showTopics, setShowTopics] = useState(false)
-  const actionLocked = loading || debateLoading || hasBlockingEvent
-  const textLocked = loading || debateLoading
-
-  // Open edict panel from prefilled decree (debate result)
-  const activeEdictType = prefilledDecree ? prefilledDecree.type : edictType
+  const actionLocked = loading || hasBlockingEvent
+  const textLocked = loading
 
   function handleSubmit() {
     const t = text.trim()
@@ -60,19 +44,12 @@ export default function ActionArea({
     setText('')
   }
 
-  function handleTopicSelect(topic: string, decreeType: DecreeType) {
-    setShowTopics(false)
-    onDebateStart(topic, decreeType)
-  }
-
   function handleEdictConfirm(decree: StructuredDecree) {
-    if (prefilledDecree) onPrefilledClear?.()
     setEdictType(null)
     onDecree([decree])
   }
 
   function handleEdictCancel() {
-    if (prefilledDecree) onPrefilledClear?.()
     setEdictType(null)
   }
 
@@ -83,41 +60,14 @@ export default function ActionArea({
           <button
             key={c}
             className={`cat-tab${tab === c ? ' active' : ''}`}
-            onClick={() => {
-              setTab(c)
-              setShowTopics(false)
-            }}
+            onClick={() => setTab(c)}
           >{c}</button>
         ))}
       </div>
 
       <div className="decree-tab-content">
-        {capabilities.debate_supported && (
-          <div style={{ position: 'relative' }}>
-            <button
-              className="debate-btn"
-              disabled={actionLocked}
-              onClick={() => setShowTopics(v => !v)}
-            >
-              {debateLoading ? '廷推进行中...' : '廷推议事'}
-            </button>
-            {showTopics && (
-              <TopicSelector
-                category={CATEGORY_TO_DECREE_TYPE[tab]}
-                onSelect={handleTopicSelect}
-              />
-            )}
-          </div>
-        )}
-
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
+          <div
             className="decree-grid"
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.15 }}
           >
             {CATEGORY_DECREES[tab].map(type => {
               const ok = checkPrecondition(state, type)
@@ -137,8 +87,7 @@ export default function ActionArea({
                 </button>
               )
             })}
-          </motion.div>
-        </AnimatePresence>
+          </div>
       </div>
 
       <div className="text-input-row">
@@ -149,17 +98,23 @@ export default function ActionArea({
           placeholder="输入政令（如：加征辽饷）"
           disabled={textLocked}
         />
-        <button onClick={handleSubmit} disabled={textLocked || !text.trim()}>下旨</button>
+        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}>下旨</button>
       </div>
 
-      {activeEdictType && (
+      <button
+        className="advance-btn"
+        disabled={loading || !!currentModal || hasBlockingEvent || advanceMonthInFlight || actionLocked}
+        onClick={onAdvanceMonth}
+      >
+        {advanceMonthInFlight && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />}
+        进入下月
+      </button>
+
+      {edictType && (
         <EdictWritingPanel
-          key={`${activeEdictType}-${prefilledDecree?.target ?? ''}-${prefilledDecree?.sub_action ?? ''}`}
-          type={activeEdictType}
+          type={edictType}
           state={state}
           loading={loading}
-          prefilledDecree={prefilledDecree}
-          keywords={prefilledKeywords}
           onConfirm={handleEdictConfirm}
           onCancel={handleEdictCancel}
         />

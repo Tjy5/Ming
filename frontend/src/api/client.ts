@@ -12,6 +12,7 @@ import type {
   DecreeType,
   CourtAssembly,
   MemorialStatus,
+  MemorialResolveResponse,
   AISettings,
   AIModelListResponse,
   AIProvider,
@@ -296,7 +297,7 @@ export const api = {
     }),
 
   resolveMemorial: (id: string, action: MemorialStatus) =>
-    request<{ state: GameState; action: string; narrative?: string; delta?: Record<string, number> }>(`/memorial/${id}/resolve`, {
+    request<MemorialResolveResponse>(`/memorial/${id}/resolve`, {
       method: 'POST',
       body: JSON.stringify({ action }),
     }),

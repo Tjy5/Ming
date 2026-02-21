@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
-import type { StructuredDecree, GameState, GameEvent, DecreeType, DebateResult, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
+import type { StructuredDecree, GameState, GameEvent, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
 import FactionPanel from './components/FactionPanel'
@@ -13,12 +13,12 @@ import GameOverScreen from './components/GameOverScreen'
 import MultiConfirm from './components/MultiConfirm'
 import SavePanel from './components/SavePanel'
 import ScriptEventModal from './components/ScriptEventModal'
-import DebatePanel from './components/DebatePanel'
 import MemorialPanel from './components/MemorialPanel'
 import CourtAssemblyView from './components/CourtAssemblyView'
 import AiSettingsModal from './components/AiSettingsModal'
 import MinisterDialogue from './components/MinisterDialogue'
 import OfficialRankModal from './components/OfficialRankModal'
+import MissionPanel from './components/MissionPanel'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
@@ -34,9 +34,9 @@ type NarrativePayload = {
 function App() {
   const {
     state, loading, error, gameOver, prevState,
-    capabilities, debateLoading, currentModal,
+    capabilities, currentModal,
     setState, setLoading, setError, setGameOver, setPrevState,
-    setCapabilities, setDebateLoading,
+    setCapabilities,
     pushModal, popModal, clearModals, reset,
   } = useStore()
 
@@ -46,8 +46,6 @@ function App() {
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [rightTab, setRightTab] = useState<RightTab>('faction')
-  const [prefilledDecree, setPrefilledDecree] = useState<StructuredDecree | null>(null)
-  const [prefilledKeywords, setPrefilledKeywords] = useState<string[]>([])
   const [lastReactions, setLastReactions] = useState<MinisterReaction[]>([])
   const toastTimer = useRef<number>(0)
   const capsFetched = useRef(false)
@@ -108,35 +106,6 @@ function App() {
     }
   }, [state, loading, pushModal])
 
-  async function handleDebateStart(topic: string, category: DecreeType) {
-    setDebateLoading(true)
-    try {
-      const result = await api.startDebate(topic, category)
-      pushModal({ type: 'debate', priority: 20, payload: { result, topic } })
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.body.message : '廷推失败')
-    } finally {
-      setDebateLoading(false)
-    }
-  }
-
-  function handleDebateAdopt(decree: StructuredDecree, keywords: string[]) {
-    popModal()
-    setPrefilledDecree(decree)
-    setPrefilledKeywords(keywords)
-  }
-
-  async function handleDebateSilence() {
-    popModal()
-    try {
-      const res = await api.silenceDebate()
-      setState(res.state)
-      if (res.prestige_change > 0) showToast(`威望 +${res.prestige_change}`)
-    } catch (e) {
-      showToast(e instanceof ApiError ? e.body.message : '操作失败')
-    }
-  }
-
   async function handleMemorialResolve(id: string, action: 'approved' | 'rejected' | 'deferred') {
     if (memorialResolveInFlight.current) return
     memorialResolveInFlight.current = true
@@ -149,8 +118,17 @@ function App() {
       if (currentModal?.type === 'memorial' && pendingAfter.length === 0) {
         popModal()
       }
-      const labels = { approved: '准奏', rejected: '驳回', deferred: '留中' }
-      showToast(`奏折已${labels[action]}`)
+      if (res.narrative || (res.minister_reactions && res.minister_reactions.length > 0)) {
+        pushModal({
+          type: 'narrative',
+          priority: 95,
+          payload: {
+            narrative: res.narrative || '批复已下。',
+            delta: res.delta || {},
+            ministerReactions: res.minister_reactions,
+          },
+        })
+      }
       return { narrative: res.narrative, delta: res.delta }
     } catch (e) {
       if (e instanceof ApiError && (e.body.error_code === 'memorial_not_found' || e.body.error_code === 'already_resolved')) {
@@ -279,6 +257,7 @@ function App() {
     setGameOver,
     pushModal,
     showToast,
+    onMissionComplete: (name, missionName) => showToast(`${name} 完成任务：${missionName}`),
   })
   const pendingMemorials = state?.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
 
@@ -323,7 +302,12 @@ function App() {
           </div>
           <div className="right-panel-body">
             {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
-            {rightTab === 'minister' && <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} />}
+            {rightTab === 'minister' && (
+              <>
+                <MissionPanel ministers={state.ministers} />
+                <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} />
+              </>
+            )}
             {rightTab === 'assembly' && (
               <CourtAssemblyView
                 state={state}
@@ -349,25 +333,13 @@ function App() {
           <ActionArea
             state={state}
             loading={loading}
-            capabilities={capabilities}
             hasBlockingEvent={hasBlockingEvent}
-            debateLoading={debateLoading}
             onDecree={executeDecrees}
             onFreeText={handleFreeText}
-            onDebateStart={handleDebateStart}
-            prefilledDecree={prefilledDecree}
-            prefilledKeywords={prefilledKeywords}
-            onPrefilledClear={() => { setPrefilledDecree(null); setPrefilledKeywords([]) }}
+            onAdvanceMonth={handleAdvanceMonth}
+            advanceMonthInFlight={advanceMonthInFlight}
+            currentModal={currentModal}
           />
-          <button
-            className="decree-btn"
-            disabled={loading || !!currentModal || hasBlockingEvent || advanceMonthInFlight || decreeInFlight}
-            onClick={handleAdvanceMonth}
-            style={{ margin: '0 10px 10px 10px', height: '36px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            {advanceMonthInFlight && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />}
-            进入下月
-          </button>
         </div>
       </div>
 
@@ -444,15 +416,6 @@ function App() {
             if (!errorCode) removeScriptModalById(scriptId)
             return errorCode
           }}
-        />
-      )}
-
-      {currentModal?.type === 'debate' && (
-        <DebatePanel
-          result={(currentModal.payload as { result: DebateResult; topic: string }).result}
-          topic={(currentModal.payload as { result: DebateResult; topic: string }).topic}
-          onAdopt={handleDebateAdopt}
-          onSilence={handleDebateSilence}
         />
       )}
 

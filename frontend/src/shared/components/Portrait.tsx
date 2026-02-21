@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Minister } from '../../types/game'
 import { getPortraitUrl } from '../../utils/portraits'
 import { FACTION_COLORS } from '../constants/factions'
@@ -23,9 +23,11 @@ export function Portrait({ minister, name, faction, size, className, onClick }: 
   const displayName = minister?.name || name || '?'
   const displayFaction = minister?.faction || faction || '中立派'
 
-  useEffect(() => {
+  const [prevName, setPrevName] = useState('')
+  if (displayName !== prevName) {
+    setPrevName(displayName)
     setLoadFailed(false)
-  }, [displayName])
+  }
 
   const sizeStyle = size ? { width: toSize(size), height: toSize(size) } : undefined
 

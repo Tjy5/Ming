@@ -55,6 +55,7 @@ class MinisterStatus(str, Enum):
     IDLE = "idle"
     REMOVED = "removed"
     NOT_YET_ENTERED = "not_yet_entered"
+    ON_MISSION = "on_mission"
 
 
 class AssemblyPhase(str, Enum):

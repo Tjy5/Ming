@@ -163,7 +163,8 @@ export default function TurnSummaryModal({ summary, onClose }: Props) {
                               className="ts-collapse-toggle"
                               onClick={() => setExpandedRegions(s => {
                                 const n = new Set(s)
-                                collapsed ? n.add(r.name) : n.delete(r.name)
+                                if (collapsed) n.add(r.name)
+                                else n.delete(r.name)
                                 return n
                               })}
                             >

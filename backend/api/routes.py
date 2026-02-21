@@ -109,8 +109,8 @@ async def _execute_decree_core(
                     message="该脚本事件当前未激活",
                 ).model_dump())
 
-        # script state_effects: apply BEFORE decrees
-        if req.state_effects:
+        # script state_effects: only apply for verified scripted events
+        if req.state_effects and req.source_script_id and req.source_script_id in SCRIPT_REGISTRY:
             _apply_state_effects(state, req.state_effects)
 
         last_response: dict | None = None
@@ -638,6 +638,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
         narrative = ""
         accumulated_delta: dict = {}
+        accumulated_reactions: list = []
 
         if req.action == "approved" and memorial.suggested_decrees:
             provider = _get_provider()
@@ -649,6 +650,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 if validate_target(decree, state):
                     continue
                 delta, attr, triggered, game_over, _reactions, _summary = process_decree(state, decree)
+                accumulated_reactions.extend(_reactions)
                 for k, v in delta.items():
                     accumulated_delta[k] = accumulated_delta.get(k, 0) + v
                 last_decree, last_attr, last_triggered = decree, attr, triggered
@@ -663,7 +665,13 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 narrative = await provider.generate_narrative(last_attr, state, last_triggered, last_decree)
                 state.history_log[-1].narrative = narrative
 
-        return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta}
+        if req.action != "approved" and narrative == "":
+            if req.action == "rejected":
+                narrative = f"陛下驳回了{memorial.author_name}的奏折。"
+            elif req.action == "deferred":
+                narrative = f"陛下将{memorial.author_name}的奏折留中待议。"
+
+        return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta, "minister_reactions": [r.model_dump() for r in accumulated_reactions]}
 
 
 # ── 6.15 POST /api/minister/{name}/dialogue ───────────

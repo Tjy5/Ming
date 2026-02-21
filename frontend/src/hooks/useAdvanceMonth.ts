@@ -15,6 +15,7 @@ type UseAdvanceMonthParams = {
   setGameOver: (g: { result: 'victory' | 'defeat'; message: string } | null) => void
   pushModal: (item: ModalItem) => void
   showToast: (msg: string) => void
+  onMissionComplete?: (ministerName: string, missionName: string) => void
 }
 
 export function useAdvanceMonth({
@@ -29,6 +30,7 @@ export function useAdvanceMonth({
   setGameOver,
   pushModal,
   showToast,
+  onMissionComplete,
 }: UseAdvanceMonthParams) {
   const [advanceMonthInFlight, setAdvanceMonthInFlight] = useState(false)
   const advanceMonthAbortController = useRef<AbortController | null>(null)
@@ -41,8 +43,22 @@ export function useAdvanceMonth({
     if (advanceMonthAbortController.current) advanceMonthAbortController.current.abort()
     advanceMonthAbortController.current = new AbortController()
     try {
+      const prevMissions = new Map(
+        (state?.ministers ?? [])
+          .filter(m => m.status === 'on_mission' && m.current_mission)
+          .map(m => [m.name, m.current_mission!.name])
+      )
       const res = await api.advanceMonth(advanceMonthAbortController.current.signal)
       setState(res.state)
+      // detect mission completions
+      if (onMissionComplete) {
+        for (const [name, missionName] of prevMissions) {
+          const after = res.state.ministers.find(m => m.name === name)
+          if (after && after.status === 'active' && !after.current_mission) {
+            onMissionComplete(name, missionName)
+          }
+        }
+      }
       if (res.triggered_events?.length) {
         res.triggered_events.forEach((eventName) => {
           const evt = res.state.active_events.find((e) => e.name === eventName)

@@ -10,7 +10,7 @@ export type TaxContribution = 'low' | 'medium' | 'high'
 export type PersonnelAction = 'appoint' | 'dismiss' | 'execute'
 export type DiplomacyTarget = '后金' | '蒙古' | '朝鲜'
 export type EventUrgency = '高' | '中' | '低'
-export type MinisterStatus = 'active' | 'idle' | 'removed' | 'not_yet_entered'
+export type MinisterStatus = 'active' | 'idle' | 'removed' | 'not_yet_entered' | 'on_mission'
 export type AssemblyPhase = 'idle' | 'petition' | 'debate' | 'vote' | 'decree'
 
 export interface GameTime {
@@ -47,6 +47,14 @@ export interface MinisterAbilities {
   diplomacy: number
 }
 
+export interface MissionState {
+  name: string
+  progress_months: number
+  total_months: number
+  cost: number
+  effects: Record<string, number | string>
+}
+
 export interface Minister {
   name: string
   faction: string
@@ -58,6 +66,7 @@ export interface Minister {
   entry_year: number
   entry_month: number
   historical_note: string
+  current_mission?: MissionState | null
 }
 
 export interface EventChoice {
@@ -80,6 +89,7 @@ export interface GameEvent {
   is_blocking: boolean
   script_id: string | null
   historical_hint?: string
+  historical_basis?: string
 }
 
 export interface HistoryEntry {
@@ -278,7 +288,6 @@ export type ModalType =
   | 'turn_summary'
   | 'memorial'
   | 'assembly'
-  | 'debate'
   | 'script_event'
 
 interface BaseModalItem {
@@ -292,7 +301,6 @@ export type ModalItem =
   | (BaseModalItem & { type: 'turn_summary'; payload: TurnSummary })
   | (BaseModalItem & { type: 'memorial'; payload: Memorial[] })
   | (BaseModalItem & { type: 'assembly'; payload: CourtAssembly })
-  | (BaseModalItem & { type: 'debate'; payload: { result: DebateResult; topic: string } })
   | (BaseModalItem & { type: 'script_event'; payload: GameEvent })
 
 export interface ConversationMessage {
@@ -320,6 +328,7 @@ export interface MemorialResolveResponse {
   action: string
   narrative?: string
   delta?: Record<string, number>
+  minister_reactions?: MinisterReaction[]
 }
 
 export interface ErrorResponse {

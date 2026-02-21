@@ -64,7 +64,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
         <div className="script-md-body">
           <Markdown>{text}</Markdown>
         </div>
-        {event.historical_hint && (
+        {(event.historical_hint || event.historical_basis) && (
           <div className="script-hint-section">
             <button
               type="button"
@@ -77,7 +77,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
             </button>
             {hintOpen && (
               <div id="historical-hint-content" className="script-hint-body">
-                <Markdown>{event.historical_hint}</Markdown>
+                <Markdown>{event.historical_basis || event.historical_hint}</Markdown>
               </div>
             )}
           </div>

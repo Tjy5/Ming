@@ -7,11 +7,13 @@ from models.game import (
     DebateMinister,
     DebateResult,
     FreeformResult,
+    GameEvent,
     GameState,
     MemorialDraft,
     Minister,
     MinisterReaction,
     StructuredDecree,
+    EventChoice,
 )
 from models.enums import DecreeType, DiplomacyTarget, MinisterStatus as _MS, PersonnelAction
 
@@ -328,8 +330,11 @@ _FREEFORM_SYSTEM_PROMPT = """\
   "narrative": "150-300字古风叙事",
   "reactions": [{"minister_name":"大臣名","faction":"派系","reaction_type":"support/oppose/neutral","reaction_text":"反应文本","loyalty_change":0}, ...],
   "rationale": "简要决策说明",
-  "new_events": [{"name":"事件名","description":"描述","urgency":"高/中/低"}, ...]
+  "new_events": [{"name":"事件名","description":"描述","urgency":"高/中/低","triggered_year":当前年份,"choices":[{"label":"选项","description":"说明","decrees":[],"state_effects":{}}],"historical_basis":"史实依据"}, ...]
 }
+
+特殊任务指令（可选）：若玩家指令涉及派遣大臣执行任务，可在effects中添加：
+"_mission_<大臣姓名>": {"name":"任务名","total_months":月数(2-12),"cost":花费(≥0),"effects":{"可修改字段路径":数值}}
 
 可修改字段白名单（effects 中只能使用以下路径）：
 - global.national_treasury (int delta, 范围0-200)
@@ -359,7 +364,7 @@ _FREEFORM_SYSTEM_PROMPT = """\
 3. 不得创造不存在的大臣/区域/派系
 4. 若无法识别政务意图，返回 {"error": "无法识别政务意图"}
 5. narrative必须与effects一致——若处决某人，narrative必须描述处决事实
-6. new_events单回合最多3个，name必填，urgency默认"中"
+6. new_events单回合最多3个，name必填，urgency默认"中"，triggered_year必须≥当前年份，historical_basis必填
 7. reactions中引用的大臣必须是当前非removed状态的大臣
 """
 
@@ -431,6 +436,10 @@ def parse_freeform_response(data: dict) -> FreeformResult | dict:
     for k, v in effects.items():
         if not isinstance(k, str):
             return parse_error("effects路径格式无效")
+        if k.startswith("_mission_"):
+            if not isinstance(v, dict):
+                return parse_error("_mission_值必须为dict")
+            continue
         if isinstance(v, (dict, list)):
             return parse_error("effects包含嵌套结构")
         if isinstance(v, bool) or not isinstance(v, (int, float, str)):
@@ -464,7 +473,37 @@ def parse_freeform_response(data: dict) -> FreeformResult | dict:
             )
         )
 
-    new_events = data.get("new_events") if isinstance(data.get("new_events"), list) else []
+    new_events_raw = data.get("new_events") if isinstance(data.get("new_events"), list) else []
+    new_events: list[GameEvent] = []
+    from models.enums import EventUrgency
+    for evt in new_events_raw:
+        if not isinstance(evt, dict):
+            continue
+        name = evt.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        urgency_raw = evt.get("urgency", "中")
+        if urgency_raw not in ("高", "中", "低"):
+            urgency_raw = "中"
+        triggered_year = evt.get("triggered_year")
+        if not isinstance(triggered_year, int):
+            triggered_year = 1627
+        choices_raw = evt.get("choices") if isinstance(evt.get("choices"), list) else []
+        choices = []
+        for c in choices_raw:
+            try:
+                choices.append(EventChoice.model_validate(c))
+            except Exception:
+                pass
+        new_events.append(GameEvent(
+            name=name.strip(),
+            description=str(evt.get("description", "")),
+            urgency=EventUrgency(urgency_raw),
+            triggered_year=triggered_year,
+            triggered_month=1,
+            historical_basis=str(evt.get("historical_basis", "")),
+            choices=choices,
+        ))
 
     return FreeformResult(
         effects=effects,

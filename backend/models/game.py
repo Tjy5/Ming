@@ -34,6 +34,14 @@ class MinisterAbilities(BaseModel):
     diplomacy: int = Field(default=0, ge=0, le=100)
 
 
+class MissionState(BaseModel):
+    name: str
+    progress_months: int = 0
+    total_months: int = Field(ge=2, le=12)
+    cost: int = Field(ge=0)
+    effects: dict = Field(default_factory=dict)
+
+
 class Minister(BaseModel):
     name: str
     faction: str
@@ -45,6 +53,7 @@ class Minister(BaseModel):
     entry_year: int = 1627
     entry_month: int = Field(default=8, ge=1, le=12)
     historical_note: str = Field(default="", max_length=200)
+    current_mission: MissionState | None = None
 
 
 # ── Region ───────────────────────────────────────────────
@@ -102,11 +111,11 @@ class MinisterReaction(BaseModel):
 
 
 class FreeformResult(BaseModel):
-    effects: dict[str, int | float | str] = Field(default_factory=dict)
+    effects: dict[str, int | float | str | dict] = Field(default_factory=dict)
     narrative: str = ""
     reactions: list[MinisterReaction] = Field(default_factory=list)
     rationale: str = ""
-    new_events: list[dict] = Field(default_factory=list)
+    new_events: list["GameEvent"] = Field(default_factory=list)
 
 
 # ── Court Assembly ──────────────────────────────────────
@@ -262,14 +271,15 @@ class GameEvent(BaseModel):
     name: str
     description: str = ""
     urgency: EventUrgency = EventUrgency.LOW
-    triggered_year: int
-    triggered_month: int
+    triggered_year: int = 0
+    triggered_month: int = 1
     rich_description: str = ""
     choices: list[EventChoice] = Field(default_factory=list)
     is_scripted: bool = False
     is_blocking: bool = False
     script_id: str | None = None
     historical_hint: str = ""
+    historical_basis: str = ""
 
 
 # ── History ──────────────────────────────────────────────

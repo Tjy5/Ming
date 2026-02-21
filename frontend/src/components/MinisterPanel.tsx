@@ -34,13 +34,19 @@ function MinisterCard({ minister, reaction, onClick }: {
 }) {
   const idle = minister.status === 'idle'
   const notEntered = minister.status === 'not_yet_entered'
+  const onMission = minister.status === 'on_mission'
   const [showReaction, setShowReaction] = useState(false)
 
   const reactionKey = reaction ? `${reaction.minister_name}:${reaction.reaction_type}:${reaction.loyalty_change}` : ''
 
+  const [prevReactionKey, setPrevReactionKey] = useState('')
+  if (reactionKey !== prevReactionKey) {
+    setPrevReactionKey(reactionKey)
+    if (reactionKey) setShowReaction(true)
+  }
+
   useEffect(() => {
     if (!reactionKey) return
-    setShowReaction(true)
     const t = setTimeout(() => setShowReaction(false), 3000)
     return () => clearTimeout(t)
   }, [reactionKey])
@@ -48,10 +54,11 @@ function MinisterCard({ minister, reaction, onClick }: {
   const cls = ['mp-card']
   if (idle) cls.push('mp-idle')
   if (notEntered) cls.push('mp-not-entered')
-  if (onClick) cls.push('mp-clickable')
+  if (onMission) cls.push('mp-on-mission')
+  if (onClick && !onMission) cls.push('mp-clickable')
 
   return (
-    <div className={cls.join(' ')} onClick={() => onClick?.(minister)}>
+    <div className={cls.join(' ')} onClick={() => !onMission && onClick?.(minister)}>
       <Portrait minister={minister} />
       <div className="mp-info">
         <div className="mp-name">
@@ -91,6 +98,7 @@ function MinisterCard({ minister, reaction, onClick }: {
       </div>
       {idle && <div className="mp-idle-badge">赋闲</div>}
       {notEntered && <div className="mp-not-entered-badge">未入朝</div>}
+      {onMission && <div className="mp-on-mission-badge">出使中</div>}
       <AnimatePresence>
         {showReaction && reaction && (
           <motion.div

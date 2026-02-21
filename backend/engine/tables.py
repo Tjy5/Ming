@@ -160,4 +160,5 @@ VALID_STATUS_TRANSITIONS = frozenset({
     ("active", "idle"), ("active", "removed"),
     ("idle", "active"), ("idle", "removed"),
     ("not_yet_entered", "active"), ("not_yet_entered", "removed"),
+    ("active", "on_mission"), ("on_mission", "active"), ("on_mission", "removed"),
 })

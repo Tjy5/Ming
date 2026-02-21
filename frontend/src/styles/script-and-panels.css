@@ -509,6 +509,64 @@
   padding: 0 4px;
 }
 
+.mp-on-mission {
+  opacity: 0.7;
+}
+
+.mp-on-mission-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 0.6rem;
+  color: var(--accent-gold);
+  background: rgba(200, 160, 60, 0.15);
+  border: 1px solid var(--accent-gold);
+  border-radius: 2px;
+  padding: 0 4px;
+}
+
+.mission-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  border: 1px solid #444;
+  border-radius: 2px;
+  margin-bottom: 6px;
+}
+
+.mission-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.mission-minister {
+  color: var(--accent-gold);
+  min-width: 48px;
+}
+
+.mission-name {
+  color: var(--text-dim);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-progress {
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.mission-remaining {
+  color: var(--text-dim);
+  min-width: 36px;
+  text-align: right;
+}
+
 .mp-reaction-icon {
   position: absolute;
   top: 4px;

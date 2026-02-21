@@ -9,7 +9,6 @@ export const MODAL_PRIORITIES: Record<ModalType, number> = {
   turn_summary: 40,
   memorial: 30,
   assembly: 20,
-  debate: 20,
   script_event: 10,
 }
 
@@ -20,7 +19,6 @@ interface Store {
   gameOver: { result: 'victory' | 'defeat'; message: string } | null
   prevState: GameState | null
   capabilities: Capabilities
-  debateLoading: boolean
   modalQueue: ModalItem[]
   currentModal: ModalItem | null
 
@@ -30,7 +28,6 @@ interface Store {
   setGameOver: (g: { result: 'victory' | 'defeat'; message: string } | null) => void
   setPrevState: (s: GameState | null) => void
   setCapabilities: (c: Capabilities) => void
-  setDebateLoading: (v: boolean) => void
   pushModal: (item: ModalItem) => void
   popModal: () => void
   clearModals: () => void
@@ -52,7 +49,6 @@ export const useStore = create<Store>((set) => ({
   gameOver: null,
   prevState: null,
   capabilities: DEFAULT_CAPABILITIES,
-  debateLoading: false,
   modalQueue: [],
   currentModal: null,
 
@@ -62,7 +58,6 @@ export const useStore = create<Store>((set) => ({
   setGameOver: (g) => set({ gameOver: g }),
   setPrevState: (s) => set({ prevState: s }),
   setCapabilities: (c) => set({ capabilities: c }),
-  setDebateLoading: (v) => set({ debateLoading: v }),
 
   pushModal: (item) => set((s) => {
     const m = { ...item, priority: item.priority ?? MODAL_PRIORITIES[item.type] }
@@ -85,7 +80,7 @@ export const useStore = create<Store>((set) => ({
   reset: () => set({
     state: null, loading: false, error: null,
     gameOver: null, prevState: null, capabilities: DEFAULT_CAPABILITIES,
-    debateLoading: false, currentModal: null, modalQueue: [],
+    currentModal: null, modalQueue: [],
   }),
 }))
 
