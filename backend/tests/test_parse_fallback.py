@@ -51,8 +51,6 @@ class _AlwaysParseErrorProvider(AIProvider):
     ) -> DebateResult | None:
         return None
 
-    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
-        return None
 
     async def generate_memorial(self, trigger_reason, author, game_state):
         return ""

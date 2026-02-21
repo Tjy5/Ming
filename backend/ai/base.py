@@ -75,21 +75,6 @@ def set_rule_parse_fallback(enabled: bool) -> None:
         pass
 
 
-def _is_non_retryable_portrait_error(exc: Exception) -> bool:
-    msg = str(exc).lower()
-    markers = (
-        "model_not_found",
-        "429",
-        "rate limit",
-        "too many requests",
-        "quota",
-        "无可用渠道",
-        "请求数限制",
-        "invalid_api_key",
-        "authentication",
-        "permission",
-    )
-    return any(m in msg for m in markers)
 
 
 class AIProvider(abc.ABC):
@@ -133,13 +118,6 @@ class AIProvider(abc.ABC):
         minister_b: Minister,
         game_state: GameState,
     ) -> DebateResult | None: ...
-
-    @abc.abstractmethod
-    async def generate_portrait(
-        self,
-        minister_name: str,
-        description: str,
-    ) -> str | None: ...
 
     @abc.abstractmethod
     async def generate_memorial(

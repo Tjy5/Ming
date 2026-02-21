@@ -613,3 +613,97 @@
   border-radius: 3px;
 }
 
+/* ── Memorial Result Styles ──────────────────────────── */
+.memorial-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 0 4px 4px;
+}
+
+.memorial-status-tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  font-weight: 500;
+}
+
+.memorial-status-tag.status-approved {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+.memorial-status-tag.status-rejected {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.memorial-status-tag.status-deferred {
+  background: rgba(234, 179, 8, 0.2);
+  color: #fde047;
+}
+
+.memorial-result .delta-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+}
+
+.memorial-result .delta-list li {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.5rem;
+  border-radius: 2px;
+  font-size: 0.85rem;
+}
+
+.memorial-result .narrative-reactions {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.memorial-result .narrative-reactions h4 {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.memorial-result .narrative-reactions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.memorial-result .narrative-reactions li {
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.5rem;
+  border-radius: 2px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 768px) {
+  .memorial-result {
+    padding: 0.75rem;
+  }
+
+  .memorial-result .delta-list {
+    grid-template-columns: 1fr;
+  }
+
+  .memorial-status-tag {
+    display: block;
+    margin-left: 0;
+    margin-top: 0.5rem;
+    width: fit-content;
+  }
+}
+

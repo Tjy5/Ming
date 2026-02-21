@@ -151,6 +151,7 @@ export interface Memorial {
   created_year: number
   created_month: number
   status: MemorialStatus
+  resolution_result?: MemorialResolutionResult | null
 }
 
 export interface MinisterReaction {
@@ -159,6 +160,13 @@ export interface MinisterReaction {
   reaction_type: string
   reaction_text: string
   loyalty_change: number
+}
+
+export interface MemorialResolutionResult {
+  action: 'approved' | 'rejected' | 'deferred'
+  narrative?: string | null
+  delta?: Record<string, number> | null
+  minister_reactions?: MinisterReaction[] | null
 }
 
 export interface AssemblyParticipant {
@@ -368,20 +376,24 @@ export interface DebateResult {
 
 export interface Capabilities {
   debate_supported: boolean
-  portrait_supported: boolean
+
   assembly_supported: boolean
   memorial_enabled: boolean
 }
 
-export const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, portrait_supported: false, assembly_supported: false, memorial_enabled: false }
+export const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, assembly_supported: false, memorial_enabled: false }
 
-export type AIProvider = 'mock' | 'openai' | 'google' | 'h' | 'Z'
+export type AIProvider = 'mock' | 'openai' | 'google' | 'h' | 'Z' | (string & {})
 
 export interface AISettings {
   provider: AIProvider
+  provider_type?: string
   api_key: string
   base_url: string
   model: string
+  simple_model?: string
+  enable_thinking?: boolean
+  enable_thinking_simple?: boolean
   provider_options: AIProvider[]
 }
 

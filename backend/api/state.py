@@ -67,35 +67,49 @@ class _TimedLock:
 _state: GameState | None = None
 _lock = _TimedLock(LOCK_TIMEOUT_SECONDS)
 _provider = None
-_portrait_lock = asyncio.Lock()
-_portrait_cooldown_until = 0.0
-_PORTRAIT_COOLDOWN_SECONDS = 300
+
 _ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
 _SECRET_MASK = "********"
 _MAX_DIALOGUE_ROUNDS = 10
 _MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
 
 _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
-    "mock": {"api_key_env": None, "base_url_env": None, "model_env": None},
+    "mock": {"api_key_env": None, "base_url_env": None, "model_env": None, "simple_model_env": None, "provider_type_env": None, "enable_thinking_env": None, "enable_thinking_simple_env": None},
     "openai": {
         "api_key_env": "OPENAI_API_KEY",
         "base_url_env": "OPENAI_BASE_URL",
         "model_env": "OPENAI_MODEL_NAME",
+        "simple_model_env": "OPENAI_SIMPLE_MODEL",
+        "provider_type_env": "OPENAI_PROVIDER_TYPE",
+        "enable_thinking_env": "OPENAI_ENABLE_THINKING",
+        "enable_thinking_simple_env": "OPENAI_ENABLE_THINKING_SIMPLE",
     },
     "google": {
         "api_key_env": "GOOGLE_API_KEY",
         "base_url_env": "GOOGLE_BASE_URL",
         "model_env": "GOOGLE_MODEL_NAME",
+        "simple_model_env": "GOOGLE_SIMPLE_MODEL",
+        "provider_type_env": "GOOGLE_PROVIDER_TYPE",
+        "enable_thinking_env": "GOOGLE_ENABLE_THINKING",
+        "enable_thinking_simple_env": "GOOGLE_ENABLE_THINKING_SIMPLE",
     },
     "h": {
         "api_key_env": "HOTARU_API_KEY",
         "base_url_env": "HOTARU_BASE_URL",
         "model_env": "HOTARU_MODEL",
+        "simple_model_env": "HOTARU_SIMPLE_MODEL",
+        "provider_type_env": "HOTARU_PROVIDER_TYPE",
+        "enable_thinking_env": "HOTARU_ENABLE_THINKING",
+        "enable_thinking_simple_env": "HOTARU_ENABLE_THINKING_SIMPLE",
     },
     "Z": {
         "api_key_env": "Z_API_KEY",
         "base_url_env": "Z_BASE_URL",
         "model_env": "Z_MODEL",
+        "simple_model_env": "Z_SIMPLE_MODEL",
+        "provider_type_env": "Z_PROVIDER_TYPE",
+        "enable_thinking_env": "Z_ENABLE_THINKING",
+        "enable_thinking_simple_env": "Z_ENABLE_THINKING_SIMPLE",
     },
 }
 
@@ -128,9 +142,7 @@ def _get_provider():
     return _provider
 
 
-def _portrait_retry_after_seconds() -> int:
-    remain = int(_portrait_cooldown_until - time.monotonic())
-    return max(0, remain)
+
 
 
 def startup():
@@ -215,10 +227,16 @@ def _validate_model_list_base_url(base_url: str, provider: str) -> str:
 def _provider_spec(provider_name: str) -> dict[str, str | None]:
     spec = _AI_PROVIDER_SPECS.get(provider_name)
     if spec is None:
-        raise HTTPException(422, detail=ErrorResponse(
-            error_code="invalid_provider",
-            message=f"未知AI供应商: {provider_name}",
-        ).model_dump())
+        prefix = provider_name.upper().replace("-", "_").replace(" ", "_")
+        return {
+            "api_key_env": f"{prefix}_API_KEY",
+            "base_url_env": f"{prefix}_BASE_URL",
+            "model_env": f"{prefix}_MODEL",
+            "simple_model_env": f"{prefix}_SIMPLE_MODEL",
+            "provider_type_env": f"{prefix}_PROVIDER_TYPE",
+            "enable_thinking_env": f"{prefix}_ENABLE_THINKING",
+            "enable_thinking_simple_env": f"{prefix}_ENABLE_THINKING_SIMPLE",
+        }
     return spec
 
 
@@ -230,25 +248,45 @@ def _env_value(env_name: str | None) -> str:
 
 def _current_ai_settings(provider_name: str | None = None) -> dict:
     provider = _normalize_provider_name(provider_name)
-    if provider not in _AI_PROVIDER_SPECS:
-        provider = "mock"
     spec = _provider_spec(provider)
 
     api_key = _env_value(spec["api_key_env"])
     base_url = _env_value(spec["base_url_env"])
     model = _env_value(spec["model_env"])
+    simple_model = _env_value(spec.get("simple_model_env"))
+    provider_type = _env_value(spec.get("provider_type_env")) or ("google" if provider == "google" else "openai")
 
     if provider == "google":
         api_key = api_key or _env_value("OPENAI_API_KEY")
         base_url = base_url or _env_value("OPENAI_BASE_URL")
         model = model or _env_value("OPENAI_MODEL_NAME")
+        simple_model = simple_model or _env_value("OPENAI_SIMPLE_MODEL")
+
+    options = ["mock", "openai", "google", "h", "Z"]
+    
+    custom_providers_str = _env_value("AI_CUSTOM_PROVIDERS")
+    if custom_providers_str:
+        for custom_p in custom_providers_str.split(","):
+            custom_p = custom_p.strip()
+            if custom_p and custom_p not in options:
+                options.append(custom_p)
+
+    if provider not in options:
+        options.append(provider)
+
+    enable_thinking = _env_bool(spec.get("enable_thinking_env") or "") if spec.get("enable_thinking_env") else False
+    enable_thinking_simple = _env_bool(spec.get("enable_thinking_simple_env") or "") if spec.get("enable_thinking_simple_env") else False
 
     return {
         "provider": provider,
+        "provider_type": provider_type,
         "api_key": _mask_secret(api_key),
         "base_url": base_url,
         "model": model,
-        "provider_options": ["mock", "openai", "google", "h", "Z"],
+        "simple_model": simple_model,
+        "enable_thinking": enable_thinking,
+        "enable_thinking_simple": enable_thinking_simple,
+        "provider_options": options,
     }
 
 
@@ -269,9 +307,13 @@ def _persist_env_values(updates: dict[str, str | None]) -> None:
 def _apply_ai_settings(
     *,
     provider: str,
+    provider_type: str | None = None,
     api_key: str | None,
     base_url: str | None,
     model: str | None,
+    simple_model: str | None = None,
+    enable_thinking: bool | None = None,
+    enable_thinking_simple: bool | None = None,
 ) -> dict:
     global _provider
 
@@ -282,8 +324,10 @@ def _apply_ai_settings(
     api_key = _resolve_submitted_secret(api_key, current_api_key)
     base_url = _clean_optional(base_url)
     model = _clean_optional(model)
+    simple_model = _clean_optional(simple_model)
+    provider_type = _clean_optional(provider_type)
 
-    if normalized_provider in {"h", "Z"}:
+    if normalized_provider not in {"mock", "openai", "google"}:
         if not api_key or not base_url:
             raise HTTPException(422, detail=ErrorResponse(
                 error_code="invalid_ai_settings",
@@ -291,12 +335,33 @@ def _apply_ai_settings(
             ).model_dump())
 
     updates: dict[str, str | None] = {"AI_PROVIDER": normalized_provider}
+    
+    if normalized_provider not in ["mock", "openai", "google", "h", "Z"]:
+        custom_providers_str = _env_value("AI_CUSTOM_PROVIDERS")
+        existing_customs = []
+        if custom_providers_str:
+            existing_customs = [p.strip() for p in custom_providers_str.split(",") if p.strip()]
+        
+        if normalized_provider not in existing_customs:
+            existing_customs.append(normalized_provider)
+            updates["AI_CUSTOM_PROVIDERS"] = ",".join(existing_customs)
+
     if spec["api_key_env"]:
         updates[spec["api_key_env"]] = api_key
     if spec["base_url_env"]:
         updates[spec["base_url_env"]] = base_url
     if spec["model_env"]:
         updates[spec["model_env"]] = model
+    if spec.get("simple_model_env"):
+        updates[spec["simple_model_env"]] = simple_model
+
+    if spec.get("provider_type_env"):
+        updates[spec["provider_type_env"]] = provider_type
+
+    if spec.get("enable_thinking_env") and enable_thinking is not None:
+        updates[spec["enable_thinking_env"]] = "1" if enable_thinking else "0"
+    if spec.get("enable_thinking_simple_env") and enable_thinking_simple is not None:
+        updates[spec["enable_thinking_simple_env"]] = "1" if enable_thinking_simple else "0"
 
     _persist_env_values(updates)
     _provider = None
@@ -309,6 +374,45 @@ def _apply_ai_settings(
             message=f"AI配置无效: {exc}",
         ).model_dump())
     return _current_ai_settings(normalized_provider)
+
+
+def _delete_ai_settings(provider: str) -> dict:
+    global _provider
+    normalized_provider = _normalize_provider_name(provider)
+
+    # Cannot delete mock provider (it's the fallback)
+    if normalized_provider == "mock":
+        raise ValueError("Mock 提供商不可删除")
+
+    spec = _provider_spec(normalized_provider)
+    
+    updates: dict[str, str | None] = {}
+    
+    # Remove from AI_CUSTOM_PROVIDERS if present
+    custom_providers_str = _env_value("AI_CUSTOM_PROVIDERS")
+    if custom_providers_str:
+        existing_customs = [p.strip() for p in custom_providers_str.split(",") if p.strip()]
+        if normalized_provider in existing_customs:
+            existing_customs.remove(normalized_provider)
+            updates["AI_CUSTOM_PROVIDERS"] = ",".join(existing_customs) if existing_customs else None
+
+    # Remove all related environment variables by setting them to None
+    if spec["api_key_env"]: updates[spec["api_key_env"]] = None
+    if spec["base_url_env"]: updates[spec["base_url_env"]] = None
+    if spec["model_env"]: updates[spec["model_env"]] = None
+    if spec.get("simple_model_env"): updates[spec["simple_model_env"]] = None
+    if spec.get("provider_type_env"): updates[spec["provider_type_env"]] = None
+    if spec.get("enable_thinking_env"): updates[spec["enable_thinking_env"]] = None
+    if spec.get("enable_thinking_simple_env"): updates[spec["enable_thinking_simple_env"]] = None
+    
+    # If the active provider is the one being deleted, fallback to mock
+    if _env_value("AI_PROVIDER") == normalized_provider:
+        updates["AI_PROVIDER"] = "mock"
+    
+    _persist_env_values(updates)
+    _provider = None
+
+    return _current_ai_settings(_env_value("AI_PROVIDER") or "mock")
 
 
 def _normalize_openai_base_url(base_url: str | None, provider: str) -> str:
@@ -380,6 +484,36 @@ async def _fetch_google_models(
         name = item.get("name")
         if isinstance(name, str) and name.strip():
             models.add(name.split("/", 1)[-1].strip())
+    return sorted(models)
+
+
+async def _fetch_anthropic_models(
+    *,
+    api_key: str,
+    base_url: str | None = None,
+) -> list[str]:
+    """Fetch available models from Anthropic's GET /v1/models endpoint."""
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        base = "https://api.anthropic.com"
+    models_url = f"{base}/v1/models"
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+    }
+    async with httpx.AsyncClient(timeout=12.0) as client:
+        response = await client.get(models_url, headers=headers)
+        response.raise_for_status()
+        payload = response.json()
+
+    models: set[str] = set()
+    data = payload.get("data")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict):
+                model_id = item.get("id")
+                if isinstance(model_id, str) and model_id.strip():
+                    models.add(model_id.strip())
     return sorted(models)
 
 

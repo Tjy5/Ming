@@ -77,7 +77,11 @@ class ZProvider(OpenAIProvider):
         task_name: str,
         model: str,
     ) -> dict[str, Any]:
-        enable_thinking = self._enable_thinking_default or (
+        # Z-specific: per-task thinking list + default toggle
+        z_enable = self._enable_thinking_default or (
             task_name in self._enable_thinking_tasks
         )
+        # Also consider parent's UI-driven enable_thinking toggle
+        parent_enable = self._enable_thinking
+        enable_thinking = z_enable or parent_enable
         return {"extra_body": {"enable_thinking": enable_thinking}}

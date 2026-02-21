@@ -512,8 +512,6 @@ class _FreeformFailProvider(AIProvider):
     async def generate_debate_narrative(self, *a, **kw):
         return None
 
-    async def generate_portrait(self, *a, **kw):
-        return None
 
     async def generate_memorial(self, *a, **kw):
         return ""

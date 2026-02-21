@@ -78,20 +78,36 @@ def _env_float(name: str) -> float | None:
 
 
 class OpenAIProvider(AIProvider):
-    def __init__(self):
-        trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+        prefix: str = "OPENAI",
+    ):
+        trust_env_proxy = _env_bool(f"{prefix}_TRUST_ENV_PROXY", False)
+        if not trust_env_proxy and prefix != "OPENAI":
+            trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
+            
         http_client = httpx.AsyncClient(trust_env=trust_env_proxy)
+        
+        actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY")
+        actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL")
+        actual_model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL", "gemini-3-flash-preview")
+
         self.client = openai.AsyncOpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            base_url=os.getenv("OPENAI_BASE_URL"),
+            api_key=actual_api_key,
+            base_url=actual_base_url,
             http_client=http_client,
         )
-        self.model = os.getenv("OPENAI_MODEL_NAME", "gemini-3-flash-preview")
+        self.model = actual_model
         self.parse_model = self.model
         self.freeform_model = self.model
         self.turn_commentary_model = self.model
-        self._config_prefix = "OPENAI"
-        self._configure_task_models("OPENAI")
+        self._config_prefix = prefix
+        self._enable_thinking = _env_bool(f"{prefix}_ENABLE_THINKING", False)
+        self._enable_thinking_simple = _env_bool(f"{prefix}_ENABLE_THINKING_SIMPLE", False)
+        self._configure_task_models(prefix)
 
     def _configure_task_models(
         self,
@@ -135,6 +151,13 @@ class OpenAIProvider(AIProvider):
         task_name: str,
         model: str,
     ) -> dict[str, Any]:
+        # Determine if thinking should be enabled based on which model is used
+        simple_model = getattr(self, 'parse_model', None)
+        # If using a simple/secondary model, use enable_thinking_simple
+        is_simple = model and simple_model and model == simple_model and model != self.model
+        enable = self._enable_thinking_simple if is_simple else self._enable_thinking
+        if enable:
+            return {"extra_body": {"enable_thinking": True}}
         return {}
 
     def _env_sampling_value(
@@ -440,18 +463,7 @@ class OpenAIProvider(AIProvider):
         payload = json.loads(extract_json_object_text(content))
         return parse_debate_response(payload, minister_a, minister_b)
 
-    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
-        prompt = (
-            "Ming dynasty official portrait, traditional Chinese court painting style. "
-            f"Minister: {minister_name}. {description}. "
-            "Half-body portrait, formal robe, neutral background."
-        )
-        response = await self.client.images.generate(
-            model="dall-e-3", prompt=prompt,
-            size="1024x1024", quality="standard", response_format="b64_json",
-        )
-        b64 = getattr(response.data[0], "b64_json", None) if response.data else None
-        return f"data:image/png;base64,{b64}" if b64 else None
+
 
     async def generate_memorial(
         self, trigger_reason: str, author: Minister, game_state: GameState,

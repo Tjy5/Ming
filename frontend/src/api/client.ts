@@ -371,17 +371,25 @@ export const api = {
 
   updateAiSettings: (payload: {
     provider: AIProvider
+    provider_type?: string | null
     api_key?: string | null
     base_url?: string | null
     model?: string | null
+    simple_model?: string | null
+    enable_thinking?: boolean | null
+    enable_thinking_simple?: boolean | null
   }) =>
     request<AISettings>('/settings/ai', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
+  deleteAiSettings: (provider: AIProvider) =>
+    request<AISettings>(`/settings/ai?provider=${encodeURIComponent(provider)}`, { method: 'DELETE' }),
+
   listAiModels: (payload: {
     provider?: AIProvider
+    provider_type?: string | null
     api_key?: string | null
     base_url?: string | null
   }) =>

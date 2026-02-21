@@ -11,6 +11,7 @@ function initialState(): GameState {
     factions: [], regions: [], ministers: [], active_events: [],
     history_log: [], decree_count: 0, event_cooldowns: {},
     resolved_script_ids: [],
+    decrees_this_month: {},
   }
 }
 

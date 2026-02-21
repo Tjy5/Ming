@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
 from collections.abc import AsyncIterator
 
-from google import genai
-from google.genai import types
-from dotenv import load_dotenv
+from anthropic import AsyncAnthropic
 
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, MemorialStatus, MinisterStatus
@@ -47,41 +44,27 @@ from .prompts import (
     normalize_dialogue_payload,
 )
 
-load_dotenv()
 
-
-class GoogleProvider(AIProvider):
+class AnthropicProvider(AIProvider):
     def __init__(
         self,
         api_key: str | None = None,
         base_url: str | None = None,
         model: str | None = None,
-        prefix: str = "GOOGLE",
+        prefix: str = "ANTHROPIC",
     ):
         actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY") or os.getenv("OPENAI_API_KEY")
         actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
 
-        # google-genai SDK auto-appends /v1beta/models/..., so strip path suffixes
-        # e.g. "https://x666.me/v1" -> "https://x666.me"
-        for suffix in ("/v1beta", "/v1", "/"):
-            if actual_base_url.endswith(suffix):
-                actual_base_url = actual_base_url[: -len(suffix)]
-                break
+        kwargs = {}
+        if actual_api_key:
+            kwargs["api_key"] = actual_api_key
+        if actual_base_url:
+            kwargs["base_url"] = actual_base_url
 
-        self.client = genai.Client(
-            api_key=actual_api_key,
-            http_options=types.HttpOptions(base_url=actual_base_url),
-        )
-        self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or os.getenv("OPENAI_MODEL_NAME", "gemini-2.0-flash-exp")
+        self.client = AsyncAnthropic(**kwargs)
+        self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or "claude-3-5-sonnet-latest"
 
-    @staticmethod
-    def _safety_off() -> list:
-        return [
-            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-            types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold=types.HarmBlockThreshold.BLOCK_NONE),
-        ]
 
     @staticmethod
     def _load_json_payload(text: str) -> dict | list | None:
@@ -124,18 +107,16 @@ class GoogleProvider(AIProvider):
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
 
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=NARRATIVE_SYSTEM_PROMPT,
-                    temperature=0.7,
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=2048,
+                system=NARRATIVE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
             )
-            return response.text.strip()
+            return response.content[0].text.strip()
         except Exception as e:
-            logging.error(f"Google AI generate_narrative error: {e}")
+            logging.error(f"Anthropic AI generate_narrative error: {e}")
             return "（AI服务响应异常，但政令已执行）"
 
     async def stream_narrative(
@@ -143,46 +124,25 @@ class GoogleProvider(AIProvider):
         chain_events: list[str], decree: StructuredDecree,
     ) -> AsyncIterator[str]:
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
-        config = types.GenerateContentConfig(
-            system_instruction=NARRATIVE_SYSTEM_PROMPT,
-            temperature=0.7,
-            safety_settings=self._safety_off(),
-        )
-
-        emitted_any = False
-        stream_method = getattr(self.client.aio.models, "generate_content_stream", None)
-        if callable(stream_method):
-            try:
-                stream = stream_method(
-                    model=self.model,
-                    contents=prompt,
-                    config=config,
-                )
-                if hasattr(stream, "__await__"):
-                    stream = await stream
-                if hasattr(stream, "__aiter__"):
-                    async for chunk in stream:
-                        text = getattr(chunk, "text", None)
-                        if isinstance(text, str) and text != "":
-                            emitted_any = True
-                            yield text
-                    return
-                for chunk in stream:
-                    text = getattr(chunk, "text", None)
-                    if isinstance(text, str) and text != "":
-                        emitted_any = True
+        
+        try:
+            async with self.client.messages.stream(
+                model=self.model,
+                max_tokens=2048,
+                system=NARRATIVE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+            ) as stream:
+                async for text in stream.text_stream:
+                    if text:
                         yield text
-                return
-            except Exception as e:
-                logging.error(f"Google AI stream_narrative error: {e}")
-                if emitted_any:
-                    return
-
-        fallback = await self.generate_narrative(
-            delta_attribution, game_state, chain_events, decree,
-        )
-        if fallback:
-            yield fallback
+        except Exception as e:
+            logging.error(f"Anthropic AI stream_narrative error: {e}")
+            fallback = await self.generate_narrative(
+                delta_attribution, game_state, chain_events, decree,
+            )
+            if fallback:
+                yield fallback
 
     async def parse_free_input(
         self, text: str, game_state: GameState,
@@ -190,24 +150,22 @@ class GoogleProvider(AIProvider):
         prompt = _build_parse_prompt(text, game_state)
 
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=PARSE_SYSTEM_PROMPT,
-                    temperature=0.1,
-                    response_mime_type="application/json",
-                ),
+                max_tokens=2048,
+                system=PARSE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
             )
-            content = (response.text or "").strip()
+            content = response.content[0].text.strip()
             data = json.loads(extract_json_object_text(content))
             return parse_decree_response(data)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Google AI JSON parse error: {e}")
+            logging.error(f"Anthropic JSON parse error: {e}")
             return parse_error("AI返回格式异常，请重试")
         except Exception as e:
-            logging.error(f"Google AI parse_free_input error: {e}")
+            logging.error(f"Anthropic parse_free_input error: {e}")
             return parse_error(
                 "AI解析服务暂时不可用，请使用按钮操作",
                 PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -216,16 +174,14 @@ class GoogleProvider(AIProvider):
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
         prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=REJECTION_SYSTEM_PROMPT,
-                    temperature=0.7,
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=1024,
+                system=REJECTION_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
             )
-            return response.text.strip()
+            return response.content[0].text.strip()
         except Exception:
             return f"陛下，此令行不通：{reason}"
 
@@ -233,20 +189,22 @@ class GoogleProvider(AIProvider):
         self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
     ) -> DebateResult | None:
         prompt = build_debate_prompt(topic, minister_a, minister_b, game_state)
-        response = await self.client.aio.models.generate_content(
-            model=self.model,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=DEBATE_SYSTEM_PROMPT,
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=2048,
+                system=DEBATE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
-                response_mime_type="application/json",
-            ),
-        )
-        content = (response.text or "").strip()
-        if not content:
+            )
+            content = response.content[0].text.strip()
+            if not content:
+                return None
+            payload = json.loads(extract_json_object_text(content))
+            return parse_debate_response(payload, minister_a, minister_b)
+        except Exception as e:
+            logging.error(f"Anthropic debate error: {e}")
             return None
-        payload = json.loads(extract_json_object_text(content))
-        return parse_debate_response(payload, minister_a, minister_b)
 
 
 
@@ -255,36 +213,37 @@ class GoogleProvider(AIProvider):
     ) -> MemorialDraft:
         prompt = build_memorial_prompt(trigger_reason, author, game_state)
         try:
-            response = await self.client.aio.models.generate_content(
-                model=self.model, contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=MEMORIAL_SYSTEM_PROMPT,
-                    temperature=0.7,
-                    safety_settings=self._safety_off(),
-                ),
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=2048,
+                system=MEMORIAL_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
             )
-            draft = parse_memorial_draft(response.text or "", author.name, game_state)
+            draft = parse_memorial_draft(response.content[0].text or "", author.name, game_state)
             if not draft.suggested_decrees and trigger_reason.split(":", 1)[0] != "faction_crisis":
                 mock = await MockProvider().generate_memorial(trigger_reason, author, game_state)
                 draft.suggested_decrees = mock.suggested_decrees
             return draft
         except Exception as e:
-            logging.error("GoogleProvider generate_memorial fallback: %s", e)
+            logging.error("AnthropicProvider generate_memorial fallback: %s", e)
             return await MockProvider().generate_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
     ) -> str:
         prompt = build_minister_reaction_prompt(minister, decree, stance)
-        response = await self.client.aio.models.generate_content(
-            model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=MINISTER_REACTION_SYSTEM_PROMPT,
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                system=MINISTER_REACTION_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.8,
-                safety_settings=self._safety_off(),
-            ),
-        )
-        return response.text.strip()
+            )
+            return response.content[0].text.strip()
+        except:
+            return ""
 
     async def generate_minister_dialogue(
         self, minister: Minister, message: str, game_state: GameState,
@@ -297,21 +256,18 @@ class GoogleProvider(AIProvider):
             conversation_history=conversation_history,
         )
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=MINISTER_DIALOGUE_SYSTEM_PROMPT,
-                    temperature=0.6,
-                    response_mime_type="application/json",
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=1024,
+                system=MINISTER_DIALOGUE_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,
             )
-            content = (response.text or "").strip()
+            content = response.content[0].text.strip()
             data = json.loads(extract_json_object_text(content))
             return normalize_dialogue_payload(data)
         except Exception as e:
-            logging.error(f"Google generate_minister_dialogue error: {e}")
+            logging.error(f"Anthropic generate_minister_dialogue error: {e}")
             fallback = await MockProvider().generate_minister_dialogue(
                 minister, message, game_state, conversation_history
             )
@@ -337,23 +293,20 @@ class GoogleProvider(AIProvider):
         )
         raw_petitions: list = []
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents="\n".join(prompt_lines),
-                config=types.GenerateContentConfig(
-                    system_instruction="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
-                    temperature=0.6,
-                    response_mime_type="application/json",
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=2048,
+                system="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
+                messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
+                temperature=0.6,
             )
-            payload = self._load_json_payload(response.text or "")
+            payload = self._load_json_payload(response.content[0].text or "")
             if isinstance(payload, dict):
                 raw_petitions = payload.get("petitions", [])
             elif isinstance(payload, list):
                 raw_petitions = payload
         except Exception as e:
-            logging.error("Google generate_petitions error: %s", e)
+            logging.error("Anthropic generate_petitions error: %s", e)
 
         petitions: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -401,23 +354,20 @@ class GoogleProvider(AIProvider):
         )
         raw_speeches: list = []
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents="\n".join(prompt_lines),
-                config=types.GenerateContentConfig(
-                    system_instruction="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
-                    temperature=0.7,
-                    response_mime_type="application/json",
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=2048,
+                system="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
+                messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
+                temperature=0.7,
             )
-            payload = self._load_json_payload(response.text or "")
+            payload = self._load_json_payload(response.content[0].text or "")
             if isinstance(payload, dict):
                 raw_speeches = payload.get("speeches", [])
             elif isinstance(payload, list):
                 raw_speeches = payload
         except Exception as e:
-            logging.error("Google generate_debate_speeches error: %s", e)
+            logging.error("Anthropic generate_debate_speeches error: %s", e)
 
         speeches: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -504,31 +454,17 @@ class GoogleProvider(AIProvider):
         self, summary_data: dict, game_state: GameState,
     ) -> str:
         prompt = build_turn_commentary_prompt(summary_data, game_state)
-        response = await self.client.aio.models.generate_content(
-            model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=TURN_COMMENTARY_SYSTEM_PROMPT,
+        try:
+            response = await self.client.messages.create(
+                model=self.model,
+                max_tokens=1024,
+                system=TURN_COMMENTARY_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
-                safety_settings=self._safety_off(),
-            ),
-        )
-        return response.text.strip()
-
-    def _extract_image_b64(self, response) -> str | None:
-        images = getattr(response, "generated_images", None)
-        if not images:
-            return None
-        for img in images:
-            for candidate in (img, getattr(img, "image", None)):
-                if candidate is None:
-                    continue
-                b64 = getattr(candidate, "bytes_base64_encoded", None) or getattr(candidate, "b64_json", None)
-                if isinstance(b64, str) and b64:
-                    return f"data:image/png;base64,{b64}"
-                raw = getattr(candidate, "image_bytes", None) or getattr(candidate, "bytes", None)
-                if isinstance(raw, (bytes, bytearray)) and raw:
-                    return f"data:image/png;base64,{base64.b64encode(raw).decode()}"
-        return None
+            )
+            return response.content[0].text.strip()
+        except:
+            return "本月无事发生。"
 
     async def process_freeform(
         self, text: str, game_state: GameState,
@@ -536,22 +472,19 @@ class GoogleProvider(AIProvider):
     ) -> FreeformResult | dict:
         prompt = _build_freeform_user_prompt(text, game_state, script_context)
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await self.client.messages.create(
                 model=self.model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=_FREEFORM_SYSTEM_PROMPT,
-                    temperature=0.5,
-                    response_mime_type="application/json",
-                    safety_settings=self._safety_off(),
-                ),
+                max_tokens=2048,
+                system=_FREEFORM_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
             )
-            content = (response.text or "").strip()
+            content = response.content[0].text.strip()
             data = json.loads(extract_json_object_text(content))
             return _parse_freeform_response(data, game_state.time.year, game_state.time.month)
         except json.JSONDecodeError as e:
-            logging.error(f"Google freeform JSON parse error: {e}")
+            logging.error(f"Anthropic freeform JSON parse error: {e}")
             return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
         except Exception as e:
-            logging.error(f"Google process_freeform error: {e}")
+            logging.error(f"Anthropic process_freeform error: {e}")
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)

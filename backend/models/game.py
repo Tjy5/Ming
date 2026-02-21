@@ -100,6 +100,7 @@ class Memorial(BaseModel):
     created_year: int
     created_month: int
     status: MemorialStatus = MemorialStatus.PENDING
+    resolution_result: MemorialResolutionResult | None = None
 
 
 class MinisterReaction(BaseModel):
@@ -108,6 +109,13 @@ class MinisterReaction(BaseModel):
     reaction_type: str
     reaction_text: str
     loyalty_change: int
+
+
+class MemorialResolutionResult(BaseModel):
+    action: Literal['approved', 'rejected', 'deferred']
+    narrative: str | None = None
+    delta: dict[str, float] | None = None
+    minister_reactions: list[MinisterReaction] | None = None
 
 
 class FreeformResult(BaseModel):

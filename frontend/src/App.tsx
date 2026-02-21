@@ -114,31 +114,12 @@ function App() {
       setLoading(true)
       const res = await api.resolveMemorial(id, action)
       setState(res.state)
-      const pendingAfter = res.state.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
-      if (currentModal?.type === 'memorial' && pendingAfter.length === 0) {
-        popModal()
-      }
-      if (res.narrative || (res.minister_reactions && res.minister_reactions.length > 0)) {
-        pushModal({
-          type: 'narrative',
-          priority: 95,
-          payload: {
-            narrative: res.narrative || '批复已下。',
-            delta: res.delta || {},
-            ministerReactions: res.minister_reactions,
-          },
-        })
-      }
       return { narrative: res.narrative, delta: res.delta }
     } catch (e) {
       if (e instanceof ApiError && (e.body.error_code === 'memorial_not_found' || e.body.error_code === 'already_resolved')) {
         try {
           const latest = await api.getState()
           setState(latest)
-          const pendingAfter = latest.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
-          if (currentModal?.type === 'memorial' && pendingAfter.length === 0) {
-            popModal()
-          }
           showToast('奏折状态已更新，请重新批阅')
         } catch {
           showToast(e.body.message)
@@ -369,7 +350,7 @@ function App() {
 
       {currentModal?.type === 'memorial' && (
         <MemorialPanel
-          memorials={state?.memorials?.filter(m => m.status !== 'rejected') ?? []}
+          memorials={state?.memorials ?? []}
           resolving={memorialResolving}
           onResolve={handleMemorialResolve}
           onClose={popModal}

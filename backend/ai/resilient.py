@@ -19,7 +19,6 @@ from .base import (
     PARSE_ERROR_TYPE_UNAVAILABLE,
     _env_float,
     _env_int,
-    _is_non_retryable_portrait_error,
     get_rule_parse_fallback,
     parse_error,
 )
@@ -225,20 +224,6 @@ class ResilientProvider(AIProvider):
                     return None
         return None
 
-    async def generate_portrait(self, minister_name: str, description: str) -> str | None:
-        for attempt in range(self._retries):
-            try:
-                return await asyncio.wait_for(
-                    self._inner.generate_portrait(minister_name, description),
-                    timeout=self._timeout,
-                )
-            except Exception as e:
-                self._log_retry_failure("generate_portrait", attempt + 1, self._retries, e)
-                if _is_non_retryable_portrait_error(e):
-                    return None
-                if attempt == self._retries - 1:
-                    return None
-        return None
 
     async def generate_memorial(
         self,

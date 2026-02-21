@@ -1,4 +1,4 @@
-"""Core game routes: decrees, game lifecycle, debate, memorial, portrait, dialogue."""
+"""Core game routes: decrees, game lifecycle, debate, memorial, dialogue."""
 from __future__ import annotations
 
 import asyncio
@@ -12,6 +12,7 @@ from models.game import (
     GameState, StructuredDecree, DecreeResponse, HistoryEntry,
     ErrorResponse, create_initial_state,
     FreeformResult, Memorial, DialogueRequest, DialogueResponse, clamp_state,
+    MemorialResolutionResult,
 )
 from models.enums import DecreeType, MinisterStatus, MemorialStatus
 from engine.core import advance_month, process_decree, check_preconditions, validate_target
@@ -24,7 +25,6 @@ from .schemas import (
     MAX_FREE_TEXT_LENGTH,
     MemorialResolveRequest,
     ParseRequest,
-    PortraitRequest,
 )
 from .helpers import (
     apply_loyalty_effects as _apply_loyalty_effects,
@@ -37,7 +37,6 @@ from .debate_helpers import (
 )
 from .state import (
     NarrativeChunkCallback,
-    _PORTRAIT_COOLDOWN_SECONDS,
     _STREAM_PROGRESS_MESSAGES,
     _MAX_DIALOGUE_MESSAGES,
     _fill_memorial_content,
@@ -45,9 +44,6 @@ from .state import (
     _get_provider,
     _get_state,
     _lock,
-    _portrait_cooldown_until,
-    _portrait_lock,
-    _portrait_retry_after_seconds,
     _set_state,
     _split_stream_sentences,
     _sse_event,
@@ -568,39 +564,6 @@ async def silence_debate():
     return {"state": state.model_dump(), "prestige_change": change}
 
 
-# ── 6.13 POST /api/minister/portrait ───────────────────
-
-@router.post("/minister/portrait")
-async def create_portrait(req: PortraitRequest):
-    import api.state as _st
-    provider = _get_provider()
-    if not _is_ai_provider(provider):
-        raise HTTPException(501, detail=ErrorResponse(
-            error_code="portrait_not_supported",
-            message="当前AI提供方不支持立绘生成",
-        ).model_dump())
-
-    async with _portrait_lock:
-        retry_after = _portrait_retry_after_seconds()
-        if retry_after > 0:
-            raise HTTPException(503, detail=ErrorResponse(
-                error_code="portrait_generation_cooldown",
-                message=f"立绘服务冷却中，请在{retry_after}秒后重试",
-                details={"retry_after_seconds": retry_after},
-            ).model_dump())
-
-        portrait = await provider.generate_portrait(req.minister_name, req.description)
-        if portrait is None:
-            _st._portrait_cooldown_until = time.monotonic() + _PORTRAIT_COOLDOWN_SECONDS
-            raise HTTPException(503, detail=ErrorResponse(
-                error_code="portrait_generation_failed",
-                message=f"立绘生成失败，已暂停自动请求{_PORTRAIT_COOLDOWN_SECONDS}秒",
-                details={"retry_after_seconds": _PORTRAIT_COOLDOWN_SECONDS},
-            ).model_dump())
-
-        _st._portrait_cooldown_until = 0.0
-        return {"portrait": portrait}
-
 
 # ── 6.14 GET /api/ministers ────────────────────────────
 
@@ -670,6 +633,18 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 narrative = f"陛下驳回了{memorial.author_name}的奏折。"
             elif req.action == "deferred":
                 narrative = f"陛下将{memorial.author_name}的奏折留中待议。"
+
+        # 为 approved 但无有效 decree 的情况补充默认叙事
+        if req.action == "approved" and not narrative:
+            narrative = "准奏，着即施行。"
+
+        # 写入批复结果到 memorial.resolution_result
+        memorial.resolution_result = MemorialResolutionResult(
+            action=req.action,
+            narrative=narrative if narrative else None,
+            delta=accumulated_delta if accumulated_delta else None,
+            minister_reactions=accumulated_reactions if accumulated_reactions else None
+        )
 
         return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta, "minister_reactions": [r.model_dump() for r in accumulated_reactions]}
 

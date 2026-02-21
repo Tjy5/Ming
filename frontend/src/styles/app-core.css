@@ -504,13 +504,11 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    transparent,
-    transparent 20px,
-    rgba(201, 168, 76, 0.015) 20px,
-    rgba(201, 168, 76, 0.015) 21px
-  );
+  background: repeating-linear-gradient(45deg,
+      transparent,
+      transparent 20px,
+      rgba(201, 168, 76, 0.015) 20px,
+      rgba(201, 168, 76, 0.015) 21px);
   pointer-events: none;
 }
 
@@ -1253,6 +1251,24 @@ body {
   gap: 10px;
 }
 
+.ai-provider-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ai-provider-row select {
+  flex: 1;
+}
+
+.ai-delete-provider-btn {
+  color: var(--red) !important;
+  border-color: var(--red) !important;
+  white-space: nowrap;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
 .ai-field {
   display: flex;
   flex-direction: column;
@@ -1322,9 +1338,76 @@ body {
   background: rgba(201, 168, 76, 0.12);
 }
 
+.ai-model-item-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid #444;
+  background: var(--bg-card);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ai-model-item-group:hover {
+  border-color: var(--accent-gold);
+}
+
+.ai-model-name {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-model-btn {
+  background: transparent;
+  border: none;
+  border-left: 1px solid #444;
+  color: var(--text-dim);
+  padding: 0 8px;
+  height: 100%;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  transition: all 0.2s;
+}
+
+.ai-model-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-gold);
+}
+
+.ai-model-btn.active {
+  background: rgba(201, 168, 76, 0.12);
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
 .ai-hint {
   color: var(--text-dim);
   margin-bottom: 0;
+}
+
+.ai-thinking-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.ai-thinking-toggle input[type="checkbox"] {
+  accent-color: var(--accent-gold);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.ai-thinking-toggle span {
+  font-size: 0.78rem;
+  color: var(--text-dim);
 }
 
 .ai-error {

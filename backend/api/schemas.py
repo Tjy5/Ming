@@ -28,9 +28,7 @@ class DebateStartRequest(BaseModel):
     topic: str
 
 
-class PortraitRequest(BaseModel):
-    minister_name: str
-    description: str
+
 
 
 class MemorialResolveRequest(BaseModel):
@@ -65,13 +63,18 @@ class AssemblyRageRequest(BaseModel):
 
 class AISettingsRequest(BaseModel):
     provider: str
+    provider_type: str | None = None
     api_key: str | None = None
     base_url: str | None = None
     model: str | None = None
+    simple_model: str | None = None
+    enable_thinking: bool | None = None
+    enable_thinking_simple: bool | None = None
 
 
 class AIModelListRequest(BaseModel):
     provider: str | None = None
+    provider_type: str | None = None
     api_key: str | None = None
     base_url: str | None = None
 

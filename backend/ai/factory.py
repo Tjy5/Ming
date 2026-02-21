@@ -48,7 +48,25 @@ def get_provider(name: str | None = None) -> AIProvider:
         return ResilientProvider(ZProvider())
 
     cls = _PROVIDERS.get(normalized)
-    if cls is None:
-        raise ValueError(f"Unknown AI provider: {normalized}")
-    return ResilientProvider(cls())
+    if cls is not None:
+        return ResilientProvider(cls())
+
+    # Fallback to provider based on user selected provider_type (default OpenAI)
+    prefix = normalized.upper().replace("-", "_").replace(" ", "_")
+    provider_type = os.getenv(f"{prefix}_PROVIDER_TYPE", "openai").lower()
+    
+    if provider_type in {"google", "gemini"}:
+        from .google_provider import GoogleProvider
+        return ResilientProvider(GoogleProvider(prefix=prefix))
+        
+    if provider_type == "anthropic":
+        from .anthropic_provider import AnthropicProvider
+        return ResilientProvider(AnthropicProvider(prefix=prefix))
+
+    if provider_type == "openai-response":
+        from .openai_response_provider import OpenAIResponseProvider
+        return ResilientProvider(OpenAIResponseProvider(prefix=prefix))
+        
+    from .openai_provider import OpenAIProvider
+    return ResilientProvider(OpenAIProvider(prefix=prefix))
 
