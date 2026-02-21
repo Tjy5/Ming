@@ -394,6 +394,8 @@ export interface AISettings {
   simple_model?: string
   enable_thinking?: boolean
   enable_thinking_simple?: boolean
+  thinking_config?: Record<string, string | boolean | number>
+  thinking_config_simple?: Record<string, string | boolean | number>
   provider_options: AIProvider[]
 }
 
