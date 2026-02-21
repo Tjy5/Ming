@@ -70,6 +70,8 @@ class AISettingsRequest(BaseModel):
     simple_model: str | None = None
     enable_thinking: bool | None = None
     enable_thinking_simple: bool | None = None
+    thinking_config: dict[str, str | bool | int] | None = None
+    thinking_config_simple: dict[str, str | bool | int] | None = None
 
 
 class AIModelListRequest(BaseModel):
@@ -81,4 +83,3 @@ class AIModelListRequest(BaseModel):
 
 class SettingsRequest(BaseModel):
     rule_parse_fallback: bool
-

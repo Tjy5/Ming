@@ -74,7 +74,17 @@ _MAX_DIALOGUE_ROUNDS = 10
 _MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
 
 _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
-    "mock": {"api_key_env": None, "base_url_env": None, "model_env": None, "simple_model_env": None, "provider_type_env": None, "enable_thinking_env": None, "enable_thinking_simple_env": None},
+    "mock": {
+        "api_key_env": None,
+        "base_url_env": None,
+        "model_env": None,
+        "simple_model_env": None,
+        "provider_type_env": None,
+        "enable_thinking_env": None,
+        "enable_thinking_simple_env": None,
+        "thinking_config_env": None,
+        "thinking_config_simple_env": None,
+    },
     "openai": {
         "api_key_env": "OPENAI_API_KEY",
         "base_url_env": "OPENAI_BASE_URL",
@@ -83,6 +93,8 @@ _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
         "provider_type_env": "OPENAI_PROVIDER_TYPE",
         "enable_thinking_env": "OPENAI_ENABLE_THINKING",
         "enable_thinking_simple_env": "OPENAI_ENABLE_THINKING_SIMPLE",
+        "thinking_config_env": "OPENAI_THINKING_CONFIG",
+        "thinking_config_simple_env": "OPENAI_THINKING_CONFIG_SIMPLE",
     },
     "google": {
         "api_key_env": "GOOGLE_API_KEY",
@@ -92,6 +104,8 @@ _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
         "provider_type_env": "GOOGLE_PROVIDER_TYPE",
         "enable_thinking_env": "GOOGLE_ENABLE_THINKING",
         "enable_thinking_simple_env": "GOOGLE_ENABLE_THINKING_SIMPLE",
+        "thinking_config_env": "GOOGLE_THINKING_CONFIG",
+        "thinking_config_simple_env": "GOOGLE_THINKING_CONFIG_SIMPLE",
     },
     "h": {
         "api_key_env": "HOTARU_API_KEY",
@@ -101,6 +115,8 @@ _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
         "provider_type_env": "HOTARU_PROVIDER_TYPE",
         "enable_thinking_env": "HOTARU_ENABLE_THINKING",
         "enable_thinking_simple_env": "HOTARU_ENABLE_THINKING_SIMPLE",
+        "thinking_config_env": "HOTARU_THINKING_CONFIG",
+        "thinking_config_simple_env": "HOTARU_THINKING_CONFIG_SIMPLE",
     },
     "Z": {
         "api_key_env": "Z_API_KEY",
@@ -110,6 +126,8 @@ _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
         "provider_type_env": "Z_PROVIDER_TYPE",
         "enable_thinking_env": "Z_ENABLE_THINKING",
         "enable_thinking_simple_env": "Z_ENABLE_THINKING_SIMPLE",
+        "thinking_config_env": "Z_THINKING_CONFIG",
+        "thinking_config_simple_env": "Z_THINKING_CONFIG_SIMPLE",
     },
 }
 
@@ -236,6 +254,8 @@ def _provider_spec(provider_name: str) -> dict[str, str | None]:
             "provider_type_env": f"{prefix}_PROVIDER_TYPE",
             "enable_thinking_env": f"{prefix}_ENABLE_THINKING",
             "enable_thinking_simple_env": f"{prefix}_ENABLE_THINKING_SIMPLE",
+            "thinking_config_env": f"{prefix}_THINKING_CONFIG",
+            "thinking_config_simple_env": f"{prefix}_THINKING_CONFIG_SIMPLE",
         }
     return spec
 
@@ -244,6 +264,21 @@ def _env_value(env_name: str | None) -> str:
     if not env_name:
         return ""
     return (os.getenv(env_name) or "").strip()
+
+
+def _env_json_object(env_name: str | None) -> dict[str, str | bool | int] | None:
+    raw = _env_value(env_name)
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logging.warning("Ignore invalid JSON in %s: %s", env_name, exc)
+        return None
+    if not isinstance(payload, dict):
+        logging.warning("Ignore non-object JSON in %s", env_name)
+        return None
+    return payload
 
 
 def _current_ai_settings(provider_name: str | None = None) -> dict:
@@ -276,6 +311,8 @@ def _current_ai_settings(provider_name: str | None = None) -> dict:
 
     enable_thinking = _env_bool(spec.get("enable_thinking_env") or "") if spec.get("enable_thinking_env") else False
     enable_thinking_simple = _env_bool(spec.get("enable_thinking_simple_env") or "") if spec.get("enable_thinking_simple_env") else False
+    thinking_config = _env_json_object(spec.get("thinking_config_env"))
+    thinking_config_simple = _env_json_object(spec.get("thinking_config_simple_env"))
 
     return {
         "provider": provider,
@@ -286,6 +323,8 @@ def _current_ai_settings(provider_name: str | None = None) -> dict:
         "simple_model": simple_model,
         "enable_thinking": enable_thinking,
         "enable_thinking_simple": enable_thinking_simple,
+        "thinking_config": thinking_config,
+        "thinking_config_simple": thinking_config_simple,
         "provider_options": options,
     }
 
@@ -314,6 +353,8 @@ def _apply_ai_settings(
     simple_model: str | None = None,
     enable_thinking: bool | None = None,
     enable_thinking_simple: bool | None = None,
+    thinking_config: dict[str, str | bool | int] | None = None,
+    thinking_config_simple: dict[str, str | bool | int] | None = None,
 ) -> dict:
     global _provider
 
@@ -362,6 +403,24 @@ def _apply_ai_settings(
         updates[spec["enable_thinking_env"]] = "1" if enable_thinking else "0"
     if spec.get("enable_thinking_simple_env") and enable_thinking_simple is not None:
         updates[spec["enable_thinking_simple_env"]] = "1" if enable_thinking_simple else "0"
+    if spec.get("thinking_config_env"):
+        if thinking_config is not None:
+            updates[spec["thinking_config_env"]] = json.dumps(
+                thinking_config,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        else:
+            updates[spec["thinking_config_env"]] = None
+    if spec.get("thinking_config_simple_env"):
+        if thinking_config_simple is not None:
+            updates[spec["thinking_config_simple_env"]] = json.dumps(
+                thinking_config_simple,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        else:
+            updates[spec["thinking_config_simple_env"]] = None
 
     _persist_env_values(updates)
     _provider = None
@@ -404,6 +463,8 @@ def _delete_ai_settings(provider: str) -> dict:
     if spec.get("provider_type_env"): updates[spec["provider_type_env"]] = None
     if spec.get("enable_thinking_env"): updates[spec["enable_thinking_env"]] = None
     if spec.get("enable_thinking_simple_env"): updates[spec["enable_thinking_simple_env"]] = None
+    if spec.get("thinking_config_env"): updates[spec["thinking_config_env"]] = None
+    if spec.get("thinking_config_simple_env"): updates[spec["thinking_config_simple_env"]] = None
     
     # If the active provider is the one being deleted, fallback to mock
     if _env_value("AI_PROVIDER") == normalized_provider:

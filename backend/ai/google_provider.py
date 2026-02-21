@@ -73,6 +73,47 @@ class GoogleProvider(AIProvider):
             http_options=types.HttpOptions(base_url=actual_base_url),
         )
         self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or os.getenv("OPENAI_MODEL_NAME", "gemini-2.0-flash-exp")
+        self._thinking_level = self._load_thinking_level(prefix)
+
+    @staticmethod
+    def _normalize_thinking_level(value: object) -> types.ThinkingLevel | None:
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().upper()
+        if normalized.startswith("THINKING_LEVEL_"):
+            normalized = normalized[len("THINKING_LEVEL_"):]
+        mapping = {
+            "LOW": types.ThinkingLevel.LOW,
+            "MEDIUM": types.ThinkingLevel.MEDIUM,
+            "HIGH": types.ThinkingLevel.HIGH,
+            "MINIMAL": types.ThinkingLevel.MINIMAL,
+            "UNSPECIFIED": types.ThinkingLevel.THINKING_LEVEL_UNSPECIFIED,
+        }
+        return mapping.get(normalized)
+
+    def _load_thinking_level(self, prefix: str) -> types.ThinkingLevel | None:
+        env_name = f"{prefix}_THINKING_CONFIG"
+        raw_config = (os.getenv(env_name) or "").strip()
+        if not raw_config:
+            return None
+        try:
+            payload = json.loads(raw_config)
+        except json.JSONDecodeError as exc:
+            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
+            return None
+        if not isinstance(payload, dict):
+            logging.warning("Ignore non-object %s payload", env_name)
+            return None
+        raw_level = payload.get("thinkingLevel", payload.get("thinking_level"))
+        level = self._normalize_thinking_level(raw_level)
+        if raw_level is not None and level is None:
+            logging.warning("Ignore unsupported thinkingLevel %r in %s", raw_level, env_name)
+        return level
+
+    def _build_generate_content_config(self, **kwargs) -> types.GenerateContentConfig:
+        if self._thinking_level is not None:
+            kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=self._thinking_level)
+        return types.GenerateContentConfig(**kwargs)
 
     @staticmethod
     def _safety_off() -> list:
@@ -127,7 +168,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=NARRATIVE_SYSTEM_PROMPT,
                     temperature=0.7,
                     safety_settings=self._safety_off(),
@@ -143,7 +184,7 @@ class GoogleProvider(AIProvider):
         chain_events: list[str], decree: StructuredDecree,
     ) -> AsyncIterator[str]:
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
-        config = types.GenerateContentConfig(
+        config = self._build_generate_content_config(
             system_instruction=NARRATIVE_SYSTEM_PROMPT,
             temperature=0.7,
             safety_settings=self._safety_off(),
@@ -193,7 +234,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=PARSE_SYSTEM_PROMPT,
                     temperature=0.1,
                     response_mime_type="application/json",
@@ -219,7 +260,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=REJECTION_SYSTEM_PROMPT,
                     temperature=0.7,
                     safety_settings=self._safety_off(),
@@ -236,7 +277,7 @@ class GoogleProvider(AIProvider):
         response = await self.client.aio.models.generate_content(
             model=self.model,
             contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._build_generate_content_config(
                 system_instruction=DEBATE_SYSTEM_PROMPT,
                 temperature=0.8,
                 response_mime_type="application/json",
@@ -257,7 +298,7 @@ class GoogleProvider(AIProvider):
         try:
             response = await self.client.aio.models.generate_content(
                 model=self.model, contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=MEMORIAL_SYSTEM_PROMPT,
                     temperature=0.7,
                     safety_settings=self._safety_off(),
@@ -278,7 +319,7 @@ class GoogleProvider(AIProvider):
         prompt = build_minister_reaction_prompt(minister, decree, stance)
         response = await self.client.aio.models.generate_content(
             model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._build_generate_content_config(
                 system_instruction=MINISTER_REACTION_SYSTEM_PROMPT,
                 temperature=0.8,
                 safety_settings=self._safety_off(),
@@ -300,7 +341,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=MINISTER_DIALOGUE_SYSTEM_PROMPT,
                     temperature=0.6,
                     response_mime_type="application/json",
@@ -340,7 +381,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents="\n".join(prompt_lines),
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
                     temperature=0.6,
                     response_mime_type="application/json",
@@ -404,7 +445,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents="\n".join(prompt_lines),
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
                     temperature=0.7,
                     response_mime_type="application/json",
@@ -506,7 +547,7 @@ class GoogleProvider(AIProvider):
         prompt = build_turn_commentary_prompt(summary_data, game_state)
         response = await self.client.aio.models.generate_content(
             model=self.model, contents=prompt,
-            config=types.GenerateContentConfig(
+            config=self._build_generate_content_config(
                 system_instruction=TURN_COMMENTARY_SYSTEM_PROMPT,
                 temperature=0.7,
                 safety_settings=self._safety_off(),
@@ -539,7 +580,7 @@ class GoogleProvider(AIProvider):
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
-                config=types.GenerateContentConfig(
+                config=self._build_generate_content_config(
                     system_instruction=_FREEFORM_SYSTEM_PROMPT,
                     temperature=0.5,
                     response_mime_type="application/json",

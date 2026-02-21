@@ -378,6 +378,8 @@ export const api = {
     simple_model?: string | null
     enable_thinking?: boolean | null
     enable_thinking_simple?: boolean | null
+    thinking_config?: Record<string, string | boolean | number> | null
+    thinking_config_simple?: Record<string, string | boolean | number> | null
   }) =>
     request<AISettings>('/settings/ai', {
       method: 'POST',

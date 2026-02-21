@@ -64,6 +64,32 @@ class AnthropicProvider(AIProvider):
 
         self.client = AsyncAnthropic(**kwargs)
         self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or "claude-3-5-sonnet-latest"
+        self._thinking_config = self._load_thinking_config(prefix)
+
+    def _load_thinking_config(self, prefix: str) -> dict[str, object] | None:
+        env_name = f"{prefix}_THINKING_CONFIG"
+        raw_config = (os.getenv(env_name) or "").strip()
+        if not raw_config:
+            return None
+        try:
+            payload = json.loads(raw_config)
+        except json.JSONDecodeError as exc:
+            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
+            return None
+        if not isinstance(payload, dict):
+            logging.warning("Ignore non-object %s payload", env_name)
+            return None
+        return payload
+
+    async def _messages_create(self, **kwargs):
+        if self._thinking_config is not None:
+            kwargs["thinking"] = self._thinking_config
+        return await self.client.messages.create(**kwargs)
+
+    def _messages_stream(self, **kwargs):
+        if self._thinking_config is not None:
+            kwargs["thinking"] = self._thinking_config
+        return self.client.messages.stream(**kwargs)
 
 
     @staticmethod
@@ -107,7 +133,7 @@ class AnthropicProvider(AIProvider):
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
 
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system=NARRATIVE_SYSTEM_PROMPT,
@@ -126,7 +152,7 @@ class AnthropicProvider(AIProvider):
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
         
         try:
-            async with self.client.messages.stream(
+            async with self._messages_stream(
                 model=self.model,
                 max_tokens=2048,
                 system=NARRATIVE_SYSTEM_PROMPT,
@@ -150,7 +176,7 @@ class AnthropicProvider(AIProvider):
         prompt = _build_parse_prompt(text, game_state)
 
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system=PARSE_SYSTEM_PROMPT,
@@ -174,7 +200,7 @@ class AnthropicProvider(AIProvider):
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
         prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=1024,
                 system=REJECTION_SYSTEM_PROMPT,
@@ -190,7 +216,7 @@ class AnthropicProvider(AIProvider):
     ) -> DebateResult | None:
         prompt = build_debate_prompt(topic, minister_a, minister_b, game_state)
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system=DEBATE_SYSTEM_PROMPT,
@@ -213,7 +239,7 @@ class AnthropicProvider(AIProvider):
     ) -> MemorialDraft:
         prompt = build_memorial_prompt(trigger_reason, author, game_state)
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system=MEMORIAL_SYSTEM_PROMPT,
@@ -234,7 +260,7 @@ class AnthropicProvider(AIProvider):
     ) -> str:
         prompt = build_minister_reaction_prompt(minister, decree, stance)
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=1024,
                 system=MINISTER_REACTION_SYSTEM_PROMPT,
@@ -256,7 +282,7 @@ class AnthropicProvider(AIProvider):
             conversation_history=conversation_history,
         )
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=1024,
                 system=MINISTER_DIALOGUE_SYSTEM_PROMPT,
@@ -293,7 +319,7 @@ class AnthropicProvider(AIProvider):
         )
         raw_petitions: list = []
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
@@ -354,7 +380,7 @@ class AnthropicProvider(AIProvider):
         )
         raw_speeches: list = []
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
@@ -455,7 +481,7 @@ class AnthropicProvider(AIProvider):
     ) -> str:
         prompt = build_turn_commentary_prompt(summary_data, game_state)
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=1024,
                 system=TURN_COMMENTARY_SYSTEM_PROMPT,
@@ -472,7 +498,7 @@ class AnthropicProvider(AIProvider):
     ) -> FreeformResult | dict:
         prompt = _build_freeform_user_prompt(text, game_state, script_context)
         try:
-            response = await self.client.messages.create(
+            response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
                 system=_FREEFORM_SYSTEM_PROMPT,

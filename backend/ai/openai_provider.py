@@ -145,16 +145,42 @@ class OpenAIProvider(AIProvider):
             or self.model
         )
 
+    def _thinking_config_from_env(self, env_name: str) -> dict[str, Any] | None:
+        raw = _env_str(env_name)
+        if not raw:
+            return None
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
+            return None
+        if not isinstance(payload, dict):
+            logging.warning("Ignore non-object %s JSON payload", env_name)
+            return None
+        return payload
+
     def _chat_completion_extra_kwargs(
         self,
         *,
         task_name: str,
         model: str,
     ) -> dict[str, Any]:
-        # Determine if thinking should be enabled based on which model is used
-        simple_model = getattr(self, 'parse_model', None)
-        # If using a simple/secondary model, use enable_thinking_simple
+        simple_model = getattr(self, "parse_model", None)
         is_simple = model and simple_model and model == simple_model and model != self.model
+
+        thinking_env = (
+            f"{self._config_prefix}_THINKING_CONFIG_SIMPLE"
+            if is_simple
+            else f"{self._config_prefix}_THINKING_CONFIG"
+        )
+        thinking_config = self._thinking_config_from_env(thinking_env)
+        if thinking_config is None and is_simple:
+            thinking_config = self._thinking_config_from_env(
+                f"{self._config_prefix}_THINKING_CONFIG",
+            )
+        if thinking_config is not None:
+            return {"extra_body": thinking_config}
+
         enable = self._enable_thinking_simple if is_simple else self._enable_thinking
         if enable:
             return {"extra_body": {"enable_thinking": True}}

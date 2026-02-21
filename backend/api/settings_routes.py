@@ -72,6 +72,8 @@ async def update_ai_settings(req: AISettingsRequest):
             simple_model=req.simple_model,
             enable_thinking=req.enable_thinking,
             enable_thinking_simple=req.enable_thinking_simple,
+            thinking_config=req.thinking_config,
+            thinking_config_simple=req.thinking_config_simple,
         )
 
 

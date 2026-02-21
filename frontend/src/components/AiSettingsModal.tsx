@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { api, ApiError } from '../api/client'
 import type { AIProvider, AISettings } from '../types/game'
 
@@ -7,12 +8,24 @@ interface Props {
   onSaved: (message: string) => void
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type ThinkingConfig = Record<string, any>
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 const PROVIDER_LABELS: Record<string, string> = {
   mock: 'Mock',
   openai: 'OpenAI',
   google: 'Google',
   h: 'Hotaru',
   Z: 'Z',
+}
+
+function getEffectiveProviderType(provider: AIProvider, providerType: string): string {
+  if (provider === 'openai') return 'openai'
+  if (provider === 'google') return 'gemini'
+  if (provider === 'Z') return 'openai'
+  if (provider === 'h') return 'openai'
+  return (providerType || 'openai').toLowerCase()
 }
 
 export default function AiSettingsModal({ onClose, onSaved }: Props) {
@@ -25,6 +38,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const [simpleModel, setSimpleModel] = useState('')
   const [enableThinking, setEnableThinking] = useState(false)
   const [enableThinkingSimple, setEnableThinkingSimple] = useState(false)
+  const [thinkingConfig, setThinkingConfig] = useState<ThinkingConfig>({})
+  const [thinkingConfigSimple, setThinkingConfigSimple] = useState<ThinkingConfig>({})
   const [providerOptions, setProviderOptions] = useState<AIProvider[]>(['mock', 'openai', 'google', 'h', 'Z'])
   const [cache, setCache] = useState<Partial<Record<AIProvider, AISettings>>>({})
   const [models, setModels] = useState<string[]>([])
@@ -52,6 +67,12 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   )
 
   const applySettings = (settings: AISettings) => {
+    const nextThinkingConfig = settings.thinking_config
+      ? { ...settings.thinking_config }
+      : (settings.enable_thinking ? { enable_thinking: true } : {})
+    const nextThinkingConfigSimple = settings.thinking_config_simple
+      ? { ...settings.thinking_config_simple }
+      : (settings.enable_thinking_simple ? { enable_thinking: true } : {})
     setProvider(settings.provider)
     setProviderType(settings.provider_type || 'openai')
     setApiKey(settings.api_key || '')
@@ -60,6 +81,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     setSimpleModel(settings.simple_model || '')
     setEnableThinking(settings.enable_thinking ?? false)
     setEnableThinkingSimple(settings.enable_thinking_simple ?? false)
+    setThinkingConfig(nextThinkingConfig)
+    setThinkingConfigSimple(nextThinkingConfigSimple)
     setProviderOptions(settings.provider_options)
     setCache((prev) => ({ ...prev, [settings.provider]: settings }))
   }
@@ -94,6 +117,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       setSimpleModel('')
       setEnableThinking(false)
       setEnableThinkingSimple(false)
+      setThinkingConfig({})
+      setThinkingConfigSimple({})
       setModels([])
       setModelsSource('')
       setHint('')
@@ -127,6 +152,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
         simple_model: showModel ? (simpleModel || null) : null,
         enable_thinking: showModel ? enableThinking : null,
         enable_thinking_simple: showModel ? enableThinkingSimple : null,
+        thinking_config: showModel ? thinkingConfig : null,
+        thinking_config_simple: showModel ? thinkingConfigSimple : null,
       })
       applySettings(saved)
       onSaved(`AI配置已更新：${PROVIDER_LABELS[saved.provider]} / ${saved.model || '未设置模型'}`)
@@ -172,6 +199,106 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     } finally {
       setFetchingModels(false)
     }
+  }
+
+  function renderThinkingConfig(
+    currentProvider: AIProvider,
+    currentProviderType: string,
+    config: ThinkingConfig,
+    setConfig: Dispatch<SetStateAction<ThinkingConfig>>,
+    label: string,
+  ) {
+    if (currentProvider === 'mock') return null
+
+    const effectiveType = getEffectiveProviderType(currentProvider, currentProviderType)
+
+    if (effectiveType === 'deepseek') {
+      const thinkingType = config?.thinking?.type === 'enabled' ? 'enabled' : 'disabled'
+      return (
+        <label className="ai-field">
+          <span>{label}思考模式</span>
+          <select
+            value={thinkingType}
+            onChange={(e) => {
+              const next = e.target.value
+              setConfig(next === 'enabled' ? { thinking: { type: 'enabled' } } : {})
+            }}
+            disabled={saving}
+          >
+            <option value="disabled">禁用</option>
+            <option value="enabled">启用</option>
+          </select>
+        </label>
+      )
+    }
+
+    if (effectiveType === 'gemini') {
+      const rawLevel = typeof config?.thinkingLevel === 'string' ? config.thinkingLevel : ''
+      const levelMap: Record<string, string> = {
+        LOW: 'Low',
+        MEDIUM: 'Medium',
+        HIGH: 'High',
+      }
+      const thinkingLevel = levelMap[rawLevel.toUpperCase()] || ''
+
+      return (
+        <label className="ai-field">
+          <span>{label}思考等级</span>
+          <select
+            value={thinkingLevel}
+            onChange={(e) => {
+              const next = e.target.value
+              setConfig(next ? { thinkingLevel: next } : {})
+            }}
+            disabled={saving}
+          >
+            <option value="">不启用</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+        </label>
+      )
+    }
+
+    if (effectiveType === 'anthropic') {
+      const thinkingType = config?.type === 'enabled'
+        ? 'enabled'
+        : (config?.type === 'adaptive' ? 'adaptive' : '')
+
+      return (
+        <label className="ai-field">
+          <span>{label}思考类型</span>
+          <select
+            value={thinkingType}
+            onChange={(e) => {
+              const next = e.target.value
+              setConfig(next ? { type: next } : {})
+            }}
+            disabled={saving}
+          >
+            <option value="">不启用</option>
+            <option value="adaptive">Adaptive</option>
+            <option value="enabled">Enabled</option>
+          </select>
+        </label>
+      )
+    }
+
+    const enabled = config?.enable_thinking === true
+    return (
+      <label className="ai-thinking-toggle">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => {
+            setConfig(e.target.checked ? { enable_thinking: true } : {})
+          }}
+          disabled={saving}
+        />
+        <span>{label}启用思考 (enable_thinking)</span>
+      </label>
+    )
   }
 
   return (
@@ -240,6 +367,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                 >
                   <option value="openai">OpenAI 兼容</option>
                   <option value="openai-response">OpenAI Responses</option>
+                  <option value="deepseek">DeepSeek</option>
                   <option value="gemini">Gemini</option>
                   <option value="anthropic">Anthropic</option>
                 </select>
@@ -282,6 +410,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                     disabled={saving}
                   />
                 </label>
+                {renderThinkingConfig(provider, providerType, thinkingConfig, setThinkingConfig, '主模型')}
                 <label className="ai-thinking-toggle">
                   <input
                     type="checkbox"
@@ -300,6 +429,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                     disabled={saving}
                   />
                 </label>
+                {renderThinkingConfig(provider, providerType, thinkingConfigSimple, setThinkingConfigSimple, '基础模型')}
                 <label className="ai-thinking-toggle">
                   <input
                     type="checkbox"
