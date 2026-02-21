@@ -143,6 +143,36 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     setError('')
     setHint('')
     try {
+      const effectiveType = getEffectiveProviderType(provider, providerType)
+
+      // 从 thinkingConfig 中提取 enable_thinking 值
+      let derivedEnableThinking = false
+      if (effectiveType === 'deepseek') {
+        derivedEnableThinking = thinkingConfig?.thinking?.type === 'enabled'
+      } else if (effectiveType === 'gemini') {
+        derivedEnableThinking = !!thinkingConfig?.thinkingLevel
+      } else if (effectiveType === 'anthropic') {
+        derivedEnableThinking = !!thinkingConfig?.type
+      } else if (effectiveType === 'openai') {
+        derivedEnableThinking = !!thinkingConfig?.reasoning_effort
+      } else {
+        derivedEnableThinking = thinkingConfig?.enable_thinking === true
+      }
+
+      // 从 thinkingConfigSimple 中提取 enable_thinking_simple 值
+      let derivedEnableThinkingSimple = false
+      if (effectiveType === 'deepseek') {
+        derivedEnableThinkingSimple = thinkingConfigSimple?.thinking?.type === 'enabled'
+      } else if (effectiveType === 'gemini') {
+        derivedEnableThinkingSimple = !!thinkingConfigSimple?.thinkingLevel
+      } else if (effectiveType === 'anthropic') {
+        derivedEnableThinkingSimple = !!thinkingConfigSimple?.type
+      } else if (effectiveType === 'openai') {
+        derivedEnableThinkingSimple = !!thinkingConfigSimple?.reasoning_effort
+      } else {
+        derivedEnableThinkingSimple = thinkingConfigSimple?.enable_thinking === true
+      }
+
       const saved = await api.updateAiSettings({
         provider,
         provider_type: providerType,
@@ -150,8 +180,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
         base_url: showBaseUrl ? (baseUrl || null) : null,
         model: showModel ? (model || null) : null,
         simple_model: showModel ? (simpleModel || null) : null,
-        enable_thinking: showModel ? enableThinking : null,
-        enable_thinking_simple: showModel ? enableThinkingSimple : null,
+        enable_thinking: showModel ? derivedEnableThinking : null,
+        enable_thinking_simple: showModel ? derivedEnableThinkingSimple : null,
         thinking_config: showModel ? thinkingConfig : null,
         thinking_config_simple: showModel ? thinkingConfigSimple : null,
       })
@@ -285,6 +315,35 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       )
     }
 
+    if (effectiveType === 'openai') {
+      const rawEffort = typeof config?.reasoning_effort === 'string' ? config.reasoning_effort : ''
+      const effortMap: Record<string, string> = {
+        LOW: 'low',
+        MEDIUM: 'medium',
+        HIGH: 'high',
+      }
+      const reasoningEffort = effortMap[rawEffort.toUpperCase()] || ''
+
+      return (
+        <label className="ai-field">
+          <span>{label}推理强度</span>
+          <select
+            value={reasoningEffort}
+            onChange={(e) => {
+              const next = e.target.value
+              setConfig(next ? { reasoning_effort: next } : {})
+            }}
+            disabled={saving}
+          >
+            <option value="">不启用</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </label>
+      )
+    }
+
     const enabled = config?.enable_thinking === true
     return (
       <label className="ai-thinking-toggle">
@@ -357,7 +416,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               </label>
             )}
 
-            {!['mock', 'openai', 'google', 'h', 'Z'].includes(provider) && provider !== 'custom' && (
+            {provider !== 'mock' && (
               <label className="ai-field">
                 <span>提供商类型</span>
                 <select
@@ -411,15 +470,6 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                   />
                 </label>
                 {renderThinkingConfig(provider, providerType, thinkingConfig, setThinkingConfig, '主模型')}
-                <label className="ai-thinking-toggle">
-                  <input
-                    type="checkbox"
-                    checked={enableThinking}
-                    onChange={(e) => setEnableThinking(e.target.checked)}
-                    disabled={saving}
-                  />
-                  <span>主模型启用思考 (enable_thinking)</span>
-                </label>
                 <label className="ai-field">
                   <span>基础模型</span>
                   <input
@@ -430,15 +480,6 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                   />
                 </label>
                 {renderThinkingConfig(provider, providerType, thinkingConfigSimple, setThinkingConfigSimple, '基础模型')}
-                <label className="ai-thinking-toggle">
-                  <input
-                    type="checkbox"
-                    checked={enableThinkingSimple}
-                    onChange={(e) => setEnableThinkingSimple(e.target.checked)}
-                    disabled={saving}
-                  />
-                  <span>基础模型启用思考 (enable_thinking)</span>
-                </label>
               </>
             )}
 

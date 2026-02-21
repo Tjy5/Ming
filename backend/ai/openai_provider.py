@@ -179,7 +179,17 @@ class OpenAIProvider(AIProvider):
                 f"{self._config_prefix}_THINKING_CONFIG",
             )
         if thinking_config is not None:
-            return {"extra_body": thinking_config}
+            # Extract reasoning_effort as top-level parameter for OpenAI API
+            result: dict[str, Any] = {}
+            if "reasoning_effort" in thinking_config:
+                result["reasoning_effort"] = thinking_config["reasoning_effort"]
+                # Remove reasoning_effort from extra_body
+                remaining_config = {k: v for k, v in thinking_config.items() if k != "reasoning_effort"}
+                if remaining_config:
+                    result["extra_body"] = remaining_config
+            else:
+                result["extra_body"] = thinking_config
+            return result
 
         enable = self._enable_thinking_simple if is_simple else self._enable_thinking
         if enable:
