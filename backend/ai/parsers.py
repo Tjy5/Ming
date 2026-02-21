@@ -424,7 +424,7 @@ def build_freeform_user_prompt(
     return "\n".join(parts)
 
 
-def parse_freeform_response(data: dict) -> FreeformResult | dict:
+def parse_freeform_response(data: dict, current_year: int = 1627, current_month: int = 1) -> FreeformResult | dict:
     if "error" in data:
         return parse_error(data["error"])
 
@@ -487,7 +487,10 @@ def parse_freeform_response(data: dict) -> FreeformResult | dict:
             urgency_raw = "中"
         triggered_year = evt.get("triggered_year")
         if not isinstance(triggered_year, int):
-            triggered_year = 1627
+            triggered_year = None
+        triggered_month = evt.get("triggered_month")
+        if not isinstance(triggered_month, int) or not (1 <= triggered_month <= 12):
+            triggered_month = None
         choices_raw = evt.get("choices") if isinstance(evt.get("choices"), list) else []
         choices = []
         for c in choices_raw:
@@ -499,8 +502,8 @@ def parse_freeform_response(data: dict) -> FreeformResult | dict:
             name=name.strip(),
             description=str(evt.get("description", "")),
             urgency=EventUrgency(urgency_raw),
-            triggered_year=triggered_year,
-            triggered_month=1,
+            triggered_year=triggered_year if triggered_year is not None else current_year,
+            triggered_month=triggered_month if triggered_month is not None else current_month,
             historical_basis=str(evt.get("historical_basis", "")),
             choices=choices,
         ))

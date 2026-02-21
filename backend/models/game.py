@@ -459,16 +459,34 @@ INITIAL_REGIONS = [
 _MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
 
 
-def _load_initial_ministers() -> list[Minister]:
+_VALID_POSITIONS = {
+    "首辅大学士", "次辅大学士", "群辅大学士",
+    "吏部尚书", "吏部侍郎", "户部尚书", "户部侍郎",
+    "礼部尚书", "礼部侍郎", "兵部尚书", "兵部侍郎",
+    "刑部尚书", "刑部侍郎", "工部尚书", "工部侍郎",
+    "左都御史", "指挥使", "巡抚", "总兵",
+}
+
+
+def _load_initial_ministers() -> tuple[list[Minister], dict[str, str]]:
     raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
+    canonical_map: dict[str, str] = {}
+    for item in raw:
+        cp = item.get("canonical_position", "")
+        if cp:
+            if cp not in _VALID_POSITIONS:
+                raise ValueError(f"Invalid canonical_position: {cp}")
+            if cp in canonical_map.values():
+                raise ValueError(f"Duplicate canonical_position: {cp}")
+            canonical_map[item["name"]] = cp
     ministers = [Minister.model_validate(item) for item in raw]
     names = [m.name for m in ministers]
     if len(names) != len(set(names)):
         raise ValueError("Duplicate minister names in ministers.json")
-    return ministers
+    return ministers, canonical_map
 
 
-INITIAL_MINISTERS = _load_initial_ministers()
+INITIAL_MINISTERS, _CANONICAL_POSITIONS = _load_initial_ministers()
 
 
 def _time_key(year: int, month: int) -> int:
@@ -482,6 +500,12 @@ def create_initial_state() -> GameState:
         m = tpl.model_copy()
         if m.status == MinisterStatus.ACTIVE and _time_key(m.entry_year, m.entry_month) > start_key:
             m.status = MinisterStatus.NOT_YET_ENTERED
+        if m.name in _CANONICAL_POSITIONS:
+            m.position = _CANONICAL_POSITIONS[m.name]
+        else:
+            m.position = ""
+            if m.status == MinisterStatus.ACTIVE:
+                m.status = MinisterStatus.IDLE
         ministers.append(m)
 
     state = GameState(

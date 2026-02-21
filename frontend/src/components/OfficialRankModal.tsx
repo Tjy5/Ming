@@ -17,7 +17,7 @@ const TREE = [
 ]
 
 function positionMatchesLeaf(position: string, leaf: string): boolean {
-  return position === leaf || position.includes(leaf) || leaf.includes(position)
+  return position === leaf
 }
 
 export default function OfficialRankModal({ ministers, onClose, onAppoint }: Props) {

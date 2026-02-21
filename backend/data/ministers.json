@@ -17,7 +17,8 @@
     "position": "礼部尚书兼东阁大学士",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "天启朝被阉党排挤去职，崇祯即位后起复入阁，主持倒魏善后。"
+    "historical_note": "天启朝被阉党排挤去职，崇祯即位后起复入阁，主持倒魏善后。",
+    "canonical_position": "群辅大学士"
   },
   {
     "name": "钱谦益",
@@ -37,7 +38,8 @@
     "position": "礼部侍郎",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "文坛盟主，东林后期领袖。才学冠绝当世，然政治立场屡遭非议。"
+    "historical_note": "文坛盟主，东林后期领袖。才学冠绝当世，然政治立场屡遭非议。",
+    "canonical_position": "礼部侍郎"
   },
   {
     "name": "钱龙锡",
@@ -57,7 +59,8 @@
     "position": "吏部侍郎",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "崇祯初年入阁辅政，后因袁崇焕案受牵连下狱。"
+    "historical_note": "崇祯初年入阁辅政，后因袁崇焕案受牵连下狱。",
+    "canonical_position": "吏部侍郎"
   },
   {
     "name": "黄道周",
@@ -77,7 +80,8 @@
     "position": "翰林编修",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "理学名臣，以敢言著称。屡因直谏触怒崇祯被贬黜。"
+    "historical_note": "理学名臣，以敢言著称。屡因直谏触怒崇祯被贬黜。",
+    "canonical_position": ""
   },
   {
     "name": "刘宗周",
@@ -97,7 +101,8 @@
     "position": "顺天府尹",
     "entry_year": 1627,
     "entry_month": 10,
-    "historical_note": "蕺山学派创始人，崇祯朝著名谏臣。六次被贬六次起复。"
+    "historical_note": "蕺山学派创始人，崇祯朝著名谏臣。六次被贬六次起复。",
+    "canonical_position": ""
   },
   {
     "name": "倪元璐",
@@ -117,7 +122,8 @@
     "position": "翰林编修",
     "entry_year": 1628,
     "entry_month": 4,
-    "historical_note": "书法名家。崇祯末户部尚书，城破殉国。"
+    "historical_note": "书法名家。崇祯末户部尚书，城破殉国。",
+    "canonical_position": ""
   },
   {
     "name": "范景文",
@@ -137,7 +143,8 @@
     "position": "河南巡抚",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "崇祯末年入阁，甲申之变自缢殉国，谥文忠。"
+    "historical_note": "崇祯末年入阁，甲申之变自缢殉国，谥文忠。",
+    "canonical_position": ""
   },
   {
     "name": "史可法",
@@ -157,7 +164,8 @@
     "position": "户部主事",
     "entry_year": 1628,
     "entry_month": 8,
-    "historical_note": "左光斗门生。后督师江北，扬州城破殉国。"
+    "historical_note": "左光斗门生。后督师江北，扬州城破殉国。",
+    "canonical_position": ""
   },
   {
     "name": "吴甡",
@@ -177,7 +185,8 @@
     "position": "御史",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "崇祯中期入阁，曾议剿抚之策。后因故去职。"
+    "historical_note": "崇祯中期入阁，曾议剿抚之策。后因故去职。",
+    "canonical_position": ""
   },
   {
     "name": "魏忠贤",
@@ -197,7 +206,8 @@
     "position": "司礼监秉笔太监",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "天启朝权阉，号称九千岁。崇祯即位后被贬凤阳，途中自缢。"
+    "historical_note": "天启朝权阉，号称九千岁。崇祯即位后被贬凤阳，途中自缢。",
+    "canonical_position": ""
   },
   {
     "name": "崔呈秀",
@@ -217,7 +227,8 @@
     "position": "兵部尚书",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "阉党五虎之首，依附魏忠贤把持兵部。崇祯清算阉党时自缢。"
+    "historical_note": "阉党五虎之首，依附魏忠贤把持兵部。崇祯清算阉党时自缢。",
+    "canonical_position": ""
   },
   {
     "name": "冯铨",
@@ -237,7 +248,8 @@
     "position": "文渊阁大学士",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "年少入阁，依附魏忠贤。崇祯初被削籍。后降清复起。"
+    "historical_note": "年少入阁，依附魏忠贤。崇祯初被削籍。后降清复起。",
+    "canonical_position": "次辅大学士"
   },
   {
     "name": "李永贞",
@@ -256,7 +268,8 @@
     "position": "司礼监太监",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "魏忠贤心腹太监。崇祯清算阉党时被处死。"
+    "historical_note": "魏忠贤心腹太监。崇祯清算阉党时被处死。",
+    "canonical_position": ""
   },
   {
     "name": "朱纯臣",
@@ -275,7 +288,8 @@
     "position": "成国公",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "世袭成国公，掌京营。甲申之变降李自成，后被处死。"
+    "historical_note": "世袭成国公，掌京营。甲申之变降李自成，后被处死。",
+    "canonical_position": ""
   },
   {
     "name": "张维贤",
@@ -294,7 +308,8 @@
     "position": "英国公",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "协助崇祯即位有功。崇祯三年病逝。"
+    "historical_note": "协助崇祯即位有功。崇祯三年病逝。",
+    "canonical_position": ""
   },
   {
     "name": "巩永固",
@@ -314,7 +329,8 @@
     "position": "驸马都尉",
     "entry_year": 1628,
     "entry_month": 1,
-    "historical_note": "尚乐安公主。甲申之变自焚殉国，为勋贵中罕见忠烈。"
+    "historical_note": "尚乐安公主。甲申之变自焚殉国，为勋贵中罕见忠烈。",
+    "canonical_position": ""
   },
   {
     "name": "徐弘基",
@@ -333,7 +349,8 @@
     "position": "魏国公",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "世袭魏国公，镇守南京。"
+    "historical_note": "世袭魏国公，镇守南京。",
+    "canonical_position": ""
   },
   {
     "name": "周奎",
@@ -352,7 +369,8 @@
     "position": "嘉定伯",
     "entry_year": 1628,
     "entry_month": 3,
-    "historical_note": "崇祯岳父。为人悭吝，甲申之变时拒捐军饷。降贼后被杀。"
+    "historical_note": "崇祯岳父。为人悭吝，甲申之变时拒捐军饷。降贼后被杀。",
+    "canonical_position": ""
   },
   {
     "name": "李国桢",
@@ -371,7 +389,8 @@
     "position": "襄城伯",
     "entry_year": 1630,
     "entry_month": 1,
-    "historical_note": "崇祯末提督京营，城破降贼。"
+    "historical_note": "崇祯末提督京营，城破降贼。",
+    "canonical_position": ""
   },
   {
     "name": "袁崇焕",
@@ -391,7 +410,8 @@
     "position": "辽东巡抚",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "宁远大捷功臣。崇祯二年督师蓟辽，己巳之变后被捕下狱凌迟。"
+    "historical_note": "宁远大捷功臣。崇祯二年督师蓟辽，己巳之变后被捕下狱凌迟。",
+    "canonical_position": "巡抚"
   },
   {
     "name": "孙承宗",
@@ -411,7 +431,8 @@
     "position": "兵部尚书兼东阁大学士",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "天启朝督师辽东，构建关宁锦防线。崇祯末高阳城破殉国。"
+    "historical_note": "天启朝督师辽东，构建关宁锦防线。崇祯末高阳城破殉国。",
+    "canonical_position": "兵部尚书"
   },
   {
     "name": "满桂",
@@ -431,7 +452,8 @@
     "position": "总兵",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "蒙古裔名将。宁锦大捷有功。己巳之变中战死永定门外。"
+    "historical_note": "蒙古裔名将。宁锦大捷有功。己巳之变中战死永定门外。",
+    "canonical_position": "总兵"
   },
   {
     "name": "赵率教",
@@ -450,7 +472,8 @@
     "position": "总兵",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "宁锦大捷功臣。己巳之变中率部勤王，战死遵化。"
+    "historical_note": "宁锦大捷功臣。己巳之变中率部勤王，战死遵化。",
+    "canonical_position": ""
   },
   {
     "name": "毛文龙",
@@ -470,7 +493,8 @@
     "position": "东江总兵",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "镇守皮岛牵制后金。崇祯二年被袁崇焕矫诏斩杀。"
+    "historical_note": "镇守皮岛牵制后金。崇祯二年被袁崇焕矫诏斩杀。",
+    "canonical_position": ""
   },
   {
     "name": "祖大寿",
@@ -490,7 +514,8 @@
     "position": "副总兵",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "关宁军核心将领。大凌河被围后诈降，后松锦之战再降清。"
+    "historical_note": "关宁军核心将领。大凌河被围后诈降，后松锦之战再降清。",
+    "canonical_position": ""
   },
   {
     "name": "杨鹤",
@@ -510,7 +535,8 @@
     "position": "右佥都御史",
     "entry_year": 1628,
     "entry_month": 3,
-    "historical_note": "崇祯初任三边总督主抚。因招抚失败被逮下狱。杨嗣昌之父。"
+    "historical_note": "崇祯初任三边总督主抚。因招抚失败被逮下狱。杨嗣昌之父。",
+    "canonical_position": ""
   },
   {
     "name": "杨嗣昌",
@@ -530,7 +556,8 @@
     "position": "兵部主事",
     "entry_year": 1629,
     "entry_month": 6,
-    "historical_note": "崇祯中期兵部尚书，提出'四正六隅、十面张网'之策。襄阳失守后忧惧而死。"
+    "historical_note": "崇祯中期兵部尚书，提出'四正六隅、十面张网'之策。襄阳失守后忧惧而死。",
+    "canonical_position": ""
   },
   {
     "name": "孙传庭",
@@ -550,7 +577,8 @@
     "position": "吏部主事",
     "entry_year": 1630,
     "entry_month": 1,
-    "historical_note": "崇祯朝名将。黑水峪擒获高迎祥。后潼关战败殉国。'传庭死而明亡'。"
+    "historical_note": "崇祯朝名将。黑水峪擒获高迎祥。后潼关战败殉国。'传庭死而明亡'。",
+    "canonical_position": ""
   },
   {
     "name": "熊文灿",
@@ -569,7 +597,8 @@
     "position": "福建巡抚",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "以招抚郑芝龙著称。崇祯十年总理剿匪，因张献忠复叛被处死。"
+    "historical_note": "以招抚郑芝龙著称。崇祯十年总理剿匪，因张献忠复叛被处死。",
+    "canonical_position": ""
   },
   {
     "name": "温体仁",
@@ -589,7 +618,8 @@
     "position": "礼部侍郎",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "崇祯三年入阁，独相八年为崇祯朝最久。以排挤异己著称，终被罢免。"
+    "historical_note": "崇祯三年入阁，独相八年为崇祯朝最久。以排挤异己著称，终被罢免。",
+    "canonical_position": ""
   },
   {
     "name": "王应熊",
@@ -608,7 +638,8 @@
     "position": "礼部尚书",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "温体仁党羽。崇祯六年入阁。"
+    "historical_note": "温体仁党羽。崇祯六年入阁。",
+    "canonical_position": "礼部尚书"
   },
   {
     "name": "吴宗达",
@@ -627,7 +658,8 @@
     "position": "礼部侍郎",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "温体仁推举入阁，为人中庸，少有建树。"
+    "historical_note": "温体仁推举入阁，为人中庸，少有建树。",
+    "canonical_position": ""
   },
   {
     "name": "张至发",
@@ -646,7 +678,8 @@
     "position": "吏部侍郎",
     "entry_year": 1630,
     "entry_month": 1,
-    "historical_note": "温体仁罢相后继任首辅，才具平庸，未几去职。"
+    "historical_note": "温体仁罢相后继任首辅，才具平庸，未几去职。",
+    "canonical_position": ""
   },
   {
     "name": "薛国观",
@@ -666,7 +699,8 @@
     "position": "礼科给事中",
     "entry_year": 1631,
     "entry_month": 1,
-    "historical_note": "崇祯中期首辅。因建议借助勋戚捐饷得罪权贵，被赐自尽。"
+    "historical_note": "崇祯中期首辅。因建议借助勋戚捐饷得罪权贵，被赐自尽。",
+    "canonical_position": ""
   },
   {
     "name": "王永光",
@@ -685,7 +719,8 @@
     "position": "兵部尚书",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "崇祯初年兵部尚书。立场偏温体仁一系。"
+    "historical_note": "崇祯初年兵部尚书。立场偏温体仁一系。",
+    "canonical_position": ""
   },
   {
     "name": "周延儒",
@@ -705,7 +740,8 @@
     "position": "翰林编修",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "连中会元状元。两度拜相。崇祯末虚报军功被赐自尽。"
+    "historical_note": "连中会元状元。两度拜相。崇祯末虚报军功被赐自尽。",
+    "canonical_position": ""
   },
   {
     "name": "冯元飙",
@@ -724,7 +760,8 @@
     "position": "兵部侍郎",
     "entry_year": 1628,
     "entry_month": 6,
-    "historical_note": "崇祯末年兵部尚书，因局势恶化屡请辞。"
+    "historical_note": "崇祯末年兵部尚书，因局势恶化屡请辞。",
+    "canonical_position": "兵部侍郎"
   },
   {
     "name": "陈演",
@@ -744,7 +781,8 @@
     "position": "翰林编修",
     "entry_year": 1629,
     "entry_month": 1,
-    "historical_note": "崇祯末年首辅。甲申之变前阻挠南迁之议。降贼后被杀。"
+    "historical_note": "崇祯末年首辅。甲申之变前阻挠南迁之议。降贼后被杀。",
+    "canonical_position": ""
   },
   {
     "name": "吴昌时",
@@ -763,7 +801,8 @@
     "position": "翰林",
     "entry_year": 1630,
     "entry_month": 1,
-    "historical_note": "周延儒心腹门客。操纵政事，后与周延儒同被处死。"
+    "historical_note": "周延儒心腹门客。操纵政事，后与周延儒同被处死。",
+    "canonical_position": ""
   },
   {
     "name": "蒋德璟",
@@ -783,7 +822,8 @@
     "position": "翰林编修",
     "entry_year": 1629,
     "entry_month": 1,
-    "historical_note": "崇祯十五年入阁。以财政实务见长。"
+    "historical_note": "崇祯十五年入阁。以财政实务见长。",
+    "canonical_position": ""
   },
   {
     "name": "徐光启",
@@ -803,7 +843,8 @@
     "position": "礼部侍郎",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "科学家、农学家。翻译《几何原本》，编纂《农政全书》。崇祯五年病逝。"
+    "historical_note": "科学家、农学家。翻译《几何原本》，编纂《农政全书》。崇祯五年病逝。",
+    "canonical_position": ""
   },
   {
     "name": "毕自严",
@@ -823,7 +864,8 @@
     "position": "户部尚书",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "崇祯朝理财名臣。精于钱粮出纳，力图开源节流。后因故去职。"
+    "historical_note": "崇祯朝理财名臣。精于钱粮出纳，力图开源节流。后因故去职。",
+    "canonical_position": "户部尚书"
   },
   {
     "name": "王在晋",
@@ -843,7 +885,8 @@
     "position": "兵部尚书",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "曾督师辽东主守。与孙承宗战略分歧。崇祯初年任兵部尚书。"
+    "historical_note": "曾督师辽东主守。与孙承宗战略分歧。崇祯初年任兵部尚书。",
+    "canonical_position": ""
   },
   {
     "name": "李邦华",
@@ -863,7 +906,8 @@
     "position": "兵部侍郎",
     "entry_year": 1627,
     "entry_month": 10,
-    "historical_note": "以整饬京营著称。甲申之变前力主太子南迁。城破殉国。"
+    "historical_note": "以整饬京营著称。甲申之变前力主太子南迁。城破殉国。",
+    "canonical_position": ""
   },
   {
     "name": "李标",
@@ -883,7 +927,8 @@
     "position": "大学士",
     "entry_year": 1627,
     "entry_month": 10,
-    "historical_note": "崇祯初年首辅。为人温和中正，后因朝争去职。"
+    "historical_note": "崇祯初年首辅。为人温和中正，后因朝争去职。",
+    "canonical_position": "首辅大学士"
   },
   {
     "name": "孙元化",
@@ -903,7 +948,8 @@
     "position": "登莱巡抚",
     "entry_year": 1628,
     "entry_month": 1,
-    "historical_note": "徐光启弟子，精通西洋火器。登莱兵变后被冤杀。"
+    "historical_note": "徐光启弟子，精通西洋火器。登莱兵变后被冤杀。",
+    "canonical_position": ""
   },
   {
     "name": "魏藻德",
@@ -922,7 +968,8 @@
     "position": "翰林",
     "entry_year": 1631,
     "entry_month": 1,
-    "historical_note": "崇祯十六年状元首辅。甲申之变降李自成，被拷饷至死。"
+    "historical_note": "崇祯十六年状元首辅。甲申之变降李自成，被拷饷至死。",
+    "canonical_position": ""
   },
   {
     "name": "陈新甲",
@@ -942,7 +989,8 @@
     "position": "兵部主事",
     "entry_year": 1629,
     "entry_month": 6,
-    "historical_note": "崇祯中期兵部尚书。秘密议和泄露，被崇祯处死。"
+    "historical_note": "崇祯中期兵部尚书。秘密议和泄露，被崇祯处死。",
+    "canonical_position": ""
   },
   {
     "name": "郑三俊",
@@ -962,7 +1010,8 @@
     "position": "刑部尚书",
     "entry_year": 1628,
     "entry_month": 1,
-    "historical_note": "崇祯朝吏部尚书。以清正著称，后被弹劾下狱。"
+    "historical_note": "崇祯朝吏部尚书。以清正著称，后被弹劾下狱。",
+    "canonical_position": "刑部尚书"
   },
   {
     "name": "王体乾",
@@ -981,6 +1030,7 @@
     "position": "司礼监掌印太监",
     "entry_year": 1627,
     "entry_month": 8,
-    "historical_note": "天启朝掌印太监。魏忠贤倒台后被免，后死于狱中。"
+    "historical_note": "天启朝掌印太监。魏忠贤倒台后被免，后死于狱中。",
+    "canonical_position": ""
   }
 ]

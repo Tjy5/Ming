@@ -150,12 +150,13 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
                 m.status = MinisterStatus.REMOVED
                 executed.add(m.name)
             elif decree.sub_action == PersonnelAction.APPOINT and m.status == MinisterStatus.IDLE:
-                m.status = MinisterStatus.ACTIVE
                 pos = decree.parameters.get("position", "") if decree.parameters else ""
-                if pos:
-                    for other in state.ministers:
-                        if other.name != m.name and other.status == MinisterStatus.ACTIVE and other.position == pos:
-                            other.position = ""
+                if not pos:
+                    break
+                m.status = MinisterStatus.ACTIVE
+                for other in state.ministers:
+                    if other.name != m.name and other.status == MinisterStatus.ACTIVE and other.position == pos:
+                        other.position = ""
                 m.position = pos
             break
     return dismissed, executed
@@ -936,7 +937,7 @@ def _activate_entered_ministers(state: GameState) -> list[str]:
         if m.status != MinisterStatus.NOT_YET_ENTERED:
             continue
         if _time_to_months(m.entry_year, m.entry_month) <= current:
-            m.status = MinisterStatus.ACTIVE
+            m.status = MinisterStatus.IDLE if m.position == "" else MinisterStatus.ACTIVE
             activated.append(m.name)
     return activated
 
@@ -954,7 +955,10 @@ def _tick_missions(state: GameState) -> None:
             mission = m.current_mission
             # apply effects
             attr: dict = {}
-            apply_ai_effects(state, mission.effects, attr)
+            try:
+                apply_ai_effects(state, mission.effects, attr)
+            except Exception:
+                logger.exception("Mission effect apply failed", extra={"entity_name": m.name, "entity_type": "minister", "context": "_tick_missions"})
             clamp_state(state)
             # complete: clear mission, restore active
             m.current_mission = None
@@ -1183,9 +1187,14 @@ def add_ai_new_events(state: GameState, new_events: list) -> None:
         if added >= 3:
             break
         if isinstance(evt, GameEvent):
-            if evt.triggered_year > 0 and evt.triggered_year < state.time.year:
-                logger.warning("add_ai_new_events: triggered_year in past, discarding", extra={"entity_name": evt.name, "entity_type": "event", "context": "add_ai_new_events"})
+            cur = _time_to_months(state.time.year, state.time.month)
+            evt_t = _time_to_months(evt.triggered_year, evt.triggered_month)
+            if evt_t < cur:
+                logger.warning("add_ai_new_events: triggered time in past, discarding", extra={"entity_name": evt.name, "entity_type": "event", "context": "add_ai_new_events"})
                 continue
+            if evt_t > cur:
+                evt.triggered_year = state.time.year
+                evt.triggered_month = state.time.month
             state.active_events.append(evt)
             added += 1
             continue
@@ -1250,8 +1259,7 @@ def _apply_mission_decree(state: GameState, freeform: FreeformResult) -> bool:
     raw_effects = payload.get("effects", {})
     if not isinstance(raw_effects, dict):
         raw_effects = {}
-    # whitelist-filter effects using pattern matcher
-    valid_effects = {k: v for k, v in raw_effects.items() if _match_writable_pattern(k) is not None}
+    valid_effects = validate_ai_effects(raw_effects, state)
 
     state.national_treasury -= cost
     minister.status = MinisterStatus.ON_MISSION

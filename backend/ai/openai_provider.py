@@ -569,7 +569,7 @@ class OpenAIProvider(AIProvider):
             )
             content = (response.choices[0].message.content or "").strip()
             data = json.loads(extract_json_object_text(content))
-            return _parse_freeform_response(data)
+            return _parse_freeform_response(data, game_state.time.year, game_state.time.month)
         except json.JSONDecodeError as e:
             logging.error(f"OpenAI freeform JSON parse error: {e}")
             return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
