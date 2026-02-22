@@ -14,7 +14,13 @@ from models.game import (
 )
 from models.enums import DecreeType, PersonnelAction
 
-from .base import AIProvider, infer_decree_type_from_topic, parse_error
+from .base import (
+    AIProvider,
+    PARSE_ERROR_TYPE_UNAVAILABLE,
+    infer_decree_type_from_topic,
+    parse_error,
+)
+from .parsers import classify_script_choice as _classify_script_choice
 
 NARRATIVE_TEMPLATES: dict[DecreeType, str] = {
     DecreeType.TAX_INCREASE: "朕下旨加征赋税，国库增银{treasury}万两。然百姓怨声载道，民心{civil_morale}。{chain}",
@@ -60,6 +66,7 @@ EXECUTION_SUFFIX_RE = re.compile(rf"(?:把|将)?([^\s,，。、]{{2,4}})(?:{_EXE
 REGION_KEYWORDS = re.compile(r"京畿|辽东|陕西|江南|中原|山东|云贵|川蜀")
 DIPLOMACY_KEYWORDS = re.compile(r"后金|蒙古|朝鲜")
 PERSON_PATTERN = re.compile(r"(?:把|将|令|命)?([^\s,，。、]{2,4})(?:调|贬|擢|免|罢|任|撤)")
+_VACANCY_HINTS = ("空缺", "继任", "补缺", "替补", "vacancy")
 
 
 def _try_parse_execution(
@@ -84,6 +91,75 @@ def _try_parse_execution(
 
 def _format_delta(val: int) -> str:
     return f"+{val}" if val > 0 else str(val)
+
+
+def _trigger_candidate_text_blob(candidate: dict) -> str:
+    parts: list[str] = [
+        str(candidate.get("title", "")).strip(),
+        str(candidate.get("description", "")).strip(),
+    ]
+    actions = candidate.get("suggested_actions")
+    if isinstance(actions, list):
+        for action in actions:
+            if isinstance(action, dict):
+                parts.append(str(action.get("label", "")).strip())
+                parts.append(str(action.get("description", "")).strip())
+            elif isinstance(action, str):
+                parts.append(action.strip())
+    return " ".join(part for part in parts if part).strip()
+
+
+def _trigger_has_vacancy_fallback(text: str) -> bool:
+    lower_text = text.lower()
+    return any(hint in text or hint in lower_text for hint in _VACANCY_HINTS)
+
+
+def _trigger_condition_accepts_removed(
+    condition_spec: dict | None,
+    removed_names: set[str],
+) -> bool:
+    if not isinstance(condition_spec, dict) or not removed_names:
+        return False
+    node_type = condition_spec.get("type")
+    if node_type == "minister_removed":
+        name = condition_spec.get("name")
+        return isinstance(name, str) and name in removed_names
+    if node_type == "and":
+        children = condition_spec.get("conditions")
+        if isinstance(children, list):
+            return any(
+                _trigger_condition_accepts_removed(child, removed_names)
+                for child in children
+                if isinstance(child, dict)
+            )
+    return False
+
+
+def _trigger_candidate_relevance_score(
+    state: GameState,
+    candidate: dict,
+) -> tuple[int, int, str]:
+    score = 0
+    if candidate.get("is_blocking"):
+        score += 100
+
+    actions = candidate.get("suggested_actions")
+    if isinstance(actions, list):
+        score += len(actions) * 5
+
+    description = str(candidate.get("description", "")).strip()
+    score += min(len(description) // 120, 5)
+
+    active_names = {
+        m.name for m in state.ministers
+        if m.status.value in {"active", "idle"}
+    }
+    text = _trigger_candidate_text_blob(candidate)
+    score += sum(1 for name in active_names if name and name in text)
+
+    title = str(candidate.get("title", "")).strip()
+    script_id = str(candidate.get("script_id", "")).strip()
+    return score, len(title), script_id
 
 
 class MockProvider(AIProvider):
@@ -236,7 +312,7 @@ class MockProvider(AIProvider):
             "participants": [
                 {
                     "name": p.name,
-                    "position": p.position or "朝臣",
+                    "position": p.positions[0] if p.positions else "朝臣",
                     "argument_text": speech_by_name.get(p.name, ""),
                 }
                 for p in participants
@@ -282,6 +358,89 @@ class MockProvider(AIProvider):
 
         action_text = "；".join(str(x) for x in action_implications[:2]) if has_action else "暂无显著政务变化"
         return f"{year}年{month}月朝政{tone}，{count}件大事需关注。{action_text}。"
+
+    async def classify_script_choice(
+        self,
+        player_text: str,
+        script_context: dict | None = None,
+        *,
+        game_state: GameState | None = None,
+    ) -> dict:
+        try:
+            classified = await _classify_script_choice(player_text, script_context)
+        except Exception:
+            return parse_error(
+                "脚本选项分类失败",
+                PARSE_ERROR_TYPE_UNAVAILABLE,
+            )
+        return {
+            "choice_index": classified.choice_index,
+            "confidence": classified.confidence,
+            "reason": classified.reason,
+        }
+
+    async def select_script_trigger_decisions(
+        self,
+        game_state: GameState,
+        candidates: list[dict],
+    ) -> dict[str, tuple[bool, str]]:
+        decisions: dict[str, tuple[bool, str]] = {}
+        normalized_candidates: list[dict] = []
+        removed_names = {
+            m.name for m in game_state.ministers
+            if m.status.value == "removed"
+        }
+
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            script_id = str(candidate.get("script_id", "")).strip()
+            if not script_id:
+                continue
+            normalized_candidates.append(candidate)
+            text = _trigger_candidate_text_blob(candidate)
+            mentioned_removed = [name for name in removed_names if name and name in text]
+            if (
+                mentioned_removed
+                and not _trigger_has_vacancy_fallback(text)
+                and not _trigger_condition_accepts_removed(
+                    candidate.get("condition"),
+                    set(mentioned_removed),
+                )
+            ):
+                decisions[script_id] = (
+                    False,
+                    f"关键人物已不在朝：{'、'.join(sorted(mentioned_removed))}",
+                )
+            else:
+                decisions[script_id] = (True, "规则通过且与当前局势相关")
+
+        triggerable_blocking = [
+            candidate for candidate in normalized_candidates
+            if bool(candidate.get("is_blocking"))
+            and decisions.get(str(candidate.get("script_id", "")).strip(), (False, ""))[0]
+        ]
+        if len(triggerable_blocking) > 1:
+            selected = max(
+                triggerable_blocking,
+                key=lambda item: _trigger_candidate_relevance_score(game_state, item),
+            )
+            selected_id = str(selected.get("script_id", "")).strip()
+            selected_title = str(selected.get("title", "")).strip()
+            for candidate in triggerable_blocking:
+                script_id = str(candidate.get("script_id", "")).strip()
+                if script_id == selected_id:
+                    continue
+                decisions[script_id] = (
+                    False,
+                    f"与同月更紧急事件冲突，顺延处理：{selected_title}",
+                )
+
+        for candidate in normalized_candidates:
+            script_id = str(candidate.get("script_id", "")).strip()
+            if script_id:
+                decisions.setdefault(script_id, (True, "规则触发"))
+        return decisions
 
     async def process_freeform(
         self,
@@ -352,4 +511,3 @@ class MockProvider(AIProvider):
             reply = f"臣{minister.name}领旨。臣当尽心竭力，不负陛下厚望。"
 
         return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}
-

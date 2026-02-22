@@ -15,8 +15,14 @@ from .provider import (
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
     build_debate_prompt,
+    build_script_choice_classification_prompt,
+    build_script_trigger_selection_prompt,
     DEBATE_SYSTEM_PROMPT,
+    SCRIPT_CHOICE_CLASSIFICATION_SYSTEM_PROMPT,
+    SCRIPT_TRIGGER_SELECTION_SYSTEM_PROMPT,
     parse_debate_response,
+    parse_script_choice_classification_response,
+    parse_script_trigger_selection_response,
     extract_json_object_text,
     validate_memorial_decrees,
     parse_memorial_draft,
@@ -40,7 +46,6 @@ from .prompts import (
     build_narrative_prompt as _build_narrative_prompt,
     build_parse_prompt as _build_parse_prompt,
     build_turn_commentary_prompt,
-    normalize_dialogue_fallback_payload,
     normalize_dialogue_payload,
 )
 
@@ -294,10 +299,7 @@ class AnthropicProvider(AIProvider):
             return normalize_dialogue_payload(data)
         except Exception as e:
             logging.error(f"Anthropic generate_minister_dialogue error: {e}")
-            fallback = await MockProvider().generate_minister_dialogue(
-                minister, message, game_state, conversation_history
-            )
-            return normalize_dialogue_fallback_payload(fallback, minister)
+            raise
 
     async def generate_petitions(
         self, participants: list[Minister], game_state: GameState,
@@ -310,8 +312,9 @@ class AnthropicProvider(AIProvider):
             "参与朝会大臣：",
         ]
         for p in participants:
+            position_text = p.positions[0] if p.positions else "朝臣"
             prompt_lines.append(
-                f"- {p.name}（{p.faction}，{p.position or '朝臣'}，忠诚{p.loyalty}）"
+                f"- {p.name}（{p.faction}，{position_text}，忠诚{p.loyalty}）"
             )
         prompt_lines.append(
             "请为每位大臣生成一条奏事。只输出JSON，格式："
@@ -463,7 +466,11 @@ class AnthropicProvider(AIProvider):
                 f"{s['minister_name']}：{s['content']}" for s in speeches if isinstance(s, dict)
             ),
             "participants": [
-                {"name": p.name, "position": p.position or "朝臣", "argument_text": speech_map.get(p.name, "")}
+                {
+                    "name": p.name,
+                    "position": p.positions[0] if p.positions else "朝臣",
+                    "argument_text": speech_map.get(p.name, ""),
+                }
                 for p in participants
             ],
             "suggestions": [{
@@ -491,6 +498,79 @@ class AnthropicProvider(AIProvider):
             return response.content[0].text.strip()
         except:
             return "本月无事发生。"
+
+    async def classify_script_choice(
+        self,
+        player_text: str,
+        script_context: dict | None = None,
+        *,
+        game_state: GameState | None = None,
+    ) -> dict:
+        choice_count = 0
+        if isinstance(script_context, dict) and isinstance(script_context.get("suggested_actions"), list):
+            choice_count = len(script_context["suggested_actions"])
+        prompt = build_script_choice_classification_prompt(
+            player_text,
+            script_context,
+            game_state=game_state,
+        )
+        try:
+            response = await self._messages_create(
+                model=self.model,
+                max_tokens=1024,
+                system=SCRIPT_CHOICE_CLASSIFICATION_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+            )
+            content = response.content[0].text.strip()
+            data = json.loads(extract_json_object_text(content))
+            parsed = parse_script_choice_classification_response(
+                data,
+                choice_count=choice_count,
+            )
+            if isinstance(parsed, dict):
+                return parsed
+            return {
+                "choice_index": parsed.choice_index,
+                "confidence": parsed.confidence,
+                "reason": parsed.reason,
+            }
+        except Exception as e:
+            logging.error(f"Anthropic classify_script_choice error: {e}")
+            return parse_error("脚本选项分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
+    async def select_script_trigger_decisions(
+        self,
+        game_state: GameState,
+        candidates: list[dict],
+    ) -> dict[str, tuple[bool, str]] | dict:
+        candidate_ids = {
+            str(item.get("script_id", "")).strip()
+            for item in candidates
+            if isinstance(item, dict) and str(item.get("script_id", "")).strip()
+        }
+        if not candidate_ids:
+            return {}
+
+        prompt = build_script_trigger_selection_prompt(game_state, candidates)
+        try:
+            response = await self._messages_create(
+                model=self.model,
+                max_tokens=2048,
+                system=SCRIPT_TRIGGER_SELECTION_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+            )
+            content = response.content[0].text.strip()
+            data = json.loads(extract_json_object_text(content))
+            parsed = parse_script_trigger_selection_response(
+                data,
+                candidate_ids=candidate_ids,
+            )
+            return parsed
+        except Exception as e:
+            logging.error(f"Anthropic select_script_trigger_decisions error: {e}")
+            return parse_error("剧情触发决策服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def process_freeform(
         self, text: str, game_state: GameState,

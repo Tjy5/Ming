@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 
 from fastapi import APIRouter, HTTPException
@@ -19,7 +20,15 @@ from models.positions import (
     PositionCategory, PositionInfo, POSITION_REGISTRY,
     get_positions_by_category, calculate_position_weight,
 )
-from engine.core import advance_month, process_decree, check_preconditions, validate_target
+from engine.core import (
+    check_preconditions,
+    finalize_month_advance,
+    get_undecided_script_trigger_candidates,
+    inject_script_events,
+    prepare_month_advance,
+    process_decree,
+    validate_target,
+)
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
 from db.saves import auto_save
@@ -55,14 +64,118 @@ from .state import (
 )
 
 router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
+
+
+def _parse_script_choice_threshold(raw: str | None) -> float:
+    if raw is None:
+        return 0.7
+    try:
+        value = float(raw.strip())
+    except (TypeError, ValueError):
+        return 0.7
+    if value < 0:
+        return 0.0
+    if value > 1:
+        return 1.0
+    return value
+
+
+SCRIPT_CHOICE_CONFIDENCE_THRESHOLD = _parse_script_choice_threshold(
+    os.getenv("SCRIPT_CHOICE_CONFIDENCE_THRESHOLD"),
+)
+
+
+def _normalize_script_choice_result(classified: dict) -> tuple[int | None, float]:
+    if "error" in classified:
+        return None, 0.0
+    raw_index = classified.get("choice_index")
+    if raw_index is None or isinstance(raw_index, bool):
+        choice_index = None
+    else:
+        try:
+            choice_index = int(raw_index)
+        except (TypeError, ValueError):
+            choice_index = None
+
+    raw_confidence = classified.get("confidence", 0.0)
+    try:
+        confidence = float(raw_confidence)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+    return choice_index, confidence
+
+
+def _normalize_trigger_decisions(
+    raw_decisions: dict,
+    *,
+    candidate_ids: set[str],
+) -> dict[str, tuple[bool, str]]:
+    normalized: dict[str, tuple[bool, str]] = {}
+    for script_id in candidate_ids:
+        raw_value = raw_decisions.get(script_id)
+        if isinstance(raw_value, tuple) and len(raw_value) >= 2:
+            normalized[script_id] = (bool(raw_value[0]), str(raw_value[1]).strip() or "AI未给出理由")
+            continue
+        if isinstance(raw_value, list) and len(raw_value) >= 2:
+            normalized[script_id] = (bool(raw_value[0]), str(raw_value[1]).strip() or "AI未给出理由")
+            continue
+        if isinstance(raw_value, dict):
+            normalized[script_id] = (
+                bool(raw_value.get("should_trigger", True)),
+                str(raw_value.get("reason", "")).strip() or "AI未给出理由",
+            )
+            continue
+        if isinstance(raw_value, bool):
+            normalized[script_id] = (raw_value, "AI未给出理由")
+            continue
+        normalized[script_id] = (True, "AI决策缺失，回退规则触发")
+    return normalized
+
+
+async def _decide_script_triggers_for_state(
+    provider,
+    state: GameState,
+) -> dict[str, tuple[bool, str]]:
+    candidates = get_undecided_script_trigger_candidates(state)
+    if not candidates:
+        return {}
+
+    candidate_ids = {
+        str(item.get("script_id", "")).strip()
+        for item in candidates
+        if isinstance(item, dict) and str(item.get("script_id", "")).strip()
+    }
+    if not candidate_ids:
+        return {}
+
+    raw_decisions = await provider.select_script_trigger_decisions(state, candidates)
+    if not isinstance(raw_decisions, dict) or "error" in raw_decisions:
+        logger.warning("Script trigger AI unavailable; fallback to rule-only mode")
+        return {
+            script_id: (True, "AI不可用，回退规则触发")
+            for script_id in candidate_ids
+        }
+
+    return _normalize_trigger_decisions(raw_decisions, candidate_ids=candidate_ids)
 
 
 # ── 6.1 POST /api/game/new ─────────────────────────────
 
 @router.post("/game/new")
 async def new_game():
-    _set_state(create_initial_state())
-    return _get_state().model_dump()
+    state = create_initial_state()
+    provider = _get_provider()
+
+    # Re-run initial scripted injections through AI decision path.
+    state.active_events = [event for event in state.active_events if not event.is_scripted]
+    state.trigger_decisions = {}
+    decisions = await _decide_script_triggers_for_state(provider, state)
+    inject_script_events(state, script_trigger_decisions=decisions)
+
+    _set_state(state)
+    return state.model_dump()
 
 
 # ── 6.2 POST /api/decree ───────────────────────────────
@@ -109,95 +222,128 @@ async def _execute_decree_core(
                     message="该脚本事件当前未激活",
                 ).model_dump())
 
-        # script state_effects: only apply for verified scripted events
-        if req.state_effects and req.source_script_id and req.source_script_id in SCRIPT_REGISTRY:
-            _apply_state_effects(state, req.state_effects)
-
         last_response: dict | None = None
 
         # ── Freeform path: free_text provided, no structured decrees ──
         if free_text and not req.decrees:
-            script_context = None
             if req.source_script_id:
                 evt = SCRIPT_REGISTRY.get(req.source_script_id)
+                script_context = None
                 if evt:
                     script_context = {
                         "title": evt.title,
                         "description": evt.rich_description,
-                        "suggested_actions": [c.label for c in evt.choices],
+                        "suggested_actions": [
+                            {"label": c.label, "description": c.description}
+                            for c in evt.choices
+                        ],
                     }
-            freeform = await provider.process_freeform(free_text, state, script_context=script_context)
-
-            if isinstance(freeform, FreeformResult):
-                if req.source_script_id and not freeform.effects and not freeform.reactions:
+                classified = await provider.classify_script_choice(
+                    free_text,
+                    script_context,
+                    game_state=state,
+                )
+                choice_index, confidence = _normalize_script_choice_result(
+                    classified if isinstance(classified, dict) else {},
+                )
+                if (
+                    choice_index is None
+                    or confidence < SCRIPT_CHOICE_CONFIDENCE_THRESHOLD
+                    or not evt
+                    or choice_index >= len(evt.choices)
+                ):
                     raise HTTPException(422, detail=ErrorResponse(
                         error_code="FREEFORM_EMPTY",
                         message="旨意不明，请重新输入",
                     ).model_dump())
-                mem_count_before = len(state.memorials)
-                delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
-                    state, freeform=freeform,
-                )
-                _mem_triggers = state.memorials[mem_count_before:]
 
-                if _summary:
-                    ai_implications = await provider.generate_action_implications(
-                        {"rule_based_implications": _summary.action_implications}, state,
-                    )
-                    if ai_implications:
-                        _summary.action_implications = ai_implications
-                    _summary.commentary = await provider.generate_turn_commentary(
-                        _summary.model_dump(), state,
-                    )
-
-                state.history_log.append(HistoryEntry(
-                    year=state.time.year, month=state.time.month,
-                    decree_type="freeform",
-                    decree_desc=(free_text or "")[:50],
-                    delta=delta, narrative=freeform.narrative,
-                ))
-
-                if stream_narrative_callback and freeform.narrative:
-                    await stream_narrative_callback(freeform.narrative)
-
-                last_response = DecreeResponse(
-                    state=state, delta=delta, attribution=attribution,
-                    narrative=freeform.narrative, newly_triggered_events=triggered,
-                    game_time=state.time, game_over=game_over,
-                    minister_reactions=_reactions,
-                    turn_summary=_summary,
-                    memorial_triggers=_mem_triggers,
-                ).model_dump()
-
-                if game_over:
-                    pass  # fall through to commit
-            else:
-                # Freeform failed → fallback to parse_free_input
-                parsed = await provider.parse_free_input(free_text, state)
-                if isinstance(parsed, dict) and "error" in parsed:
-                    is_unavailable = parsed.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
-                    raise HTTPException(503 if is_unavailable else 422, detail=ErrorResponse(
-                        error_code="parse_unavailable" if is_unavailable else "parse_error",
-                        message=parsed["error"],
-                    ).model_dump())
-                if not isinstance(parsed, list) or not parsed:
-                    raise HTTPException(422, detail=ErrorResponse(
-                        error_code="parse_error",
-                        message="无法识别具体政令，请使用按钮操作或描述具体政令内容",
-                    ).model_dump())
-                # Execute fallback structured decrees
+                selected_choice = evt.choices[choice_index]
                 req = DecreeRequest(
-                    decrees=parsed,
+                    decrees=list(selected_choice.decrees),
                     source_script_id=req.source_script_id,
-                    loyalty_effects=req.loyalty_effects,
-                    state_effects=None,  # already applied
+                    loyalty_effects=list(selected_choice.loyalty_effects) or None,
+                    state_effects=dict(selected_choice.state_effects) or None,
                 )
+            else:
+                script_context = None
+                free_text_for_history = free_text
+                freeform = await provider.process_freeform(free_text_for_history, state, script_context=script_context)
+
+                if isinstance(freeform, FreeformResult):
+                    mem_count_before = len(state.memorials)
+                    delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
+                        state, freeform=freeform,
+                    )
+                    _mem_triggers = state.memorials[mem_count_before:]
+
+                    if _summary:
+                        ai_implications = await provider.generate_action_implications(
+                            {"rule_based_implications": _summary.action_implications}, state,
+                        )
+                        if ai_implications:
+                            _summary.action_implications = ai_implications
+                        _summary.commentary = await provider.generate_turn_commentary(
+                            _summary.model_dump(), state,
+                        )
+
+                    state.history_log.append(HistoryEntry(
+                        year=state.time.year, month=state.time.month,
+                        decree_type="freeform",
+                        decree_desc=free_text_for_history[:50],
+                        delta=delta, narrative=freeform.narrative,
+                    ))
+
+                    if stream_narrative_callback and freeform.narrative:
+                        await stream_narrative_callback(freeform.narrative)
+
+                    last_response = DecreeResponse(
+                        state=state, delta=delta, attribution=attribution,
+                        narrative=freeform.narrative, newly_triggered_events=triggered,
+                        game_time=state.time, game_over=game_over,
+                        minister_reactions=_reactions,
+                        turn_summary=_summary,
+                        memorial_triggers=_mem_triggers,
+                    ).model_dump()
+
+                    if game_over:
+                        pass  # fall through to commit
+                else:
+                    # Freeform failed → fallback to parse_free_input
+                    parsed = await provider.parse_free_input(free_text_for_history, state)
+                    if isinstance(parsed, dict) and "error" in parsed:
+                        is_unavailable = parsed.get("error_type") == PARSE_ERROR_TYPE_UNAVAILABLE
+                        raise HTTPException(503 if is_unavailable else 422, detail=ErrorResponse(
+                            error_code="parse_unavailable" if is_unavailable else "parse_error",
+                            message=parsed["error"],
+                        ).model_dump())
+                    if not isinstance(parsed, list) or not parsed:
+                        raise HTTPException(422, detail=ErrorResponse(
+                            error_code="parse_error",
+                            message="无法识别具体政令，请使用按钮操作或描述具体政令内容",
+                        ).model_dump())
+                    # Execute fallback structured decrees
+                    req = DecreeRequest(
+                        decrees=parsed,
+                        source_script_id=req.source_script_id,
+                        loyalty_effects=req.loyalty_effects,
+                        state_effects=None,  # already applied
+                    )
+
+        # script state_effects: only apply for verified scripted events
+        if req.state_effects and req.source_script_id and req.source_script_id in SCRIPT_REGISTRY:
+            _apply_state_effects(state, req.state_effects)
 
         # ── Structured path ──
         if last_response is None and req.decrees:
             decree_count = len(req.decrees)
+            enforce_monthly_limit = req.source_script_id is None
+            mark_monthly_usage = req.source_script_id is None
             for decree_index, decree in enumerate(req.decrees):
-                reason = check_preconditions(state, decree)
+                reason = check_preconditions(
+                    state,
+                    decree,
+                    enforce_monthly_limit=enforce_monthly_limit,
+                )
                 if reason:
                     narrative = await provider.rejection_narrative(decree, reason)
                     raise HTTPException(422, detail=ErrorResponse(
@@ -214,7 +360,11 @@ async def _execute_decree_core(
                     ).model_dump())
 
                 mem_count_before = len(state.memorials)
-                delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state, decree)
+                delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
+                    state,
+                    decree,
+                    mark_monthly_usage=mark_monthly_usage,
+                )
                 _mem_triggers = state.memorials[mem_count_before:]
 
                 should_stream_narrative = (
@@ -440,7 +590,14 @@ async def execute_decree_stream(req: DecreeRequest):
 async def advance_month_endpoint():
     async with _lock:
         state = _get_state().model_copy(deep=True)
-        triggered_events, game_over, new_ministers = advance_month(state)
+        provider = _get_provider()
+
+        new_ministers = prepare_month_advance(state)
+        script_decisions = await _decide_script_triggers_for_state(provider, state)
+        triggered_events, game_over = finalize_month_advance(
+            state,
+            script_trigger_decisions=script_decisions,
+        )
         _set_state(state)
         auto_save(state)
 
@@ -644,12 +801,16 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
             provider = _get_provider()
             last_decree = last_attr = last_triggered = None
             for decree in memorial.suggested_decrees:
-                reason = check_preconditions(state, decree)
-                if reason and reason != "本月已下达此类政令":
+                reason = check_preconditions(state, decree, enforce_monthly_limit=False)
+                if reason:
                     continue
                 if validate_target(decree, state):
                     continue
-                delta, attr, triggered, game_over, _reactions, _summary = process_decree(state, decree)
+                delta, attr, triggered, game_over, _reactions, _summary = process_decree(
+                    state,
+                    decree,
+                    mark_monthly_usage=False,
+                )
                 accumulated_reactions.extend(_reactions)
                 for k, v in delta.items():
                     accumulated_delta[k] = accumulated_delta.get(k, 0) + v

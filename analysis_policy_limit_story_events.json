@@ -1,0 +1,23 @@
+{
+  "analysis": {
+    "change_id": "policy-limit-story-events",
+    "frontend_ui_impact": {
+      "ActionArea": "Modified to disable decree buttons based on category-level usage (state.decrees_this_month[category]) instead of specific type usage. This requires a shared mapping of DecreeType to Category between frontend and backend.",
+      "ScriptEventModal": "Complete removal of preset choice buttons (REQ-003). The component will now exclusively present a text area for command input, even for scripted events. The 'freeform' toggle logic will be removed as it becomes the default state."
+    },
+    "integration_points": {
+      "backend_command_parser": "The existing 'process_freeform' endpoint in the backend already accepts 'script_context'. The AI prompt in 'parsers.py' should be refined to ensure player commands are mapped to the logical outcomes of the scripted event (provided via 'suggested_actions' context).",
+      "data_structure_change": "Updating 'decrees_this_month' in GameState to use Category keys instead of DecreeType keys. This is a breaking change for save compatibility and requires synchronization of Category strings (e.g., '内政', '军事') between TypeScript and Python."
+    },
+    "maintainability_considerations": [
+      "Centralize DecreeType-to-Category mapping in a shared schema or constants file to prevent drift.",
+      "Implement a more robust error handling in the frontend for 'FREEFORM_EMPTY' responses from the backend to guide the player toward valid commands.",
+      "Consider adding a 'fallback' mechanism for critical script events if the AI consistently fails to parse player intent."
+    ],
+    "potential_conflicts": [
+      "Save file migration: Existing saves using the old 'decrees_this_month' structure will need migration or will cause UI display errors.",
+      "Ambiguity in REQ-003: Some scripted events might rely on specific metadata in choices (like 'loyalty_effects' or 'state_effects') that are hard to 'guess' via pure freeform without explicit AI instruction to select from existing options."
+    ],
+    "scalability": "The pure command interface for events significantly increases the flexibility of story outcomes but increases reliance on LLM performance. Decoupling UI layout from specific event choices simplifies frontend development for future events."
+  }
+}

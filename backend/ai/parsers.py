@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import re
 
@@ -18,6 +19,284 @@ from models.game import (
 from models.enums import DecreeType, DiplomacyTarget, MinisterStatus as _MS, PersonnelAction
 
 from .base import parse_error
+
+
+@dataclass(slots=True)
+class ChoiceClassification:
+    choice_index: int | None
+    confidence: float
+    reason: str
+
+
+def _normalize_choice_text(text: str) -> str:
+    lowered = (text or "").strip().lower()
+    return re.sub(r"\s+", "", lowered)
+
+
+def _char_ngrams(text: str, n: int = 2) -> set[str]:
+    if len(text) < n:
+        return {text} if text else set()
+    return {text[i : i + n] for i in range(0, len(text) - n + 1)}
+
+
+def _similarity_score(player_text: str, candidate_text: str) -> float:
+    if not player_text or not candidate_text:
+        return 0.0
+    if player_text == candidate_text:
+        return 1.0
+    if player_text in candidate_text or candidate_text in player_text:
+        return 0.95
+
+    player_chars = set(player_text)
+    candidate_chars = set(candidate_text)
+    if not player_chars or not candidate_chars:
+        return 0.0
+    char_overlap = len(player_chars & candidate_chars) / len(player_chars | candidate_chars)
+
+    player_grams = _char_ngrams(player_text, 2)
+    candidate_grams = _char_ngrams(candidate_text, 2)
+    gram_overlap = 0.0
+    if player_grams and candidate_grams:
+        gram_overlap = len(player_grams & candidate_grams) / len(player_grams | candidate_grams)
+
+    return max(char_overlap * 0.4 + gram_overlap * 0.6, char_overlap)
+
+
+def _read_suggested_actions(script_context: dict | None) -> list[tuple[int, str, str]]:
+    if not isinstance(script_context, dict):
+        return []
+    raw_actions = script_context.get("suggested_actions")
+    if not isinstance(raw_actions, list):
+        return []
+
+    actions: list[tuple[int, str, str]] = []
+    for idx, item in enumerate(raw_actions):
+        if isinstance(item, str):
+            label = item.strip()
+            description = ""
+        elif isinstance(item, dict):
+            label = str(item.get("label", "")).strip()
+            description = str(item.get("description", "")).strip()
+        else:
+            continue
+        if not label and not description:
+            continue
+        actions.append((idx, label, description))
+    return actions
+
+
+async def classify_script_choice(
+    player_text: str,
+    script_context: dict | None = None,
+) -> ChoiceClassification:
+    normalized_player = _normalize_choice_text(player_text)
+    if not normalized_player:
+        return ChoiceClassification(
+            choice_index=None,
+            confidence=0.0,
+            reason="输入为空或仅包含空白字符",
+        )
+
+    candidates = _read_suggested_actions(script_context)
+    if not candidates:
+        return ChoiceClassification(
+            choice_index=None,
+            confidence=0.0,
+            reason="事件缺少可匹配的建议行动",
+        )
+
+    best_choice_index: int | None = None
+    best_confidence = 0.0
+    best_label = ""
+    for idx, label, description in candidates:
+        label_norm = _normalize_choice_text(label)
+        full_norm = _normalize_choice_text(f"{label} {description}")
+        score = max(
+            _similarity_score(normalized_player, label_norm),
+            _similarity_score(normalized_player, full_norm),
+        )
+        if score > best_confidence:
+            best_confidence = score
+            best_choice_index = idx
+            best_label = label or description
+
+    if best_choice_index is None:
+        return ChoiceClassification(
+            choice_index=None,
+            confidence=0.0,
+            reason="未找到有效匹配选项",
+        )
+
+    return ChoiceClassification(
+        choice_index=best_choice_index,
+        confidence=round(best_confidence, 3),
+        reason=f"最佳匹配：{best_label}",
+    )
+
+
+SCRIPT_CHOICE_CLASSIFICATION_SYSTEM_PROMPT = """\
+你是崇祯模拟器的剧情选项分类器。请将玩家输入映射到给定剧情事件的候选选项索引。
+
+你必须严格输出一个JSON对象，不要输出代码块或额外文字：
+{
+  "choice_index": number|null,
+  "confidence": number,  // 0.0~1.0
+  "reason": "简短说明"
+}
+
+规则：
+1. 仅能选择候选列表中的索引（从0开始）
+2. 若无法判断或意图过于模糊，choice_index必须为null，confidence应小于0.7
+3. confidence需体现把握度，越匹配越高
+"""
+
+
+def _choice_count_from_context(script_context: dict | None) -> int:
+    actions = _read_suggested_actions(script_context)
+    return len(actions)
+
+
+def build_script_choice_classification_prompt(
+    player_text: str,
+    script_context: dict | None = None,
+    game_state: GameState | None = None,
+) -> str:
+    parts: list[str] = [f"玩家输入：{player_text}"]
+    if isinstance(script_context, dict):
+        parts.append(f"事件标题：{script_context.get('title', '')}")
+        parts.append(f"事件描述：{script_context.get('description', '')}")
+        actions = _read_suggested_actions(script_context)
+        if actions:
+            parts.append("候选选项（索引从0开始）：")
+            for idx, label, description in actions:
+                parts.append(f"{idx}. {label} ｜ {description}")
+    if game_state is not None:
+        parts.append("\n当前局势摘要：")
+        parts.append(_serialize_game_state(game_state))
+    return "\n".join(parts)
+
+
+def parse_script_choice_classification_response(
+    data: dict,
+    *,
+    choice_count: int,
+) -> ChoiceClassification | dict:
+    if "error" in data:
+        return parse_error(str(data["error"]))
+
+    raw_index = data.get("choice_index")
+    choice_index: int | None = None
+    if raw_index is None:
+        choice_index = None
+    elif isinstance(raw_index, bool):
+        choice_index = None
+    else:
+        try:
+            parsed_index = int(raw_index)
+            if 0 <= parsed_index < choice_count:
+                choice_index = parsed_index
+        except (TypeError, ValueError):
+            choice_index = None
+
+    raw_confidence = data.get("confidence", 0.0)
+    try:
+        confidence = float(raw_confidence)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    reason = str(data.get("reason", "")).strip()
+    if not reason:
+        reason = "AI未提供理由"
+
+    return ChoiceClassification(
+        choice_index=choice_index,
+        confidence=confidence,
+        reason=reason,
+    )
+
+
+SCRIPT_TRIGGER_SELECTION_SYSTEM_PROMPT = """\
+你是崇祯模拟器的剧情触发决策器。请判断候选剧情事件在当前局势下是否应触发。
+
+你必须严格输出一个JSON对象，不要输出代码块或额外文字：
+{
+  "decisions": [
+    {"script_id":"...", "should_trigger": true, "reason":"..."}
+  ]
+}
+
+规则：
+1. 仅能对输入中提供的script_id作决策
+2. should_trigger=true 表示本月应触发；false 表示不触发/顺延
+3. reason简洁说明依据（如人物已亡、条件不再相关、冲突顺延）
+"""
+
+
+def build_script_trigger_selection_prompt(
+    game_state: GameState,
+    candidates: list[dict],
+) -> str:
+    parts: list[str] = [
+        "当前局势：",
+        _serialize_game_state(game_state),
+        "",
+        "候选剧情事件：",
+    ]
+    for item in candidates:
+        script_id = str(item.get("script_id", "")).strip()
+        title = str(item.get("title", "")).strip()
+        description = str(item.get("description", "")).strip()
+        is_blocking = bool(item.get("is_blocking", False))
+        actions = item.get("suggested_actions", [])
+        action_text = ""
+        if isinstance(actions, list) and actions:
+            rendered = []
+            for action in actions:
+                if isinstance(action, dict):
+                    label = str(action.get("label", "")).strip()
+                    desc = str(action.get("description", "")).strip()
+                    rendered.append(f"{label}({desc})" if desc else label)
+                elif isinstance(action, str):
+                    rendered.append(action.strip())
+            action_text = "；".join(filter(None, rendered))
+        parts.append(
+            f"- script_id={script_id}\n"
+            f"  标题={title}\n"
+            f"  是否阻断={is_blocking}\n"
+            f"  描述={description}\n"
+            f"  可选方向={action_text}"
+        )
+    return "\n".join(parts)
+
+
+def parse_script_trigger_selection_response(
+    data: dict,
+    *,
+    candidate_ids: set[str],
+) -> dict[str, tuple[bool, str]] | dict:
+    if "error" in data:
+        return parse_error(str(data["error"]))
+
+    raw = data.get("decisions")
+    if not isinstance(raw, list):
+        return parse_error("AI未返回decisions列表")
+
+    decisions: dict[str, tuple[bool, str]] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        script_id = str(item.get("script_id", "")).strip()
+        if not script_id or script_id not in candidate_ids:
+            continue
+        should_trigger = bool(item.get("should_trigger", True))
+        reason = str(item.get("reason", "")).strip() or "AI未给出理由"
+        decisions[script_id] = (should_trigger, reason)
+
+    for script_id in candidate_ids:
+        decisions.setdefault(script_id, (True, "AI未返回该事件决策，默认触发"))
+
+    return decisions
 
 
 def build_debate_prompt(

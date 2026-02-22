@@ -525,17 +525,23 @@ class _FreeformFailProvider(AIProvider):
     async def generate_turn_commentary(self, *a, **kw):
         return ""
 
+    async def classify_script_choice(self, *a, **kw):
+        return {"choice_index": None, "confidence": 0.0, "reason": "not implemented"}
+
+    async def select_script_trigger_decisions(self, *a, **kw):
+        return {}
+
     async def generate_minister_dialogue(self, *a, **kw):
         return {}
 
-    async def process_freeform(self, text, game_state):
+    async def process_freeform(self, text, game_state, *, script_context=None):
         return parse_error("freeform not supported")
 
 
 class _FreeformTimeoutProvider(_FreeformFailProvider):
     """Provider where process_freeform always times out."""
 
-    async def process_freeform(self, text, game_state):
+    async def process_freeform(self, text, game_state, *, script_context=None):
         raise TimeoutError("AI service timeout")
 
 

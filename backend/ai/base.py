@@ -75,6 +75,15 @@ def set_rule_parse_fallback(enabled: bool) -> None:
         pass
 
 
+def mock_fallback_enabled() -> bool:
+    """Whether runtime is allowed to downgrade failed AI calls to MockProvider."""
+    raw_override = os.getenv("AI_ENABLE_MOCK_FALLBACK")
+    if raw_override is not None:
+        return _env_bool("AI_ENABLE_MOCK_FALLBACK", False)
+    provider = (os.getenv("AI_PROVIDER") or "").strip().lower()
+    return provider == "mock"
+
+
 
 
 class AIProvider(abc.ABC):
@@ -225,6 +234,22 @@ class AIProvider(abc.ABC):
         summary_data: dict,
         game_state: GameState,
     ) -> str: ...
+
+    @abc.abstractmethod
+    async def classify_script_choice(
+        self,
+        player_text: str,
+        script_context: dict | None = None,
+        *,
+        game_state: GameState | None = None,
+    ) -> dict: ...
+
+    @abc.abstractmethod
+    async def select_script_trigger_decisions(
+        self,
+        game_state: GameState,
+        candidates: list[dict],
+    ) -> dict[str, tuple[bool, str]] | dict: ...
 
     @abc.abstractmethod
     async def process_freeform(

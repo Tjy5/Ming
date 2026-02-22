@@ -11,6 +11,7 @@ from models.game import (
     TurnSummary, IndicatorTrend, FactionChange, RegionChange, MinisterChange,
     RegionDetail,
     FreeformResult, MissionState,
+    TriggerDecision, decree_category_of,
     clamp_state,
 )
 from models.enums import (
@@ -38,7 +39,6 @@ logger = logging.getLogger(__name__)
 _LOCK_TIMEOUT_DEFAULT_SECONDS = 5
 _LOCK_TIMEOUT_MIN_SECONDS = 1
 _LOCK_TIMEOUT_MAX_SECONDS = 30
-_MONTHLY_LIMITED = {"tax_increase", "tax_decrease", "recruit_troops", "disband_troops", "harsh_punishment", "disaster_relief", "diplomacy"}
 
 
 def _parse_lock_timeout_seconds(raw: str | None) -> int:
@@ -89,7 +89,12 @@ def _attr_add(attr: dict, key: str, source: str, value: int | float) -> None:
 
 # ── Validation ───────────────────────────────────────────
 
-def check_preconditions(state: GameState, decree: StructuredDecree) -> str | None:
+def check_preconditions(
+    state: GameState,
+    decree: StructuredDecree,
+    *,
+    enforce_monthly_limit: bool = True,
+) -> str | None:
     conditions = DECREE_PRECONDITIONS.get(decree.type, [])
     for field, op, threshold in conditions:
         val = getattr(state, field)
@@ -105,8 +110,10 @@ def check_preconditions(state: GameState, decree: StructuredDecree) -> str | Non
                 "treasury": state.national_treasury,
                 "military_supply": state.military_strength,
             })
-    if decree.type.value in _MONTHLY_LIMITED and decree.type.value in state.decrees_this_month:
-        return "本月已下达此类政令"
+    if enforce_monthly_limit:
+        category = decree_category_of(decree.type)
+        if state.decrees_this_month.get(category):
+            return "本月已下达此类政令"
     return None
 
 
@@ -898,18 +905,80 @@ def _script_to_event(se: ScriptEvent, year: int, month: int) -> GameEvent:
     )
 
 
-def inject_script_events(state: GameState) -> list[str]:
+def _collect_script_candidates(state: GameState) -> list[ScriptEvent]:
     scripts = get_scripts_for_time(state.time.year, state.time.month)
-    injected = []
     active_script_ids = {e.script_id for e in state.active_events if e.script_id}
+    candidates: list[ScriptEvent] = []
     for se in scripts:
         if se.script_id in active_script_ids or se.script_id in state.resolved_script_ids:
             continue
         if se.condition is not None and not se.condition(state):
             continue
-        state.active_events.append(
-            _script_to_event(se, state.time.year, state.time.month)
-        )
+        candidates.append(se)
+    return candidates
+
+
+def _script_to_trigger_candidate(se: ScriptEvent) -> dict:
+    return {
+        "script_id": se.script_id,
+        "title": se.title,
+        "description": se.rich_description,
+        "is_blocking": se.is_blocking,
+        "condition": se.condition_spec,
+        "suggested_actions": [
+            {"label": choice.label, "description": choice.description}
+            for choice in se.choices
+        ],
+    }
+
+
+def get_undecided_script_trigger_candidates(state: GameState) -> list[dict]:
+    return [
+        _script_to_trigger_candidate(se)
+        for se in _collect_script_candidates(state)
+        if se.script_id not in state.trigger_decisions
+    ]
+
+
+def inject_script_events(
+    state: GameState,
+    *,
+    script_trigger_decisions: dict[str, tuple[bool, str]] | None = None,
+) -> list[str]:
+    candidates = _collect_script_candidates(state)
+    injected: list[str] = []
+    if not candidates:
+        return injected
+
+    undecided = [se for se in candidates if se.script_id not in state.trigger_decisions]
+    if undecided:
+        timestamp = f"{state.time.year:04d}-{state.time.month:02d}"
+        supplied_decisions = script_trigger_decisions or {}
+        for se in undecided:
+            decision_value = supplied_decisions.get(se.script_id)
+            should_trigger = True
+            reason = "AI决策缺失，回退规则触发"
+            if isinstance(decision_value, tuple) and len(decision_value) >= 2:
+                should_trigger = bool(decision_value[0])
+                reason = str(decision_value[1]).strip() or "AI未给出理由"
+            elif isinstance(decision_value, list) and len(decision_value) >= 2:
+                should_trigger = bool(decision_value[0])
+                reason = str(decision_value[1]).strip() or "AI未给出理由"
+            elif isinstance(decision_value, dict):
+                should_trigger = bool(decision_value.get("should_trigger", True))
+                reason = str(decision_value.get("reason", "")).strip() or "AI未给出理由"
+
+            state.trigger_decisions[se.script_id] = TriggerDecision(
+                should_trigger=should_trigger,
+                reason=reason,
+                timestamp=timestamp,
+            )
+
+    for se in candidates:
+        decision = state.trigger_decisions.get(se.script_id)
+        if decision is not None and not decision.should_trigger:
+            continue
+        state.active_events.append(_script_to_event(se, state.time.year, state.time.month))
         injected.append(se.title)
     return injected
 
@@ -1016,20 +1085,44 @@ def _tick_missions(state: GameState) -> None:
             ))
 
 
-
-def advance_month(state: GameState) -> tuple[list[str], dict | None, list[str]]:
-    """Advance game time by one month and inject script events.
-
-    passive_drift stays in process_decree (per-decree), not month advancement.
-    Returns (triggered_events, game_over, newly_activated_minister_names).
-    """
+def prepare_month_advance(state: GameState) -> list[str]:
     advance_time(state)
     state.decrees_this_month = {}
     state.decree_count += 1
     new_ministers = _activate_entered_ministers(state)
     _tick_missions(state)
-    triggered_events = inject_script_events(state)
+    return new_ministers
+
+
+def finalize_month_advance(
+    state: GameState,
+    *,
+    script_trigger_decisions: dict[str, tuple[bool, str]] | None = None,
+) -> tuple[list[str], dict | None]:
+    triggered_events = inject_script_events(
+        state,
+        script_trigger_decisions=script_trigger_decisions,
+    )
     game_over = check_game_end(state)
+    return triggered_events, game_over
+
+
+
+def advance_month(
+    state: GameState,
+    *,
+    script_trigger_decisions: dict[str, tuple[bool, str]] | None = None,
+) -> tuple[list[str], dict | None, list[str]]:
+    """Advance game time by one month and inject script events.
+
+    passive_drift stays in process_decree (per-decree), not month advancement.
+    Returns (triggered_events, game_over, newly_activated_minister_names).
+    """
+    new_ministers = prepare_month_advance(state)
+    triggered_events, game_over = finalize_month_advance(
+        state,
+        script_trigger_decisions=script_trigger_decisions,
+    )
     return triggered_events, game_over, new_ministers
 
 
@@ -1215,14 +1308,16 @@ def add_ai_new_events(state: GameState, new_events: list) -> None:
         if added >= 3:
             break
         if isinstance(evt, GameEvent):
+            # If triggered_year is 0 (default), it's a new event from AI
+            if evt.triggered_year <= 0:
+                evt.triggered_year = state.time.year
+                evt.triggered_month = state.time.month
+            
             cur = _time_to_months(state.time.year, state.time.month)
             evt_t = _time_to_months(evt.triggered_year, evt.triggered_month)
             if evt_t < cur:
                 logger.warning("add_ai_new_events: triggered time in past, discarding", extra={"entity_name": evt.name, "entity_type": "event", "context": "add_ai_new_events"})
                 continue
-            if evt_t > cur:
-                evt.triggered_year = state.time.year
-                evt.triggered_month = state.time.month
             state.active_events.append(evt)
             added += 1
             continue
@@ -1307,6 +1402,8 @@ def process_decree(
     state: GameState,
     decree: StructuredDecree | None = None,
     freeform: FreeformResult | None = None,
+    *,
+    mark_monthly_usage: bool = True,
 ) -> tuple[dict, dict, list[str], dict | None, list[MinisterReaction], TurnSummary]:
     """Execute one policy resolution pipeline and return its full outcome.
 
@@ -1404,8 +1501,8 @@ def process_decree(
     recalc_tax_collected(state, decree_tax_modifier)
     collect_tax_revenue(state, attr)
     clamp_state(state)
-    if decree and decree.type.value in _MONTHLY_LIMITED:
-        state.decrees_this_month[decree.type.value] = True
+    if decree and mark_monthly_usage:
+        state.decrees_this_month[decree_category_of(decree.type)] = True
     # after_snapshot for turn summary (post-clamp)
     after_snapshot = state.model_dump()
     # 6.5 memorial triggers (post-clamp)

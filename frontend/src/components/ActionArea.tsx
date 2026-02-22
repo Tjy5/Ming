@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { GameState, DecreeType, StructuredDecree, ModalItem } from '../types/game'
 import { DECREE_LABELS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
+import { CATEGORY_DECREES, CATEGORY_TABS, TAB_TO_CATEGORY, type DecreeCategoryTab } from '../constants/decreeCategories'
 import EdictWritingPanel from './EdictWritingPanel'
 
 interface Props {
@@ -15,24 +16,13 @@ interface Props {
   currentModal: ModalItem | null
 }
 
-type Category = '内政' | '军事' | '外交' | '其他'
-
-const CATEGORIES: Category[] = ['内政', '军事', '外交', '其他']
-
-const CATEGORY_DECREES: Record<Category, DecreeType[]> = {
-  军事: ['recruit_troops', 'disband_troops'],
-  内政: ['tax_increase', 'tax_decrease', 'disaster_relief', 'harsh_punishment'],
-  外交: ['diplomacy'],
-  其他: ['personnel'],
-}
-
 export default function ActionArea({
   state, loading, hasBlockingEvent,
   onDecree, onFreeText, onAdvanceMonth, advanceMonthInFlight,
   currentModal,
 }: Props) {
   const [text, setText] = useState('')
-  const [tab, setTab] = useState<Category>('内政')
+  const [tab, setTab] = useState<DecreeCategoryTab>('内政')
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
   const actionLocked = loading || hasBlockingEvent
   const textLocked = loading
@@ -56,7 +46,7 @@ export default function ActionArea({
   return (
     <div className="action-area">
       <div className="category-tabs">
-        {CATEGORIES.map(c => (
+        {CATEGORY_TABS.map(c => (
           <button
             key={c}
             className={`cat-tab${tab === c ? ' active' : ''}`}
@@ -71,7 +61,7 @@ export default function ActionArea({
           >
             {CATEGORY_DECREES[tab].map(type => {
               const ok = checkPrecondition(state, type)
-              const usedThisMonth = !!state.decrees_this_month[type]
+              const usedThisMonth = !!state.decrees_this_month[TAB_TO_CATEGORY[tab]]
               return (
                 <button
                   key={type}

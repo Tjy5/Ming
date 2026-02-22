@@ -18,6 +18,60 @@ from .positions import resolve_position
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
+DECREE_CATEGORY_MAP: dict[DecreeType, str] = {
+    DecreeType.TAX_INCREASE: "domestic",
+    DecreeType.TAX_DECREASE: "domestic",
+    DecreeType.DISASTER_RELIEF: "domestic",
+    DecreeType.HARSH_PUNISHMENT: "domestic",
+    DecreeType.RECRUIT_TROOPS: "military",
+    DecreeType.DISBAND_TROOPS: "military",
+    DecreeType.DIPLOMACY: "diplomacy",
+    DecreeType.PERSONNEL: "other",
+}
+VALID_DECREE_CATEGORIES = frozenset(DECREE_CATEGORY_MAP.values())
+_CATEGORY_ALIASES = {
+    "domestic": "domestic",
+    "military": "military",
+    "diplomacy": "diplomacy",
+    "other": "other",
+    "内政": "domestic",
+    "军事": "military",
+    "外交": "diplomacy",
+    "其他": "other",
+}
+
+
+def decree_category_of(decree_type: DecreeType) -> str:
+    return DECREE_CATEGORY_MAP[decree_type]
+
+
+def normalize_decree_category_usage(raw: object) -> dict[str, bool]:
+    if not isinstance(raw, dict):
+        return {}
+
+    normalized: dict[str, bool] = {}
+    for key, used in raw.items():
+        if not used:
+            continue
+        if not isinstance(key, str):
+            continue
+        token = key.strip()
+        if not token:
+            continue
+
+        mapped = _CATEGORY_ALIASES.get(token.lower(), _CATEGORY_ALIASES.get(token))
+        if mapped in VALID_DECREE_CATEGORIES:
+            normalized[mapped] = True
+            continue
+
+        try:
+            decree_type = DecreeType(token)
+        except ValueError:
+            continue
+        normalized[decree_category_of(decree_type)] = True
+
+    return normalized
+
 
 # ── Faction ──────────────────────────────────────────────
 
@@ -295,6 +349,14 @@ class GameEvent(BaseModel):
     historical_basis: str = ""
 
 
+# ── Script Trigger Decision ──────────────────────────────
+
+class TriggerDecision(BaseModel):
+    should_trigger: bool
+    reason: str = ""
+    timestamp: str = ""
+
+
 # ── History ──────────────────────────────────────────────
 
 class HistoryEntry(BaseModel):
@@ -349,9 +411,11 @@ class GameState(BaseModel):
     active_events: list[GameEvent] = Field(default_factory=list)
     history_log: list[HistoryEntry] = Field(default_factory=list)
     decree_count: int = 0
+    # category-keyed usage map: domestic/military/diplomacy/other
     decrees_this_month: dict[str, bool] = Field(default_factory=dict)
     event_cooldowns: dict[str, int] = Field(default_factory=dict)
     resolved_script_ids: set[str] = Field(default_factory=set)
+    trigger_decisions: dict[str, TriggerDecision] = Field(default_factory=dict)
     memorials: list[Memorial] = Field(default_factory=list)
     memorial_cooldowns: dict[str, int] = Field(default_factory=dict)
     last_assembly: CourtAssembly | None = None
@@ -394,6 +458,18 @@ class GameState(BaseModel):
                     })
             normalized[minister_name] = converted
         return normalized
+
+    @field_validator("decrees_this_month", mode="before")
+    @classmethod
+    def _normalize_decrees_this_month(cls, value):
+        return normalize_decree_category_usage(value)
+
+    @field_validator("trigger_decisions", mode="before")
+    @classmethod
+    def _normalize_trigger_decisions(cls, value):
+        if value is None or not isinstance(value, dict):
+            return {}
+        return value
 
     def append_conversation_message(
         self,

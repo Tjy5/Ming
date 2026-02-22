@@ -381,6 +381,30 @@ def test_freeform_empty_returns_error_with_script_id():
     assert exc_info.value.detail["error_code"] == "FREEFORM_EMPTY"
 
 
+def test_minister_dialogue_returns_503_when_ai_fails_and_mock_disabled(monkeypatch):
+    class _FailDialogueProvider(MockProvider):
+        async def generate_minister_dialogue(self, *args, **kwargs):
+            raise RuntimeError("dialogue failed")
+
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.delenv("AI_ENABLE_MOCK_FALLBACK", raising=False)
+    api_state._provider = ResilientProvider(_FailDialogueProvider(), timeout=1, retries=1)
+    api_state._state = create_initial_state()
+
+    minister_name = next(m.name for m in api_state._state.ministers if m.status.value == "active")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            routes.minister_dialogue(
+                minister_name=minister_name,
+                req=routes.DialogueRequest(message="测试问话"),
+            )
+        )
+
+    assert exc_info.value.status_code == 503
+    assert exc_info.value.detail["error_code"] == "dialogue_generation_failed"
+
+
 # ── 10.10 200-char limit boundary test ──
 
 def test_200_char_limit_accepted():

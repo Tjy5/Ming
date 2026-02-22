@@ -35,9 +35,9 @@ class TestMinisterModel:
         m = Minister(name="x", faction="y", status=MinisterStatus.IDLE)
         assert m.status == MinisterStatus.IDLE
 
-    def test_tags_max_3(self):
+    def test_tags_max_4(self):
         with pytest.raises(ValidationError):
-            Minister(name="x", faction="y", personality_tags=["a", "b", "c", "d"])
+            Minister(name="x", faction="y", personality_tags=["a", "b", "c", "d", "e"])
 
 
 # ── 12.2 INITIAL_MINISTERS data integrity ──────────────
@@ -61,9 +61,9 @@ class TestInitialMinisters:
                 v = getattr(m.abilities, field)
                 assert 0 <= v <= 100
 
-    def test_all_tags_max_3(self):
+    def test_all_tags_max_4(self):
         for m in INITIAL_MINISTERS:
-            assert len(m.personality_tags) <= 3
+            assert len(m.personality_tags) <= 4
 
 
 # ── 12.3 Conditional script injection ─────────────────
