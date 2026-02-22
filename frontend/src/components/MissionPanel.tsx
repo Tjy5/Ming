@@ -10,6 +10,9 @@ export default function MissionPanel({ ministers }: Props) {
 
   return (
     <div className="mission-panel">
+      <div className="mp-faction-header" style={{ marginBottom: '8px', borderLeft: '3px solid var(--accent-gold)' }}>
+        <span>大臣工作进度</span>
+      </div>
       {onMission.map(m => {
         const ms = m.current_mission!
         const pct = Math.min(100, Math.round((ms.progress_months / ms.total_months) * 100))

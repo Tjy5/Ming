@@ -282,12 +282,10 @@ function App() {
             >官职</button>
           </div>
           <div className="right-panel-body">
+            <MissionPanel ministers={state.ministers} />
             {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
             {rightTab === 'minister' && (
-              <>
-                <MissionPanel ministers={state.ministers} />
-                <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} />
-              </>
+              <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} />
             )}
             {rightTab === 'assembly' && (
               <CourtAssemblyView
