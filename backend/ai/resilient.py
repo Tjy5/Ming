@@ -20,6 +20,7 @@ from .base import (
     _env_float,
     _env_int,
     get_rule_parse_fallback,
+    mock_fallback_enabled,
     parse_error,
 )
 from .mock_provider import MockProvider
@@ -94,6 +95,66 @@ class ResilientProvider(AIProvider):
             logging.error("%s attempt %d/%d failed (%s): %s", operation, attempt, retries, err_type, msg)
         else:
             logging.error("%s attempt %d/%d failed (%s)", operation, attempt, retries, err_type)
+
+    @staticmethod
+    def _normalize_script_choice_result(result: dict) -> dict:
+        if "error" in result:
+            return result
+
+        raw_index = result.get("choice_index")
+        if raw_index is None or isinstance(raw_index, bool):
+            choice_index = None
+        else:
+            try:
+                choice_index = int(raw_index)
+            except (TypeError, ValueError):
+                choice_index = None
+
+        raw_confidence = result.get("confidence", 0.0)
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence = max(0.0, min(1.0, confidence))
+
+        reason = str(result.get("reason", "")).strip() or "AI未提供分类理由"
+        return {
+            "choice_index": choice_index,
+            "confidence": confidence,
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _normalize_script_trigger_decisions(
+        result: dict,
+        candidate_ids: set[str],
+    ) -> dict[str, tuple[bool, str]] | dict:
+        if "error" in result:
+            return result
+
+        normalized: dict[str, tuple[bool, str]] = {}
+        for key, value in result.items():
+            script_id = str(key).strip()
+            if script_id not in candidate_ids:
+                continue
+            if isinstance(value, tuple) and len(value) >= 2:
+                normalized[script_id] = (bool(value[0]), str(value[1]).strip() or "AI未给出理由")
+                continue
+            if isinstance(value, list) and len(value) >= 2:
+                normalized[script_id] = (bool(value[0]), str(value[1]).strip() or "AI未给出理由")
+                continue
+            if isinstance(value, dict):
+                normalized[script_id] = (
+                    bool(value.get("should_trigger", True)),
+                    str(value.get("reason", "")).strip() or "AI未给出理由",
+                )
+                continue
+            if isinstance(value, bool):
+                normalized[script_id] = (value, "AI未给出理由")
+
+        for script_id in candidate_ids:
+            normalized.setdefault(script_id, (True, "AI未返回该事件决策，默认触发"))
+        return normalized
 
     async def generate_narrative(
         self,
@@ -378,6 +439,101 @@ class ResilientProvider(AIProvider):
                     return await MockProvider().generate_turn_commentary(summary_data, game_state)
         return await MockProvider().generate_turn_commentary(summary_data, game_state)
 
+    async def classify_script_choice(
+        self,
+        player_text: str,
+        script_context: dict | None = None,
+        *,
+        game_state: GameState | None = None,
+    ) -> dict:
+        for attempt in range(self._parse_retries):
+            try:
+                result = await asyncio.wait_for(
+                    self._inner.classify_script_choice(
+                        player_text,
+                        script_context,
+                        game_state=game_state,
+                    ),
+                    timeout=self._parse_timeout,
+                )
+                if not isinstance(result, dict):
+                    raise ValueError("脚本选项分类返回格式无效")
+                normalized = self._normalize_script_choice_result(result)
+                if "error" in normalized:
+                    raise ValueError(str(normalized.get("error", "脚本选项分类失败")))
+                return normalized
+            except Exception as e:
+                self._log_retry_failure("classify_script_choice", attempt + 1, self._parse_retries, e)
+                if attempt == self._parse_retries - 1:
+                    break
+
+        try:
+            fallback = await MockProvider().classify_script_choice(
+                player_text,
+                script_context,
+                game_state=game_state,
+            )
+            if isinstance(fallback, dict):
+                normalized = self._normalize_script_choice_result(fallback)
+                if "error" not in normalized:
+                    return normalized
+        except Exception as e:
+            self._log_retry_failure("classify_script_choice_fallback", 1, 1, e)
+
+        return {
+            "choice_index": None,
+            "confidence": 0.0,
+            "reason": "脚本选项分类不可用",
+        }
+
+    async def select_script_trigger_decisions(
+        self,
+        game_state: GameState,
+        candidates: list[dict],
+    ) -> dict[str, tuple[bool, str]]:
+        candidate_ids = {
+            str(item.get("script_id", "")).strip()
+            for item in candidates
+            if isinstance(item, dict) and str(item.get("script_id", "")).strip()
+        }
+        if not candidate_ids:
+            return {}
+
+        for attempt in range(self._parse_retries):
+            try:
+                result = await asyncio.wait_for(
+                    self._inner.select_script_trigger_decisions(game_state, candidates),
+                    timeout=self._parse_timeout,
+                )
+                if not isinstance(result, dict):
+                    raise ValueError("剧情触发决策返回格式无效")
+                normalized = self._normalize_script_trigger_decisions(result, candidate_ids)
+                if "error" in normalized:
+                    raise ValueError(str(normalized.get("error", "剧情触发决策失败")))
+                return normalized
+            except Exception as e:
+                self._log_retry_failure(
+                    "select_script_trigger_decisions",
+                    attempt + 1,
+                    self._parse_retries,
+                    e,
+                )
+                if attempt == self._parse_retries - 1:
+                    break
+
+        try:
+            fallback = await MockProvider().select_script_trigger_decisions(game_state, candidates)
+            normalized = self._normalize_script_trigger_decisions(fallback, candidate_ids)
+            if "error" not in normalized:
+                return normalized
+        except Exception as e:
+            self._log_retry_failure("select_script_trigger_decisions_fallback", 1, 1, e)
+
+        return {
+            script_id: (True, "AI不可用，回退规则触发")
+            for script_id in candidate_ids
+        }
+
     async def process_freeform(
         self,
         text: str,
@@ -413,11 +569,19 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_minister_dialogue", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().generate_minister_dialogue(
-                        minister,
-                        message,
-                        game_state,
-                        conversation_history,
-                    )
-        return await MockProvider().generate_minister_dialogue(minister, message, game_state, conversation_history)
-
+                    if mock_fallback_enabled():
+                        return await MockProvider().generate_minister_dialogue(
+                            minister,
+                            message,
+                            game_state,
+                            conversation_history,
+                        )
+                    raise
+        if mock_fallback_enabled():
+            return await MockProvider().generate_minister_dialogue(
+                minister,
+                message,
+                game_state,
+                conversation_history,
+            )
+        raise RuntimeError("generate_minister_dialogue failed")

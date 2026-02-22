@@ -66,7 +66,7 @@ async def assembly_start():
                 AssemblyParticipant(
                     name=p.name,
                     faction=p.faction,
-                    position=p.position or "朝臣",
+                    position=p.positions[0] if p.positions else "朝臣",
                     argument_text="",
                 )
                 for p in participants
@@ -264,8 +264,8 @@ async def assembly_decree(req: AssemblyDecreeRequest):
         if decision in {"adopt", "override"} and assembly.decree_type:
             decree = StructuredDecree(type=assembly.decree_type)
             try:
-                if not check_preconditions(state, decree):
-                    decree_effects = await process_decree(state, decree)
+                if not check_preconditions(state, decree, enforce_monthly_limit=False):
+                    decree_effects = process_decree(state, decree, mark_monthly_usage=False)
             except Exception as e:
                 logging.error(f"Failed to execute decree in assembly: {e}")
 
@@ -458,7 +458,7 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
         suggestion = state.last_assembly.suggestions[req.suggestion_index]
         decree = suggestion.related_decree
 
-        reason = check_preconditions(state, decree)
+        reason = check_preconditions(state, decree, enforce_monthly_limit=False)
         if reason:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="precondition_failed",
@@ -472,7 +472,11 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             ).model_dump())
 
         mem_count_before = len(state.memorials)
-        delta, attr, triggered, game_over, reactions, summary = process_decree(state, decree)
+        delta, attr, triggered, game_over, reactions, summary = process_decree(
+            state,
+            decree,
+            mark_monthly_usage=False,
+        )
         mem_triggers = state.memorials[mem_count_before:]
         narrative = await provider.generate_narrative(attr, state, triggered, decree)
         if summary:

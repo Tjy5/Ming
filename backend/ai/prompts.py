@@ -84,11 +84,11 @@ def build_parse_prompt(text: str, state: GameState) -> str:
         """
 
 
-MEMORIAL_SYSTEM_PROMPT = "你是崇祯模拟器的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。"
-MINISTER_REACTION_SYSTEM_PROMPT = "你是崇祯模拟器的大臣反应生成器。输出一句简短的大臣反应，30-50字。"
-TURN_COMMENTARY_SYSTEM_PROMPT = "你是崇祯模拟器的朝政总评生成器。输出50-100字的朝政概况。"
+MEMORIAL_SYSTEM_PROMPT = "你是《大明：危局》的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。"
+MINISTER_REACTION_SYSTEM_PROMPT = "你是《大明：危局》的大臣反应生成器。输出一句简短的大臣反应，30-50字。"
+TURN_COMMENTARY_SYSTEM_PROMPT = "你是《大明：危局》的朝政总评生成器。输出50-100字的朝政概况。"
 MINISTER_DIALOGUE_SYSTEM_PROMPT = (
-    "你是崇祯朝大臣角色扮演引擎。"
+    "你是大明崇祯朝大臣角色扮演引擎。"
     "必须以第一人称回复皇帝，语气要符合该大臣身份、派系与性格。"
     "回复内容要结合当前国情与对话历史。"
     "仅输出JSON：{\"reply\":\"...\",\"loyalty_change\":0,\"mood\":\"neutral\"}。"
@@ -96,7 +96,7 @@ MINISTER_DIALOGUE_SYSTEM_PROMPT = (
     "mood 只能是 support、neutral、oppose。"
 )
 NARRATIVE_SYSTEM_PROMPT = (
-    "你是一款历史模拟游戏（崇祯模拟器）的AI引擎。"
+    "你是一款历史模拟游戏《大明：危局》的AI引擎。"
     "你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。"
     "请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"
 )
@@ -175,7 +175,22 @@ def build_minister_dialogue_prompt(
     game_state: GameState,
     conversation_history: list[dict],
 ) -> str:
+    def _clip_text(raw: str, *, limit: int) -> str:
+        cleaned = " ".join((raw or "").split()).strip()
+        if not cleaned:
+            return "无"
+        if len(cleaned) <= limit:
+            return cleaned
+        return f"{cleaned[:limit]}..."
+
     recent_events = "；".join(e.name for e in game_state.active_events[:3]) if game_state.active_events else "无"
+    historical_note = _clip_text(minister.historical_note, limit=120)
+    biography = _clip_text(minister.biography, limit=260)
+    major_contributions = "；".join(
+        _clip_text(item, limit=80)
+        for item in minister.major_contributions[:3]
+        if str(item).strip()
+    ) or "无"
 
     history_lines: list[str] = []
     for item in conversation_history[-20:]:
@@ -192,11 +207,15 @@ def build_minister_dialogue_prompt(
         history_lines.append(f"{speaker}: {content}")
 
     history_text = "\n".join(history_lines) if history_lines else "无"
+    position_text = minister.positions[0] if minister.positions else "朝臣"
     return (
         f"大臣：{minister.name}\n"
-        f"官职：{minister.position or '朝臣'}\n"
+        f"官职：{position_text}\n"
         f"派系：{minister.faction}\n"
         f"性格：{_join_tags(minister.personality_tags)}\n"
+        f"史实备注：{historical_note}\n"
+        f"人物生平：{biography}\n"
+        f"主要事功：{major_contributions}\n"
         f"忠诚度：{minister.loyalty}/100\n"
         f"当前时间：{game_state.time.year}年{game_state.time.month}月\n"
         f"国库：{game_state.national_treasury}万两，内帑：{game_state.imperial_treasury}万两，粮草：{game_state.grain}万石\n"
