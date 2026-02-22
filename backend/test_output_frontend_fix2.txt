@@ -1,0 +1,23 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.6, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\1something\Ming\backend
+plugins: anyio-4.12.1, hypothesis-6.151.9
+collected 308 items
+
+tests\test_api_routes.py .....................                           [  6%]
+tests\test_balance_mechanics.py ..............................           [ 16%]
+tests\test_debate_parsing.py ...                                         [ 17%]
+tests\test_migration.py ...................                              [ 23%]
+tests\test_ministers_review.py ....                                      [ 25%]
+tests\test_parse_fallback.py ..                                          [ 25%]
+tests\test_pbt.py .........                                              [ 28%]
+tests\test_phase2.py ..........................                          [ 37%]
+tests\test_phase3.py ................................................... [ 53%]
+..........................................                               [ 67%]
+tests\test_positions.py ..................................               [ 78%]
+tests\test_resilient_provider_env.py ..                                  [ 78%]
+tests\test_scripts.py ..........................................         [ 92%]
+tests\test_task_model_routing.py .........                               [ 95%]
+tests\test_tax.py ..............                                         [100%]
+
+============================= 308 passed in 6.11s =============================

@@ -1,0 +1,35 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.6, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\1something\Ming\backend
+plugins: anyio-4.12.1, hypothesis-6.151.9
+collected 362 items
+
+tests\test_api_routes.py .....................                           [  5%]
+tests\test_balance_mechanics.py ..............................           [ 14%]
+tests\test_debate_parsing.py ...                                         [ 14%]
+tests\test_freeform.py ......................................F.......... [ 28%]
+.....                                                                    [ 29%]
+tests\test_migration.py ...................                              [ 35%]
+tests\test_ministers_review.py ....                                      [ 36%]
+tests\test_parse_fallback.py ..                                          [ 36%]
+tests\test_pbt.py .........                                              [ 39%]
+tests\test_phase2.py ..........................                          [ 46%]
+tests\test_phase3.py ................................................... [ 60%]
+..........................................                               [ 72%]
+tests\test_positions.py ..................................               [ 81%]
+tests\test_resilient_provider_env.py ..                                  [ 82%]
+tests\test_scripts.py ..........................................         [ 93%]
+tests\test_task_model_routing.py .........                               [ 96%]
+tests\test_tax.py ..............                                         [100%]
+
+================================== FAILURES ===================================
+__________ TestProcessDecreeFreeform.test_freeform_new_events_added ___________
+tests\test_freeform.py:347: in test_freeform_new_events_added
+    assert len(ai_events) == 1
+E   assert 0 == 1
+E    +  where 0 = len([])
+------------------------------ Captured log call ------------------------------
+WARNING  engine.core:core.py:1222 add_ai_new_events: triggered time in past, discarding
+=========================== short test summary info ===========================
+FAILED tests/test_freeform.py::TestProcessDecreeFreeform::test_freeform_new_events_added
+======================== 1 failed, 361 passed in 6.73s ========================

@@ -225,15 +225,19 @@ def _migrate_save(data: dict) -> list[str]:
             fields_patched = False
             for m in data["ministers"]:
                 needs_patch = any(
-                    k not in m for k in ("position", "entry_year", "entry_month", "historical_note")
+                    k not in m for k in ("positions", "entry_year", "entry_month", "historical_note")
                 )
                 if needs_patch:
                     fields_patched = True
                     im = init_map.get(m.get("name"))
-                    m.setdefault("position", im.position if im else "")
+                    # Migrate position -> positions
+                    if "position" in m and "positions" not in m:
+                        m["positions"] = [m.pop("position")] if m["position"] else []
+                    m.setdefault("positions", im.positions if im else [])
                     m.setdefault("entry_year", im.entry_year if im else 1627)
                     m.setdefault("entry_month", im.entry_month if im else 8)
                     m.setdefault("historical_note", im.historical_note if im else "")
+                    m.setdefault("is_eunuch", im.is_eunuch if im else False)
             if fields_patched:
                 notes.append("补全了大臣生平属性")
 

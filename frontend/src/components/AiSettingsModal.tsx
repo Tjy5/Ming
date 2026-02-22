@@ -36,8 +36,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('')
   const [simpleModel, setSimpleModel] = useState('')
-  const [enableThinking, setEnableThinking] = useState(false)
-  const [enableThinkingSimple, setEnableThinkingSimple] = useState(false)
+  // Removed unused enableThinking state
+  // Removed unused enableThinkingSimple state
   const [thinkingConfig, setThinkingConfig] = useState<ThinkingConfig>({})
   const [thinkingConfigSimple, setThinkingConfigSimple] = useState<ThinkingConfig>({})
   const [providerOptions, setProviderOptions] = useState<AIProvider[]>(['mock', 'openai', 'google', 'h', 'Z'])
@@ -79,8 +79,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     setBaseUrl(settings.base_url || '')
     setModel(settings.model || '')
     setSimpleModel(settings.simple_model || '')
-    setEnableThinking(settings.enable_thinking ?? false)
-    setEnableThinkingSimple(settings.enable_thinking_simple ?? false)
+    // Removed unused setEnableThinking
+    // Removed unused setEnableThinkingSimple
     setThinkingConfig(nextThinkingConfig)
     setThinkingConfigSimple(nextThinkingConfigSimple)
     setProviderOptions(settings.provider_options)
@@ -115,8 +115,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       setBaseUrl('')
       setModel('')
       setSimpleModel('')
-      setEnableThinking(false)
-      setEnableThinkingSimple(false)
+      // Removed unused setEnableThinking
+      // Removed unused setEnableThinkingSimple
       setThinkingConfig({})
       setThinkingConfigSimple({})
       setModels([])

@@ -96,7 +96,7 @@ export default function MinisterDialogue({ minister, onClose, onStateUpdate }: P
               />
             )}
             <div className="md-minister-name" id="dialogue-minister-name">{minister.name}</div>
-            <div className="md-minister-pos">{minister.position || '大臣'}</div>
+            <div className="md-minister-pos">{minister.positions?.join('、') || '大臣'}</div>
             <div className="md-minister-faction">{minister.faction}</div>
             {minister.historical_note && <div className="md-historical-note">{minister.historical_note}</div>}
 

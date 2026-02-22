@@ -630,6 +630,44 @@
   opacity: 0.8;
 }
 
+/* Position tags for multi-position display */
+.mp-positions {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.mp-position-tag {
+  font-size: 0.6rem;
+  color: var(--accent-gold);
+  background: rgba(218, 165, 32, 0.15);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  border-radius: 2px;
+  padding: 1px 4px;
+}
+
+.mp-position-tag.mp-pos-noble {
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.12);
+  border-color: rgba(255, 215, 0, 0.35);
+}
+
+.mp-position-tag.mp-pos-eunuch {
+  color: #9ca3af;
+  background: rgba(156, 163, 175, 0.12);
+  border-color: rgba(156, 163, 175, 0.3);
+}
+
+.mp-eunuch-badge {
+  font-size: 0.55rem;
+  color: #9ca3af;
+  background: rgba(156, 163, 175, 0.15);
+  border-radius: 2px;
+  padding: 0 3px;
+  margin-left: 4px;
+}
+
 .mp-tags {
   display: flex;
   gap: 4px;

@@ -13,6 +13,8 @@ from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
     PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus, AssemblyPhase,
 )
+from .positions import resolve_position
+from .positions import resolve_position
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
@@ -45,11 +47,12 @@ class MissionState(BaseModel):
 class Minister(BaseModel):
     name: str
     faction: str
-    personality_tags: list[str] = Field(default_factory=list, max_length=3)
+    personality_tags: list[str] = Field(default_factory=list, max_length=4)
     abilities: MinisterAbilities = Field(default_factory=MinisterAbilities)
     status: MinisterStatus = MinisterStatus.ACTIVE
     loyalty: int = Field(default=50, ge=0, le=100)
-    position: str = ""
+    positions: list[str] = Field(default_factory=list)
+    is_eunuch: bool = False
     entry_year: int = 1627
     entry_month: int = Field(default=8, ge=1, le=12)
     historical_note: str = Field(default="", max_length=200)
@@ -467,34 +470,63 @@ INITIAL_REGIONS = [
 _MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
 
 
-_VALID_POSITIONS = {
-    "首辅大学士", "次辅大学士", "群辅大学士",
-    "吏部尚书", "吏部侍郎", "户部尚书", "户部侍郎",
-    "礼部尚书", "礼部侍郎", "兵部尚书", "兵部侍郎",
-    "刑部尚书", "刑部侍郎", "工部尚书", "工部侍郎",
-    "左都御史", "指挥使", "巡抚", "总兵",
-}
+def _split_position_text(value: str) -> list[str]:
+    tokens = [value]
+    for delimiter in ("兼", "、", "，", ","):
+        next_tokens: list[str] = []
+        for token in tokens:
+            next_tokens.extend(token.split(delimiter))
+        tokens = next_tokens
+    return [token.strip() for token in tokens if token.strip()]
 
 
-def _load_initial_ministers() -> tuple[list[Minister], dict[str, str]]:
+def _normalize_positions(item: dict) -> list[str]:
+    raw_positions = item.get("positions")
+    if raw_positions is None:
+        legacy_position = str(item.get("position", "")).strip()
+        raw_positions = _split_position_text(legacy_position) if legacy_position else []
+
+    if isinstance(raw_positions, str):
+        raw_positions = [raw_positions]
+
+    if not isinstance(raw_positions, list):
+        raise ValueError(
+            f"Invalid positions format for minister {item.get('name', '<unknown>')}: {raw_positions!r}"
+        )
+
+    normalized_positions: list[str] = []
+    for raw_position in raw_positions:
+        if not isinstance(raw_position, str):
+            raise ValueError(
+                f"Invalid position value for minister {item.get('name', '<unknown>')}: {raw_position!r}"
+            )
+        for token in _split_position_text(raw_position):
+            canonical = resolve_position(token)
+            if canonical is None:
+                raise ValueError(
+                    f"Invalid position '{token}' for minister {item.get('name', '<unknown>')}"
+                )
+            if canonical not in normalized_positions:
+                normalized_positions.append(canonical)
+    return normalized_positions
+
+
+def _load_initial_ministers() -> list[Minister]:
     raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
-    canonical_map: dict[str, str] = {}
+    normalized_raw: list[dict] = []
     for item in raw:
-        cp = item.get("canonical_position", "")
-        if cp:
-            if cp not in _VALID_POSITIONS:
-                raise ValueError(f"Invalid canonical_position: {cp}")
-            if cp in canonical_map.values():
-                raise ValueError(f"Duplicate canonical_position: {cp}")
-            canonical_map[item["name"]] = cp
-    ministers = [Minister.model_validate(item) for item in raw]
+        normalized_item = dict(item)
+        normalized_item["positions"] = _normalize_positions(item)
+        normalized_item["is_eunuch"] = bool(item.get("is_eunuch", False))
+        normalized_raw.append(normalized_item)
+    ministers = [Minister.model_validate(item) for item in normalized_raw]
     names = [m.name for m in ministers]
     if len(names) != len(set(names)):
         raise ValueError("Duplicate minister names in ministers.json")
-    return ministers, canonical_map
+    return ministers
 
 
-INITIAL_MINISTERS, _CANONICAL_POSITIONS = _load_initial_ministers()
+INITIAL_MINISTERS = _load_initial_ministers()
 
 
 def _time_key(year: int, month: int) -> int:
@@ -508,12 +540,8 @@ def create_initial_state() -> GameState:
         m = tpl.model_copy()
         if m.status == MinisterStatus.ACTIVE and _time_key(m.entry_year, m.entry_month) > start_key:
             m.status = MinisterStatus.NOT_YET_ENTERED
-        if m.name in _CANONICAL_POSITIONS:
-            m.position = _CANONICAL_POSITIONS[m.name]
-        else:
-            m.position = ""
-            if m.status == MinisterStatus.ACTIVE:
-                m.status = MinisterStatus.IDLE
+        elif m.status == MinisterStatus.ACTIVE:
+            m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
         ministers.append(m)
 
     state = GameState(

@@ -1,0 +1,38 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.6, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\1something\Ming\backend
+plugins: anyio-4.12.1, hypothesis-6.151.9
+collected 362 items
+
+tests\test_api_routes.py .....................                           [  5%]
+tests\test_balance_mechanics.py ..............................           [ 14%]
+tests\test_debate_parsing.py ...                                         [ 14%]
+tests\test_freeform.py ......................................F
+
+================================== FAILURES ===================================
+__________ TestProcessDecreeFreeform.test_freeform_new_events_added ___________
+
+self = <test_freeform.TestProcessDecreeFreeform object at 0x0000023A9A723850>
+
+    def test_freeform_new_events_added(self):
+        state = make_state()
+        before_events = len(state.active_events)
+        freeform = FreeformResult(
+            effects={"global.national_treasury": -10},
+            narrative="娴嬭瘯",
+            rationale="娴嬭瘯",
+            new_events=[{"name": "AI鍒涘缓浜嬩欢", "urgency": "楂?}],
+        )
+        process_decree(state, freeform=freeform)
+        ai_events = [e for e in state.active_events if e.name == "AI鍒涘缓浜嬩欢"]
+>       assert len(ai_events) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests\test_freeform.py:347: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  engine.core:core.py:1222 add_ai_new_events: triggered time in past, discarding
+=========================== short test summary info ===========================
+FAILED tests/test_freeform.py::TestProcessDecreeFreeform::test_freeform_new_events_added
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======================== 1 failed, 92 passed in 5.08s =========================

@@ -4,6 +4,7 @@ from fastapi import HTTPException
 
 from models.game import CourtAssembly, ErrorResponse, GameState, Minister
 from models.enums import AssemblyPhase, MinisterStatus
+from models.positions import calculate_position_weight
 
 
 def time_to_months(year: int, month: int) -> int:
@@ -12,26 +13,14 @@ def time_to_months(year: int, month: int) -> int:
 
 MIN_PARTICIPANTS = 10
 MAX_PARTICIPANTS = 15
-_POSITION_WEIGHTS: tuple[tuple[str, int], ...] = (
-    ("首辅", 120),
-    ("次辅", 115),
-    ("大学士", 110),
-    ("尚书", 100),
-    ("侍郎", 90),
-    ("都御史", 85),
-    ("巡抚", 80),
-    ("总督", 80),
-    ("总兵", 78),
-)
 
 
-def assembly_position_score(position: str) -> int:
-    pos = (position or "").strip()
-    score = 0
-    for key, weight in _POSITION_WEIGHTS:
-        if key in pos:
-            score = max(score, weight)
-    return score
+def assembly_position_score(minister: Minister) -> int:
+    """Calculate position score for assembly participant selection.
+
+    Uses the cumulative weight from all positions held by the minister.
+    """
+    return calculate_position_weight(minister.positions)
 
 
 def normalize_petition_urgency(value: str) -> str:
@@ -106,7 +95,7 @@ def select_assembly_participants(state: GameState) -> list[Minister]:
     def score(m: Minister) -> tuple[int, int, int, int]:
         ability_total = m.abilities.civil + m.abilities.military + m.abilities.diplomacy
         return (
-            assembly_position_score(m.position),
+            assembly_position_score(m),
             m.loyalty,
             ability_total,
             -order_map.get(m.name, 9999),

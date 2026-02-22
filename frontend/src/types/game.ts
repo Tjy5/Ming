@@ -62,7 +62,8 @@ export interface Minister {
   abilities: MinisterAbilities
   status: MinisterStatus
   loyalty: number
-  position: string
+  positions: string[]
+  is_eunuch: boolean
   entry_year: number
   entry_month: number
   historical_note: string

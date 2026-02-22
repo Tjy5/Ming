@@ -17,6 +17,9 @@ from models.enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
     EventUrgency, MinisterStatus, PersonnelAction, MemorialStatus,
 )
+from models.positions import (
+    can_appoint, is_unique_position, is_eunuch_position, resolve_position,
+)
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
     DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
@@ -127,6 +130,16 @@ def validate_target(decree: StructuredDecree, state: GameState | None = None) ->
                 return "任免目标人物不存在"
             if target.status == MinisterStatus.NOT_YET_ENTERED:
                 return "该人物尚未入朝，当前不可任免"
+            # Additional validation for APPOINT action
+            if decree.sub_action == PersonnelAction.APPOINT:
+                raw_pos = decree.parameters.get("position", "") if decree.parameters else ""
+                if not isinstance(raw_pos, str) or not raw_pos.strip():
+                    return "任命官职不能为空"
+                canonical_pos = resolve_position(raw_pos)
+                if canonical_pos is None:
+                    return f"无效官职: {raw_pos}"
+                if not can_appoint(target.is_eunuch, target.faction, target.personality_tags, canonical_pos):
+                    return "大臣身份与该官职要求不符（太监、勋贵、翰林或武将限制）"
     elif req == "diplomacy_target":
         if not decree.target or decree.target not in DIPLOMACY_TARGETS:
             return TARGET_MISSING_MESSAGES[decree.type]
@@ -150,14 +163,29 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
                 m.status = MinisterStatus.REMOVED
                 executed.add(m.name)
             elif decree.sub_action == PersonnelAction.APPOINT and m.status == MinisterStatus.IDLE:
-                pos = decree.parameters.get("position", "") if decree.parameters else ""
+                raw_pos = decree.parameters.get("position", "") if decree.parameters else ""
+                # Type check: position must be a string
+                if not isinstance(raw_pos, str):
+                    break
+                # Canonicalize position name (handles aliases)
+                pos = resolve_position(raw_pos)
                 if not pos:
                     break
+                # Validate EUNUCH appointment constraint
+                if not can_appoint(m.is_eunuch, m.faction, m.personality_tags, pos):
+                    break
                 m.status = MinisterStatus.ACTIVE
-                for other in state.ministers:
-                    if other.name != m.name and other.status == MinisterStatus.ACTIVE and other.position == pos:
-                        other.position = ""
-                m.position = pos
+                # For unique positions, remove from previous holder
+                if is_unique_position(pos):
+                    for other in state.ministers:
+                        if other.name != m.name and other.status == MinisterStatus.ACTIVE and pos in other.positions:
+                            other.positions = [p for p in other.positions if p != pos]
+                            # If no positions left, set to IDLE
+                            if not other.positions:
+                                other.status = MinisterStatus.IDLE
+                # Append position to array (support multi-position)
+                if pos not in m.positions:
+                    m.positions.append(pos)
             break
     return dismissed, executed
 
@@ -937,7 +965,7 @@ def _activate_entered_ministers(state: GameState) -> list[str]:
         if m.status != MinisterStatus.NOT_YET_ENTERED:
             continue
         if _time_to_months(m.entry_year, m.entry_month) <= current:
-            m.status = MinisterStatus.IDLE if m.position == "" else MinisterStatus.ACTIVE
+            m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
             activated.append(m.name)
     return activated
 

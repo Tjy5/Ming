@@ -15,6 +15,10 @@ from models.game import (
     MemorialResolutionResult,
 )
 from models.enums import DecreeType, MinisterStatus, MemorialStatus
+from models.positions import (
+    PositionCategory, PositionInfo, POSITION_REGISTRY,
+    get_positions_by_category, calculate_position_weight,
+)
 from engine.core import advance_month, process_decree, check_preconditions, validate_target
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
@@ -570,6 +574,39 @@ async def silence_debate():
 @router.get("/ministers")
 async def get_ministers():
     return [m.model_dump() for m in _get_state().ministers]
+
+
+# ── GET /api/positions ─────────────────────────────────
+
+@router.get("/positions")
+async def get_positions(category: str | None = None):
+    """Return all positions from PositionRegistry with category, weight, unique.
+
+    Optional query param `category` filters by PositionCategory (CORE, SECONDARY, NOBLE, EUNUCH).
+    """
+    if category is not None:
+        try:
+            cat_enum = PositionCategory(category.upper())
+        except ValueError:
+            raise HTTPException(400, detail=ErrorResponse(
+                error_code="invalid_category",
+                message=f"Invalid category: {category}. Valid: CORE, SECONDARY, NOBLE, EUNUCH",
+            ).model_dump())
+        names = get_positions_by_category(cat_enum)
+    else:
+        names = list(POSITION_REGISTRY.keys())
+
+    result = []
+    for name in names:
+        info = POSITION_REGISTRY[name]
+        result.append({
+            "name": name,
+            "category": info.category.value,
+            "weight": info.weight,
+            "unique": info.unique,
+            "aliases": list(info.aliases),
+        })
+    return result
 
 
 # ── 8.2 POST /api/memorial/{id}/resolve ──────────────

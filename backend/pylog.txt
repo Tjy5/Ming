@@ -1,0 +1,29 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.6, pytest-9.0.2, pluggy-1.6.0
+rootdir: D:\1something\Ming\backend
+plugins: anyio-4.12.1, hypothesis-6.151.9
+collected 0 items / 1 error
+
+=================================== ERRORS ====================================
+__________________ ERROR collecting tests/test_positions.py ___________________
+tests\test_positions.py:7: in <module>
+    from models.positions import (
+models\__init__.py:2: in <module>
+    from .game import *
+models\game.py:529: in <module>
+    INITIAL_MINISTERS = _load_initial_ministers()
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+models\game.py:522: in _load_initial_ministers
+    ministers = [Minister.model_validate(item) for item in normalized_raw]
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+models\game.py:522: in <listcomp>
+    ministers = [Minister.model_validate(item) for item in normalized_raw]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Minister
+E   personality_tags
+E     List should have at most 3 items after validation, not 4 [type=too_long, input_value=['刚直', '清廉', '博学', '翰林'], input_type=list]
+E       For further information visit https://errors.pydantic.dev/2.12/v/too_long
+=========================== short test summary info ===========================
+ERROR tests/test_positions.py - pydantic_core._pydantic_core.ValidationError:...
+!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+============================== 1 error in 1.36s ===============================

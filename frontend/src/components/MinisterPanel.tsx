@@ -21,6 +21,18 @@ const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: stri
   { key: 'diplomacy', label: '略', color: 'var(--accent-gold)' },
 ]
 
+// Helper to detect NOBLE positions by suffix (公、侯、伯)
+function isNoblePosition(position: string): boolean {
+  return /[公侯伯]$/.test(position)
+}
+
+// Helper to classify positions for styling
+function getPositionClass(position: string, isEunuch: boolean): string {
+  if (isEunuch) return 'mp-pos-eunuch'
+  if (isNoblePosition(position)) return 'mp-pos-noble'
+  return ''
+}
+
 function loyaltyColor(v: number) {
   if (v > 60) return 'var(--green)'
   if (v >= 30) return 'var(--yellow)'
@@ -63,8 +75,17 @@ function MinisterCard({ minister, reaction, onClick }: {
       <div className="mp-info">
         <div className="mp-name">
           {minister.name}
-          {minister.position && <span className="mp-position">{minister.position}</span>}
+          {minister.is_eunuch && <span className="mp-eunuch-badge">内廷</span>}
         </div>
+        {minister.positions?.length > 0 && (
+          <div className="mp-positions">
+            {minister.positions.map((pos, idx) => (
+              <span key={idx} className={`mp-position-tag ${getPositionClass(pos, minister.is_eunuch)}`}>
+                {pos}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mp-tags">
           {minister.personality_tags.map(t => (
             <span key={t} className="mp-tag">{t}</span>
@@ -136,7 +157,7 @@ export default function MinisterPanel({ ministers, reactions, onMinisterClick }:
       if (!showNotEntered && m.status === 'not_yet_entered') return false
       if (searchTerm) {
         const q = searchTerm.toLowerCase()
-        return m.name.toLowerCase().includes(q) || m.position.toLowerCase().includes(q)
+        return m.name.toLowerCase().includes(q) || m.positions?.join(' ').toLowerCase().includes(q)
       }
       return true
     })
