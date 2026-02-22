@@ -1,0 +1,62 @@
+{
+  "script_id": "liaodong-command-vacancy-1629-12",
+  "trigger_year": 1629,
+  "trigger_month": 12,
+  "title": "辽东统帅空缺",
+  "is_blocking": true,
+  "rich_description": "**崇祯二年，十二月。**\n\n己巳之变余波未平，袁崇焕却已在此前政争中提前身死。辽东前线骤失统帅核心，关宁诸将各自为阵，军令传递日益迟滞。\n\n朝廷必须尽快重建指挥链：是集中一人统筹，还是分镇自守，将直接决定来年关外战局。",
+  "historical_hint": "关键统帅若在大战役前后提前身死，战区最先崩塌的通常不是兵力，而是命令链和信任链。辽东这类高压防区尤其依赖统一调度。\n\n在这种局面下，朝廷要么迅速确立替代中枢，要么接受分镇防御带来的协同损耗。两种路径都要付出代价，但拖延决策的代价通常最高，因为时间会把“人事问题”放大为“战略失控”。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "script_resolved",
+        "script_id": "jisi-invasion"
+      },
+      {
+        "type": "minister_removed",
+        "name": "袁崇焕"
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "起复孙承宗统筹辽事",
+      "description": "以老成宿将重建军令中枢，迅速稳定前线预期。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "孙承宗",
+          "sub_action": "appoint"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 5
+      }
+    },
+    {
+      "label": "分权诸镇，各守疆界",
+      "description": "让各镇就地自守，减少中枢调度压力但协同风险上升。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": -8,
+        "faction.辽东边将.rebellion_risk": 10
+      }
+    },
+    {
+      "label": "加拨军费维持防线",
+      "description": "先用军费与补给稳住防线，再图人事重建。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_morale": 5
+      }
+    }
+  ]
+}

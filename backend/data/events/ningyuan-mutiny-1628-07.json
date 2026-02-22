@@ -1,0 +1,47 @@
+{
+  "script_id": "ningyuan-mutiny-1628-07",
+  "trigger_year": 1628,
+  "trigger_month": 7,
+  "title": "平台召对·宁远兵变",
+  "is_blocking": true,
+  "rich_description": "**崇祯元年，七月。**\n\n圣上于平台召见袁崇焕，君臣对策。袁崇焕豪言'五年平辽'，圣上大悦，许以便宜行事之权。\n\n然七月二十五日，辽东宁远驻军因欠饷四月有余，哗变夺门，绑缚巡抚毕自肃。毕自肃不堪其辱，愤而自尽。\n\n消息传至京师，朝野震惊。边军之乱，若不速平，后金闻讯必趁虚而入。\n\n与此同时，高迎祥等义军活跃于陕北，声势日壮。内忧外患交织，陛下当如何决断？",
+  "historical_hint": "平台召对后的高授权尚未真正落地，宁远欠饷兵变已先爆发，说明辽东治理的断点不在口号，而在支付能力。军队对朝廷会不会按时发饷，往往比对任何诏令都更敏感。\n\n毕自肃事件使军纪危机公开化：边军对文官系统信任下滑，文官对边军控制能力也同步下降。即便当场平乱成功，制度层面的裂缝仍会在后续战事中反复显现。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "急拨军饷平息兵变",
+      "description": "不惜代价拨银补饷，先稳住辽东防线。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_morale": 5
+      }
+    },
+    {
+      "label": "严惩哗变首恶",
+      "description": "以军法惩处带头闹事之人，以儆效尤。然恐激化军心。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.辽东边将.satisfaction": -10
+      }
+    },
+    {
+      "label": "令袁崇焕自行处置",
+      "description": "已授袁崇焕便宜行事之权，令其自行平乱。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": -10
+      }
+    }
+  ]
+}

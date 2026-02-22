@@ -1,0 +1,48 @@
+{
+  "script_id": "wei-zhongxian-falls-1627-11",
+  "trigger_year": 1627,
+  "trigger_month": 11,
+  "title": "魏忠贤伏诛·阉党崩溃",
+  "is_blocking": true,
+  "rich_description": "**天启七年，十一月。**\n\n圣旨下：贬魏忠贤于凤阳守陵。魏忠贤离京南行，犹携从人四十余、大车四十辆、兵仗无数。\n\n朝臣纷纷上疏：阉贼虽去，犹拥重兵，恐有不测！圣上遂下令锦衣卫缉拿。魏忠贤行至阜城，闻讯后于十一月初六日缢死于旅舍。其党羽客氏亦被杖毙于浣衣局。\n\n阉党二十余年之祸，一朝崩溃。然朝局百废待兴，善后之策不可不慎。陛下将如何处置阉党余孽？",
+  "historical_hint": "对魏忠贤先外放、后缉拿的转折，说明朝廷已经从试探进入定案阶段。外放本可保留最低体面，但其携重资与护卫南行被视作潜在再组织能力，触发了更严厉的追捕决策。\n\n阜城自尽并不只是个人结局，它意味着阉党失去可整合的权威中心。客氏随后伏法，天启晚期以内廷为轴心的权力结构基本解体，皇帝与文官体系重新占据制度前台。",
+  "condition": {
+    "type": "minister_alive",
+    "name": "魏忠贤"
+  },
+  "choices": [
+    {
+      "label": "穷追猛打，彻底清算",
+      "description": "将阉党余孽一网打尽，以儆效尤。朝政大振但恐株连过广。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 10
+      }
+    },
+    {
+      "label": "适可而止，安定人心",
+      "description": "首恶已除，余者从宽。安定朝局，避免人人自危。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "分别处置，量刑有差",
+      "description": "按罪行轻重分等定罪，首恶必办，胁从不问。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "魏忠贤",
+          "sub_action": "dismiss"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

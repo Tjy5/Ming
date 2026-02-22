@@ -1,0 +1,45 @@
+{
+  "script_id": "famine-escalates-1628-06",
+  "trigger_year": 1628,
+  "trigger_month": 6,
+  "title": "饥荒蔓延·流民四起",
+  "is_blocking": false,
+  "rich_description": "**崇祯元年，六月。**\n\n陕西、山西饥荒持续加剧。自延安至平凉、庆阳，赤地千里，饿殍遍野。大批饥民涌入山西、河南就食。\n\n各地奏报纷至沓来：\n· 王嘉胤部已聚众万余，盘踞府谷、神木一带\n· 王左挂、苗美等人亦各拥数千之众\n· 流民所过之处，仓廒空竭，官军莫敢阻挡\n\n地方官吏纷纷请旨增兵增饷，然户部已捉襟见肘。\n\n国库几近告罄，三策并陈：是增拨赈灾银两以救燃眉，调兵进剿以遏乱势，还是放任地方、静观其变，抑或另有筹谋？",
+  "historical_hint": "到崇祯元年六月，政策难题已不再是赈或剿二选一，而是两者都需要、两者都缺资源。中央要求地方兼顾赈灾与催科，实务上常常互相抵消。\n\n地方执行差异因此急剧放大：有的先催税后赈济，有的借剿抚扩权。结果是流民规模、武装化程度和跨区域流动同步上升，民变从生存性骚动演变为长期战争。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "增拨赈灾银两",
+      "description": "再拨国库银两赈济灾区，缓解饥民之急。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "调兵进剿",
+      "description": "增调兵马围剿起义军，以武力恢复秩序。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "静观其变",
+      "description": "朝廷无力兼顾，暂且令地方自行筹措。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.陕西.stability": -8,
+        "region.中原.stability": -5
+      }
+    }
+  ]
+}

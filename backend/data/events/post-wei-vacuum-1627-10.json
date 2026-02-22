@@ -1,0 +1,46 @@
+{
+  "script_id": "post-wei-vacuum-1627-10",
+  "trigger_year": 1627,
+  "trigger_month": 10,
+  "title": "阉党失首·中枢重排",
+  "is_blocking": false,
+  "rich_description": "**天启七年，十月。**\n\n魏忠贤已在此前政争中被提前处决，朝野震动未歇。内廷失去阉党核心后，司礼监与东厂权力链条出现真空，各方争夺“后魏时代”的中枢话语权。\n\n言官主张乘势清理旧案，亦有人担忧株连过广致官场失序。眼下要务，已从“扳倒首恶”转为“重建秩序”。",
+  "historical_hint": "若魏忠贤在十月前已被提前处决，真实的政治难题就不再是“能否倒魏”，而是如何在权力真空期重建内廷与外朝的协同秩序。\n\n历史上此类“首恶先除”的局面往往伴随派系抢位与程序失衡。谁先掌握人事任命与情报系统，谁就能定义后续清算边界，因此秩序重建本身就是新的政治战场。",
+  "condition": {
+    "type": "minister_removed",
+    "name": "魏忠贤"
+  },
+  "choices": [
+    {
+      "label": "乘势追究内廷旧案",
+      "description": "继续深挖阉党网络，迅速肃清旧势力。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 5
+      }
+    },
+    {
+      "label": "先稳中枢再议清算",
+      "description": "优先补位关键职司，避免朝局因清算失控。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "徐光启",
+          "sub_action": "appoint"
+        }
+      ],
+      "loyalty_effects": [
+        [
+          "徐光启",
+          10
+        ]
+      ],
+      "state_effects": {}
+    }
+  ]
+}

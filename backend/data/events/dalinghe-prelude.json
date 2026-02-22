@@ -1,0 +1,44 @@
+{
+  "script_id": "dalinghe-prelude",
+  "trigger_year": 1631,
+  "trigger_month": 8,
+  "title": "大凌河之围前奏",
+  "is_blocking": false,
+  "rich_description": "**崇祯四年，八月。**\n\n后金蓄势准备围攻大凌河，辽东局势再度紧张。前线请示是增援固守还是收缩防线。\n\n辽东诸堡互为犄角，一处失守便可能牵动全局。兵部连夜会同督抚上奏：是增援固守、虽耗军资，还是收缩防线、恐失疆土，抑或另有筹策？",
+  "historical_hint": "大凌河前推是一次主动防御尝试，目标是以前沿据点牵制后金、减轻锦州压力。思路本身并非失当，问题在于工程、补给与援军体系都要求持续高投入。\n\n皇太极转为长围后，明军在守城与解围两线同时受压，最终出现祖大寿降清等连锁后果。此役之后，辽东防线由主动布势转向被动固守，战略回旋空间显著收缩。",
+  "condition": {
+    "type": "region_field_lt",
+    "region": "辽东",
+    "field": "stability",
+    "value": 40
+  },
+  "choices": [
+    {
+      "label": "增援大凌河",
+      "description": "增兵固守大凌河，消耗军备但可稳住辽东防线。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -15,
+        "region.辽东.stability": 5
+      }
+    },
+    {
+      "label": "收缩防线",
+      "description": "放弃外围据点，收缩兵力于核心堡寨。辽东稳定将受损但可节约军费。",
+      "decrees": [
+        {
+          "type": "disband_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": -10
+      }
+    }
+  ]
+}

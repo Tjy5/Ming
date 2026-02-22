@@ -98,7 +98,24 @@ export default function MinisterDialogue({ minister, onClose, onStateUpdate }: P
             <div className="md-minister-name" id="dialogue-minister-name">{minister.name}</div>
             <div className="md-minister-pos">{minister.positions?.join('、') || '大臣'}</div>
             <div className="md-minister-faction">{minister.faction}</div>
-            {minister.historical_note && <div className="md-historical-note">{minister.historical_note}</div>}
+
+            <div className="md-historical-box">
+              {minister.historical_note && <div className="md-historical-note">{minister.historical_note}</div>}
+              {minister.biography && (
+                <div className="md-biography">
+                  <div className="md-section-title">人物简介</div>
+                  <div className="md-section-content">{minister.biography}</div>
+                </div>
+              )}
+              {minister.major_contributions && minister.major_contributions.length > 0 && (
+                <div className="md-contributions">
+                  <div className="md-section-title">主要贡献</div>
+                  <ul className="md-contribution-list">
+                    {minister.major_contributions.map((c, i) => <li key={i}>{c}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
 
             <div className="md-loyalty-section">
               <div className="md-loyalty-label">

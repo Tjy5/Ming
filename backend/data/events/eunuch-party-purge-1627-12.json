@@ -1,0 +1,46 @@
+{
+  "script_id": "eunuch-party-purge-1627-12",
+  "trigger_year": 1627,
+  "trigger_month": 12,
+  "title": "阉党清算·边镇欠饷",
+  "is_blocking": false,
+  "rich_description": "**天启七年，腊月。**\n\n阉党清算如火如荼。魏忠贤'五虎''五彪'等党羽陆续被逮治。朝堂空出大量职位，各派争相推荐人选。\n\n然边事不容忽视。陕西固原镇欠饷已逾十月，兵丁怨声载道，哗变之势隐然可见。户部呈报：国库存银不足百万，入不敷出。\n\n清算与安边，孰先孰后？",
+  "historical_hint": "魏忠贤死后，朝廷面对的不是是否清算，而是清算到什么程度。逆案分等处理与平反并举，确实在政治伦理上重建了秩序，也给了士林明确交代。\n\n但同一时期的固原欠饷兵变提醒人们：阉党问题可以靠惩办收口，财政亏空却无法靠诏令消失。边镇军饷、地方税收与中央支出长期失衡，才是崇祯朝此后反复失血的根因。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "继续清算，以儆效尤",
+      "description": "阉党余毒未清，务必穷追到底。边事暂令地方筹措。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "拨银安边，稳住军心",
+      "description": "先拨银补饷安定边军，阉党清算可徐图之。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "双管齐下",
+      "description": "一面继续清算，一面设法筹措军饷。但恐顾此失彼。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

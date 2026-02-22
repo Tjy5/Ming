@@ -1,0 +1,49 @@
+{
+  "script_id": "year-end-assessment-1628-08",
+  "trigger_year": 1628,
+  "trigger_month": 8,
+  "title": "周年回顾·天下大势",
+  "is_blocking": true,
+  "rich_description": "**崇祯元年，八月。**\n\n即位整整一年。圣上日于文华殿视朝议政，勤勉不辍，群臣莫不感佩。\n\n然天下之势，忧多喜少：\n· 全陕大饥，赤地千里，起义军已聚众数万\n· 辽东虽有袁崇焕坐镇，然军饷时有不继\n· 后金持续绥服漠南蒙古各部，为大举入塞做准备\n· 国库空虚，入不敷出，加征辽饷已令百姓苦不堪言\n\n一年之计，在于此时。来年方略，当如何定夺？",
+  "historical_hint": "崇祯即位首年的成绩与困局并存：倒魏与整饬确有成效，但辽东、陕北与财政三线压力并未缓解。换言之，政治层面的纠偏没有转化为国家能力层面的增量。\n\n从这一节点开始，明廷逐步进入长期应急治理。每一项止痛措施都会消耗下一阶段资源，政策越来越像短期止血而非长期重建，这正是晚明失速的结构性原因。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "攘外为先",
+      "description": "集中财力军力于辽东，优先应对后金威胁。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_morale": 5,
+        "global.national_treasury": -20
+      }
+    },
+    {
+      "label": "安内为先",
+      "description": "先平陕西民变、赈济灾民，稳固后方再图辽东。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "内外兼顾",
+      "description": "加征赋税，试图两线兼顾。然恐百姓不堪重负。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "script_id": "court-ceremonies-1627-09",
+  "trigger_year": 1627,
+  "trigger_month": 9,
+  "title": "追尊生母·册封皇后",
+  "is_blocking": false,
+  "rich_description": "**天启七年，九月。**\n\n新君追尊生母刘氏为孝纯皇后，册封周氏为皇后。朝堂礼仪大典次第举行，钟鼓迭奏，百官称贺。\n\n然礼成未久，杨所修、陆澄源等朝臣上疏弹劾魏忠贤心腹崔呈秀。此疏虽劾一人，实则试探圣意。群臣屏息观望，魏忠贤闻讯连日称病不出。\n\n此弹劾奏疏，是据章行事准其罢黜，还是留中不发继续观望，抑或另有打算？",
+  "historical_hint": "九月这场看似礼仪性的操作，其实是政治重排。追尊生母与册立周后，先解决新君名分与中宫秩序，让宗室和朝臣难以质疑合法性。与此同时，客氏离宫并非宫闱细事，而是切断魏忠贤在后宫最稳定的信息与人脉通道。\n\n在公开奏章上保持克制，则是为了避免过早逼宫、反而让阉党抱团。等到十月弹章密集出现时，朝廷已经完成舆论与人事的双重铺垫，魏党从可守迅速转为难守。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "留中不发",
+      "description": "对弹劾奏疏既不批准也不驳回，继续观望。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "据章行事",
+      "description": "准许弹劾奏疏，据章罢免崔呈秀",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "崔呈秀",
+          "sub_action": "dismiss"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

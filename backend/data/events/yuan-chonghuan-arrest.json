@@ -1,0 +1,61 @@
+{
+  "script_id": "yuan-chonghuan-arrest",
+  "trigger_year": 1629,
+  "trigger_month": 12,
+  "title": "袁崇焕下狱",
+  "is_blocking": true,
+  "rich_description": "**崇祯二年，十二月。**\n\n京师解围后，朝野对袁崇焕毁誉并起。有弹劾其通敌卖国者，有言其擅杀毛文龙、纵敌入关者，亦有力保其忠勇者。风闻交织，真伪难辨。\n\n若轻断重臣，恐伤军心；若久拖不决，又损朝廷威信。陛下是下旨逮捕袁崇焕，还是力保袁崇焕，抑或另有裁断？",
+  "historical_hint": "京师解围后，围绕袁崇焕的舆论迅速极化，朝廷选择先收系再审，实质是用政治动作压住不确定性。这个决策在短期内能稳定舆情，却把边防体系的信任成本推到前线承担。\n\n关宁系统随即震荡，协同效率下降，统帅层也形成有功未必可保、失误必遭重责的心理预期。后续东北战局的持续失利，与这种组织信号密切相关。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "script_resolved",
+        "script_id": "jisi-invasion"
+      },
+      {
+        "type": "minister_alive",
+        "name": "袁崇焕"
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "逮捕袁崇焕",
+      "description": "先行收系问罪，以平京师汹汹舆情。辽东边将恐大为震动。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "袁崇焕",
+          "sub_action": "dismiss"
+        }
+      ],
+      "loyalty_effects": [
+        [
+          "袁崇焕",
+          -50
+        ]
+      ],
+      "state_effects": {
+        "faction.辽东边将.satisfaction": -25,
+        "faction.辽东边将.rebellion_risk": 20
+      }
+    },
+    {
+      "label": "力排众议，保袁崇焕",
+      "description": "顶住压力为袁崇焕辩护。阉党残余与勋贵集团恐更加不满。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "袁崇焕",
+          20
+        ]
+      ],
+      "state_effects": {
+        "faction.阉党残余.satisfaction": -15,
+        "faction.勋贵集团.satisfaction": -15,
+        "global.court_prestige": -10
+      }
+    }
+  ]
+}

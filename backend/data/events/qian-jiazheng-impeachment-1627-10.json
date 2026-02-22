@@ -1,0 +1,40 @@
+{
+  "script_id": "qian-jiazheng-impeachment-1627-10",
+  "trigger_year": 1627,
+  "trigger_month": 10,
+  "title": "钱嘉征弹劾魏忠贤十大罪",
+  "is_blocking": false,
+  "rich_description": "**天启七年，十月。**\n\n贡生钱嘉征上疏，历数魏忠贤十大罪状：\n并帝、蔑后、弄兵、无二祖列宗、克削藩封、无圣、滥爵、掩边功、罔利、好杀。\n\n奏疏传遍朝野，满朝震动。魏忠贤闻之'面如土色'，急入宫向新君涕泣请辞。圣上命内侍当面宣读弹章，魏忠贤'震恐丧魄'。\n\n是日，魏忠贤再请辞去司礼监秉笔太监之职。陛下当如何裁决？",
+  "historical_hint": "钱嘉征十罪疏之所以关键，不只在内容激烈，更在于它把长期私下议论推上公开程序。朝廷选择当面宣读而非留中压下，等于向百官发出明确信号：魏忠贤不再受不可碰触的保护。\n\n此前崔呈秀等核心羽翼已先后失势，首恶又在殿前受压，阉党的组织协调能力急剧下降。从政治技术上看，这是先拆同盟、再击核心的典型案例，十一月的彻底崩盘因此成为大概率事件。",
+  "condition": {
+    "type": "minister_alive",
+    "name": "魏忠贤"
+  },
+  "choices": [
+    {
+      "label": "准其辞职",
+      "description": "顺水推舟，准许魏忠贤辞去秉笔太监之职，削其权柄。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "魏忠贤",
+          "sub_action": "dismiss"
+        }
+      ],
+      "loyalty_effects": [
+        [
+          "魏忠贤",
+          -20
+        ]
+      ],
+      "state_effects": {}
+    },
+    {
+      "label": "慰留观察",
+      "description": "表面慰留，实则令其交出权力，以观后效。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

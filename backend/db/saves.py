@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from models.game import GameState, INITIAL_MINISTERS
+from models.game import GameState, get_initial_ministers
 
 DB_PATH = Path(__file__).parent.parent / "game_saves.db"
 MAX_SAVES = 20
@@ -78,6 +78,7 @@ def _valid_ministers(raw: object) -> bool:
 
 def _migrate_save(data: dict) -> list[str]:
     notes: list[str] = []
+    initial_ministers = get_initial_ministers()
 
     # ── time migration ──
     t = data.setdefault("time", {})
@@ -167,10 +168,10 @@ def _migrate_save(data: dict) -> list[str]:
     # ── minister migration ──
     ministers_raw = data.get("ministers")
     if "ministers" not in data:
-        data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
+        data["ministers"] = [m.model_dump() for m in initial_ministers]
         notes.append("补充了大臣数据")
     elif not _valid_ministers(ministers_raw):
-        data["ministers"] = [m.model_dump() for m in INITIAL_MINISTERS]
+        data["ministers"] = [m.model_dump() for m in initial_ministers]
         notes.append("重置了损坏的大臣数据")
     else:
         loyalty_migrated = False
@@ -181,7 +182,7 @@ def _migrate_save(data: dict) -> list[str]:
         if loyalty_migrated:
             notes.append("补充了大臣忠诚度数据")
 
-        init_map = {m.name: m for m in INITIAL_MINISTERS}
+        init_map = {m.name: m for m in initial_ministers}
 
         if len(data["ministers"]) < 50:
             t_data = data.get("time", {})
@@ -199,7 +200,7 @@ def _migrate_save(data: dict) -> list[str]:
                 existing_names.add(name)
                 if name in init_map:
                     im = init_map[name]
-                    old_m.setdefault("position", im.position)
+                    old_m.setdefault("position", "、".join(im.positions))
                     old_m.setdefault("entry_year", im.entry_year)
                     old_m.setdefault("entry_month", im.entry_month)
                     old_m.setdefault("historical_note", im.historical_note)
@@ -210,7 +211,7 @@ def _migrate_save(data: dict) -> list[str]:
                     old_m.setdefault("historical_note", "")
                 existing.append(old_m)
 
-            for im in INITIAL_MINISTERS:
+            for im in initial_ministers:
                 if im.name not in existing_names:
                     nm = im.model_dump()
                     nm["loyalty"] = 50

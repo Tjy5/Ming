@@ -1,0 +1,53 @@
+{
+  "script_id": "li-zicheng-joins",
+  "trigger_year": 1630,
+  "trigger_month": 3,
+  "title": "陕西大起义·李自成从军",
+  "is_blocking": false,
+  "rich_description": "**崇祯三年，三月。**\n\n陕西驿递裁汰，失业驿卒与饥民并起。米脂人李自成弃役从伍，投身闯军，渐露锋芒。\n\n地方官奏称：若任其流聚，陕北山川易守难攻，势必尾大不掉。流寇之势已非一县一府所能弹压。",
+  "historical_hint": "裁撤驿递原本是财政节流措施，但在灾年集中执行，客观上把大量有行动能力的青壮推入失业与负债。对国家而言，这等于在治安最脆弱时段主动释放高风险人群。\n\n李自成由驿卒转入军伍并参与起事，正是这条社会链条的典型个案。节省下来的银两无法逆转国库危机，却换来了更高烈度的地方武装化成本。",
+  "condition": {
+    "type": "region_field_lt",
+    "region": "陕西",
+    "field": "stability",
+    "value": 30
+  },
+  "choices": [
+    {
+      "label": "重兵围剿",
+      "description": "调集重兵围剿，力图将流寇扼杀于萌芽。然耗费甚巨。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.陕西.stability": 10,
+        "global.national_treasury": -20
+      }
+    },
+    {
+      "label": "分化瓦解",
+      "description": "与蒙古通好以减少多线压力，腾出手来对付流寇。",
+      "decrees": [
+        {
+          "type": "diplomacy",
+          "target": "蒙古"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "置之不理",
+      "description": "朝廷无暇西顾，任由地方自行应对。陕西与中原恐将动荡加剧。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.陕西.stability": -15,
+        "region.中原.stability": -10
+      }
+    }
+  ]
+}

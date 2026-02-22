@@ -1,0 +1,50 @@
+{
+  "script_id": "sun-chengzong-recovery",
+  "trigger_year": 1630,
+  "trigger_month": 5,
+  "title": "孙承宗收复遵化四城",
+  "is_blocking": false,
+  "rich_description": "**崇祯三年，五月。**\n\n老将孙承宗率军反攻，连克遵化、永平、迁安、滦州四城，后金残部退出关内。辽东军民士气大振。\n\n然追击深入恐有伏兵之险，见好就收亦可巩固战果。陛下当如何决断？",
+  "historical_hint": "孙承宗收复遵永四城，证明明军在组织尚稳、火器有效配合时仍具较强战力。这类胜利对士气和朝廷威信都非常重要，也能短期扭转只能挨打的舆论。\n\n但单场胜利难以覆盖长期资源差距。后金在战法、火器和后勤上持续学习，明廷若不能同步修复财政与指挥体系，战场回升就难转化为战略反转。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "minister_active",
+        "name": "孙承宗"
+      },
+      {
+        "type": "state_field_gt",
+        "field": "military_strength",
+        "value": 20
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "乘胜追击",
+      "description": "趁后金立足未稳，挥师追击，力图扩大战果。然耗费军资甚巨。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": 15,
+        "global.military_morale": 10,
+        "global.national_treasury": -25
+      }
+    },
+    {
+      "label": "见好就收、巩固防线",
+      "description": "收复四城已是大功，当务之急是巩固防线、休整军队。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": 10,
+        "global.court_prestige": 5
+      }
+    }
+  ]
+}

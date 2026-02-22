@@ -1,0 +1,48 @@
+{
+  "script_id": "farmer-uprising-erupts-1628-05",
+  "trigger_year": 1628,
+  "trigger_month": 5,
+  "title": "焚《三朝要典》·农民大起义前夜",
+  "is_blocking": true,
+  "rich_description": "**崇祯元年，五月。**\n\n圣上下令焚毁阉党编纂的《三朝要典》，天下称快。\n\n然陕西巡按马懋才上《备陈大饥疏》，字字血泪：\n'臣自去秋至今，所见所闻，饿殍遍地，炊烟断绝。百姓食树皮、掘草根以求苟活，甚有易子而食者。延安一府，死者过半。流亡四方者，不知凡几。'\n\n府谷一带，王嘉胤、王左挂等人聚饥民数千，揭竿而起。明末农民大起义之序幕，已然拉开。\n\n朝廷当如何应对这场滔天巨变？",
+  "historical_hint": "焚毁《三朝要典》属于对阉党叙事的收尾动作，而马懋才《备陈大饥疏》揭开的则是社会底层生存线断裂。两件事同月并置，恰好显示出政治清明与民生崩坏可以同时发生。\n\n朝廷虽尝试拨赈，但在层层转运与地方财政枯竭中折损严重。饥民一旦从逃荒转向结社持械，局势就不再是单点治安问题，而是跨府州的持续性军事挑战。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "急调兵马镇压",
+      "description": "调遣延绥镇兵力围剿，力图将起义扑灭于萌芽。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.national_treasury": -15
+      }
+    },
+    {
+      "label": "大举赈灾安民",
+      "description": "拨重金赈济灾民，釜底抽薪，使饥民无需从贼。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "剿抚并用",
+      "description": "一面调兵弹压，一面开仓赈济。但恐国库难以支撑两线开支。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

@@ -221,7 +221,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
 }
 
 .md-content {
@@ -273,7 +273,65 @@
 .md-minister-faction {
   font-size: 0.8rem;
   color: var(--text-dim);
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+
+.md-historical-box {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  padding-right: 4px;
+  /* Space for scrollbar */
+  margin-bottom: 16px;
+}
+
+.md-section-title {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: var(--accent-gold);
+  margin-top: 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 2px;
+}
+
+.md-section-content {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.md-historical-note {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  font-style: italic;
+  line-height: 1.5;
+  background: rgba(255, 215, 0, 0.05);
+  padding: 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+.md-contribution-list {
+  padding-left: 16px;
+  margin: 0;
+}
+
+.md-contribution-list li {
+  font-size: 0.8rem;
+  color: var(--text-main);
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.md-historical-box::-webkit-scrollbar {
+  width: 4px;
+}
+
+.md-historical-box::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 2px;
 }
 
 .md-loyalty-section {
@@ -293,7 +351,7 @@
   width: 70%;
   display: flex;
   flex-direction: column;
-  background: rgba(0,0,0,0.2);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .md-messages {
@@ -312,13 +370,19 @@
   font-style: italic;
 }
 
-.md-message-user, .md-message-minister {
+.md-message-user,
+.md-message-minister {
   display: flex;
   max-width: 85%;
 }
 
-.md-message-user { align-self: flex-end; }
-.md-message-minister { align-self: flex-start; }
+.md-message-user {
+  align-self: flex-end;
+}
+
+.md-message-minister {
+  align-self: flex-start;
+}
 
 .md-bubble {
   padding: 10px 16px;
@@ -386,12 +450,19 @@
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: bold;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   z-index: 10;
 }
 
-.md-loyalty-notification.pos { color: var(--green); border: 1px solid var(--green); }
-.md-loyalty-notification.neg { color: var(--red); border: 1px solid var(--red); }
+.md-loyalty-notification.pos {
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+
+.md-loyalty-notification.neg {
+  color: var(--red);
+  border: 1px solid var(--red);
+}
 
 .md-close-btn {
   position: absolute;
@@ -405,7 +476,9 @@
   line-height: 1;
 }
 
-.md-close-btn:hover { color: var(--text-main); }
+.md-close-btn:hover {
+  color: var(--text-main);
+}
 
 /* ── Court Assembly Multi-Phase UI ────────────────────────────────── */
 .court-assembly-view {

@@ -1,0 +1,49 @@
+{
+  "script_id": "jisi-invasion",
+  "trigger_year": 1629,
+  "trigger_month": 10,
+  "title": "己巳之变·皇太极入寇",
+  "is_blocking": true,
+  "rich_description": "**崇祯二年，十月。**\n\n后金大汗皇太极率精骑绕道蒙古，突破长城隘口，直逼京畿。蓟镇烽火昼夜不绝，京师震动。\n\n廷臣争论不休：或请速战，或请和议，或请坚壁清野。皇城内外人心惶惶，仓卒调度稍有失当，便可能酿成大祸。\n\n天子当如何应对这场突如其来的危机？",
+  "historical_hint": "己巳之变的核心冲击在于后金绕开传统预设战场，直接把压力投送到京畿纵深。朝廷只能把保京师置于最高优先级，急诏勤王是现实而非理想选择。\n\n京城守住并不等于战略胜利。京畿长期被掠造成财政、人口与民心三重损耗，明军也从外线制敌转入内线补漏，战争主动权由此明显下滑。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "急召天下勤王",
+      "description": "集中各路兵马勤王，以战止战。辽东、京畿防线将受冲击。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.辽东.stability": -20,
+        "region.京畿.stability": -20,
+        "global.military_morale": 10
+      }
+    },
+    {
+      "label": "固守京城待援",
+      "description": "紧闭城门，坚壁清野，等待各路援军。然京畿百姓将遭涂炭。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.京畿.stability": -15,
+        "global.court_prestige": -10
+      }
+    },
+    {
+      "label": "命袁崇焕回援",
+      "description": "急令袁崇焕率辽东精锐回师勤王，试图以外交拖延后金攻势。",
+      "decrees": [
+        {
+          "type": "diplomacy",
+          "target": "后金"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

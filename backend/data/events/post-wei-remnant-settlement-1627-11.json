@@ -1,0 +1,50 @@
+{
+  "script_id": "post-wei-remnant-settlement-1627-11",
+  "trigger_year": 1627,
+  "trigger_month": 11,
+  "title": "首恶先除·余党处置",
+  "is_blocking": true,
+  "rich_description": "**天启七年，十一月。**\n\n魏忠贤既已提前伏法，朝廷不再面临“缉拿首恶”的问题，却迎来更棘手的余党善后：内廷旧班底去留未定，地方依附势力观望摇摆。\n\n若追查过猛，恐致官场人人自危；若清理过缓，又会纵容旧网潜伏。当下决断，将决定新朝能否把“除恶”真正转化为“立制”。",
+  "historical_hint": "历史经验显示，首恶先除并不自动意味着政局稳固，真正困难在于如何处理“依附网络”与“制度空档”这两类后遗症。\n\n过度扩大追责会削弱行政执行力，过度宽纵又会为旧势力复燃留下空间。因此善后阶段的核心目标是重建可持续的任官与问责机制，而不是仅凭一次强硬动作完成治理转型。",
+  "condition": {
+    "type": "minister_removed",
+    "name": "魏忠贤"
+  },
+  "choices": [
+    {
+      "label": "严办余党，扩大追查",
+      "description": "以高压手段震慑旧势力，迅速压低反扑风险。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 8
+      }
+    },
+    {
+      "label": "限定追责，避免株连",
+      "description": "把清算范围收束在骨干层，降低朝堂内耗。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.东林党.satisfaction": -5,
+        "faction.勋贵集团.satisfaction": 5
+      }
+    },
+    {
+      "label": "先安边镇，再清理内廷",
+      "description": "优先稳军心与财政链条，缓步处理余党。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

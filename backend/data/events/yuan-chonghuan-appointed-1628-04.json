@@ -1,0 +1,46 @@
+{
+  "script_id": "yuan-chonghuan-appointed-1628-04",
+  "trigger_year": 1628,
+  "trigger_month": 4,
+  "title": "袁崇焕督师蓟辽",
+  "is_blocking": false,
+  "rich_description": "**崇祯元年，四月。**\n\n圣上召袁崇焕入京，擢为兵部尚书兼右副都御史，督师蓟辽，赐尚方剑。袁崇焕慷慨陈词，誓言'五年平辽'。\n\n然辽东军务浩繁，军需甚巨。户部呈报：辽饷岁支四百万两，已占国帑半数有余。\n\n与此同时，陕西饥荒持续扩大。延安、庆阳诸府，斗米价银一两有余，饥民成群结队南下就食。\n\n辽饷与赈灾，如何兼顾？",
+  "historical_hint": "重用袁崇焕并授尚方剑，本质是把辽东战局押注在强统帅与高授权模式上。短期看，这能迅速提振边军预期，也便于压平部门间扯皮。\n\n但高授权会同步抬高问责强度。尤其在辽饷已占国帑大头的条件下，五年平辽这类政治承诺一旦落空，就会反噬君臣互信，后续冲突因此更难缓和。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "优先保障辽饷",
+      "description": "边防为重，全力保障袁崇焕军需。陕西赈灾暂缓。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "拨银赈灾陕西",
+      "description": "民为邦本，先安内后攘外。但辽东军需恐捉襟见肘。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "加征赋税两头兼顾",
+      "description": "加征赋税以同时满足军需和赈灾。然恐加重百姓负担。",
+      "decrees": [
+        {
+          "type": "tax_increase"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

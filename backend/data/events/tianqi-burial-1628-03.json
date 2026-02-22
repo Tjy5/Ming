@@ -1,0 +1,32 @@
+{
+  "script_id": "tianqi-burial-1628-03",
+  "trigger_year": 1628,
+  "trigger_month": 3,
+  "title": "葬熹宗德陵·阉党阁臣致仕",
+  "is_blocking": false,
+  "rich_description": "**崇祯元年，三月。**\n\n葬熹宗于德陵，国丧礼毕。阉党阁臣施凤来、张瑞图等相继致仕去位，朝堂渐归清明。\n\n圣上追赠天启朝被迫害的忠臣，录用遗孤。然新朝初立，百事待举。吏部奏称：各部缺员甚众，急需铨选补任。\n\n各部缺员积压，补官刻不容缓：是大举铨选，还是稳步量才分批补缺，抑或另有筹画？",
+  "historical_hint": "德陵葬礼完成了天启向崇祯的礼制交接，施凤来、张瑞图等人去位则完成了中枢人事交接。形式上看，旧朝痕迹被迅速清理，政治舞台已经换景。\n\n但礼制换轨并不能自动产出行政能力。财政紧、缺员多、任命急，导致新班底从一开始就处在高压运转状态，后来内阁频繁更替与政策断续，其根源在此时已埋下。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "大举选贤任能",
+      "description": "广开才路，遍选天下英才充实朝堂。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "徐光启",
+          "sub_action": "appoint"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "稳步补缺，量才录用",
+      "description": "按部就班，逐步补充各部缺员。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {}
+    }
+  ]
+}

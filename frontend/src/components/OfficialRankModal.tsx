@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { FACTION_COLORS } from '../shared/constants/factions'
+import { POSITION_DESCRIPTIONS } from '../shared/constants/positions'
 import type { Minister } from '../types/game'
 
 interface Props {
@@ -87,57 +88,93 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal official-rank-modal" onClick={e => e.stopPropagation()}>
         <div className="orm-header">
-          <span className="orm-title">官职补缺</span>
+          <span className="orm-title">官职补缺与百科</span>
           <button className="toolbar-btn" onClick={onClose}>✕</button>
         </div>
-        <div className="orm-body">
-          {TREE.map(({ group, leaves }) => (
-            <div key={group} className="orm-group">
-              <div className="orm-group-label">{group}</div>
-              <div className="orm-leaves">
-                {leaves.map(leaf => {
-                  const holders = ministers.filter(m => m.positions?.some(p => positionMatchesLeaf(p, leaf)) && m.status === 'active')
-                  const isExpanded = expandedLeaf === leaf
-                  return (
-                    <div key={leaf} className="orm-leaf-wrap">
+
+        <div className="orm-main-content">
+          {/* Left Column: Position List */}
+          <div className="orm-sidebar">
+            {TREE.map(({ group, leaves }) => (
+              <div key={group} className="orm-group">
+                <div className="orm-group-label">{group}</div>
+                <div className="orm-side-leaves">
+                  {leaves.map(leaf => {
+                    const holders = ministers.filter(m => m.positions?.some(p => positionMatchesLeaf(p, leaf)) && m.status === 'active')
+                    const isActive = expandedLeaf === leaf
+                    return (
                       <div
-                        className={`orm-leaf${isExpanded ? ' orm-leaf-active' : ''}`}
-                        onClick={() => setExpandedLeaf(isExpanded ? null : leaf)}
+                        key={leaf}
+                        className={`orm-side-leaf${isActive ? ' active' : ''}${holders.length === 0 ? ' vacant' : ''}`}
+                        onClick={() => setExpandedLeaf(leaf)}
                       >
-                        <span className="orm-leaf-name">{leaf}</span>
-                        <span className={`orm-holders${holders.length === 0 ? ' orm-vacant' : ''}`}>
-                          {holders.length > 0
-                            ? holders.map(h => `${h.name}${h.positions?.length > 1 ? ` (${h.positions.join('、')})` : ''}`).join('、')
-                            : '空缺'}
+                        <span className="name">{leaf}</span>
+                        <span className="holder-count">
+                          {holders.length > 0 ? holders[0].name : '空缺'}
                         </span>
                       </div>
-                      {isExpanded && (
-                        <div className="orm-panel">
-                          {getEligibleMinisters(leaf).length === 0
-                            ? <span className="orm-empty">无可用大臣</span>
-                            : getEligibleMinisters(leaf).map(m => (
-                              <button
-                                key={m.name}
-                                className="orm-candidate"
-                                disabled={appointing}
-                                onClick={() => handleAppoint(m.name, leaf)}
-                              >
-                                <span style={{ color: FACTION_COLORS[m.faction] ?? 'var(--text-main)' }}>
-                                  {m.name}
-                                  {m.positions?.length > 0 && <span className="orm-candidate-positions"> ({m.positions.join('、')})</span>}
-                                </span>
-                                <span className="orm-abilities">{m.abilities.civil}/{m.abilities.military}/{m.abilities.diplomacy}</span>
-                              </button>
-                            ))
-                          }
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {/* Right Column: Detailed View */}
+          <div className="orm-details">
+            {expandedLeaf ? (
+              <>
+                <div className="orm-details-header">
+                  <h3>{expandedLeaf}</h3>
+                  <div className="orm-holders-list">
+                    当前任职：
+                    {ministers
+                      .filter(m => m.positions?.some(p => positionMatchesLeaf(p, expandedLeaf)) && m.status === 'active')
+                      .map(m => m.name).join('、') || '暂无'}
+                  </div>
+                </div>
+
+                {POSITION_DESCRIPTIONS[expandedLeaf] && (
+                  <div className="orm-position-encyclopedic">
+                    <div className="ency-label">【官职百科】</div>
+                    <div className="ency-content">{POSITION_DESCRIPTIONS[expandedLeaf]}</div>
+                  </div>
+                )}
+
+                <div className="orm-candidates-section">
+                  <div className="section-title">任命候补</div>
+                  <div className="orm-candidates-list">
+                    {getEligibleMinisters(expandedLeaf).length === 0 ? (
+                      <div className="orm-empty">无可用合规大臣</div>
+                    ) : (
+                      getEligibleMinisters(expandedLeaf).map(m => (
+                        <button
+                          key={m.name}
+                          className="orm-candidate-card"
+                          disabled={appointing}
+                          onClick={() => handleAppoint(m.name, expandedLeaf)}
+                        >
+                          <div className="c-info">
+                            <span className="c-name" style={{ color: FACTION_COLORS[m.faction] ?? 'var(--text-main)' }}>
+                              {m.name}
+                            </span>
+                            {m.positions?.length > 0 && <span className="c-current-pos">({m.positions.join('、')})</span>}
+                          </div>
+                          <div className="c-abilities">
+                            政 {m.abilities.civil} | 武 {m.abilities.military} | 外 {m.abilities.diplomacy}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="orm-no-selection">
+                请从左侧选择一个官职以查看详情或进行任命
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

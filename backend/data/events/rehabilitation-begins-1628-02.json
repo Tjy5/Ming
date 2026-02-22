@@ -1,0 +1,44 @@
+{
+  "script_id": "rehabilitation-begins-1628-02",
+  "trigger_year": 1628,
+  "trigger_month": 2,
+  "title": "起复冤臣·澄城余波",
+  "is_blocking": false,
+  "rich_description": "**崇祯元年，二月。**\n\n圣上下诏为天启朝冤案平反，追赠被阉党迫害致死的忠臣。杨涟、左光斗、魏大中等人获追谥，天下忠义之士为之涕零。\n\n然陕西传来急报：澄城县饥民王二聚众数百，杀知县张斗耀，虽已被镇压，但余波未平。此乃天启以来民变之延续，饥荒之祸愈演愈烈。\n\n朝廷何以应对？",
+  "historical_hint": "为杨涟、左光斗等人平反，首先修复的是朝廷与士大夫之间的道义关系。对新君而言，这一步有助于重建政治信用，也能为后续用人打开空间。\n\n可陕北现实并不按京师节奏运行：旱灾、饥馑、流民迁徙和地方财政衰竭仍在同时推进。于是出现了典型的上层修复与基层失控并存局面，农民起事规模继续扩大。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "加大赈灾力度",
+      "description": "拨银赈济陕西灾民，以防民变再起。",
+      "decrees": [
+        {
+          "type": "disaster_relief",
+          "target": "陕西"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "严惩乱民以儆效尤",
+      "description": "严厉镇压，杀一儆百。虽可震慑一时，但恐激化矛盾。",
+      "decrees": [
+        {
+          "type": "harsh_punishment"
+        }
+      ],
+      "loyalty_effects": [],
+      "state_effects": {}
+    },
+    {
+      "label": "责令地方自行处置",
+      "description": "朝廷已焦头烂额，令地方官自行弹压赈济。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.陕西.stability": -5
+      }
+    }
+  ]
+}

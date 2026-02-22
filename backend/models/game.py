@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal, Optional
@@ -13,7 +14,6 @@ from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
     PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus, AssemblyPhase,
 )
-from .positions import resolve_position
 from .positions import resolve_position
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
@@ -56,6 +56,8 @@ class Minister(BaseModel):
     entry_year: int = 1627
     entry_month: int = Field(default=8, ge=1, le=12)
     historical_note: str = Field(default="", max_length=200)
+    biography: str = Field(default="")
+    major_contributions: list[str] = Field(default_factory=list)
     current_mission: MissionState | None = None
 
 
@@ -468,6 +470,18 @@ INITIAL_REGIONS = [
 ]
 
 _MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
+_MINISTERS_REVIEW_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers_review.json"
+_INITIAL_MINISTERS_CACHE: list[Minister] | None = None
+_INITIAL_MINISTERS_SIGNATURE: tuple[int, int] | None = None
+_INITIAL_MINISTERS_LOCK = threading.RLock()
+
+
+def _try_get_data_manager():
+    try:
+        from data.data_manager import get_data_manager
+    except Exception:
+        return None
+    return get_data_manager()
 
 
 def _split_position_text(value: str) -> list[str]:
@@ -511,11 +525,50 @@ def _normalize_positions(item: dict) -> list[str]:
     return normalized_positions
 
 
-def _load_initial_ministers() -> list[Minister]:
-    raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
+def _read_initial_ministers_file() -> list[Minister]:
+    manager = _try_get_data_manager()
+    if manager is not None:
+        raw = manager.get_ministers()
+    else:
+        raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
+    
+    review_data = {}
+    if _MINISTERS_REVIEW_JSON.exists():
+        try:
+            review_raw = json.loads(_MINISTERS_REVIEW_JSON.read_text(encoding="utf-8"))
+            for item in review_raw:
+                name = item.get("name")
+                if name:
+                    review_data[name] = item
+        except Exception:
+            pass
+
     normalized_raw: list[dict] = []
     for item in raw:
         normalized_item = dict(item)
+        name = normalized_item.get("name")
+        
+        # Merge review data
+        if name in review_data:
+            rd = review_data[name]
+            
+            # Synthesize historical biography
+            bio_parts = []
+            birth, death = rd.get("birth_year"), rd.get("death_year")
+            if birth or death:
+                bio_parts.append(f"生卒：{birth or '?'} - {death or '?'}")
+            
+            offices = rd.get("office_history", [])
+            if offices:
+                bio_parts.append("【历史履历】\n" + "、".join(offices))
+            
+            events = rd.get("related_events", [])
+            if events:
+                bio_parts.append("【历史事件】\n" + "、".join(events))
+                
+            normalized_item["biography"] = "\n\n".join(bio_parts)
+            normalized_item["major_contributions"] = rd.get("major_contributions", [])
+
         normalized_item["positions"] = _normalize_positions(item)
         normalized_item["is_eunuch"] = bool(item.get("is_eunuch", False))
         normalized_raw.append(normalized_item)
@@ -526,7 +579,26 @@ def _load_initial_ministers() -> list[Minister]:
     return ministers
 
 
-INITIAL_MINISTERS = _load_initial_ministers()
+def get_initial_ministers(*, refresh: bool = False) -> list[Minister]:
+    global _INITIAL_MINISTERS_CACHE
+    global _INITIAL_MINISTERS_SIGNATURE
+
+    with _INITIAL_MINISTERS_LOCK:
+        manager = _try_get_data_manager()
+        if manager is not None:
+            ministers_mtime_ns = manager.ministers_path.stat().st_mtime_ns
+        else:
+            ministers_mtime_ns = _MINISTERS_JSON.stat().st_mtime_ns
+        review_mtime_ns = _MINISTERS_REVIEW_JSON.stat().st_mtime_ns if _MINISTERS_REVIEW_JSON.exists() else 0
+        signature = (ministers_mtime_ns, review_mtime_ns)
+
+        if refresh or _INITIAL_MINISTERS_CACHE is None or signature != _INITIAL_MINISTERS_SIGNATURE:
+            _INITIAL_MINISTERS_CACHE = _read_initial_ministers_file()
+            _INITIAL_MINISTERS_SIGNATURE = signature
+        return [minister.model_copy(deep=True) for minister in _INITIAL_MINISTERS_CACHE]
+
+
+INITIAL_MINISTERS = get_initial_ministers(refresh=True)
 
 
 def _time_key(year: int, month: int) -> int:
@@ -536,7 +608,7 @@ def _time_key(year: int, month: int) -> int:
 def create_initial_state() -> GameState:
     start_key = _time_key(1627, 8)
     ministers: list[Minister] = []
-    for tpl in INITIAL_MINISTERS:
+    for tpl in get_initial_ministers():
         m = tpl.model_copy()
         if m.status == MinisterStatus.ACTIVE and _time_key(m.entry_year, m.entry_month) > start_key:
             m.status = MinisterStatus.NOT_YET_ENTERED

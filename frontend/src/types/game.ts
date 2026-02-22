@@ -67,6 +67,8 @@ export interface Minister {
   entry_year: number
   entry_month: number
   historical_note: string
+  biography?: string
+  major_contributions?: string[]
   current_mission?: MissionState | null
 }
 
