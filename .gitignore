@@ -25,4 +25,5 @@ requirements3.md
 
 # Local scripts and results
 start.bat
+start_admin.bat
 test_result.txt
