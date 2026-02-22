@@ -6,7 +6,11 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from models.game import GameState, get_initial_ministers
+from models.game import (
+    GameState,
+    get_initial_ministers,
+    normalize_decree_category_usage,
+)
 
 DB_PATH = Path(__file__).parent.parent / "game_saves.db"
 MAX_SAVES = 20
@@ -245,6 +249,20 @@ def _migrate_save(data: dict) -> list[str]:
     # ── resolved_script_ids ──
     if "resolved_script_ids" not in data:
         data["resolved_script_ids"] = []
+
+    # ── decrees_this_month migration (decree-type -> category-keyed) ──
+    if "decrees_this_month" not in data:
+        data["decrees_this_month"] = {}
+    else:
+        raw_usage = data.get("decrees_this_month")
+        normalized_usage = normalize_decree_category_usage(raw_usage)
+        if raw_usage != normalized_usage:
+            notes.append("迁移了政令月度限制为类别键")
+        data["decrees_this_month"] = normalized_usage
+
+    # ── trigger decisions ──
+    if "trigger_decisions" not in data or not isinstance(data.get("trigger_decisions"), dict):
+        data["trigger_decisions"] = {}
 
     # ── phase3 fields migration ──
     if "memorials" not in data:
