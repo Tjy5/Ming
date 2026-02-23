@@ -67,6 +67,7 @@ REGION_KEYWORDS = re.compile(r"京畿|辽东|陕西|江南|中原|山东|云贵|
 DIPLOMACY_KEYWORDS = re.compile(r"后金|蒙古|朝鲜")
 PERSON_PATTERN = re.compile(r"(?:把|将|令|命)?([^\s,，。、]{2,4})(?:调|贬|擢|免|罢|任|撤)")
 _VACANCY_HINTS = ("空缺", "继任", "补缺", "替补", "vacancy")
+EXPLORE_PREFIX = "详细介绍当前局势："
 
 
 def _try_parse_execution(
@@ -485,6 +486,92 @@ class MockProvider(AIProvider):
             )
 
         return parse_error("无法识别具体政务意图")
+
+    async def classify_chat_intent(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        normalized = (text or "").strip()
+        if not normalized:
+            return {
+                "intent": "execute",
+                "confidence": 0.0,
+                "reason": "输入为空，默认执行分支",
+            }
+
+        if normalized.startswith(EXPLORE_PREFIX):
+            return {
+                "intent": "query",
+                "confidence": 1.0,
+                "reason": "命中探索前缀，强制查询分支",
+            }
+
+        if re.search(r"进入下月|下个月|翻月|推进月份|进入次月", normalized):
+            return {
+                "intent": "advance_month",
+                "confidence": 0.95,
+                "reason": "匹配到翻月关键词",
+            }
+
+        if re.search(
+            r"多少|几|何|查询|查看|状态|在朝|国库|民心|军心|年月|时间|有哪些|谁在|局势|介绍|分析|背景",
+            normalized,
+        ):
+            return {
+                "intent": "query",
+                "confidence": 0.9,
+                "reason": "匹配到查询关键词",
+            }
+
+        if re.search(r"加税|减税|征兵|募兵|裁兵|任命|罢免|赈灾|外交|严刑|处决|斩", normalized):
+            return {
+                "intent": "execute",
+                "confidence": 0.9,
+                "reason": "匹配到执行关键词",
+            }
+
+        return {
+            "intent": "execute",
+            "confidence": 0.55,
+            "reason": "意图不明，默认执行分支",
+        }
+
+    async def chat_query(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> str:
+        normalized = (text or "").strip()
+        if not normalized:
+            return "陛下，臣在。"
+
+        if re.search(r"国库|银两|钱粮|钱", normalized):
+            return f"陛下，今国库尚存{game_state.national_treasury}万两，内帑{game_state.imperial_treasury}万两。"
+
+        if re.search(r"民心|军心|威望", normalized):
+            return (
+                f"陛下，当前民心{game_state.civil_morale}，"
+                f"军心{game_state.military_morale}，朝廷威望{game_state.court_prestige}。"
+            )
+
+        if re.search(r"在朝|大臣|谁在", normalized):
+            active = [m.name for m in game_state.ministers if m.status.value == "active"]
+            roster = "、".join(active[:12]) if active else "暂无在朝大臣"
+            return f"陛下，今在朝诸臣为：{roster}。"
+
+        if re.search(r"年月|时间|几月|何时", normalized):
+            return f"陛下，今为{game_state.time.year}年{game_state.time.month}月。"
+
+        if re.search(r"事件|局势|大事", normalized):
+            events = [e.name for e in game_state.active_events[:6]]
+            if events:
+                return f"陛下，当前朝局要事有：{'、'.join(events)}。"
+            return "陛下，今暂无急报大事。"
+
+        return "陛下，此问臣已记下。就现有军报观之，宜稳国库、抚民心、振军纪，以待后图。"
 
     async def generate_minister_dialogue(
         self,

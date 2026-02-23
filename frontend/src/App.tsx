@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
 import type { StructuredDecree, GameState, GameEvent, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
@@ -19,6 +20,7 @@ import AiSettingsModal from './components/AiSettingsModal'
 import MinisterDialogue from './components/MinisterDialogue'
 import OfficialRankModal from './components/OfficialRankModal'
 import MissionPanel from './components/MissionPanel'
+import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
@@ -32,6 +34,7 @@ type NarrativePayload = {
 }
 
 function App() {
+  const navigate = useNavigate()
   const {
     state, loading, error, gameOver, prevState,
     capabilities, currentModal,
@@ -92,19 +95,32 @@ function App() {
   // Cleanup toast timer
   useEffect(() => () => { window.clearTimeout(toastTimer.current) }, [])
 
-  // Auto-open blocking scripted events
+  // Route blocking scripted events through mode selection.
   useEffect(() => {
     if (!state || loading) return
     const blocking = state.active_events.find(
       e => e.is_scripted && e.is_blocking && e.choices.length > 0,
     )
-    if (blocking && blockingPushedFor.current !== blocking.script_id) {
-      blockingPushedFor.current = blocking.script_id
-      pushModal({ type: 'script_event_blocking', priority: 90, payload: blocking })
+    if (blocking) {
+      const operationFlag = sessionStorage.getItem(MODE_SELECT_OPERATION_FLAG)
+      if (operationFlag) {
+        if (blockingPushedFor.current !== blocking.script_id) {
+          blockingPushedFor.current = blocking.script_id
+          pushModal({ type: 'script_event_blocking', priority: 90, payload: blocking })
+        }
+        sessionStorage.removeItem(MODE_SELECT_OPERATION_FLAG)
+        return
+      }
+
+      if (blockingPushedFor.current !== blocking.script_id) {
+        blockingPushedFor.current = blocking.script_id
+        navigate('/mode-select')
+      }
     } else if (!blocking) {
       blockingPushedFor.current = null
+      sessionStorage.removeItem(MODE_SELECT_OPERATION_FLAG)
     }
-  }, [state, loading, pushModal])
+  }, [state, loading, navigate, pushModal])
 
   async function handleMemorialResolve(id: string, action: 'approved' | 'rejected' | 'deferred') {
     if (memorialResolveInFlight.current) return
@@ -258,6 +274,7 @@ function App() {
         onSave={handleSave}
         onShowSaves={() => setShowSaves(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
+        onOpenChat={() => navigate('/chat')}
         onNewGame={handleNewGame}
       />
       <div className="main-area">

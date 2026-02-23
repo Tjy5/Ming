@@ -108,6 +108,17 @@ REJECTION_SYSTEM_PROMPT = (
     "你是一名为国分忧的大臣。请解释为何不能执行某项政令。"
     "请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"
 )
+CHAT_CLASSIFY_PROMPT = (
+    "你是《大明：危局》的聊天意图分类器。"
+    "请将玩家输入分类为 query、execute、advance_month 三类之一。"
+    "仅输出JSON：{\"intent\":\"query|execute|advance_month\",\"confidence\":0.0-1.0,\"reason\":\"...\"}。"
+)
+CHAT_QUERY_PROMPT = (
+    "你是《大明：危局》的内阁谋臣。"
+    "玩家是皇帝，必须称呼为“陛下”。"
+    "仅基于给定游戏状态回答问题，不得编造不存在的数据。"
+    "回答使用古风汉语，简洁明晰。"
+)
 
 _DIALOGUE_FALLBACK_MOOD_MAP = {
     "恭顺": "support",
@@ -120,6 +131,79 @@ _DIALOGUE_FALLBACK_MOOD_MAP = {
 
 def _join_tags(tags: list[str]) -> str:
     return "、".join(tags) if tags else "无"
+
+
+def _chat_state_snapshot(game_state: GameState) -> str:
+    active_ministers = [m.name for m in game_state.ministers if m.status.value == "active"][:12]
+    active_events = [e.name for e in game_state.active_events[:6]]
+    return (
+        f"时间：{game_state.time.year}年{game_state.time.month}月（{game_state.time.era_name}{game_state.time.era_year}年）\n"
+        f"国库：{game_state.national_treasury}万两，内帑：{game_state.imperial_treasury}万两，粮草：{game_state.grain}万石\n"
+        f"民心：{game_state.civil_morale}，军心：{game_state.military_morale}，威望：{game_state.court_prestige}\n"
+        f"在朝大臣：{'、'.join(active_ministers) if active_ministers else '无'}\n"
+        f"当前大事：{'、'.join(active_events) if active_events else '无'}"
+    )
+
+
+def _format_chat_history(conversation_history: list[dict], *, limit: int = 20) -> str:
+    lines: list[str] = []
+    for item in conversation_history[-limit:]:
+        role = str(item.get("role", "")).strip().lower()
+        content = str(item.get("content", "")).strip()
+        if not content:
+            continue
+        speaker = "陛下" if role == "user" else "内阁"
+        lines.append(f"{speaker}：{content}")
+    return "\n".join(lines) if lines else "无"
+
+
+def build_chat_classify_prompt(
+    text: str,
+    game_state: GameState,
+    conversation_history: list[dict],
+) -> str:
+    history_text = _format_chat_history(conversation_history, limit=12)
+    return (
+        f"玩家输入：{text}\n\n"
+        "分类定义：\n"
+        "- query：查询国库、民心、军心、在朝大臣、当前时间，或了解局势、介绍事件背景、分析形势等，不应改动状态\n"
+        "- execute：下达政令/任免/外交/赈灾/严刑等，会改动状态\n"
+        "- advance_month：明确要求进入下月、翻月、推进月份\n\n"
+        f"当前局势：\n{_chat_state_snapshot(game_state)}\n\n"
+        f"最近对话：\n{history_text}\n\n"
+        "请输出严格JSON对象。"
+    )
+
+
+def normalize_chat_intent_payload(payload: dict) -> dict:
+    raw_intent = str(payload.get("intent", "")).strip().lower()
+    if raw_intent not in {"query", "execute", "advance_month"}:
+        raw_intent = "execute"
+    try:
+        confidence = float(payload.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+    reason = str(payload.get("reason", "")).strip() or "AI未提供分类理由"
+    return {
+        "intent": raw_intent,
+        "confidence": confidence,
+        "reason": reason,
+    }
+
+
+def build_chat_query_prompt(
+    text: str,
+    game_state: GameState,
+    conversation_history: list[dict],
+) -> str:
+    history_text = _format_chat_history(conversation_history, limit=20)
+    return (
+        f"当前局势：\n{_chat_state_snapshot(game_state)}\n\n"
+        f"最近对话：\n{history_text}\n\n"
+        f"陛下提问：{text}\n\n"
+        "请以内阁谋臣口吻作答；若问题超出当前状态可知范围，请直言无法从现有军报确定。"
+    )
 
 
 def build_memorial_prompt(

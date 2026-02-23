@@ -36,6 +36,8 @@ from .provider import (
     infer_decree_type_from_topic,
 )
 from .prompts import (
+    CHAT_CLASSIFY_PROMPT,
+    CHAT_QUERY_PROMPT,
     MEMORIAL_SYSTEM_PROMPT,
     MINISTER_DIALOGUE_SYSTEM_PROMPT,
     MINISTER_REACTION_SYSTEM_PROMPT,
@@ -43,12 +45,15 @@ from .prompts import (
     PARSE_SYSTEM_PROMPT,
     REJECTION_SYSTEM_PROMPT,
     TURN_COMMENTARY_SYSTEM_PROMPT,
+    build_chat_classify_prompt,
+    build_chat_query_prompt,
     build_memorial_prompt,
     build_minister_dialogue_prompt,
     build_minister_reaction_prompt,
     build_narrative_prompt as _build_narrative_prompt,
     build_parse_prompt as _build_parse_prompt,
     build_turn_commentary_prompt,
+    normalize_chat_intent_payload,
     normalize_dialogue_payload,
 )
 
@@ -682,3 +687,53 @@ class GoogleProvider(AIProvider):
         except Exception as e:
             logging.error(f"Google process_freeform error: {e}")
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
+    async def classify_chat_intent(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        prompt = build_chat_classify_prompt(text, game_state, conversation_history)
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=self._build_generate_content_config(
+                    system_instruction=CHAT_CLASSIFY_PROMPT,
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            content = (response.text or "").strip()
+            data = json.loads(extract_json_object_text(content))
+            return normalize_chat_intent_payload(data)
+        except Exception as e:
+            logging.error("Google classify_chat_intent error: %s", e)
+            return parse_error("聊天意图分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
+
+    async def chat_query(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> str:
+        prompt = build_chat_query_prompt(text, game_state, conversation_history)
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=self._build_generate_content_config(
+                    system_instruction=CHAT_QUERY_PROMPT,
+                    temperature=0.6,
+                    safety_settings=self._safety_off(),
+                ),
+            )
+            content = (response.text or "").strip()
+            if not content:
+                raise ValueError("chat query reply is empty")
+            return content
+        except Exception as e:
+            logging.error("Google chat_query error: %s", e)
+            raise

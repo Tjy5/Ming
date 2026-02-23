@@ -531,6 +531,12 @@ class _FreeformFailProvider(AIProvider):
     async def select_script_trigger_decisions(self, *a, **kw):
         return {}
 
+    async def classify_chat_intent(self, *a, **kw):
+        return {"intent": "execute", "confidence": 0.0, "reason": "not implemented"}
+
+    async def chat_query(self, *a, **kw):
+        return "not implemented"
+
     async def generate_minister_dialogue(self, *a, **kw):
         return {}
 

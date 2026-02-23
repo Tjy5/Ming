@@ -125,6 +125,29 @@ class ResilientProvider(AIProvider):
         }
 
     @staticmethod
+    def _normalize_chat_intent_result(result: dict) -> dict:
+        if "error" in result:
+            return result
+
+        intent = str(result.get("intent", "")).strip().lower()
+        if intent not in {"query", "execute", "advance_month"}:
+            intent = "execute"
+
+        raw_confidence = result.get("confidence", 0.0)
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            confidence = 0.0
+        confidence = max(0.0, min(1.0, confidence))
+
+        reason = str(result.get("reason", "")).strip() or "AI未提供分类理由"
+        return {
+            "intent": intent,
+            "confidence": confidence,
+            "reason": reason,
+        }
+
+    @staticmethod
     def _normalize_script_trigger_decisions(
         result: dict,
         candidate_ids: set[str],
@@ -533,6 +556,79 @@ class ResilientProvider(AIProvider):
             script_id: (True, "AI不可用，回退规则触发")
             for script_id in candidate_ids
         }
+
+    async def classify_chat_intent(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict:
+        for attempt in range(self._parse_retries):
+            try:
+                result = await asyncio.wait_for(
+                    self._inner.classify_chat_intent(text, game_state, conversation_history),
+                    timeout=self._parse_timeout,
+                )
+                if not isinstance(result, dict):
+                    raise ValueError("聊天意图分类返回格式无效")
+                normalized = self._normalize_chat_intent_result(result)
+                if "error" in normalized:
+                    raise ValueError(str(normalized.get("error", "聊天意图分类失败")))
+                return normalized
+            except Exception as e:
+                self._log_retry_failure("classify_chat_intent", attempt + 1, self._parse_retries, e)
+                if attempt == self._parse_retries - 1:
+                    break
+
+        try:
+            fallback = await MockProvider().classify_chat_intent(
+                text,
+                game_state,
+                conversation_history,
+            )
+            if isinstance(fallback, dict):
+                normalized = self._normalize_chat_intent_result(fallback)
+                if "error" not in normalized:
+                    return normalized
+        except Exception as e:
+            self._log_retry_failure("classify_chat_intent_fallback", 1, 1, e)
+
+        return {
+            "intent": "execute",
+            "confidence": 0.0,
+            "reason": "聊天意图分类不可用",
+        }
+
+    async def chat_query(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> str:
+        for attempt in range(self._retries):
+            try:
+                reply = await asyncio.wait_for(
+                    self._inner.chat_query(text, game_state, conversation_history),
+                    timeout=self._timeout,
+                )
+                content = str(reply).strip()
+                if not content:
+                    raise ValueError("chat_query returned empty content")
+                return content
+            except Exception as e:
+                self._log_retry_failure("chat_query", attempt + 1, self._retries, e)
+                if attempt == self._retries - 1:
+                    if mock_fallback_enabled():
+                        return await MockProvider().chat_query(
+                            text,
+                            game_state,
+                            conversation_history,
+                        )
+                    raise
+
+        if mock_fallback_enabled():
+            return await MockProvider().chat_query(text, game_state, conversation_history)
+        raise RuntimeError("chat_query failed")
 
     async def process_freeform(
         self,

@@ -261,6 +261,22 @@ class AIProvider(abc.ABC):
     ) -> FreeformResult | dict: ...
 
     @abc.abstractmethod
+    async def classify_chat_intent(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> dict: ...
+
+    @abc.abstractmethod
+    async def chat_query(
+        self,
+        text: str,
+        game_state: GameState,
+        conversation_history: list[dict],
+    ) -> str: ...
+
+    @abc.abstractmethod
     async def generate_minister_dialogue(
         self,
         minister: Minister,

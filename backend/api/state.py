@@ -72,6 +72,8 @@ _ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
 _SECRET_MASK = "********"
 _MAX_DIALOGUE_ROUNDS = 10
 _MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
+_MAX_CHAT_CONVERSATION_MESSAGES = 100
+_chat_conversation_buffer: list[dict[str, str]] = []
 
 _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
     "mock": {
@@ -158,6 +160,33 @@ def _get_provider():
     if _provider is None:
         _provider = get_provider()
     return _provider
+
+
+def _trim_chat_conversation_buffer() -> None:
+    if len(_chat_conversation_buffer) <= _MAX_CHAT_CONVERSATION_MESSAGES:
+        return
+    del _chat_conversation_buffer[:-_MAX_CHAT_CONVERSATION_MESSAGES]
+
+
+def append_chat_conversation(role: str, content: str) -> None:
+    normalized_role = str(role).strip().lower()
+    if normalized_role not in {"user", "assistant"}:
+        normalized_role = "assistant"
+    normalized_content = str(content).strip()
+    if not normalized_content:
+        return
+    _chat_conversation_buffer.append(
+        {"role": normalized_role, "content": normalized_content},
+    )
+    _trim_chat_conversation_buffer()
+
+
+def get_chat_conversation() -> list[dict[str, str]]:
+    return [dict(item) for item in _chat_conversation_buffer]
+
+
+def clear_chat_conversation() -> None:
+    _chat_conversation_buffer.clear()
 
 
 

@@ -362,6 +362,49 @@ export interface DialogueResponse {
   state: GameState
 }
 
+export type ChatIntent = 'query' | 'execute' | 'advance_month'
+
+export interface ChatGameOver {
+  result: 'victory' | 'defeat'
+  message: string
+}
+
+export interface ChatDonePayload {
+  reply: string
+  state: GameState
+  effects_applied: boolean
+  narrative?: string
+  intent?: ChatIntent
+  minister_reactions?: MinisterReaction[]
+  triggered_events?: string[]
+  new_ministers?: string[]
+  game_over?: ChatGameOver | null
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  intent?: ChatIntent
+  effectsApplied?: boolean
+  effectsSummary?: string
+  effectsDelta?: Record<string, number>
+  ministerReactions?: MinisterReaction[]
+  triggeredEvents?: string[]
+  newMinisters?: string[]
+  gameOver?: ChatGameOver | null
+}
+
+export type ChatStreamEvent =
+  | { event: 'intent'; data: { intent: ChatIntent; confidence: number; reason: string } }
+  | { event: 'narrative_chunk'; data: { chunk: string } }
+  | { event: 'effects'; data: { delta: Record<string, number>; summary: string } }
+  | { event: 'reactions'; data: { minister_reactions: MinisterReaction[] } }
+  | { event: 'state'; data: { state: GameState } }
+  | { event: 'done'; data: ChatDonePayload }
+  | { event: 'error'; data: { status: number; detail: ErrorResponse } }
+
 export interface DebateMinister {
   name: string
   faction: string

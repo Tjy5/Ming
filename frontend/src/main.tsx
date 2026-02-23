@@ -5,6 +5,8 @@ import './index.css'
 import App from './App.tsx'
 
 const AdminPage = lazy(() => import('./pages/AdminPage.tsx'))
+const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
+const ModeSelectPage = lazy(() => import('./pages/ModeSelectPage.tsx'))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +18,22 @@ createRoot(document.getElementById('root')!).render(
           element={(
             <Suspense fallback={<div style={{ padding: 24 }}>Loading admin…</div>}>
               <AdminPage />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/chat"
+          element={(
+            <Suspense fallback={<div style={{ padding: 24 }}>Loading chat…</div>}>
+              <ChatPage />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/mode-select"
+          element={(
+            <Suspense fallback={<div style={{ padding: 24 }}>Loading mode select…</div>}>
+              <ModeSelectPage />
             </Suspense>
           )}
         />

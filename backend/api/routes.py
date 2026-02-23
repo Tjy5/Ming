@@ -31,7 +31,6 @@ from engine.core import (
 )
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
-from db.saves import auto_save
 from .schemas import (
     DebateStartRequest,
     DecreeRequest,
@@ -52,6 +51,7 @@ from .state import (
     NarrativeChunkCallback,
     _STREAM_PROGRESS_MESSAGES,
     _MAX_DIALOGUE_MESSAGES,
+    clear_chat_conversation,
     _fill_memorial_content,
     _generate_narrative_with_streaming,
     _get_provider,
@@ -174,6 +174,7 @@ async def new_game():
     decisions = await _decide_script_triggers_for_state(provider, state)
     inject_script_events(state, script_trigger_decisions=decisions)
 
+    clear_chat_conversation()
     _set_state(state)
     return state.model_dump()
 
@@ -599,7 +600,6 @@ async def advance_month_endpoint():
             script_trigger_decisions=script_decisions,
         )
         _set_state(state)
-        auto_save(state)
 
     activated = [
         m.model_dump() for m in state.ministers

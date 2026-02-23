@@ -11,6 +11,7 @@ from api.save_routes import save_router
 from api.settings_routes import settings_router
 from api.assembly_routes import assembly_router
 from api.admin_routes import admin_router
+from api.chat_routes import chat_router
 from api.state import startup as api_startup
 
 
@@ -47,6 +48,7 @@ app.include_router(save_router)
 app.include_router(settings_router)
 app.include_router(assembly_router)
 app.include_router(admin_router)
+app.include_router(chat_router)
 
 
 @app.get("/api/health")

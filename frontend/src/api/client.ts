@@ -16,6 +16,11 @@ import type {
   AISettings,
   AIModelListResponse,
   AIProvider,
+  ChatStreamEvent,
+  ChatDonePayload,
+  ChatIntent,
+  ChatGameOver,
+  MinisterReaction,
 } from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
@@ -57,6 +62,69 @@ function normalizeErrorBody(raw: unknown, status: number): ErrorResponse {
     return { error_code: errorCode, message, details }
   }
   return { error_code: 'network_error', message: `HTTP ${status}`, details: null }
+}
+
+function normalizeStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function normalizeMinisterReactions(raw: unknown): MinisterReaction[] {
+  if (!Array.isArray(raw)) return []
+  const reactions: MinisterReaction[] = []
+  for (const item of raw) {
+    if (!isRecord(item)) continue
+    const minister_name = typeof item.minister_name === 'string' ? item.minister_name : ''
+    const faction = typeof item.faction === 'string' ? item.faction : ''
+    const reaction_type = typeof item.reaction_type === 'string' ? item.reaction_type : ''
+    const reaction_text = typeof item.reaction_text === 'string' ? item.reaction_text : ''
+    const loyalty_change = typeof item.loyalty_change === 'number' ? item.loyalty_change : 0
+    reactions.push({
+      minister_name,
+      faction,
+      reaction_type,
+      reaction_text,
+      loyalty_change,
+    })
+  }
+  return reactions
+}
+
+function normalizeChatIntent(raw: unknown): ChatIntent {
+  const intent = String(raw ?? '').trim()
+  if (intent === 'query' || intent === 'advance_month') return intent
+  return 'execute'
+}
+
+function normalizeChatGameOver(raw: unknown): ChatGameOver | null {
+  if (!isRecord(raw)) return null
+  const result = String(raw.result ?? '').trim()
+  if (result !== 'victory' && result !== 'defeat') return null
+  const message = typeof raw.message === 'string' ? raw.message : ''
+  return { result, message }
+}
+
+function normalizeChatDonePayload(payload: Record<string, unknown>): ChatDonePayload {
+  const done: ChatDonePayload = {
+    reply: typeof payload.reply === 'string' ? payload.reply : '',
+    state: (payload.state as GameState),
+    effects_applied: typeof payload.effects_applied === 'boolean' ? payload.effects_applied : false,
+    minister_reactions: normalizeMinisterReactions(payload.minister_reactions),
+    triggered_events: normalizeStringArray(payload.triggered_events),
+    new_ministers: normalizeStringArray(payload.new_ministers),
+    game_over: normalizeChatGameOver(payload.game_over),
+  }
+
+  if (typeof payload.narrative === 'string') {
+    done.narrative = payload.narrative
+  }
+  if ('intent' in payload) {
+    done.intent = normalizeChatIntent(payload.intent)
+  }
+  return done
 }
 
 async function toApiError(res: Response): Promise<ApiError> {
@@ -116,9 +184,75 @@ function parseDecreeStreamMessage(frame: string): DecreeStreamMessage | null {
   return null
 }
 
-function consumeSseFrames(
+function parseChatStreamMessage(frame: string): ChatStreamEvent | null {
+  let eventName = 'message'
+  const dataLines: string[] = []
+  for (const rawLine of frame.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line || line.startsWith(':')) continue
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim()
+      continue
+    }
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trim())
+    }
+  }
+
+  if (!dataLines.length) return null
+  let payload: unknown
+  try {
+    payload = JSON.parse(dataLines.join('\n'))
+  } catch {
+    return null
+  }
+  if (!isRecord(payload)) return null
+
+  if (eventName === 'intent') {
+    const intent = normalizeChatIntent(payload.intent)
+    const confidence = typeof payload.confidence === 'number' ? payload.confidence : 0
+    const reason = typeof payload.reason === 'string' ? payload.reason : ''
+    return { event: 'intent', data: { intent, confidence, reason } }
+  }
+  if (eventName === 'narrative_chunk') {
+    const chunk = typeof payload.chunk === 'string' ? payload.chunk : ''
+    return { event: 'narrative_chunk', data: { chunk } }
+  }
+  if (eventName === 'effects') {
+    const summary = typeof payload.summary === 'string' ? payload.summary : ''
+    const delta: Record<string, number> = {}
+    if (isRecord(payload.delta)) {
+      for (const [key, value] of Object.entries(payload.delta)) {
+        if (typeof value === 'number') delta[key] = value
+      }
+    }
+    return { event: 'effects', data: { delta, summary } }
+  }
+  if (eventName === 'reactions') {
+    return {
+      event: 'reactions',
+      data: { minister_reactions: normalizeMinisterReactions(payload.minister_reactions) },
+    }
+  }
+  if (eventName === 'state' && isRecord(payload.state)) {
+    return { event: 'state', data: { state: payload.state as unknown as GameState } }
+  }
+  if (eventName === 'done') {
+    const done = normalizeChatDonePayload(payload)
+    return { event: 'done', data: done }
+  }
+  if (eventName === 'error') {
+    const status = typeof payload.status === 'number' ? payload.status : 500
+    const detail = normalizeErrorBody(payload.detail, status)
+    return { event: 'error', data: { status, detail } }
+  }
+  return null
+}
+
+function consumeSseFrames<T>(
   source: string,
-  onMessage: (message: DecreeStreamMessage) => void,
+  parser: (frame: string) => T | null,
+  onMessage: (message: T) => void,
 ): string {
   let buffer = source
   // Supports both LF and CRLF SSE separators.
@@ -135,7 +269,7 @@ function consumeSseFrames(
     const frame = buffer.slice(0, sepIndex).trim()
     buffer = buffer.slice(sepIndex + sepLen)
     if (!frame) continue
-    const message = parseDecreeStreamMessage(frame)
+    const message = parser(frame)
     if (message) onMessage(message)
   }
   return buffer
@@ -231,10 +365,10 @@ export const api = {
         const { value, done } = await reader.read()
         if (done) break
         buffer += decoder.decode(value, { stream: true })
-        buffer = consumeSseFrames(buffer, handleMessage)
+        buffer = consumeSseFrames(buffer, parseDecreeStreamMessage, handleMessage)
       }
       buffer += decoder.decode()
-      buffer = consumeSseFrames(buffer, handleMessage)
+      buffer = consumeSseFrames(buffer, parseDecreeStreamMessage, handleMessage)
     } catch (e) {
       await reader.cancel().catch(() => { })
       throw e
@@ -246,6 +380,65 @@ export const api = {
     throw new ApiError(500, {
       error_code: 'stream_incomplete',
       message: '流式响应未返回最终结果',
+      details: null,
+    })
+  },
+
+  chatStream: async (
+    message: string,
+    onEvent: (event: ChatStreamEvent) => void,
+  ): Promise<ChatDonePayload> => {
+    let res: Response
+    try {
+      res = await fetch(`${BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      })
+    } catch {
+      throw new ApiError(0, { error_code: 'network_error', message: '网络连接失败，请检查后端服务', details: null })
+    }
+
+    if (!res.ok) throw await toApiError(res)
+    if (!res.body) {
+      throw new ApiError(500, { error_code: 'stream_unavailable', message: '浏览器不支持流式响应', details: null })
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let donePayload: ChatDonePayload | null = null
+
+    const handleMessage = (event: ChatStreamEvent) => {
+      onEvent(event)
+      if (event.event === 'error') {
+        throw new ApiError(event.data.status, event.data.detail)
+      }
+      if (event.event === 'done') {
+        donePayload = event.data
+      }
+    }
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        buffer = consumeSseFrames(buffer, parseChatStreamMessage, handleMessage)
+      }
+      buffer += decoder.decode()
+      buffer = consumeSseFrames(buffer, parseChatStreamMessage, handleMessage)
+    } catch (e) {
+      await reader.cancel().catch(() => { })
+      throw e
+    } finally {
+      reader.releaseLock()
+    }
+
+    if (donePayload) return donePayload
+    throw new ApiError(500, {
+      error_code: 'stream_incomplete',
+      message: '聊天流未返回最终结果',
       details: null,
     })
   },
@@ -404,4 +597,4 @@ export const api = {
 }
 
 export { ApiError }
-export type { DecreeStreamMessage, AdvanceMonthResponse }
+export type { DecreeStreamMessage, ChatStreamEvent, AdvanceMonthResponse }
