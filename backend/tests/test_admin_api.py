@@ -223,6 +223,8 @@ def test_admin_create_minister_rejects_historical_constraint(admin_test_env):
 
 
 def test_admin_create_minister_rejects_unique_position_conflict(admin_test_env):
+    """Unique position conflicts now warn instead of error on create/save;
+    the import validation still enforces uniqueness via strict mode."""
     _manager, _db = admin_test_env
     positions = asyncio.run(admin_routes.admin_get_positions(None))
     candidate = next(item for item in positions if item["unique"])
@@ -247,10 +249,12 @@ def test_admin_create_minister_rejects_unique_position_conflict(admin_test_env):
     )
 
     asyncio.run(admin_routes.admin_create_minister(first_payload, None))
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(admin_routes.admin_create_minister(second_payload, None))
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail["error_code"] == "invalid_minister"
+    asyncio.run(admin_routes.admin_create_minister(second_payload, None))
+    # Verify both were created
+    all_ministers = asyncio.run(admin_routes.admin_get_ministers(None))
+    names = {m["name"] for m in all_ministers}
+    assert "唯一官职持有者甲" in names
+    assert "唯一官职持有者乙" in names
 
 
 def test_admin_event_crud(admin_test_env):

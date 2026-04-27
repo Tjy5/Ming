@@ -1199,5 +1199,992 @@
     "entry_year": 1627,
     "entry_month": 8,
     "historical_note": "崇祯朝御史、给事中。以敢言著称，屡遭贬斥。"
+  },
+  {
+    "name": "丁启睿",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 65,
+      "military": 13,
+      "diplomacy": 30
+    },
+    "status": "active",
+    "loyalty": 48,
+    "position": "御史",
+    "entry_year": 1635,
+    "entry_month": 4,
+    "historical_note": "崇祯中期总督剿匪，朱仙镇之战大败，革职论死。"
+  },
+  {
+    "name": "何可纲",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 48,
+      "military": 59,
+      "diplomacy": 23
+    },
+    "status": "active",
+    "loyalty": 62,
+    "position": "副总兵",
+    "entry_year": 1627,
+    "entry_month": 10,
+    "historical_note": "关宁军勇将。大凌河之战中拒降，被祖大寿杀害以表降意。"
+  },
+  {
+    "name": "何如宠",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 83,
+      "military": 4,
+      "diplomacy": 40
+    },
+    "status": "active",
+    "loyalty": 67,
+    "position": "礼部侍郎",
+    "entry_year": 1627,
+    "entry_month": 4,
+    "historical_note": "崇祯初年入阁。为人宽厚，不喜党争。不久以疾去职。"
+  },
+  {
+    "name": "何腾蛟",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 61,
+      "military": 29,
+      "diplomacy": 30
+    },
+    "status": "active",
+    "loyalty": 62,
+    "position": "南阳知府",
+    "entry_year": 1644,
+    "entry_month": 6,
+    "historical_note": "南明湖广总督。联合各路抗清力量，兵败被俘殉国。"
+  },
+  {
+    "name": "傅宗龙",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 70,
+      "military": 57,
+      "diplomacy": 57
+    },
+    "status": "active",
+    "loyalty": 53,
+    "position": "巡抚",
+    "entry_year": 1627,
+    "entry_month": 8,
+    "historical_note": "崇祯十四年出狱任三边总督。项城之战兵败被俘殉国。"
+  },
+  {
+    "name": "刘兴祚",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 33,
+      "military": 73,
+      "diplomacy": 45
+    },
+    "status": "active",
+    "loyalty": 45,
+    "position": "副将",
+    "entry_year": 1627,
+    "entry_month": 12,
+    "historical_note": "原为后金汉官，暗通明朝。回归后任副将，不久战死。"
+  },
+  {
+    "name": "刘文炳",
+    "faction": "勋贵集团",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 35,
+      "military": 68,
+      "diplomacy": 28
+    },
+    "status": "active",
+    "loyalty": 59,
+    "position": "新城侯",
+    "entry_year": 1640,
+    "entry_month": 6,
+    "historical_note": "崇祯外戚。甲申之变投井殉国。"
+  },
+  {
+    "name": "卢象升",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 48,
+      "military": 12,
+      "diplomacy": 42
+    },
+    "status": "active",
+    "loyalty": 43,
+    "position": "大名知府",
+    "entry_year": 1628,
+    "entry_month": 6,
+    "historical_note": "文武全才。崇祯十一年总督天下勤王兵马，巨鹿之战孤军奋战殉国。"
+  },
+  {
+    "name": "吴三桂",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 33,
+      "military": 74,
+      "diplomacy": 45
+    },
+    "status": "active",
+    "loyalty": 46,
+    "position": "千总",
+    "entry_year": 1643,
+    "entry_month": 8,
+    "historical_note": "祖大寿外甥。崇祯末总兵山海关，引清兵入关。"
+  },
+  {
+    "name": "吴甘来",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 62,
+      "military": 13,
+      "diplomacy": 59
+    },
+    "status": "active",
+    "loyalty": 57,
+    "position": "御史",
+    "entry_year": 1640,
+    "entry_month": 9,
+    "historical_note": "以直言著称。甲申之变自缢殉国。"
+  },
+  {
+    "name": "周文郁",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 51,
+      "military": 64,
+      "diplomacy": 40
+    },
+    "status": "active",
+    "loyalty": 64,
+    "position": "参将",
+    "entry_year": 1628,
+    "entry_month": 10,
+    "historical_note": "辽东边将。曾随袁崇焕勤王。著有《边事小纪》记录辽东战事。"
+  },
+  {
+    "name": "唐世济",
+    "faction": "温体仁派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 51,
+      "military": 32,
+      "diplomacy": 32
+    },
+    "status": "active",
+    "loyalty": 31,
+    "position": "御史",
+    "entry_year": 1629,
+    "entry_month": 4,
+    "historical_note": "温体仁党羽。善于迎合上意。"
+  },
+  {
+    "name": "堵胤锡",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 69,
+      "military": 19,
+      "diplomacy": 32
+    },
+    "status": "active",
+    "loyalty": 52,
+    "position": "知县",
+    "entry_year": 1644,
+    "entry_month": 4,
+    "historical_note": "南明重臣。联合大顺余部抗清，鞠躬尽瘁。"
+  },
+  {
+    "name": "姜曰广",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 82,
+      "military": 11,
+      "diplomacy": 54
+    },
+    "status": "active",
+    "loyalty": 85,
+    "position": "翰林侍读",
+    "entry_year": 1644,
+    "entry_month": 8,
+    "historical_note": "崇祯朝翰林学士，南明弘光朝礼部尚书。"
+  },
+  {
+    "name": "宋应星",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 50,
+      "military": 21,
+      "diplomacy": 41
+    },
+    "status": "active",
+    "loyalty": 51,
+    "position": "教谕",
+    "entry_year": 1629,
+    "entry_month": 5,
+    "historical_note": "科学家。著《天工开物》，记录明代手工业和农业技术。"
+  },
+  {
+    "name": "尤世禄",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 54,
+      "military": 77,
+      "diplomacy": 41
+    },
+    "status": "active",
+    "loyalty": 65,
+    "position": "宣府总兵",
+    "entry_year": 1627,
+    "entry_month": 10,
+    "historical_note": "己巳之变勤王将领之一。"
+  },
+  {
+    "name": "左良玉",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 30,
+      "military": 75,
+      "diplomacy": 37
+    },
+    "status": "active",
+    "loyalty": 47,
+    "position": "参将",
+    "entry_year": 1640,
+    "entry_month": 8,
+    "historical_note": "悍将。崇祯末拥兵自重，号称八十万军。南明时率军东下，病死途中。"
+  },
+  {
+    "name": "张世泽",
+    "faction": "勋贵集团",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 33,
+      "military": 67,
+      "diplomacy": 49
+    },
+    "status": "active",
+    "loyalty": 75,
+    "position": "英国公世子",
+    "entry_year": 1643,
+    "entry_month": 9,
+    "historical_note": "张维贤之孙。袭爵英国公。甲申之变降贼后被杀。"
+  },
+  {
+    "name": "张四知",
+    "faction": "周延儒派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 77,
+      "military": 24,
+      "diplomacy": 50
+    },
+    "status": "active",
+    "loyalty": 54,
+    "position": "吏部侍郎",
+    "entry_year": 1635,
+    "entry_month": 4,
+    "historical_note": "崇祯中期阁臣。庸碌无为。"
+  },
+  {
+    "name": "张国维",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 71,
+      "military": 11,
+      "diplomacy": 55
+    },
+    "status": "active",
+    "loyalty": 55,
+    "position": "御史",
+    "entry_year": 1642,
+    "entry_month": 5,
+    "historical_note": "崇祯末兵部尚书。治水有功。南明时兵败投水殉国。"
+  },
+  {
+    "name": "成基命",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 72,
+      "military": 9,
+      "diplomacy": 69
+    },
+    "status": "active",
+    "loyalty": 83,
+    "position": "礼部侍郎",
+    "entry_year": 1629,
+    "entry_month": 6,
+    "historical_note": "崇祯初年入阁，以宽厚著称，每遇大狱力主宽减。"
+  },
+  {
+    "name": "文震孟",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 76,
+      "military": 23,
+      "diplomacy": 55
+    },
+    "status": "active",
+    "loyalty": 77,
+    "position": "翰林编修",
+    "entry_year": 1627,
+    "entry_month": 8,
+    "historical_note": "天启二年状元，因直谏魏忠贤被廷杖削籍。崇祯初复官。"
+  },
+  {
+    "name": "方孔炤",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 70,
+      "military": 49,
+      "diplomacy": 44
+    },
+    "status": "active",
+    "loyalty": 53,
+    "position": "湖广佥事",
+    "entry_year": 1627,
+    "entry_month": 4,
+    "historical_note": "方以智之父。崇祯朝湖广巡抚，镇压土司有功。"
+  },
+  {
+    "name": "方岳贡",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 68,
+      "military": 27,
+      "diplomacy": 47
+    },
+    "status": "active",
+    "loyalty": 53,
+    "position": "知府",
+    "entry_year": 1643,
+    "entry_month": 10,
+    "historical_note": "崇祯末户部尚书入阁。甲申之变殉国。"
+  },
+  {
+    "name": "施凤来",
+    "faction": "阉党残余",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 83,
+      "military": 21,
+      "diplomacy": 52
+    },
+    "status": "active",
+    "loyalty": 21,
+    "position": "武英殿大学士",
+    "entry_year": 1627,
+    "entry_month": 3,
+    "historical_note": "阉党阁臣，为人庸碌。崇祯即位后致仕。"
+  },
+  {
+    "name": "曹变蛟",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 40,
+      "military": 71,
+      "diplomacy": 22
+    },
+    "status": "active",
+    "loyalty": 41,
+    "position": "千总",
+    "entry_year": 1627,
+    "entry_month": 3,
+    "historical_note": "曹文诏侄。松锦之战中突阵直捣清军大帐，功败垂成被俘殉国。"
+  },
+  {
+    "name": "曹文诏",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 30,
+      "military": 75,
+      "diplomacy": 45
+    },
+    "status": "active",
+    "loyalty": 58,
+    "position": "参将",
+    "entry_year": 1629,
+    "entry_month": 2,
+    "historical_note": "辽东悍将，号称'军中有一曹，流贼闻之心胆摇'。陕北围剿中战死。"
+  },
+  {
+    "name": "朱国弼",
+    "faction": "勋贵集团",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 37,
+      "military": 67,
+      "diplomacy": 39
+    },
+    "status": "active",
+    "loyalty": 69,
+    "position": "保国公",
+    "entry_year": 1629,
+    "entry_month": 5,
+    "historical_note": "世袭保国公。后降清。"
+  },
+  {
+    "name": "来宗道",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 87,
+      "military": 3,
+      "diplomacy": 61
+    },
+    "status": "active",
+    "loyalty": 68,
+    "position": "大学士",
+    "entry_year": 1627,
+    "entry_month": 11,
+    "historical_note": "崇祯初年阁臣。才能平庸但无大过。不久去职。"
+  },
+  {
+    "name": "杨廷麟",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 87,
+      "military": 11,
+      "diplomacy": 64
+    },
+    "status": "active",
+    "loyalty": 65,
+    "position": "翰林编修",
+    "entry_year": 1642,
+    "entry_month": 2,
+    "historical_note": "崇祯末年守赣州。南明时殉国。"
+  },
+  {
+    "name": "洪承畴",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 59,
+      "military": 48,
+      "diplomacy": 45
+    },
+    "status": "active",
+    "loyalty": 54,
+    "position": "陕西参政",
+    "entry_year": 1627,
+    "entry_month": 12,
+    "historical_note": "崇祯朝陕西巡抚、蓟辽总督。松锦之战兵败降清。"
+  },
+  {
+    "name": "猛如虎",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 48,
+      "military": 83,
+      "diplomacy": 28
+    },
+    "status": "active",
+    "loyalty": 56,
+    "position": "参将",
+    "entry_year": 1627,
+    "entry_month": 9,
+    "historical_note": "勇将。多次参与围剿流寇。后战死沙场。"
+  },
+  {
+    "name": "田尔耕",
+    "faction": "阉党残余",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 28,
+      "military": 84,
+      "diplomacy": 47
+    },
+    "status": "active",
+    "loyalty": 30,
+    "position": "锦衣卫指挥使",
+    "entry_year": 1628,
+    "entry_month": 11,
+    "historical_note": "阉党五彪之首，掌锦衣卫酷刑迫害异己。崇祯元年被处死。"
+  },
+  {
+    "name": "白广恩",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 44,
+      "military": 71,
+      "diplomacy": 26
+    },
+    "status": "active",
+    "loyalty": 44,
+    "position": "参将",
+    "entry_year": 1628,
+    "entry_month": 3,
+    "historical_note": "骁将。松锦之战后降清。"
+  },
+  {
+    "name": "范复粹",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 87,
+      "military": 19,
+      "diplomacy": 69
+    },
+    "status": "active",
+    "loyalty": 45,
+    "position": "礼部侍郎",
+    "entry_year": 1639,
+    "entry_month": 6,
+    "historical_note": "崇祯中期首辅。庸碌自保，无大建树。"
+  },
+  {
+    "name": "许显纯",
+    "faction": "阉党残余",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 25,
+      "military": 70,
+      "diplomacy": 23
+    },
+    "status": "active",
+    "loyalty": 21,
+    "position": "北镇抚司",
+    "entry_year": 1628,
+    "entry_month": 4,
+    "historical_note": "酷吏，刑杀杨涟、左光斗等东林六君子。崇祯元年伏诛。"
+  },
+  {
+    "name": "贺人龙",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 32,
+      "military": 56,
+      "diplomacy": 48
+    },
+    "status": "active",
+    "loyalty": 58,
+    "position": "参将",
+    "entry_year": 1627,
+    "entry_month": 2,
+    "historical_note": "骁勇善战但桀骜不驯。多次临阵脱逃致友军覆没。后被孙传庭诱杀。"
+  },
+  {
+    "name": "贺逢圣",
+    "faction": "周延儒派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 85,
+      "military": 5,
+      "diplomacy": 64
+    },
+    "status": "active",
+    "loyalty": 47,
+    "position": "翰林编修",
+    "entry_year": 1640,
+    "entry_month": 3,
+    "historical_note": "周延儒同年密友。崇祯末入阁。张献忠破武昌时投水殉国。"
+  },
+  {
+    "name": "金国凤",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 40,
+      "military": 76,
+      "diplomacy": 50
+    },
+    "status": "active",
+    "loyalty": 62,
+    "position": "参将",
+    "entry_year": 1627,
+    "entry_month": 5,
+    "historical_note": "守松山、杏山有功。后在宁远被围战死。"
+  },
+  {
+    "name": "闵洪学",
+    "faction": "温体仁派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 86,
+      "military": 22,
+      "diplomacy": 53
+    },
+    "status": "active",
+    "loyalty": 36,
+    "position": "吏部尚书",
+    "entry_year": 1629,
+    "entry_month": 12,
+    "historical_note": "温体仁心腹，任吏部尚书操控铨选。后被弹劾去职。"
+  },
+  {
+    "name": "阮大铖",
+    "faction": "阉党残余",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 67,
+      "military": 16,
+      "diplomacy": 52
+    },
+    "status": "active",
+    "loyalty": 19,
+    "position": "太常少卿",
+    "entry_year": 1644,
+    "entry_month": 9,
+    "historical_note": "戏曲家。依附阉党被列入逆案，南明时复起祸乱朝政。"
+  },
+  {
+    "name": "陈奇瑜",
+    "faction": "中原剿匪系",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 66,
+      "military": 30,
+      "diplomacy": 41
+    },
+    "status": "active",
+    "loyalty": 54,
+    "position": "陕西参议",
+    "entry_year": 1629,
+    "entry_month": 8,
+    "historical_note": "崇祯七年任五省总督，车厢峡围困义军几获全胜，因受降失策被罢。"
+  },
+  {
+    "name": "陈子龙",
+    "faction": "中立派",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 48,
+      "military": 17,
+      "diplomacy": 37
+    },
+    "status": "active",
+    "loyalty": 47,
+    "position": "翰林编修",
+    "entry_year": 1628,
+    "entry_month": 1,
+    "historical_note": "文学家、抗清志士。编辑《皇明经世文编》。清兵南下后投水殉国。"
+  },
+  {
+    "name": "马世奇",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 88,
+      "military": 20,
+      "diplomacy": 47
+    },
+    "status": "active",
+    "loyalty": 83,
+    "position": "翰林编修",
+    "entry_year": 1640,
+    "entry_month": 1,
+    "historical_note": "崇祯四年进士，甲申之变殉国。"
+  },
+  {
+    "name": "马世龙",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 47,
+      "military": 57,
+      "diplomacy": 40
+    },
+    "status": "active",
+    "loyalty": 46,
+    "position": "总兵",
+    "entry_year": 1627,
+    "entry_month": 2,
+    "historical_note": "孙承宗麾下名将。镇守辽东多年。后因柳河之败贬官。"
+  },
+  {
+    "name": "高弘图",
+    "faction": "东林党",
+    "personality_tags": [
+      "博学",
+      "翰林",
+      "清廉",
+      "务实"
+    ],
+    "abilities": {
+      "civil": 73,
+      "military": 11,
+      "diplomacy": 57
+    },
+    "status": "active",
+    "loyalty": 75,
+    "position": "光禄少卿",
+    "entry_year": 1644,
+    "entry_month": 4,
+    "historical_note": "崇祯朝工部尚书，南明弘光朝首辅。"
+  },
+  {
+    "name": "黄龙",
+    "faction": "辽东边将",
+    "personality_tags": [
+      "勇猛",
+      "果敢",
+      "善战",
+      "刚烈"
+    ],
+    "abilities": {
+      "civil": 32,
+      "military": 71,
+      "diplomacy": 28
+    },
+    "status": "active",
+    "loyalty": 60,
+    "position": "参将",
+    "entry_year": 1627,
+    "entry_month": 9,
+    "historical_note": "毛文龙死后继任东江总兵。后金攻旅顺时战死。"
   }
 ]

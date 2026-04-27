@@ -546,9 +546,8 @@ INITIAL_REGIONS = [
 ]
 
 _MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
-_MINISTERS_REVIEW_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers_review.json"
 _INITIAL_MINISTERS_CACHE: list[Minister] | None = None
-_INITIAL_MINISTERS_SIGNATURE: tuple[int, int] | None = None
+_INITIAL_MINISTERS_SIGNATURE: int | None = None
 _INITIAL_MINISTERS_LOCK = threading.RLock()
 
 
@@ -607,43 +606,10 @@ def _read_initial_ministers_file() -> list[Minister]:
         raw = manager.get_ministers()
     else:
         raw = json.loads(_MINISTERS_JSON.read_text(encoding="utf-8"))
-    
-    review_data = {}
-    if _MINISTERS_REVIEW_JSON.exists():
-        try:
-            review_raw = json.loads(_MINISTERS_REVIEW_JSON.read_text(encoding="utf-8"))
-            for item in review_raw:
-                name = item.get("name")
-                if name:
-                    review_data[name] = item
-        except Exception:
-            pass
 
     normalized_raw: list[dict] = []
     for item in raw:
         normalized_item = dict(item)
-        name = normalized_item.get("name")
-        
-        # Merge review data
-        if name in review_data:
-            rd = review_data[name]
-            
-            # Synthesize historical biography
-            bio_parts = []
-            birth, death = rd.get("birth_year"), rd.get("death_year")
-            if birth or death:
-                bio_parts.append(f"生卒：{birth or '?'} - {death or '?'}")
-            
-            offices = rd.get("office_history", [])
-            if offices:
-                bio_parts.append("【历史履历】\n" + "、".join(offices))
-            
-            events = rd.get("related_events", [])
-            if events:
-                bio_parts.append("【历史事件】\n" + "、".join(events))
-                
-            normalized_item["biography"] = "\n\n".join(bio_parts)
-            normalized_item["major_contributions"] = rd.get("major_contributions", [])
 
         normalized_item["positions"] = _normalize_positions(item)
         normalized_item["is_eunuch"] = bool(item.get("is_eunuch", False))
@@ -665,8 +631,7 @@ def get_initial_ministers(*, refresh: bool = False) -> list[Minister]:
             ministers_mtime_ns = manager.ministers_path.stat().st_mtime_ns
         else:
             ministers_mtime_ns = _MINISTERS_JSON.stat().st_mtime_ns
-        review_mtime_ns = _MINISTERS_REVIEW_JSON.stat().st_mtime_ns if _MINISTERS_REVIEW_JSON.exists() else 0
-        signature = (ministers_mtime_ns, review_mtime_ns)
+        signature = ministers_mtime_ns
 
         if refresh or _INITIAL_MINISTERS_CACHE is None or signature != _INITIAL_MINISTERS_SIGNATURE:
             _INITIAL_MINISTERS_CACHE = _read_initial_ministers_file()

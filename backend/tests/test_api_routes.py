@@ -248,6 +248,26 @@ def test_update_ai_settings_persists_provider_and_returns_snapshot(tmp_path, mon
     assert "AI_PROVIDER=mock" in (tmp_path / ".env").read_text(encoding="utf-8")
 
 
+def test_update_ai_settings_normalizes_openai_chat_completions_base_url(tmp_path, monkeypatch):
+    monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
+    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
+
+    from api.schemas import AISettingsRequest
+
+    result = asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
+        provider="openai",
+        provider_type="openai",
+        api_key="sk-test",
+        base_url="https://example.com/v1/chat/completions",
+        model="deepseek-v4-pro",
+    )))
+
+    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
+    assert result["base_url"] == "https://example.com/v1"
+    assert "OPENAI_BASE_URL=https://example.com/v1" in env_text
+    assert "/chat/completions" not in env_text
+
+
 def test_list_ai_models_openai_compatible(monkeypatch):
     import httpx as httpx_mod
 

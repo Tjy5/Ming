@@ -19,7 +19,16 @@ from models.positions import (
 
 # ── Test data constants ─────────────────────────────────────────────
 
-CORE_NON_UNIQUE: set[str] = set()  # All positions are now unique
+CORE_NON_UNIQUE: set[str] = set()  # All CORE positions are unique
+
+# SECONDARY positions that are legitimately non-unique (multiple holders in reality)
+SECONDARY_NON_UNIQUE: set[str] = {
+    "巡抚", "总兵", "副将", "参将", "千总", "知府", "知县", "教谕",
+    "大学士", "翰林侍读", "光禄少卿", "太常少卿",
+}
+
+# NOBLE positions that are legitimately non-unique
+NOBLE_NON_UNIQUE: set[str] = set()
 
 ALL_CANONICAL_NAMES = tuple(POSITION_REGISTRY.keys())
 ALL_ALIASES = tuple(
@@ -34,17 +43,12 @@ ALIAS_PAIRS = tuple(
 )
 
 
-# ── Category/Uniqueness Constraints ───────────────────────────────────
-
-
-CORE_NON_UNIQUE = set()  # All positions are now unique
-
-
 @pytest.mark.parametrize("category", [PositionCategory.SECONDARY, PositionCategory.NOBLE])
 def test_secondary_and_noble_positions_non_unique(category):
-    """All positions are now unique (1 person per position)."""
+    """Non-CORE positions should be unique unless listed in exception set."""
+    exceptions = SECONDARY_NON_UNIQUE if category == PositionCategory.SECONDARY else NOBLE_NON_UNIQUE
     for name, info in POSITION_REGISTRY.items():
-        if info.category == category:
+        if info.category == category and name not in exceptions:
             assert info.unique is True, f"{name} ({category.value}) should be unique"
 
 

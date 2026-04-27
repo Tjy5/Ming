@@ -9,9 +9,11 @@ from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
+import engine.core as core_mod
 from models.game import (
     GameState, GameTime, Faction, Region, Minister, MinisterAbilities,
     StructuredDecree, Memorial, MinisterReaction, CourtAssembly,
+    FreeformResult, MissionState,
     TurnSummary, IndicatorTrend, FactionChange, RegionChange, MinisterChange,
     create_initial_state, clamp_state,
     INITIAL_MINISTERS, INITIAL_FACTIONS, INITIAL_REGIONS,
@@ -23,7 +25,8 @@ from models.enums import (
 from engine.core import (
     process_decree, apply_loyalty_modification, detect_memorial_triggers,
     generate_minister_reactions, generate_turn_summary,
-    apply_passive_drift, inject_script_events, _time_to_months,
+    apply_passive_drift, inject_script_events, prepare_month_advance, _time_to_months,
+    validate_ai_effects, apply_ai_effects, _apply_mission_decree,
 )
 from engine.tables import FACTION_STANCE
 from engine.scripts import SCRIPT_REGISTRY, get_scripts_for_time
@@ -589,12 +592,18 @@ class TestProcessDecreePipeline:
         # time advancement is handled by advance_month(), not process_decree()
         assert state.time.month == before_month
 
-    def test_decree_count_increments(self):
+    def test_decree_count_does_not_increment_during_decree_execution(self):
         state = make_state()
         before = state.decree_count
         process_decree(state, StructuredDecree(type=DecreeType.TAX_INCREASE))
         # decree_count is incremented in advance_month(), not process_decree()
         assert state.decree_count == before
+
+    def test_decree_count_increments_on_month_advance(self):
+        state = make_state()
+        before = state.decree_count
+        prepare_month_advance(state)
+        assert state.decree_count == before + 1
 
     def test_reactions_populated(self):
         state = make_state()
@@ -613,6 +622,132 @@ class TestProcessDecreePipeline:
         process_decree(state, StructuredDecree(type=DecreeType.TAX_INCREASE))
         # memorials should have been added
         assert len(state.memorials) >= before_count
+
+
+class TestMinisterMissions:
+    def _set_active_mission(self, state: GameState, minister_name: str = "徐光启") -> Minister:
+        minister = _minister(state, minister_name)
+        minister.status = MinisterStatus.ON_MISSION
+        minister.current_mission = MissionState(
+            name="研制火炮",
+            progress_months=1,
+            total_months=2,
+            cost=5,
+            effects={"global.military_strength": 10},
+        )
+        return minister
+
+    def test_status_validation_accepts_active_to_on_mission(self):
+        state = make_state()
+        minister = _minister(state, "徐光启")
+        minister.status = MinisterStatus.ACTIVE
+
+        valid = validate_ai_effects({"minister.徐光启.status": "on_mission"}, state)
+
+        assert valid == {"minister.徐光启.status": "on_mission"}
+
+    def test_status_validation_rejects_idle_to_on_mission(self):
+        state = make_state()
+        minister = _minister(state, "徐光启")
+        minister.status = MinisterStatus.IDLE
+
+        valid = validate_ai_effects({"minister.徐光启.status": "on_mission"}, state)
+
+        assert valid == {}
+
+    def test_mission_creation_validates_effects(self):
+        state = make_state(national_treasury=20)
+        minister = _minister(state, "徐光启")
+        minister.status = MinisterStatus.ACTIVE
+        freeform = FreeformResult(effects={
+            "_mission_徐光启": {
+                "name": "研制火炮",
+                "total_months": 2,
+                "cost": 5,
+                "effects": {
+                    "global.military_strength": 10,
+                    "invalid.path": 99,
+                },
+            },
+        })
+
+        assert _apply_mission_decree(state, freeform) is True
+        assert minister.status == MinisterStatus.ON_MISSION
+        assert minister.current_mission is not None
+        assert minister.current_mission.effects == {"global.military_strength": 10}
+        assert state.national_treasury == 15
+
+    def test_mission_creation_insufficient_treasury_leaves_state_unchanged(self):
+        state = make_state(national_treasury=4)
+        minister = _minister(state, "徐光启")
+        minister.status = MinisterStatus.ACTIVE
+        freeform = FreeformResult(effects={
+            "_mission_徐光启": {
+                "name": "研制火炮",
+                "total_months": 2,
+                "cost": 5,
+                "effects": {"global.military_strength": 10},
+            },
+        })
+
+        assert _apply_mission_decree(state, freeform) is False
+        assert minister.status == MinisterStatus.ACTIVE
+        assert minister.current_mission is None
+        assert state.national_treasury == 4
+
+    def test_validated_status_cancellation_clears_current_mission_without_refund(self):
+        state = make_state(national_treasury=10)
+        minister = self._set_active_mission(state)
+        valid = validate_ai_effects({"minister.徐光启.status": "active"}, state)
+
+        dismissed, executed = apply_ai_effects(state, valid, {})
+
+        assert dismissed == set()
+        assert executed == set()
+        assert minister.status == MinisterStatus.ACTIVE
+        assert minister.current_mission is None
+        assert state.national_treasury == 10
+
+    def test_invalid_mission_effect_keys_are_ignored_on_completion(self):
+        state = make_state(military_strength=40)
+        minister = self._set_active_mission(state)
+        minister.current_mission.effects = {
+            "global.military_strength": 10,
+            "invalid.path": 99,
+        }
+
+        prepare_month_advance(state)
+
+        assert state.military_strength == 50
+        assert minister.status == MinisterStatus.ACTIVE
+        assert minister.current_mission is None
+        assert any(entry.decree_type == "mission_complete" for entry in state.history_log)
+
+    def test_mission_completion_failure_keeps_mission_for_retry(self, monkeypatch):
+        state = make_state()
+        minister = self._set_active_mission(state)
+
+        def raise_failure(*_args, **_kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(core_mod, "apply_ai_effects", raise_failure)
+        prepare_month_advance(state)
+
+        assert minister.status == MinisterStatus.ON_MISSION
+        assert minister.current_mission is not None
+        assert minister.current_mission.progress_months == 2
+        assert not any(entry.decree_type == "mission_complete" for entry in state.history_log)
+
+    def test_removed_minister_clears_current_mission_without_completion(self):
+        state = make_state(military_strength=40)
+        minister = self._set_active_mission(state)
+        minister.status = MinisterStatus.REMOVED
+
+        prepare_month_advance(state)
+
+        assert minister.current_mission is None
+        assert state.military_strength == 40
+        assert not any(entry.decree_type == "mission_complete" for entry in state.history_log)
 
 
 # ── 20.9 PBT: loyalty always in [0,100] ─────────────────

@@ -1,8 +1,12 @@
 import copy
+import json
 import random
 import pytest
 from pydantic import ValidationError
 
+from pathlib import Path
+
+import models.game as game_model
 from models.game import (
     GameState, GameTime, Faction, Region, Minister, MinisterAbilities,
     create_initial_state, clamp_state, INITIAL_MINISTERS, INITIAL_FACTIONS,
@@ -10,6 +14,7 @@ from models.game import (
 from models.enums import (
     DecreeType, MinisterStatus, PersonnelAction, TaxContribution,
 )
+from models.positions import resolve_position
 from engine.core import (
     process_decree, resolve_era, apply_minister_transition, inject_script_events,
 )
@@ -64,6 +69,86 @@ class TestInitialMinisters:
     def test_all_tags_max_4(self):
         for m in INITIAL_MINISTERS:
             assert len(m.personality_tags) <= 4
+
+    def test_roster_meets_100_plus_target(self):
+        assert len(INITIAL_MINISTERS) >= 100
+
+    def test_faction_distribution_min_5(self):
+        faction_counts: dict[str, int] = {}
+        for m in INITIAL_MINISTERS:
+            faction_counts[m.faction] = faction_counts.get(m.faction, 0) + 1
+        for faction, count in faction_counts.items():
+            assert count >= 5, f"Faction {faction} has only {count} ministers"
+
+    def test_entry_dates_in_range(self):
+        for m in INITIAL_MINISTERS:
+            assert 1550 <= m.entry_year <= 1650, f"{m.name} entry_year={m.entry_year}"
+            assert 1 <= m.entry_month <= 12, f"{m.name} entry_month={m.entry_month}"
+
+    def test_all_required_fields_present(self):
+        required = ["name", "faction", "positions", "entry_year", "entry_month",
+                     "loyalty", "abilities", "historical_note", "personality_tags", "status"]
+        for m in INITIAL_MINISTERS:
+            for field in required:
+                assert getattr(m, field, None) is not None, f"{m.name} missing {field}"
+
+    def test_all_positions_valid(self):
+        for m in INITIAL_MINISTERS:
+            for pos in m.positions:
+                assert resolve_position(pos) is not None, \
+                    f"{m.name} has unresolved position: {pos}"
+
+    def test_names_strip_consistency(self):
+        for m in INITIAL_MINISTERS:
+            assert m.name == m.name.strip(), f"'{m.name}' has leading/trailing whitespace"
+
+    def test_runtime_loader_does_not_merge_review_metadata(self, tmp_path, monkeypatch):
+        runtime_path = tmp_path / "ministers.json"
+        review_path = tmp_path / "ministers_review.json"
+        runtime_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "name": "测试大臣",
+                        "faction": INITIAL_FACTIONS[0].name,
+                        "personality_tags": ["谨慎"],
+                        "abilities": {"civil": 50, "military": 40, "diplomacy": 30},
+                        "status": "active",
+                        "loyalty": 55,
+                        "position": "东阁大学士",
+                        "entry_year": 1627,
+                        "entry_month": 8,
+                        "historical_note": "测试运行时数据。",
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        review_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "name": "测试大臣",
+                        "birth_year": 1600,
+                        "death_year": 1650,
+                        "office_history": ["不应进入运行时履历"],
+                        "related_events": ["不应进入运行时事件"],
+                        "major_contributions": ["不应进入运行时事功"],
+                    }
+                ],
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(game_model, "_try_get_data_manager", lambda: None)
+        monkeypatch.setattr(game_model, "_MINISTERS_JSON", runtime_path)
+        monkeypatch.setattr(game_model, "_MINISTERS_REVIEW_JSON", review_path, raising=False)
+
+        minister = game_model._read_initial_ministers_file()[0]
+
+        assert minister.biography == ""
+        assert minister.major_contributions == []
 
 
 # ── 12.3 Conditional script injection ─────────────────
@@ -206,3 +291,24 @@ class TestSaveMigration:
         snap1 = copy.deepcopy(data)
         _migrate_save(data)
         assert data == snap1
+
+    def test_small_roster_migration_expands(self):
+        small = [m.model_dump() for m in INITIAL_MINISTERS[:3]]
+        data = self._old_save(ministers_val=small)
+        data["time"]["year"] = 1627
+        data["time"]["month"] = 8
+        notes = _migrate_save(data)
+        assert len(data["ministers"]) >= 100, f"Expected >=100, got {len(data['ministers'])}"
+        assert any("已扩充大臣至100+人" in n for n in notes)
+        names = [m["name"] for m in data["ministers"]]
+        assert len(names) == len(set(names)), "Duplicate names after migration"
+
+    def test_small_roster_migration_preserves_existing(self):
+        small = [m.model_dump() for m in INITIAL_MINISTERS[:5]]
+        data = self._old_save(ministers_val=small)
+        data["time"]["year"] = 1627
+        data["time"]["month"] = 8
+        _migrate_save(data)
+        expanded_names = {m["name"] for m in data["ministers"]}
+        for orig in small:
+            assert orig["name"] in expanded_names

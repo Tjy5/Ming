@@ -16,7 +16,7 @@ export default function GameOverScreen({ result, message, state, onNewGame }: Pr
         <p>{message}</p>
         <p>历时：{state.time.era_name}{eraYear}{state.time.month}月</p>
         <p>最终威望：{state.court_prestige} | 钱粮：{state.national_treasury}</p>
-        <p>执行政令：{state.decree_count} 道</p>
+        <p>推进回合：{state.decree_count} 月</p>
         <button onClick={onNewGame}>再续国祚</button>
       </div>
     </div>

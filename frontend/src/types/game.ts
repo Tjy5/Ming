@@ -1,3 +1,12 @@
+import type { components as OpenApiComponents } from './generated'
+
+type OpenApiSchemas = OpenApiComponents['schemas']
+
+export type ApiGameState = OpenApiSchemas['GameState']
+export type ApiTurnSummary = OpenApiSchemas['TurnSummary']
+export type ApiEventChoice = OpenApiSchemas['EventChoice']
+export type ApiDecreeResponse = OpenApiSchemas['DecreeResponse']
+
 export type DecreeType =
   | 'tax_increase' | 'tax_decrease'
   | 'recruit_troops' | 'disband_troops'
@@ -104,6 +113,12 @@ export interface HistoryEntry {
   narrative: string
 }
 
+export interface TriggerDecision {
+  should_trigger: boolean
+  reason: string
+  timestamp: string
+}
+
 export interface GameState {
   time: GameTime
   national_treasury: number
@@ -131,6 +146,7 @@ export interface GameState {
   consecutive_waits?: number
   loyalty_zero_triggered?: string[]
   minister_conversations?: Record<string, ConversationMessage[]>
+  trigger_decisions?: Record<string, TriggerDecision>
 }
 
 export interface StructuredDecree {
@@ -316,9 +332,9 @@ export type ModalItem =
 
 export interface ConversationMessage {
   id: string
-  role: 'user' | 'minister'
+  role: 'user' | 'assistant' | 'minister'
   content: string
-  timestamp: number
+  timestamp: string | number
 }
 
 export interface DecreeResponse {

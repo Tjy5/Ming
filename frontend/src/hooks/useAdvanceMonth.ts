@@ -18,6 +18,20 @@ type UseAdvanceMonthParams = {
   onMissionComplete?: (ministerName: string, missionName: string) => void
 }
 
+export function collectMissionCompletions(previous: GameState | null, next: GameState) {
+  const prevMissions = new Map(
+    (previous?.ministers ?? [])
+      .filter(m => m.status === 'on_mission' && m.current_mission)
+      .map(m => [m.name, m.current_mission!.name])
+  )
+  return [...prevMissions.entries()]
+    .filter(([name]) => {
+      const after = next.ministers.find(m => m.name === name)
+      return Boolean(after && after.status === 'active' && !after.current_mission)
+    })
+    .map(([ministerName, missionName]) => ({ ministerName, missionName }))
+}
+
 export function useAdvanceMonth({
   state,
   loading,
@@ -43,20 +57,12 @@ export function useAdvanceMonth({
     if (advanceMonthAbortController.current) advanceMonthAbortController.current.abort()
     advanceMonthAbortController.current = new AbortController()
     try {
-      const prevMissions = new Map(
-        (state?.ministers ?? [])
-          .filter(m => m.status === 'on_mission' && m.current_mission)
-          .map(m => [m.name, m.current_mission!.name])
-      )
       const res = await api.advanceMonth(advanceMonthAbortController.current.signal)
       setState(res.state)
       // detect mission completions
       if (onMissionComplete) {
-        for (const [name, missionName] of prevMissions) {
-          const after = res.state.ministers.find(m => m.name === name)
-          if (after && after.status === 'active' && !after.current_mission) {
-            onMissionComplete(name, missionName)
-          }
+        for (const completion of collectMissionCompletions(state, res.state)) {
+          onMissionComplete(completion.ministerName, completion.missionName)
         }
       }
       if (res.triggered_events?.length) {
@@ -91,6 +97,7 @@ export function useAdvanceMonth({
     decreeInFlight,
     hasBlockingEvent,
     loading,
+    onMissionComplete,
     pushModal,
     setError,
     setGameOver,
@@ -111,4 +118,3 @@ export function useAdvanceMonth({
     handleAdvanceMonth,
   }
 }
-

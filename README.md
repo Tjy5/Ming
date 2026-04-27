@@ -32,10 +32,17 @@
 
 ```bash
 pip install -r backend/requirements.txt
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+cd backend
+python -m uvicorn main:app --reload --port 8000
 ```
 
 健康检查：`GET http://localhost:8000/api/health`
+
+> 如果从仓库根目录启动后端，需要设置 `PYTHONPATH=backend`：
+> ```bash
+> $env:PYTHONPATH="backend"; uvicorn backend.main:app --reload --port 8000    # PowerShell
+> set PYTHONPATH=backend && uvicorn backend.main:app --reload --port 8000     # cmd
+> ```
 
 ### 2) 前端
 
@@ -56,13 +63,26 @@ npm run dev
 - Google 路径常用项：`GOOGLE_API_KEY`、`GOOGLE_BASE_URL`、`GOOGLE_MODEL_NAME`
 - Anthropic/自定义供应商通过设置页与对应前缀环境变量管理
 - `AI_ENABLE_MOCK_FALLBACK`：控制运行时是否允许回退到 Mock
+- `ADMIN_PASSWORD`：访问 `/admin` 管理页面必需，未设置时管理接口不可用
 
-## 测试
+OpenAI-compatible 服务的 `OPENAI_BASE_URL` 应填写到 `/v1`，例如 `https://example.com/v1`。如果在 AI 设置页粘贴完整的 `/v1/chat/completions` 地址，后端会自动规范化为可用的 `/v1`。
+
+> 管理页面启动脚本：运行 `start_admin.bat`，或手动启动后端后访问 `http://localhost:5173/admin`。首次访问需在 `backend/.env` 中设置 `ADMIN_PASSWORD`，然后通过 `/admin` 页面登录。
+
+## 本地健康检查
 
 ```bash
+openspec validate --all
+pip install -r backend/requirements.txt
 pytest backend/tests -q
+npm --prefix frontend install
+npm --prefix frontend run generate-types
 npm --prefix frontend run test
+npm --prefix frontend run lint
+npm --prefix frontend run type-check
 ```
+
+`npm --prefix frontend run generate-types` 需要后端 OpenAPI 服务可访问；本地可先运行 `cd backend && python -m uvicorn main:app --port 8000`。
 
 ## 开源协议
 

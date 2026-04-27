@@ -131,7 +131,7 @@ WRITABLE_FIELDS: dict[str, dict] = {
     "global.military_morale":     {"type": "int"},
     "global.court_prestige":      {"type": "int"},
     "minister.*.loyalty":         {"type": "int"},
-    "minister.*.status":          {"type": "str", "valid": {"active", "idle", "removed", "not_yet_entered"}},
+    "minister.*.status":          {"type": "str", "valid": {"active", "idle", "removed", "not_yet_entered", "on_mission"}},
     "minister.*.abilities.civil":     {"type": "int"},
     "minister.*.abilities.military":  {"type": "int"},
     "minister.*.abilities.diplomacy": {"type": "int"},

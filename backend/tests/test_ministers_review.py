@@ -1,9 +1,12 @@
 from pathlib import Path
+import json
 
 from quality.ministers_review import (
     build_markdown_report,
     scaffold_review_entries,
     validate_review_entries,
+    load_ministers,
+    load_review_entries,
 )
 
 
@@ -98,3 +101,40 @@ def test_validate_strict_passes_with_complete_entry():
     assert result.errors == []
     report = build_markdown_report(result, strict=True, review_path=Path("backend/data/ministers_review.json"))
     assert "错误：`0`" in report
+
+
+def test_audit_passes_on_current_data():
+    base = Path(__file__).resolve().parent.parent
+    ministers_path = base / "data" / "ministers.json"
+    review_path = base / "data" / "ministers_review.json"
+
+    ministers = load_ministers(ministers_path)
+    review_entries = load_review_entries(review_path)
+
+    assert len(ministers) >= 100, f"Expected >=100 ministers, got {len(ministers)}"
+    assert len(review_entries) >= 100, f"Expected >=100 review entries, got {len(review_entries)}"
+
+    result = validate_review_entries(ministers, review_entries, strict=False)
+    errors = [e for e in result.errors if e.code != "strict_primary_source_missing"
+              and e.code != "strict_min_sources" and e.code != "strict_contributions_missing"
+              and e.code != "strict_events_missing" and e.code != "strict_project_role_missing"]
+    assert errors == [], f"Non-strict errors found: {errors}"
+    assert result.warnings == [], f"Warnings found: {result.warnings}"
+
+
+def test_audit_stale_and_missing_reported():
+    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "ministers.json")
+    review_entries = load_review_entries(Path(__file__).resolve().parent.parent / "data" / "ministers_review.json")
+
+    result = validate_review_entries(ministers, review_entries, strict=False)
+
+    missing_codes = {e.code for e in result.errors if e.code == "missing_review_entry"}
+    stale_codes = {w.code for w in result.warnings if w.code == "unknown_review_entry"}
+    assert not missing_codes, f"Missing review entries: {missing_codes}"
+    assert not stale_codes, f"Stale review entries: {stale_codes}"
+
+
+def test_roster_names_unique():
+    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "ministers.json")
+    names = [m["name"] for m in ministers]
+    assert len(names) == len(set(names)), f"Found {len(names) - len(set(names))} duplicate names"

@@ -136,6 +136,37 @@ _POSITION_REGISTRY: dict[str, PositionInfo] = {
     "司礼监掌印太监": PositionInfo(PositionCategory.EUNUCH, 75, True, "内廷最具实权者，掌管司礼监印章，负责批红，可抗衡甚至指挥内阁。", ("掌印太监",)),
     "司礼监太监": PositionInfo(PositionCategory.EUNUCH, 70, True, "内廷重臣，协助掌印、秉笔处理内廷与外廷政务。"),
     "司礼监秉笔太监": PositionInfo(PositionCategory.EUNUCH, 65, True, "负责代皇帝批红，对朝政影响力巨大。", ("秉笔太监",)),
+
+    # ═══════════════════════════════════════════════════════════════════
+    # NOBLE POSITIONS (extended)
+    # ═══════════════════════════════════════════════════════════════════
+
+    "保国公": PositionInfo(PositionCategory.NOBLE, 70, True, "世袭勋爵，勋臣之一，参与朝议及营兵统领。"),
+    "新城侯": PositionInfo(PositionCategory.NOBLE, 65, True, "世袭侯爵，勋臣后裔，参与军事及仪仗。"),
+    "英国公世子": PositionInfo(PositionCategory.NOBLE, 60, True, "英国公爵位继承人，以世子身份参与朝廷事务。"),
+
+    # ═══════════════════════════════════════════════════════════════════
+    # SECONDARY POSITIONS (extended)
+    # ═══════════════════════════════════════════════════════════════════
+
+    "巡抚": PositionInfo(PositionCategory.SECONDARY, 70, False, "代天子巡行地方，掌管一省或数府军政事务。"),
+    "总兵": PositionInfo(PositionCategory.SECONDARY, 65, False, "一镇最高军事长官，负责辖区内军务。"),
+    "副将": PositionInfo(PositionCategory.SECONDARY, 60, False, "军中副将，协助总兵统领一镇兵马。"),
+    "大学士": PositionInfo(PositionCategory.SECONDARY, 80, False, "内阁成员通称，参与国家机务与诏敕拟定。"),
+    "陕西参政": PositionInfo(PositionCategory.SECONDARY, 65, True, "陕西布政司参政，分管省内政务与财政。"),
+    "陕西参议": PositionInfo(PositionCategory.SECONDARY, 60, True, "陕西按察司参议，协助巡察省内官员。"),
+    "南阳知府": PositionInfo(PositionCategory.SECONDARY, 60, True, "南阳府最高行政长官，掌管民政、财政与司法。"),
+    "大名知府": PositionInfo(PositionCategory.SECONDARY, 60, True, "大名府最高行政长官，管治地方军民政事务。"),
+    "北镇抚司": PositionInfo(PositionCategory.SECONDARY, 60, True, "锦衣卫北镇抚司主官，负责钦定案件的侦缉与审讯。"),
+    "湖广佥事": PositionInfo(PositionCategory.SECONDARY, 55, True, "湖广按察司辅官，负责司法刑名与地方巡察。"),
+    "参将": PositionInfo(PositionCategory.SECONDARY, 55, False, "镇守地方或随征的中级军官。"),
+    "千总": PositionInfo(PositionCategory.SECONDARY, 40, False, "基层军官，统领千人，负责戍守与作战。"),
+    "知府": PositionInfo(PositionCategory.SECONDARY, 55, False, "一府之行政长官，掌管府内政务民生。"),
+    "知县": PositionInfo(PositionCategory.SECONDARY, 40, False, "一县之行政长官，负责赋税诉讼与教化。"),
+    "教谕": PositionInfo(PositionCategory.SECONDARY, 35, False, "县学教官，负责科举教育与士子管理。"),
+    "翰林侍读": PositionInfo(PositionCategory.SECONDARY, 55, False, "翰林院侍读，负责经筵讲学与典籍编纂。"),
+    "光禄少卿": PositionInfo(PositionCategory.SECONDARY, 55, False, "光禄寺副长官，协助掌管宫廷宴飨与祭祀供品。"),
+    "太常少卿": PositionInfo(PositionCategory.SECONDARY, 55, False, "太常寺副长官，协助掌管宗庙礼仪与祭祀事务。"),
 }
 
 POSITION_REGISTRY: dict[str, PositionInfo] = _POSITION_REGISTRY

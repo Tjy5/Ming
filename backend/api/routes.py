@@ -13,7 +13,7 @@ from models.game import (
     GameState, StructuredDecree, DecreeResponse, HistoryEntry,
     ErrorResponse, create_initial_state,
     FreeformResult, Memorial, DialogueRequest, DialogueResponse, clamp_state,
-    MemorialResolutionResult,
+    MemorialResolutionResult, DebateResult, Minister,
 )
 from models.enums import DecreeType, MinisterStatus, MemorialStatus
 from models.positions import (
@@ -32,9 +32,14 @@ from engine.core import (
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
 from .schemas import (
+    AdvanceMonthResponse,
     DebateStartRequest,
+    DebateSilenceResponse,
     DecreeRequest,
+    GameStateResponse,
+    HistoryPage,
     MAX_FREE_TEXT_LENGTH,
+    MemorialResolveResponse,
     MemorialResolveRequest,
     ParseRequest,
 )
@@ -163,7 +168,7 @@ async def _decide_script_triggers_for_state(
 
 # ── 6.1 POST /api/game/new ─────────────────────────────
 
-@router.post("/game/new")
+@router.post("/game/new", response_model=GameState)
 async def new_game():
     state = create_initial_state()
     provider = _get_provider()
@@ -477,7 +482,7 @@ async def _finalize_decree_response(
     return last_response
 
 
-@router.post("/decree")
+@router.post("/decree", response_model=DecreeResponse)
 async def execute_decree(req: DecreeRequest):
     response, memorials, provider, state = await _execute_decree_core(req)
     return await _finalize_decree_response(response, memorials, provider, state)
@@ -587,7 +592,7 @@ async def execute_decree_stream(req: DecreeRequest):
 
 # ── 6.3 POST /api/advance-month ───────────────────────
 
-@router.post("/advance-month")
+@router.post("/advance-month", response_model=AdvanceMonthResponse)
 async def advance_month_endpoint():
     async with _lock:
         state = _get_state().model_copy(deep=True)
@@ -615,7 +620,7 @@ async def advance_month_endpoint():
 
 # ── 6.4 POST /api/decree/parse ─────────────────────────
 
-@router.post("/decree/parse")
+@router.post("/decree/parse", response_model=list[StructuredDecree])
 async def parse_decree(req: ParseRequest):
     text = (req.text or "").strip()
     if not text:
@@ -641,7 +646,7 @@ async def parse_decree(req: ParseRequest):
 
 # ── GET /api/state ──────────────────────────────────────
 
-@router.get("/state")
+@router.get("/state", response_model=GameStateResponse)
 async def get_state():
     state = _get_state()
     placeholder_mems = [
@@ -660,7 +665,7 @@ async def get_state():
 
 # ── GET /api/history ────────────────────────────────────
 
-@router.get("/history")
+@router.get("/history", response_model=HistoryPage)
 async def get_history(offset: int = 0, limit: int = 20):
     offset = max(0, offset)
     limit = max(1, min(100, limit))
@@ -677,7 +682,7 @@ async def get_history(offset: int = 0, limit: int = 20):
 
 # ── 6.10 POST /api/debate/start ────────────────────────
 
-@router.post("/debate/start")
+@router.post("/debate/start", response_model=DebateResult)
 async def start_debate(req: DebateStartRequest):
     try:
         decree_type = DecreeType(req.category)
@@ -717,7 +722,7 @@ async def start_debate(req: DebateStartRequest):
 
 # ── 6.11 POST /api/debate/silence ──────────────────────
 
-@router.post("/debate/silence")
+@router.post("/debate/silence", response_model=DebateSilenceResponse)
 async def silence_debate():
     state = _get_state()
     change = max(0, min(3, 100 - state.court_prestige))
@@ -728,7 +733,7 @@ async def silence_debate():
 
 # ── 6.14 GET /api/ministers ────────────────────────────
 
-@router.get("/ministers")
+@router.get("/ministers", response_model=list[Minister])
 async def get_ministers():
     return [m.model_dump() for m in _get_state().ministers]
 
@@ -768,7 +773,7 @@ async def get_positions(category: str | None = None):
 
 # ── 8.2 POST /api/memorial/{id}/resolve ──────────────
 
-@router.post("/memorial/{memorial_id}/resolve")
+@router.post("/memorial/{memorial_id}/resolve", response_model=MemorialResolveResponse)
 async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
     if req.action not in {"approved", "rejected", "deferred"}:
         raise HTTPException(422, detail=ErrorResponse(
@@ -849,7 +854,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
 # ── 6.15 POST /api/minister/{name}/dialogue ───────────
 
-@router.post("/minister/{minister_name}/dialogue")
+@router.post("/minister/{minister_name}/dialogue", response_model=DialogueResponse)
 async def minister_dialogue(minister_name: str, req: DialogueRequest):
     async with _lock:
         state = _get_state()

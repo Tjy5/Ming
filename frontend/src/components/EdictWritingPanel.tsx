@@ -40,12 +40,14 @@ export default function EdictWritingPanel({
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null)
 
   useEffect(() => {
+    const timers = timerRef.current
     return () => {
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.src = ''
       }
-      timerRef.current.forEach(id => window.clearTimeout(id))
+      timers.forEach(id => window.clearTimeout(id))
+      timers.length = 0
     }
   }, [])
 

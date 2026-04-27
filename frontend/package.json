@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "generate-types": "openapi-typescript",
+    "generate-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/generated.ts --export-type",
+    "check-generated-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/generated.ts --export-type --check",
+    "type-check": "npm run check-generated-types && tsc -b",
     "test": "vitest run"
   },
   "dependencies": {

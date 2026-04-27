@@ -5675,5 +5675,222 @@
       "last_reviewed_on": "2026-02-20",
       "notes": "已按批处理补全审查字段；待补《明史》具体卷次与逐条生卒年核定。"
     }
+  },
+  {
+    "name": "乔允升",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "刑部侍郎",
+      "historical_note": "崇祯初年刑部尚书，以执法严明著称。后因袁崇焕案调职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "刑部侍郎"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "东林党成员。刑部侍郎。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "南居益",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "工部尚书",
+      "historical_note": "崇祯初年工部尚书。曾任福建巡抚，抗击荷兰入侵澎湖有功。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "工部尚书"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "中立派成员。工部尚书。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "张凤翔",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "刑部主事",
+      "historical_note": "崇祯朝大臣。曾任工部尚书、入阁辅政。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "刑部主事"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "中立派成员。刑部主事。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "房壮丽",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "户部侍郎",
+      "historical_note": "崇祯初年吏部尚书。后因故去职。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "户部侍郎"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "中立派成员。户部侍郎。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "曹于汴",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "太仆寺卿",
+      "historical_note": "崇祯初年左都御史，东林元老。以弹劾阉党著称。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "太仆寺卿"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "东林党成员。太仆寺卿。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "解学龙",
+    "base_profile": {
+      "faction": "东林党",
+      "position": "工部主事",
+      "historical_note": "崇祯朝御史、给事中。以敢言著称，屡遭贬斥。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "工部主事"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "东林党成员。工部主事。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
+  },
+  {
+    "name": "骆养性",
+    "base_profile": {
+      "faction": "中立派",
+      "position": "指挥使",
+      "historical_note": "崇祯朝锦衣卫指挥使。甲申之变后降清。"
+    },
+    "aliases": [],
+    "birth_year": null,
+    "death_year": null,
+    "office_history": [
+      "指挥使"
+    ],
+    "major_contributions": [],
+    "related_events": [],
+    "project_role_background": "中立派成员。指挥使。",
+    "sources": [
+      {
+        "title": "项目初始大臣数据（ministers.json）",
+        "url": "backend/data/ministers.json",
+        "tier": "C_SECONDARY",
+        "locator": "当前项目设定基线"
+      }
+    ],
+    "review": {
+      "status": "pending",
+      "reviewer": "codex",
+      "last_reviewed_on": "2026-04-27",
+      "notes": "从运行时阵容新增至审查队列，待补全来源与履历。"
+    }
   }
 ]

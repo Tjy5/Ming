@@ -396,6 +396,12 @@ def _apply_ai_settings(
     model = _clean_optional(model)
     simple_model = _clean_optional(simple_model)
     provider_type = _clean_optional(provider_type)
+    provider_type_key = (provider_type or "").lower()
+
+    if normalized_provider == "google" or provider_type_key in {"google", "gemini"}:
+        base_url = _normalize_google_base_url(base_url)
+    elif normalized_provider != "mock":
+        base_url = _normalize_openai_base_url(base_url, normalized_provider)
 
     if normalized_provider not in {"mock", "openai", "google"}:
         if not api_key or not base_url:

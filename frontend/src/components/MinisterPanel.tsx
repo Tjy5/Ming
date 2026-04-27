@@ -3,17 +3,19 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { Minister, MinisterAbilities, MinisterReaction } from '../types/game'
 import { FACTION_COLORS } from '../shared/constants/factions'
 import { Portrait } from '../shared/components/Portrait'
+import {
+  DEFAULT_EXPANDED_FACTIONS,
+  filterPanelMinisters,
+  getDisplayFactions,
+  groupMinistersByFaction,
+  toggleExpandedFaction,
+} from './ministerPanelLogic'
 
 interface Props {
   ministers?: Minister[] | null
   reactions?: MinisterReaction[]
   onMinisterClick?: (minister: Minister) => void
 }
-
-const FACTION_ORDER = [
-  '东林党', '阉党残余', '勋贵集团', '辽东边将',
-  '中原剿匪系', '温体仁派', '周延儒派', '中立派',
-]
 
 const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: string }[] = [
   { key: 'civil', label: '文', color: 'var(--green)' },
@@ -139,29 +141,16 @@ function MinisterCard({ minister, reaction, onClick }: {
 export default function MinisterPanel({ ministers, reactions, onMinisterClick }: Props) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showNotEntered, setShowNotEntered] = useState(false)
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(FACTION_ORDER.slice(0, 3)))
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(DEFAULT_EXPANDED_FACTIONS))
 
   const toggleFaction = useCallback((fname: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev)
-      if (next.has(fname)) next.delete(fname)
-      else next.add(fname)
-      return next
-    })
+    setExpanded(prev => toggleExpandedFaction(prev, fname))
   }, [])
 
-  const filtered = useMemo(() => {
-    if (!Array.isArray(ministers)) return []
-    return ministers.filter(m => {
-      if (m.status === 'removed') return false
-      if (!showNotEntered && m.status === 'not_yet_entered') return false
-      if (searchTerm) {
-        const q = searchTerm.toLowerCase()
-        return m.name.toLowerCase().includes(q) || m.positions?.join(' ').toLowerCase().includes(q)
-      }
-      return true
-    })
-  }, [ministers, searchTerm, showNotEntered])
+  const filtered = useMemo(
+    () => filterPanelMinisters(ministers, searchTerm, showNotEntered),
+    [ministers, searchTerm, showNotEntered],
+  )
 
   const reactionMap = useMemo(() => {
     const m = new Map<string, MinisterReaction>()
@@ -169,18 +158,8 @@ export default function MinisterPanel({ ministers, reactions, onMinisterClick }:
     return m
   }, [reactions])
 
-  const grouped = useMemo(() => {
-    return filtered.reduce<Record<string, Minister[]>>((acc, m) => {
-      ;(acc[m.faction] ??= []).push(m)
-      return acc
-    }, {})
-  }, [filtered])
-
-  const knownFactions = FACTION_ORDER.filter(f => grouped[f]?.length)
-  const unknownFactions = Object.keys(grouped)
-    .filter(f => !FACTION_ORDER.includes(f))
-    .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
-  const displayFactions = [...knownFactions, ...unknownFactions]
+  const grouped = useMemo(() => groupMinistersByFaction(filtered), [filtered])
+  const displayFactions = useMemo(() => getDisplayFactions(grouped), [grouped])
 
   if (!displayFactions.length && !searchTerm) {
     return <div className="minister-panel minister-panel-empty">暂无大臣数据</div>

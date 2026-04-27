@@ -1052,10 +1052,12 @@ def _tick_missions(state: GameState) -> None:
             mission = m.current_mission
             # apply effects
             attr: dict = {}
+            valid_effects = validate_ai_effects(mission.effects, state)
             try:
-                apply_ai_effects(state, mission.effects, attr)
+                apply_ai_effects(state, valid_effects, attr)
             except Exception:
                 logger.exception("Mission effect apply failed", extra={"entity_name": m.name, "entity_type": "minister", "context": "_tick_missions"})
+                continue
             clamp_state(state)
             # complete: clear mission, restore active
             m.current_mission = None
@@ -1285,13 +1287,19 @@ def apply_ai_effects(
             continue
 
         # convert string to enum where needed
+        previous_status = None
+        if category == "minister" and field == "status":
+            previous_status = entity.status.value if hasattr(entity.status, "value") else str(entity.status)
         actual_value = _coerce_enum(category, field, value)
         attr_key = f"{name}_{field}"
         setattr(entity, field, actual_value)
         attr.setdefault(attr_key, {})["旨意影响"] = value
 
         if category == "minister" and field == "status":
+            if previous_status == "on_mission" and value in {"active", "removed"}:
+                entity.current_mission = None
             if value == "removed":
+                entity.current_mission = None
                 executed.add(name)
             elif value == "idle":
                 dismissed.add(name)

@@ -89,7 +89,7 @@ def _minister_from_raw(raw: Any, *, ctx: str) -> Minister:
     return Minister.model_validate(payload)
 
 
-def _validate_minister_collection(ministers: list[Minister]) -> None:
+def _validate_minister_collection(ministers: list[Minister], *, strict: bool = True) -> None:
     names = [m.name for m in ministers]
     if len(names) != len(set(names)):
         raise ValueError("Minister names must be unique")
@@ -103,7 +103,14 @@ def _validate_minister_collection(ministers: list[Minister]) -> None:
             if info is not None and info.unique:
                 current = unique_holder.get(position)
                 if current is not None and current != minister.name:
-                    raise ValueError(f"Unique position '{position}' is held by both {current} and {minister.name}")
+                    if strict:
+                        raise ValueError(f"Unique position '{position}' is held by both {current} and {minister.name}")
+                    else:
+                        import logging
+                        logging.getLogger("admin").warning(
+                            "Unique position '%s' held by both %s and %s",
+                            position, current, minister.name,
+                        )
                 unique_holder[position] = minister.name
 
 
@@ -122,12 +129,12 @@ def _load_ministers() -> list[Minister]:
         _minister_from_raw(item, ctx=f"ministers[{idx}]")
         for idx, item in enumerate(raw_ministers)
     ]
-    _validate_minister_collection(ministers)
+    _validate_minister_collection(ministers, strict=False)
     return ministers
 
 
 def _save_ministers(ministers: list[Minister]) -> None:
-    _validate_minister_collection(ministers)
+    _validate_minister_collection(ministers, strict=False)
     payload = [minister.model_dump(mode="json") for minister in ministers]
     get_data_manager().write_ministers(payload)
 
@@ -283,7 +290,7 @@ def _validate_import_payload(payload: dict[str, Any]) -> tuple[list[Minister], l
             _minister_from_raw(item, ctx=f"ministers[{idx}]")
             for idx, item in enumerate(raw_ministers)
         ]
-        _validate_minister_collection(ministers)
+        _validate_minister_collection(ministers, strict=False)
     except ValueError as exc:
         _raise_http(422, "invalid_import_ministers", str(exc))
 

@@ -10,9 +10,11 @@ __pycache__/
 backend/.env
 
 # Excluded specific files
-backend/requirements.txt
 nul
 .ace-tool/
+.codex/
+.opencode/
+.windsurf/
 
 # User specified exclusions
 .hypothesis/
@@ -25,6 +27,4 @@ requirements3.md
 backend/game_saves.db
 
 # Local scripts and results
-start.bat
-start_admin.bat
 test_result.txt

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from models.game import StructuredDecree
+from models.game import GameState, HistoryEntry, Minister, MinisterReaction, StructuredDecree
 
 MAX_FREE_TEXT_LENGTH = 200
 
@@ -17,6 +17,37 @@ class DecreeRequest(BaseModel):
 
 class ParseRequest(BaseModel):
     text: str
+
+
+class GameStateResponse(GameState):
+    history_total_count: int | None = None
+
+
+class AdvanceMonthResponse(BaseModel):
+    state: GameState
+    triggered_events: list[str] = Field(default_factory=list)
+    game_over: dict | None = None
+    new_ministers: list[Minister] = Field(default_factory=list)
+
+
+class HistoryPage(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    entries: list[HistoryEntry] = Field(default_factory=list)
+
+
+class DebateSilenceResponse(BaseModel):
+    state: GameState
+    prestige_change: int
+
+
+class MemorialResolveResponse(BaseModel):
+    state: GameState
+    action: str
+    narrative: str | None = None
+    delta: dict | None = None
+    minister_reactions: list[MinisterReaction] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):
