@@ -15,6 +15,10 @@ from models.game import (
 DB_PATH = Path(__file__).parent.parent / "game_saves.db"
 MAX_SAVES = 20
 
+# 元末明初跑团+治理剧本的合法年份区间（阶段B：旧崇祯存档不再兼容）
+COMPATIBLE_YEAR_MIN = 1328
+COMPATIBLE_YEAR_MAX = 1368
+
 
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), timeout=5)
@@ -289,7 +293,28 @@ def _migrate_save(data: dict) -> list[str]:
     if "minister_conversations" not in data:
         data["minister_conversations"] = {}
 
+    # ── 跑团字段回填（阶段B，静默无 note：模型默认值语义，非 gameplay 迁移）──
+    if "chapter" not in data:
+        data["chapter"] = "childhood"
+    if "chapter_turns" not in data:
+        data["chapter_turns"] = 0
+    if "character_sheets" not in data:
+        data["character_sheets"] = {}
+    if "growth_log" not in data:
+        data["growth_log"] = []
+
     return notes
+
+
+def _incompatible_year(data: dict) -> bool:
+    """旧崇祯存档（或任何超出元末明初剧本年份区间）检测。"""
+    t = data.get("time")
+    if not isinstance(t, dict):
+        return False
+    year = t.get("year")
+    if not isinstance(year, int):
+        return False
+    return year < COMPATIBLE_YEAR_MIN or year > COMPATIBLE_YEAR_MAX
 
 
 def load_game(save_id: int) -> tuple[GameState, bool, str]:
@@ -300,11 +325,13 @@ def load_game(save_id: int) -> tuple[GameState, bool, str]:
     try:
         data = json.loads(row["state_json"])
         notes = _migrate_save(data)
+        if _incompatible_year(data):
+            raise IncompatibleSaveError(save_id)
         state = GameState.model_validate(data)
         migrated = bool(notes)
         note = f"旧存档已自动迁移：{'；'.join(notes)}" if notes else ""
         return state, migrated, note
-    except (SaveNotFoundError, CorruptSaveError):
+    except (SaveNotFoundError, CorruptSaveError, IncompatibleSaveError):
         raise
     except Exception:
         raise CorruptSaveError(save_id)
@@ -347,6 +374,14 @@ class CorruptSaveError(Exception):
     def __init__(self, save_id: int):
         self.save_id = save_id
         super().__init__(f"Save {save_id} is corrupt")
+
+
+class IncompatibleSaveError(Exception):
+    """旧剧本存档（如崇祯朝）与元末明初剧本不兼容。"""
+
+    def __init__(self, save_id: int):
+        self.save_id = save_id
+        super().__init__(f"Save {save_id} is incompatible with the current scenario")
 
 
 class StorageError(Exception):

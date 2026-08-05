@@ -153,6 +153,8 @@ SYSTEM_FIELDS = frozenset({
     "time", "phase", "decree_count", "history_log", "memorials",
     "memorial_cooldowns", "event_cooldowns", "resolved_script_ids",
     "loyalty_zero_triggered", "last_assembly", "last_assembly_month",
+    # 阶段B：跑团引擎系统字段（篇章/回合/角色卡/成长记录）同样禁止治理 AI 修改
+    "chapter", "chapter_turns", "character_sheets", "growth_log",
 })
 
 # Valid minister status transitions: (from, to)

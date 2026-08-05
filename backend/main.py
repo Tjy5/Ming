@@ -12,6 +12,7 @@ from api.settings_routes import settings_router
 from api.assembly_routes import assembly_router
 from api.admin_routes import admin_router
 from api.chat_routes import chat_router
+from api.trpg import trpg_router
 from api.state import startup as api_startup
 
 
@@ -49,6 +50,7 @@ app.include_router(settings_router)
 app.include_router(assembly_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
+app.include_router(trpg_router)
 
 
 @app.get("/api/health")

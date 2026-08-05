@@ -15,6 +15,7 @@ from .enums import (
     PersonnelAction, EventUrgency, MinisterStatus, MemorialStatus, AssemblyPhase,
 )
 from .positions import resolve_position
+from .trpg import CharacterSheet, GrowthEntry
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
@@ -394,8 +395,12 @@ def _default_conversation_timestamp() -> str:
 
 class GameState(BaseModel):
     time: GameTime = Field(default_factory=GameTime)
-    # phase state machine (阶段切换逻辑属阶段D，此处仅预留字段)
-    phase: Literal["life_story", "governance"] = "governance"
+    # phase state machine (阶段切换逻辑属阶段D)
+    # 阶段B：默认翻转为 life_story（跑团叙事开局）；治理开局档由存档迁移保留 governance
+    phase: Literal["life_story", "governance"] = "life_story"
+    # 人生篇章（阶段B：childhood/monk_wanderer/enlistment/warlord，推进逻辑见 trpg/chapter.py）
+    chapter: str = "childhood"
+    chapter_turns: int = Field(default=0, ge=0)
     # resources (historical scales)
     national_treasury: int = Field(default=15, ge=0, le=10000)
     imperial_treasury: int = Field(default=8, ge=0, le=10000)
@@ -425,6 +430,9 @@ class GameState(BaseModel):
     last_assembly_month: int = 0
     consecutive_waits: int = 0
     minister_conversations: dict[str, list[ConversationMessage]] = Field(default_factory=dict)
+    # ── TRPG（阶段B）：角色卡与成长记录，随存档持久化 ──
+    character_sheets: dict[str, CharacterSheet] = Field(default_factory=dict)
+    growth_log: list[GrowthEntry] = Field(default_factory=list)
 
     @field_validator("minister_conversations", mode="before")
     @classmethod

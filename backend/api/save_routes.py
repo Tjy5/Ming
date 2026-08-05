@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 from models.game import ErrorResponse
 from db.saves import (
     save_game, load_game, list_saves, delete_save,
-    SaveNotFoundError, CorruptSaveError, StorageError,
+    SaveNotFoundError, CorruptSaveError, IncompatibleSaveError, StorageError,
 )
 from .schemas import SaveRequest
 from .state import _get_state, _set_state, _lock
@@ -50,6 +50,11 @@ async def load(save_id: int):
         raise HTTPException(404, detail=ErrorResponse(
             error_code="save_not_found",
             message=f"存档 {save_id} 不存在",
+        ).model_dump())
+    except IncompatibleSaveError:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="incompatible_save",
+            message=f"存档 {save_id} 来自旧剧本（如崇祯朝），与当前元末明初剧本不兼容",
         ).model_dump())
     except CorruptSaveError:
         raise HTTPException(500, detail=ErrorResponse(

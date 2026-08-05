@@ -259,7 +259,7 @@ class TestStartTimeAndEra:
 
     def test_initial_state_phase_reserved(self):
         state = create_initial_state()
-        assert state.phase == "governance"
+        assert state.phase == "life_story"
 
 
 # ── 12.6 Save migration ──────────────────────────────
