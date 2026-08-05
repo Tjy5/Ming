@@ -1,0 +1,46 @@
+{
+  "script_id": "chen-youliang-endgame-1363-09",
+  "trigger_year": 1363,
+  "trigger_month": 9,
+  "title": "陈友谅败亡·江汉瓦解",
+  "is_blocking": false,
+  "rich_description": "至正二十三年九月，鄱阳捷音传檄四方：陈友谅中流矢死于泾江口，汉军六十万一朝瓦解，残部拥其子陈理遁还武昌。\n\n江汉诸郡震惧，守将多怀去就。或劝急提大军溯江而上，一鼓而定武昌；或谓宜传檄招抚，使诸郡自来归附，兵不血刃。\n\n乘胜之局，当以力取，抑以德怀？",
+  "historical_hint": "陈友谅败亡之后，汉政权虽拥立幼主陈理退保武昌，但军心已散、诸郡动摇。招抚与急攻的取舍，考验的是胜利者能否以最小代价消化最大战果。历史上朱元璋恩威并用，次年亲征武昌，陈理出降，湖广江西悉入版图，所获不只是疆土，更是数十万降附军民之心。善处败亡之余，亦帝王度量之试金石也。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "script_resolved",
+        "script_id": "poyang-battle-1363-07"
+      },
+      {
+        "type": "minister_alive",
+        "name": "陈友谅"
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "传檄江汉，招纳降附",
+      "description": "赦其胁从，宣谕诸郡，使知顺逆祸福，不战而下城邑。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.汉政权.satisfaction": 10,
+        "faction.汉政权.rebellion_risk": -20,
+        "region.武昌.rebellion_risk": -15
+      }
+    },
+    {
+      "label": "乘胜西进，直捣武昌",
+      "description": "亲督得胜之师溯江急进，勿使残敌有喘息之机。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -3,
+        "region.武昌.stability": -12,
+        "faction.汉政权.rebellion_risk": -25
+      }
+    }
+  ]
+}

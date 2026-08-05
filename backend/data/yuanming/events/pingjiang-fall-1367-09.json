@@ -1,0 +1,38 @@
+{
+  "script_id": "pingjiang-fall-1367-09",
+  "trigger_year": 1367,
+  "trigger_month": 9,
+  "title": "平江城破·俘张士诚",
+  "is_blocking": false,
+  "rich_description": "至正二十七年九月，平江围守逾年，城中粮尽，至人相食。徐达督诸军破其葑门，张士诚收余众巷战，力尽被擒，槛送应天，东南遂定。\n\n平江府库充盈，吴地士民新附。诸将请籍其府库以充军实，幕臣则请赦其士民，收三吴之心，使东南永为我用。\n\n克定之功既成，善后当以何先？",
+  "historical_hint": "至正二十七年九月，平江城破，张士诚被俘至应天，旋死。据有苏松湖杭膏腴之地的大周政权就此覆灭，朱元璋尽得东南财富之区，再无后顾之忧。吴地久不经大战，府库殷实、民心思定，善后宽严之间，决定着这片财赋重地能否迅速转化为问鼎中原的根基。得地易，得人心难，此正新主之所当深长思也。",
+  "condition": {
+    "type": "script_resolved",
+    "script_id": "pingjiang-siege-1366-08"
+  },
+  "choices": [
+    {
+      "label": "俘士诚至应天，籍其府库",
+      "description": "收其金帛粮储以赡北伐之师，以示威于未附。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.national_treasury": 8,
+        "global.grain": 80,
+        "faction.吴政权.satisfaction": -15,
+        "region.平江.rebellion_risk": -20
+      }
+    },
+    {
+      "label": "赦吴地士民，收揽人心",
+      "description": "赦免胁从，抚绥士庶，使三吴之民归心于我。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.平江.stability": 10,
+        "region.平江.civil_morale": 10,
+        "faction.江南士绅.satisfaction": 10
+      }
+    }
+  ]
+}

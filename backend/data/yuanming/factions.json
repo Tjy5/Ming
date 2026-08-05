@@ -1,0 +1,82 @@
+[
+  {
+    "name": "淮西勋将",
+    "kind": "internal",
+    "leader": "徐达",
+    "territory": "应天军府",
+    "trait": "朱元璋同乡嫡系武力，随其渡江定鼎，擅攻坚战守，军中威望最高",
+    "satisfaction": 70,
+    "influence": 55,
+    "rebellion_risk": 10
+  },
+  {
+    "name": "幕府文臣",
+    "kind": "internal",
+    "leader": "李善长",
+    "territory": "应天幕府",
+    "trait": "掌文书钱谷、制度营建的文吏与谋士集团，主张休养生息、慎用严刑",
+    "satisfaction": 68,
+    "influence": 45,
+    "rebellion_risk": 5
+  },
+  {
+    "name": "江南士绅",
+    "kind": "internal",
+    "leader": "戴良",
+    "territory": "江南诸府",
+    "trait": "江南在野士人与地方豪绅，态度观望，既惧兵祸又轻红巾出身",
+    "satisfaction": 55,
+    "influence": 30,
+    "rebellion_risk": 12
+  },
+  {
+    "name": "龙凤政权",
+    "kind": "external",
+    "leader": "韩林儿",
+    "territory": "亳州、安丰一线",
+    "trait": "红巾军共主小明王韩林儿的大宋政权，是朱元璋名义上的宗主，实权在刘福通之手",
+    "satisfaction": 60,
+    "influence": 35,
+    "rebellion_risk": 20
+  },
+  {
+    "name": "汉政权",
+    "kind": "external",
+    "leader": "陈友谅",
+    "territory": "武昌、江州及湖广江西",
+    "trait": "陈友谅篡天完而立的大汉，水军冠绝江南，素志东下吞并应天，为头号死敌",
+    "satisfaction": 25,
+    "influence": 60,
+    "rebellion_risk": 65
+  },
+  {
+    "name": "吴政权",
+    "kind": "external",
+    "leader": "张士诚",
+    "territory": "平江、杭州及苏浙两淮",
+    "trait": "张士诚据东南膏腴之地的大周（后称吴），盐利甲天下，守成有余而进取不足",
+    "satisfaction": 35,
+    "influence": 50,
+    "rebellion_risk": 50
+  },
+  {
+    "name": "元廷",
+    "kind": "external",
+    "leader": "妥懽帖睦尔",
+    "territory": "大都及中原北方",
+    "trait": "退守北方的元朝朝廷，内有权臣倾轧、军阀割据，仍以正统自居号令四方",
+    "satisfaction": 20,
+    "influence": 65,
+    "rebellion_risk": 55
+  },
+  {
+    "name": "东南群雄",
+    "kind": "external",
+    "leader": "方国珍",
+    "territory": "庆元、台州及四川",
+    "trait": "方国珍据浙东海隅首鼠两端，明玉珍父子据蜀中立国，皆持观望自保之策",
+    "satisfaction": 45,
+    "influence": 25,
+    "rebellion_risk": 35
+  }
+]

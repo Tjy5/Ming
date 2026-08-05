@@ -1,0 +1,157 @@
+{
+  "schema_version": 1,
+  "protagonist": "朱元璋",
+  "era_table": [
+    { "name": "天历", "start_year": 1328 },
+    { "name": "至顺", "start_year": 1330 },
+    { "name": "元统", "start_year": 1333 },
+    { "name": "至元", "start_year": 1335 },
+    { "name": "至正", "start_year": 1341 },
+    { "name": "洪武", "start_year": 1368 }
+  ],
+  "chapters": [
+    { "id": "childhood", "title": "农家子", "start_year": 1328, "end_year": 1344 },
+    { "id": "monk_wanderer", "title": "僧旅飘零", "start_year": 1344, "end_year": 1352 },
+    { "id": "enlistment", "title": "投军奋起", "start_year": 1352, "end_year": 1356 },
+    { "id": "warlord", "title": "割据江东", "start_year": 1356, "end_year": 1368 }
+  ],
+  "phase_switch": {
+    "milestone": "yingtian-founding",
+    "year": 1356,
+    "month": 3,
+    "from_phase": "life_story",
+    "to_phase": "governance",
+    "fallback_year": 1360,
+    "note": "攻占集庆改应天府后进入治理模拟；至正二十年仍未克应天则由AI主持人强制收束"
+  },
+  "game_end": {
+    "year": 1368,
+    "month": 1,
+    "milestone": "ming-proclamation",
+    "note": "至正二十八年正月于应天称帝，建国号大明，建元洪武"
+  },
+  "milestones": [
+    {
+      "id": "birth-1328",
+      "year": 1328,
+      "month": 10,
+      "title": "生于濠州钟离",
+      "summary": "朱重八生于濠州钟离太平乡孤庄村，家境赤贫，自幼为地主牧牛。",
+      "chapter": "childhood"
+    },
+    {
+      "id": "famine-1344",
+      "year": 1344,
+      "month": 4,
+      "title": "灾疫丧亲，入皇觉寺",
+      "summary": "淮北大旱蝗疫并发，父母兄长相继病饿而死，朱重八入皇觉寺为行童。",
+      "chapter": "childhood"
+    },
+    {
+      "id": "wandering-1345",
+      "year": 1345,
+      "month": 1,
+      "title": "云游淮西",
+      "summary": "寺中乏食，被迫托钵云游合肥、光、固、汝、颍诸州数年，备尝艰辛，广知民间疾苦。",
+      "chapter": "monk_wanderer"
+    },
+    {
+      "id": "enlist-1352",
+      "year": 1352,
+      "month": 3,
+      "title": "投军濠州",
+      "summary": "得汤和来书，投奔郭子兴红巾军，以骁勇任亲兵九夫长，娶马氏，改名元璋。",
+      "chapter": "enlistment"
+    },
+    {
+      "id": "recruit-1353",
+      "year": 1353,
+      "month": 6,
+      "title": "回乡募兵",
+      "summary": "还乡募得徐达等七百余人，继取滁州、和州，始有自立之基。",
+      "chapter": "enlistment"
+    },
+    {
+      "id": "cross-yangtze-1355",
+      "year": 1355,
+      "month": 6,
+      "title": "渡江取太平",
+      "summary": "郭子兴病逝后实际领兵，渡江克采石、太平，得儒士陶安、李习等归附。",
+      "chapter": "enlistment"
+    },
+    {
+      "id": "yingtian-founding",
+      "year": 1356,
+      "month": 3,
+      "title": "克集庆，改应天府",
+      "summary": "攻克集庆路，改称应天府，以此形胜之地为根本，待机进取四方。",
+      "chapter": "warlord",
+      "phase_switch": true
+    },
+    {
+      "id": "zhusheng-counsel-1358",
+      "year": 1358,
+      "month": 11,
+      "title": "朱升献三策",
+      "summary": "徽州儒士朱升进献高筑墙、广积粮、缓称王之策，定为经营根本之略。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "zhedong-talents-1360",
+      "year": 1360,
+      "month": 3,
+      "title": "浙东四先生至",
+      "summary": "刘基、宋濂、章溢、叶琛应聘至应天，帷幄谋画自此得人。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "han-proclamation-1360",
+      "year": 1360,
+      "month": 5,
+      "title": "陈友谅称帝",
+      "summary": "陈友谅弑其主徐寿辉，自立为汉帝，尽起舟师顺流东下，兵锋直指应天。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "poyang-battle-1363",
+      "year": 1363,
+      "month": 7,
+      "title": "鄱阳湖决战",
+      "summary": "亲率舟师与陈友谅决战鄱阳湖，相持月余，以火攻大破其水军，陈友谅中流矢殁。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "wu-king-1364",
+      "year": 1364,
+      "month": 1,
+      "title": "自立为吴王",
+      "summary": "即吴王位，建中书省、大都督府，立制度刑名，江东政权体制始备。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "pingjiang-fall-1367",
+      "year": 1367,
+      "month": 9,
+      "title": "破平江，俘张士诚",
+      "summary": "徐达、常遇春围平江逾年乃克，俘张士诚送应天，东南大局遂定。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "northern-expedition-1367",
+      "year": 1367,
+      "month": 10,
+      "title": "誓师北伐",
+      "summary": "以徐达为征虏大将军、常遇春副之，率二十五万师北伐中原，檄谕齐鲁河洛。",
+      "chapter": "warlord"
+    },
+    {
+      "id": "ming-proclamation",
+      "year": 1368,
+      "month": 1,
+      "title": "称帝建明",
+      "summary": "于应天即皇帝位，定有天下之号曰大明，建元洪武，元朝旋即北遁。",
+      "chapter": "warlord",
+      "game_end": true
+    }
+  ]
+}

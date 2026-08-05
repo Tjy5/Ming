@@ -1,0 +1,47 @@
+{
+  "script_id": "yangxian-discipline-1357-02",
+  "trigger_year": 1357,
+  "trigger_month": 2,
+  "title": "幕府肃纪·杨宪刺事之劾",
+  "is_blocking": false,
+  "rich_description": "至正十七年二月，幕府中文吏交章论劾检校杨宪：刺事过苛，罗织细故，凌辱同列，僚属人人自危，文书至不敢经其手。\n\n杨宪有干才，善伺人意，幕府初创颇得其力；然持法峭刻，怨声渐起。用之则伤同僚之心，去之则失侦伺之耳目。\n\n主公将何以处之？",
+  "historical_hint": "草创时期的军府特重侦伺与法纪，朱元璋曾设检校之职专司刺事，以察群下情伪。此类耳目之臣于集权有功，却极易以苛察树怨、以告讦乱政。杨宪其人干练而峭刻，史载其后来果以倾陷获罪伏诛，可见此类人物用舍之间的分寸，正是创业之主驭下的经典难题。用舍之际，所系者非一人之进退，实幕府法纪之轻重也。",
+  "condition": {
+    "type": "minister_alive",
+    "name": "杨宪"
+  },
+  "choices": [
+    {
+      "label": "听其自辩，姑且记过",
+      "description": "念其微劳，薄责而留任，使戴罪图功。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "杨宪",
+          5
+        ]
+      ],
+      "state_effects": {
+        "global.court_prestige": -3
+      }
+    },
+    {
+      "label": "严明法纪，以儆效尤",
+      "description": "当廷诘责，削其威权，明示幕府之中不容苛察横行。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "杨宪",
+          -15
+        ],
+        [
+          "李善长",
+          5
+        ]
+      ],
+      "state_effects": {
+        "global.court_prestige": 4
+      }
+    }
+  ]
+}

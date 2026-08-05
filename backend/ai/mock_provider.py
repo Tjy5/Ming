@@ -63,8 +63,8 @@ _EXEC_VERB = r"斩首|斩杀|问斩|处斩|诛杀|诛灭|斩了|斩掉|杀了|�
 EXECUTION_PREFIX_RE = re.compile(rf"(?:{_EXEC_VERB})([^\s,，。、]{{2,4}})")
 EXECUTION_SUFFIX_RE = re.compile(rf"(?:把|将)?([^\s,，。、]{{2,4}})(?:{_EXEC_VERB})")
 
-REGION_KEYWORDS = re.compile(r"京畿|辽东|陕西|江南|中原|山东|云贵|川蜀")
-DIPLOMACY_KEYWORDS = re.compile(r"后金|蒙古|朝鲜")
+REGION_KEYWORDS = re.compile(r"应天|太平|镇江|两淮|杭州|武昌|平江|大都")
+DIPLOMACY_KEYWORDS = re.compile(r"龙凤政权|汉政权|吴政权|元廷|东南群雄|陈友谅|张士诚|方国珍")
 PERSON_PATTERN = re.compile(r"(?:把|将|令|命)?([^\s,，。、]{2,4})(?:调|贬|擢|免|罢|任|撤)")
 _VACANCY_HINTS = ("空缺", "继任", "补缺", "替补", "vacancy")
 EXPLORE_PREFIX = "详细介绍当前局势："

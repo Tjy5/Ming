@@ -28,10 +28,10 @@ from ai.provider import (
 
 def make_state(**overrides) -> GameState:
     defaults = dict(
-        time=GameTime(year=1630, month=6, era_name="崇祯", era_year=3),
-        national_treasury=20, imperial_treasury=10, grain=500,
-        population=15000, military_strength=40,
-        civil_morale=60, military_morale=70, court_prestige=75,
+        time=GameTime(year=1360, month=6, era_name="至正", era_year=20),
+        national_treasury=15, imperial_treasury=8, grain=420,
+        population=1600, military_strength=18,
+        civil_morale=62, military_morale=68, court_prestige=62,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
         ministers=[m.model_copy() for m in INITIAL_MINISTERS],
@@ -76,21 +76,21 @@ class TestValidateAiEffects:
 
     def test_known_minister_accepted(self):
         state = make_state()
-        effects = {"minister.魏忠贤.loyalty": -10}
+        effects = {"minister.杨宪.loyalty": -10}
         valid = validate_ai_effects(effects, state)
         assert valid == effects
 
     def test_status_transition_valid(self):
         state = make_state()
-        _minister(state, "魏忠贤").status = MinisterStatus.ACTIVE
-        effects = {"minister.魏忠贤.status": "removed"}
+        _minister(state, "杨宪").status = MinisterStatus.ACTIVE
+        effects = {"minister.杨宪.status": "removed"}
         valid = validate_ai_effects(effects, state)
-        assert "minister.魏忠贤.status" in valid
+        assert "minister.杨宪.status" in valid
 
     def test_status_transition_invalid(self):
         state = make_state()
-        _minister(state, "魏忠贤").status = MinisterStatus.REMOVED
-        effects = {"minister.魏忠贤.status": "active"}
+        _minister(state, "杨宪").status = MinisterStatus.REMOVED
+        effects = {"minister.杨宪.status": "active"}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 0
 
@@ -108,13 +108,13 @@ class TestValidateAiEffects:
 
     def test_region_effects(self):
         state = make_state()
-        effects = {"region.辽东.stability": -10, "region.辽东.garrison": 5000}
+        effects = {"region.武昌.stability": -10, "region.武昌.garrison": 5000}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 2
 
     def test_faction_effects(self):
         state = make_state()
-        effects = {"faction.东林党.satisfaction": -5}
+        effects = {"faction.幕府文臣.satisfaction": -5}
         valid = validate_ai_effects(effects, state)
         assert valid == effects
 
@@ -126,7 +126,7 @@ class TestValidateAiEffects:
 
     def test_invalid_status_value_rejected(self):
         state = make_state()
-        effects = {"minister.魏忠贤.status": "invalid_status"}
+        effects = {"minister.杨宪.status": "invalid_status"}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 0
 
@@ -140,19 +140,19 @@ class TestValidateAiEffects:
 
     def test_minister_abilities(self):
         state = make_state()
-        effects = {"minister.徐光启.abilities.civil": 5}
+        effects = {"minister.刘基.abilities.civil": 5}
         valid = validate_ai_effects(effects, state)
-        assert "minister.徐光启.abilities.civil" in valid
+        assert "minister.刘基.abilities.civil" in valid
 
     def test_region_control_valid(self):
         state = make_state()
-        effects = {"region.辽东.control": "失控"}
+        effects = {"region.武昌.control": "失控"}
         valid = validate_ai_effects(effects, state)
-        assert "region.辽东.control" in valid
+        assert "region.武昌.control" in valid
 
     def test_region_control_invalid(self):
         state = make_state()
-        effects = {"region.辽东.control": "invalid"}
+        effects = {"region.武昌.control": "invalid"}
         valid = validate_ai_effects(effects, state)
         assert len(valid) == 0
 
@@ -168,37 +168,37 @@ class TestApplyAiEffects:
 
     def test_minister_loyalty_delta(self):
         state = make_state()
-        _minister(state, "魏忠贤").loyalty = 50
+        _minister(state, "杨宪").loyalty = 50
         attr = {}
-        apply_ai_effects(state, {"minister.魏忠贤.loyalty": -20}, attr)
-        assert _minister(state, "魏忠贤").loyalty == 30
+        apply_ai_effects(state, {"minister.杨宪.loyalty": -20}, attr)
+        assert _minister(state, "杨宪").loyalty == 30
 
     def test_minister_status_removed(self):
         state = make_state()
-        _minister(state, "魏忠贤").status = MinisterStatus.ACTIVE
+        _minister(state, "杨宪").status = MinisterStatus.ACTIVE
         attr = {}
         dismissed, executed = apply_ai_effects(
-            state, {"minister.魏忠贤.status": "removed"}, attr,
+            state, {"minister.杨宪.status": "removed"}, attr,
         )
-        assert "魏忠贤" in executed
-        assert _minister(state, "魏忠贤").status == MinisterStatus.REMOVED
+        assert "杨宪" in executed
+        assert _minister(state, "杨宪").status == MinisterStatus.REMOVED
 
     def test_minister_status_idle(self):
         state = make_state()
-        _minister(state, "魏忠贤").status = MinisterStatus.ACTIVE
+        _minister(state, "杨宪").status = MinisterStatus.ACTIVE
         attr = {}
         dismissed, executed = apply_ai_effects(
-            state, {"minister.魏忠贤.status": "idle"}, attr,
+            state, {"minister.杨宪.status": "idle"}, attr,
         )
-        assert "魏忠贤" in dismissed
-        assert _minister(state, "魏忠贤").status == MinisterStatus.IDLE
+        assert "杨宪" in dismissed
+        assert _minister(state, "杨宪").status == MinisterStatus.IDLE
 
     def test_region_delta(self):
         state = make_state()
-        old_stab = _region(state, "辽东").stability
+        old_stab = _region(state, "武昌").stability
         attr = {}
-        apply_ai_effects(state, {"region.辽东.stability": -15}, attr)
-        assert _region(state, "辽东").stability == old_stab - 15
+        apply_ai_effects(state, {"region.武昌.stability": -15}, attr)
+        assert _region(state, "武昌").stability == old_stab - 15
 
     def test_attribution_recorded(self):
         state = make_state()
@@ -209,10 +209,10 @@ class TestApplyAiEffects:
 
     def test_abilities_delta(self):
         state = make_state()
-        old_civil = _minister(state, "徐光启").abilities.civil
+        old_civil = _minister(state, "刘基").abilities.civil
         attr = {}
-        apply_ai_effects(state, {"minister.徐光启.abilities.civil": 5}, attr)
-        assert _minister(state, "徐光启").abilities.civil == old_civil + 5
+        apply_ai_effects(state, {"minister.刘基.abilities.civil": 5}, attr)
+        assert _minister(state, "刘基").abilities.civil == old_civil + 5
 
     def test_unknown_entity_skipped(self):
         state = make_state()
@@ -236,10 +236,10 @@ class TestAddAiNewEvents:
         state = make_state()
         before = len(state.active_events)
         add_ai_new_events(state, [
-            {"name": "流寇进犯", "description": "流寇攻打陕西", "urgency": "高"},
+            {"name": "溃卒进犯", "description": "溃卒攻打两淮", "urgency": "高"},
         ])
         assert len(state.active_events) == before + 1
-        assert state.active_events[-1].name == "流寇进犯"
+        assert state.active_events[-1].name == "溃卒进犯"
         assert state.active_events[-1].urgency == EventUrgency.HIGH
 
     def test_missing_name_skipped(self):
@@ -366,7 +366,7 @@ class TestProcessDecreeFreeform:
             rationale="测试",
             reactions=[
                 MinisterReaction(
-                    minister_name="魏忠贤", faction="阉党残余",
+                    minister_name="杨宪", faction="汉政权",
                     reaction_type="oppose", reaction_text="臣反对！",
                     loyalty_change=-5,
                 ),
@@ -379,24 +379,25 @@ class TestProcessDecreeFreeform:
         )
         _, _, _, _, reactions, _ = process_decree(state, freeform=freeform)
         names = [r.minister_name for r in reactions]
-        assert "魏忠贤" in names
+        assert "杨宪" in names
         assert "不存在" not in names
 
     def test_freeform_execution_backlash(self):
         state = make_state()
-        target = _minister(state, "魏忠贤")
+        target = _minister(state, "杨宪")
         target.status = MinisterStatus.ACTIVE
-        faction = _faction(state, "阉党残余")
+        # 元末数据中杨宪属幕府文臣，反弹应作用于其实际所属派系
+        faction = _faction(state, target.faction)
         old_sat = faction.satisfaction
 
         freeform = FreeformResult(
-            effects={"minister.魏忠贤.status": "removed"},
-            narrative="处决魏忠贤",
+            effects={"minister.杨宪.status": "removed"},
+            narrative="处决杨宪",
             rationale="处决",
         )
         # validate then apply
         valid_effects = validate_ai_effects(freeform.effects, state)
-        assert "minister.魏忠贤.status" in valid_effects
+        assert "minister.杨宪.status" in valid_effects
 
         process_decree(state, freeform=freeform)
         # faction satisfaction should decrease due to execution backlash
@@ -434,16 +435,16 @@ class TestProcessDecreeFreeform:
 
 class TestParsePromptFixes:
     def test_execution_keyword_maps_to_personnel_execute(self):
-        """'诛杀魏忠贤' → personnel + execute, not harsh_punishment."""
+        """'诛杀杨宪' → personnel + execute, not harsh_punishment."""
         provider = MockProvider()
         state = create_initial_state()
-        result = asyncio.run(provider.parse_free_input("诛杀魏忠贤", state))
+        result = asyncio.run(provider.parse_free_input("诛杀杨宪", state))
         assert isinstance(result, list)
         assert len(result) >= 1
         d = result[0]
         assert d.type == DecreeType.PERSONNEL
         assert d.sub_action == PersonnelAction.EXECUTE
-        assert d.target == "魏忠贤"
+        assert d.target == "杨宪"
 
     def test_harsh_punishment_without_target(self):
         """'严刑峻法' → harsh_punishment (no specific target)."""
@@ -454,14 +455,14 @@ class TestParsePromptFixes:
         assert result[0].type == DecreeType.HARSH_PUNISHMENT
 
     def test_execution_suffix_pattern(self):
-        """'把魏忠贤斩了' → personnel + execute."""
+        """'把杨宪斩了' → personnel + execute."""
         provider = MockProvider()
         state = create_initial_state()
-        result = asyncio.run(provider.parse_free_input("把魏忠贤斩了", state))
+        result = asyncio.run(provider.parse_free_input("把杨宪斩了", state))
         assert isinstance(result, list)
         assert result[0].type == DecreeType.PERSONNEL
         assert result[0].sub_action == PersonnelAction.EXECUTE
-        assert result[0].target == "魏忠贤"
+        assert result[0].target == "杨宪"
 
     def test_execution_unknown_person_not_matched(self):
         """'斩杀不存在' → harsh_punishment fallback (not a minister name)."""
@@ -472,22 +473,22 @@ class TestParsePromptFixes:
         assert result[0].type == DecreeType.HARSH_PUNISHMENT
 
     def test_dismiss_maps_to_personnel_dismiss(self):
-        """'罢免魏忠贤' → personnel + dismiss."""
+        """'罢免杨宪' → personnel + dismiss."""
         provider = MockProvider()
         state = create_initial_state()
-        result = asyncio.run(provider.parse_free_input("罢免魏忠贤", state))
+        result = asyncio.run(provider.parse_free_input("罢免杨宪", state))
         assert isinstance(result, list)
         assert result[0].type == DecreeType.PERSONNEL
         assert result[0].sub_action == PersonnelAction.DISMISS
 
     def test_freeform_mock_execution(self):
-        """MockProvider.process_freeform: '斩杀魏忠贤' → FreeformResult with removed status."""
+        """MockProvider.process_freeform: '斩杀杨宪' → FreeformResult with removed status."""
         provider = MockProvider()
         state = create_initial_state()
-        result = asyncio.run(provider.process_freeform("斩杀魏忠贤", state))
+        result = asyncio.run(provider.process_freeform("斩杀杨宪", state))
         assert isinstance(result, FreeformResult)
-        assert "minister.魏忠贤.status" in result.effects
-        assert result.effects["minister.魏忠贤.status"] == "removed"
+        assert "minister.杨宪.status" in result.effects
+        assert result.effects["minister.杨宪.status"] == "removed"
 
 
 # ── 7.5 Freeform fallback ───────────────────────────────

@@ -107,8 +107,8 @@ class Minister(BaseModel):
     loyalty: int = Field(default=50, ge=0, le=100)
     positions: list[str] = Field(default_factory=list)
     is_eunuch: bool = False
-    entry_year: int = 1627
-    entry_month: int = Field(default=8, ge=1, le=12)
+    entry_year: int = 1356
+    entry_month: int = Field(default=3, ge=1, le=12)
     historical_note: str = Field(default="", max_length=200)
     biography: str = Field(default="")
     major_contributions: list[str] = Field(default_factory=list)
@@ -371,10 +371,10 @@ class HistoryEntry(BaseModel):
 # ── GameTime ─────────────────────────────────────────────
 
 class GameTime(BaseModel):
-    year: int = 1627
-    month: int = 1
-    era_name: str = "天启"
-    era_year: int = 7
+    year: int = 1356
+    month: int = 3
+    era_name: str = "至正"
+    era_year: int = 16
 
 
 # ── ConversationMessage ──────────────────────────────────
@@ -394,16 +394,18 @@ def _default_conversation_timestamp() -> str:
 
 class GameState(BaseModel):
     time: GameTime = Field(default_factory=GameTime)
+    # phase state machine (阶段切换逻辑属阶段D，此处仅预留字段)
+    phase: Literal["life_story", "governance"] = "governance"
     # resources (historical scales)
-    national_treasury: int = Field(default=20, ge=0, le=10000)
-    imperial_treasury: int = Field(default=10, ge=0, le=10000)
-    grain: int = Field(default=500, ge=0, le=50000)
-    population: int = Field(default=15000, ge=0, le=20000)
-    military_strength: int = Field(default=40, ge=0, le=2000)
+    national_treasury: int = Field(default=15, ge=0, le=10000)
+    imperial_treasury: int = Field(default=8, ge=0, le=10000)
+    grain: int = Field(default=420, ge=0, le=50000)
+    population: int = Field(default=1600, ge=0, le=20000)
+    military_strength: int = Field(default=18, ge=0, le=2000)
     # indicators (0~100)
-    civil_morale: int = 60
-    military_morale: int = 70
-    court_prestige: int = 75
+    civil_morale: int = 62
+    military_morale: int = 68
+    court_prestige: int = 62
     # entities
     factions: list[Faction] = Field(default_factory=list)
     regions: list[Region] = Field(default_factory=list)
@@ -515,37 +517,46 @@ class ErrorResponse(BaseModel):
 
 # ── Factory ──────────────────────────────────────────────
 
-INITIAL_FACTIONS = [
-    Faction(name="东林党", satisfaction=72, influence=65, rebellion_risk=5),
-    Faction(name="阉党残余", satisfaction=30, influence=25, rebellion_risk=15),
-    Faction(name="勋贵集团", satisfaction=55, influence=40, rebellion_risk=8),
-    Faction(name="辽东边将", satisfaction=61, influence=50, rebellion_risk=12),
-    Faction(name="中原剿匪系", satisfaction=58, influence=45, rebellion_risk=10),
-    Faction(name="温体仁派", satisfaction=50, influence=35, rebellion_risk=8),
-    Faction(name="周延儒派", satisfaction=55, influence=40, rebellion_risk=6),
-    Faction(name="中立派", satisfaction=60, influence=25, rebellion_risk=3),
-]
+_YUANMING_DATA_DIR = Path(__file__).resolve().parents[1] / "data" / "yuanming"
+_FACTIONS_JSON = _YUANMING_DATA_DIR / "factions.json"
+_REGIONS_JSON = _YUANMING_DATA_DIR / "regions.json"
 
-INITIAL_REGIONS = [
-    Region(name="京畿", stability=80, garrison=50000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=75, rebellion_risk=10, tax_rate=0.50, tax_collected=88, disaster_level=10),
-    Region(name="辽东", stability=45, garrison=30000, threat=RegionThreat.HOUJIN, tax_contribution=TaxContribution.LOW,
-           civil_morale=35, rebellion_risk=55, tax_rate=0.30, tax_collected=16, disaster_level=40),
-    Region(name="陕西", stability=35, garrison=5000, threat=RegionThreat.REBELLION, tax_contribution=TaxContribution.LOW,
-           civil_morale=20, rebellion_risk=70, tax_rate=0.25, tax_collected=10, disaster_level=60),
-    Region(name="江南", stability=85, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.HIGH,
-           civil_morale=80, rebellion_risk=5, tax_rate=0.80, tax_collected=244, disaster_level=5),
-    Region(name="中原", stability=60, garrison=15000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=55, rebellion_risk=20, tax_rate=0.50, tax_collected=66, disaster_level=15),
-    Region(name="山东", stability=70, garrison=12000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=65, rebellion_risk=15, tax_rate=0.50, tax_collected=77, disaster_level=10),
-    Region(name="云贵", stability=50, garrison=8000, threat=RegionThreat.TUSI, tax_contribution=TaxContribution.LOW,
-           civil_morale=45, rebellion_risk=35, tax_rate=0.30, tax_collected=18, disaster_level=30),
-    Region(name="川蜀", stability=65, garrison=10000, threat=RegionThreat.NONE, tax_contribution=TaxContribution.MEDIUM,
-           civil_morale=60, rebellion_risk=15, tax_rate=0.50, tax_collected=71, disaster_level=10),
-]
 
-_MINISTERS_JSON = Path(__file__).resolve().parents[1] / "data" / "ministers.json"
+def _load_initial_factions() -> list[Faction]:
+    raw = json.loads(_FACTIONS_JSON.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise ValueError("factions.json must be a JSON array")
+    factions = [
+        Faction(
+            name=item["name"],
+            satisfaction=item["satisfaction"],
+            influence=item["influence"],
+            rebellion_risk=item["rebellion_risk"],
+        )
+        for item in raw
+    ]
+    names = [f.name for f in factions]
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate faction names in factions.json")
+    return factions
+
+
+def _load_initial_regions() -> list[Region]:
+    raw = json.loads(_REGIONS_JSON.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise ValueError("regions.json must be a JSON array")
+    regions = [Region.model_validate(item) for item in raw]
+    names = [r.name for r in regions]
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate region names in regions.json")
+    return regions
+
+
+INITIAL_FACTIONS = _load_initial_factions()
+
+INITIAL_REGIONS = _load_initial_regions()
+
+_MINISTERS_JSON = _YUANMING_DATA_DIR / "ministers.json"
 _INITIAL_MINISTERS_CACHE: list[Minister] | None = None
 _INITIAL_MINISTERS_SIGNATURE: int | None = None
 _INITIAL_MINISTERS_LOCK = threading.RLock()
@@ -647,7 +658,7 @@ def _time_key(year: int, month: int) -> int:
 
 
 def create_initial_state() -> GameState:
-    start_key = _time_key(1627, 8)
+    start_key = _time_key(1356, 3)
     ministers: list[Minister] = []
     for tpl in get_initial_ministers():
         m = tpl.model_copy()
@@ -658,10 +669,10 @@ def create_initial_state() -> GameState:
         ministers.append(m)
 
     state = GameState(
-        time=GameTime(year=1627, month=8, era_name="天启", era_year=7),
-        national_treasury=20, imperial_treasury=10, grain=500,
-        population=15000, military_strength=40,
-        civil_morale=60, military_morale=70, court_prestige=75,
+        time=GameTime(year=1356, month=3, era_name="至正", era_year=16),
+        national_treasury=15, imperial_treasury=8, grain=420,
+        population=1600, military_strength=18,
+        civil_morale=62, military_morale=68, court_prestige=62,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
         ministers=ministers,

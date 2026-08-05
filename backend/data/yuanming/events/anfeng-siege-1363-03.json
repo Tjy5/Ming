@@ -1,0 +1,35 @@
+{
+  "script_id": "anfeng-siege-1363-03",
+  "trigger_year": 1363,
+  "trigger_month": 3,
+  "title": "安丰之围",
+  "is_blocking": true,
+  "rich_description": "至正二十三年春，张士诚遣吕珍督军围安丰，城中粮尽，刘福通遣人间道血书告急。安丰若破，小明王必为所虏，龙凤旗号一朝倾覆。\n\n刘基谏曰：救之，则陈友谅必乘虚捣我应天；不救，则名义尽丧，且使张氏得志于淮北。诸将亦各执救与不救。\n\n安丰垂破，救乎不救？",
+  "historical_hint": "至正二十三年张士诚遣吕珍围攻安丰，小明王所在的龙凤都城旦夕将破。朱元璋力排众议亲提大军驰援，救韩林儿而还。此举名义上是勤王，实际上使自己握有兴废之柄，但应天守备因此空虚，陈友谅果然倾国东下，直接引发了当年夏天的鄱阳湖决战。救安丰之举的得失，史家至今争之。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "亲率大军，驰救安丰",
+      "description": "提师北指，急解安丰之围，迎小明王置之滁州。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -3,
+        "faction.龙凤政权.satisfaction": 15,
+        "faction.吴政权.rebellion_risk": 10,
+        "global.court_prestige": 6
+      }
+    },
+    {
+      "label": "据守应天，不救孤城",
+      "description": "从刘基之谏，敛兵自守，坐观成败，专备江汉。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": -20,
+        "faction.龙凤政权.rebellion_risk": 15,
+        "global.court_prestige": -8
+      }
+    }
+  ]
+}

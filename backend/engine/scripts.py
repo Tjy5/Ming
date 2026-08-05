@@ -36,7 +36,7 @@ class ScriptEvent:
     condition: Callable[[GameState], bool] | None = None
 
 
-SCRIPT_EVENTS_DIR = Path(__file__).resolve().parents[1] / "data" / "events"
+SCRIPT_EVENTS_DIR = Path(__file__).resolve().parents[1] / "data" / "yuanming" / "events"
 
 # ── Script Registry ─────────────────────────────────────
 
@@ -86,7 +86,7 @@ def _register(evt: ScriptEvent) -> None:
         raise ValueError("script_id must be non-empty")
     if evt.script_id in SCRIPT_REGISTRY:
         raise ValueError(f"duplicate script_id: {evt.script_id}")
-    if not 1621 <= evt.trigger_year <= 1644:
+    if not 1328 <= evt.trigger_year <= 1368:
         raise ValueError(f"trigger_year out of range: {evt.trigger_year}")
     if not 1 <= evt.trigger_month <= 12:
         raise ValueError(f"trigger_month out of range: {evt.trigger_month}")

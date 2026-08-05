@@ -1,0 +1,54 @@
+{
+  "script_id": "yingtian-founding-1356-03",
+  "trigger_year": 1356,
+  "trigger_month": 3,
+  "title": "克集庆·建应天府",
+  "is_blocking": true,
+  "rich_description": "至正十六年三月，大军克集庆路。元守臣福寿死难，余众悉降。入城之日，号令肃然，市不易肆。\n\n改集庆路为应天府。此地钟山龙蟠，石头虎踞，外带江淮，内控湖海，真帝王之宅也。然环顾四方：西有陈友谅据江汉，东有张士诚据苏浙，北则元室与红巾相持于中原，强敌环伺，不可一日自安。\n\n新得根本之地，百端待举。诸将吏环立，候主公定策：以何者为先？",
+  "historical_hint": "至正十六年三月，朱元璋攻克集庆路，改其名为应天府，自此有了稳固的立足之地。入城后他约束部伍、安抚吏民，使城中秩序迅速恢复，又以礼葬元守将福寿，收揽江南人心。史家论此举为明兴之始：先立根本，再图进取，与流寇式的红巾别部形成鲜明对照。此后他以此城为中枢，西拒陈友谅、东抗张士诚，终底定东南。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "安民为先，休养生息",
+      "description": "出榜安民，抚绥疮痍，使应天士民知我军非为抄掠而来。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.应天.stability": 5,
+        "region.应天.civil_morale": 5
+      }
+    },
+    {
+      "label": "犒赏三军，激励士气",
+      "description": "大飨将士，论功行赏，使三军知奋，以备四方之敌。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_morale": 8,
+        "global.national_treasury": -3
+      }
+    },
+    {
+      "label": "裁汰冗员，整肃幕府",
+      "description": "检校杨宪持法峭刻，物议纷纷。去之，以清幕府。",
+      "decrees": [
+        {
+          "type": "personnel",
+          "target": "杨宪",
+          "sub_action": "dismiss"
+        }
+      ],
+      "loyalty_effects": [
+        [
+          "杨宪",
+          -20
+        ],
+        [
+          "李善长",
+          5
+        ]
+      ],
+      "state_effects": {}
+    }
+  ]
+}

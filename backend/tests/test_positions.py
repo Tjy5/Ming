@@ -1,4 +1,4 @@
-"""Unit tests for Position Registry."""
+"""Unit tests for Position Registry (元末明初版)."""
 
 import pytest
 from hypothesis import given, settings
@@ -19,22 +19,15 @@ from models.positions import (
 
 # ── Test data constants ─────────────────────────────────────────────
 
-CORE_NON_UNIQUE: set[str] = set()  # All CORE positions are unique
-
 # SECONDARY positions that are legitimately non-unique (multiple holders in reality)
 SECONDARY_NON_UNIQUE: set[str] = {
-    "巡抚", "总兵", "副将", "参将", "千总", "知府", "知县", "教谕",
-    "大学士", "翰林侍读", "光禄少卿", "太常少卿",
+    "元帅", "总管", "判官", "参军", "万户", "镇抚", "千户", "检校",
 }
-
-# NOBLE positions that are legitimately non-unique
-NOBLE_NON_UNIQUE: set[str] = set()
 
 ALL_CANONICAL_NAMES = tuple(POSITION_REGISTRY.keys())
 ALL_ALIASES = tuple(
     alias for info in POSITION_REGISTRY.values() for alias in info.aliases
 )
-ALL_KNOWN_NAMES = set(ALL_CANONICAL_NAMES) | set(ALL_ALIASES)
 
 ALIAS_PAIRS = tuple(
     (alias, canonical)
@@ -46,7 +39,7 @@ ALIAS_PAIRS = tuple(
 @pytest.mark.parametrize("category", [PositionCategory.SECONDARY, PositionCategory.NOBLE])
 def test_secondary_and_noble_positions_non_unique(category):
     """Non-CORE positions should be unique unless listed in exception set."""
-    exceptions = SECONDARY_NON_UNIQUE if category == PositionCategory.SECONDARY else NOBLE_NON_UNIQUE
+    exceptions = SECONDARY_NON_UNIQUE if category == PositionCategory.SECONDARY else set()
     for name, info in POSITION_REGISTRY.items():
         if info.category == category and name not in exceptions:
             assert info.unique is True, f"{name} ({category.value}) should be unique"
@@ -122,37 +115,31 @@ def test_calculate_position_weight_empty_list():
 
 def test_calculate_position_weight_single_position():
     """calculate_position_weight should return correct weight for single position."""
-    assert calculate_position_weight(["首辅大学士"]) == 120
-    assert calculate_position_weight(["吏部尚书"]) == 100
+    assert calculate_position_weight(["左丞相"]) == 120
+    assert calculate_position_weight(["参知政事"]) == 90
 
 
 def test_calculate_position_weight_cumulative():
     """calculate_position_weight should return cumulative weight for multiple positions."""
-    # 礼部尚书 (100) + 东阁大学士 (110)
-    weight = calculate_position_weight(["礼部尚书", "东阁大学士"])
-    assert weight == 210
+    # 平章政事 (110) + 同知都督 (90)
+    weight = calculate_position_weight(["平章政事", "同知都督"])
+    assert weight == 200
 
 
 def test_calculate_position_weight_unknown_contributes_zero():
     """calculate_position_weight should contribute 0 for unknown positions."""
-    weight = calculate_position_weight(["首辅大学士", "不存在的官职"])
+    weight = calculate_position_weight(["左丞相", "不存在的官职"])
     assert weight == 120
 
 
-# ── Registry Completeness (PBT Property) ─────────────────────────────
+# ── Registry Completeness ────────────────────────────────────────────
 
 
 def test_registry_has_core_positions():
     """Registry must contain all expected CORE positions."""
     expected_core = {
-        "首辅大学士", "次辅大学士",
-        "东阁大学士", "文渊阁大学士", "武英殿大学士",
-        "吏部尚书", "吏部侍郎", "户部尚书", "户部侍郎",
-        "礼部尚书", "礼部侍郎", "兵部尚书", "兵部侍郎",
-        "刑部尚书", "刑部侍郎", "工部尚书", "工部侍郎",
-        "左都御史", "指挥使",
-        "辽东巡抚", "河南巡抚", "福建巡抚", "登莱巡抚",
-        "宣府总兵", "山海关总兵", "东江总兵",
+        "左丞相", "右丞相", "平章政事", "左丞", "右丞", "参知政事",
+        "大都督", "同知都督", "御史大夫", "治书侍御史",
     }
     actual_core = {
         name for name, info in POSITION_REGISTRY.items()
@@ -161,14 +148,24 @@ def test_registry_has_core_positions():
     assert expected_core <= actual_core, f"Missing CORE positions: {expected_core - actual_core}"
 
 
+def test_registry_has_military_positions():
+    """Registry must contain non-unique military positions."""
+    expected = {"元帅", "总管", "判官", "参军", "万户", "镇抚", "千户"}
+    actual = {
+        name for name, info in POSITION_REGISTRY.items()
+        if info.category == PositionCategory.SECONDARY and not info.unique
+    }
+    assert expected <= actual
+
+
 def test_registry_has_eunuch_positions():
     """Registry must contain EUNUCH positions."""
     eunuch_positions = [
         name for name, info in POSITION_REGISTRY.items()
         if info.category == PositionCategory.EUNUCH
     ]
-    assert "司礼监太监" in eunuch_positions
-    assert "司礼监秉笔太监" in eunuch_positions
+    assert "宣徽使" in eunuch_positions
+    assert "内史监令" in eunuch_positions
 
 
 # ── is_eunuch_position ─────────────────────────────────────────────────
@@ -176,16 +173,15 @@ def test_registry_has_eunuch_positions():
 
 def test_is_eunuch_position_true_for_eunuch():
     """is_eunuch_position should return True for EUNUCH category positions."""
-    assert is_eunuch_position("司礼监太监") is True
-    assert is_eunuch_position("司礼监掌印太监") is True
-    assert is_eunuch_position("司礼监秉笔太监") is True
+    assert is_eunuch_position("宣徽使") is True
+    assert is_eunuch_position("内史监令") is True
 
 
 def test_is_eunuch_position_false_for_non_eunuch():
     """is_eunuch_position should return False for non-EUNUCH positions."""
-    assert is_eunuch_position("首辅大学士") is False
-    assert is_eunuch_position("吏部尚书") is False
-    assert is_eunuch_position("成国公") is False
+    assert is_eunuch_position("左丞相") is False
+    assert is_eunuch_position("元帅") is False
+    assert is_eunuch_position("太师") is False
 
 
 def test_is_eunuch_position_false_for_unknown():
@@ -196,36 +192,30 @@ def test_is_eunuch_position_false_for_unknown():
 # ── is_unique_position ─────────────────────────────────────────────────
 
 
-def test_is_unique_position_true_for_core_unique():
+def test_is_unique_position_true_for_core():
     """is_unique_position should return True for unique CORE positions."""
-    assert is_unique_position("首辅大学士") is True
-    assert is_unique_position("吏部尚书") is True
-    assert is_unique_position("左都御史") is True
+    assert is_unique_position("左丞相") is True
+    assert is_unique_position("参知政事") is True
+    assert is_unique_position("大都督") is True
 
 
-def test_is_unique_position_false_for_core_non_unique():
-    """All CORE positions are now unique."""
-    # 巡抚 and 总兵 have been split into specific regional positions
-    assert is_unique_position("辽东巡抚") is True
-    assert is_unique_position("宣府总兵") is True
+def test_is_unique_position_for_secondary():
+    """SECONDARY文职唯一，军职非唯一。"""
+    assert is_unique_position("太史令") is True
+    assert is_unique_position("经历") is True
+    assert is_unique_position("元帅") is False
+    assert is_unique_position("总管") is False
 
 
-def test_is_unique_position_false_for_secondary():
-    """All SECONDARY positions are now unique."""
-    assert is_unique_position("翰林学士") is True
-    assert is_unique_position("监察御史") is True
-
-
-def test_is_unique_position_false_for_noble():
-    """All NOBLE positions are now unique."""
-    assert is_unique_position("成国公") is True
-    assert is_unique_position("英国公") is True
+def test_is_unique_position_for_noble():
+    """All NOBLE positions are unique."""
+    assert is_unique_position("吴国公") is True
+    assert is_unique_position("太师") is True
 
 
 def test_is_unique_position_true_for_eunuch():
     """is_unique_position should return True for EUNUCH positions."""
-    assert is_unique_position("司礼监太监") is True
-    assert is_unique_position("司礼监掌印太监") is True
+    assert is_unique_position("宣徽使") is True
 
 
 def test_is_unique_position_false_for_unknown():
@@ -238,95 +228,46 @@ def test_is_unique_position_false_for_unknown():
 
 def test_can_appoint_eunuch_to_eunuch_position():
     """Eunuch ministers can be appointed to EUNUCH positions."""
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=[], position="司礼监太监") is True
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=[], position="司礼监掌印太监") is True
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=[], position="宣徽使") is True
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=[], position="内史监令") is True
 
 
 def test_can_appoint_eunuch_to_non_eunuch_position():
     """Eunuch ministers cannot be appointed to non-EUNUCH positions."""
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=["翰林"], position="首辅大学士") is False
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=[], position="吏部尚书") is False
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=["勋贵"], position="成国公") is False
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=[], position="左丞相") is False
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=[], position="元帅") is False
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=["勋贵"], position="太师") is False
 
 
 def test_can_appoint_non_eunuch_to_eunuch_position():
     """Non-eunuch ministers cannot be appointed to EUNUCH positions."""
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="司礼监太监") is False
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="司礼监掌印太监") is False
+    assert can_appoint(minister_eunuch=False, minister_faction="幕府文臣", minister_tags=[], position="宣徽使") is False
 
 
 def test_can_appoint_non_eunuch_to_non_eunuch_position():
     """Non-eunuch ministers can be appointed to non-EUNUCH positions."""
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=["翰林"], position="首辅大学士") is True
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="吏部尚书") is True
-    assert can_appoint(minister_eunuch=False, minister_faction="勋贵集团", minister_tags=["勋贵"], position="成国公") is True
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=["翰林"], position="翰林学士") is True
+    assert can_appoint(minister_eunuch=False, minister_faction="幕府文臣", minister_tags=[], position="左丞相") is True
+    assert can_appoint(minister_eunuch=False, minister_faction="淮西勋将", minister_tags=[], position="元帅") is True
+    assert can_appoint(minister_eunuch=False, minister_faction="元廷", minister_tags=["勋贵"], position="太师") is True
 
 
 def test_can_appoint_unknown_position():
     """can_appoint should return False for unknown positions."""
-    assert can_appoint(minister_eunuch=True, minister_faction="阉党", minister_tags=[], position="不存在的官职") is False
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="不存在的官职") is False
+    assert can_appoint(minister_eunuch=True, minister_faction="元廷", minister_tags=[], position="不存在的官职") is False
+    assert can_appoint(minister_eunuch=False, minister_faction="幕府文臣", minister_tags=[], position="不存在的官职") is False
 
-def test_can_appoint_hanlin_constraint():
-    """Only ministers with the Hanlin tag can enter the Grand Secretariat."""
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="首辅大学士") is False
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=["翰林"], position="首辅大学士") is True
-    
+
 def test_can_appoint_noble_constraint():
     """Nobles can only hold noble positions, and only nobles can hold noble positions."""
     # Noble minister trying to hold civil pos -> False
-    assert can_appoint(minister_eunuch=False, minister_faction="勋贵集团", minister_tags=["勋贵"], position="吏部尚书") is False
+    assert can_appoint(minister_eunuch=False, minister_faction="汉政权", minister_tags=["勋贵"], position="左丞相") is False
     # Civil minister trying to hold noble pos -> False
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="成国公") is False
+    assert can_appoint(minister_eunuch=False, minister_faction="幕府文臣", minister_tags=[], position="太尉") is False
     # Noble minister holding noble pos -> True
-    assert can_appoint(minister_eunuch=False, minister_faction="勋贵集团", minister_tags=["勋贵"], position="成国公") is True
-
-def test_can_appoint_military_constraint():
-    """Military generals cannot be appointed as regional governors."""
-    # General as Xunfu -> False
-    assert can_appoint(minister_eunuch=False, minister_faction="辽东边将", minister_tags=["武将"], position="辽东巡抚") is False
-    # General as Zongbing -> True
-    assert can_appoint(minister_eunuch=False, minister_faction="辽东边将", minister_tags=["武将"], position="山海关总兵") is True
-    # Civil as Xunfu -> True
-    assert can_appoint(minister_eunuch=False, minister_faction="东林党", minister_tags=[], position="辽东巡抚") is True
+    assert can_appoint(minister_eunuch=False, minister_faction="汉政权", minister_tags=["勋贵"], position="太尉") is True
 
 
 # ── Integration Tests: Game State ─────────────────────────────────────
-
-
-def test_unique_positions_are_marked_correctly():
-    """Verify that positions marked as unique=True are correctly identified."""
-    unique_core_positions = [
-        name for name, info in POSITION_REGISTRY.items()
-        if info.category == PositionCategory.CORE and info.unique
-    ]
-    # All positions are unique in the new design
-    assert "首辅大学士" in unique_core_positions
-    assert "吏部尚书" in unique_core_positions
-    assert "辽东巡抚" in unique_core_positions
-    assert "宣府总兵" in unique_core_positions
-
-
-def test_secondary_position_allows_multiple_holders():
-    """SECONDARY positions should allow multiple ACTIVE ministers."""
-    from models.game import create_initial_state
-    from models.enums import MinisterStatus
-
-    state = create_initial_state()
-    active_ministers = [m for m in state.ministers if m.status == MinisterStatus.ACTIVE]
-
-    # Find SECONDARY positions with multiple holders
-    secondary_counts: dict[str, int] = {}
-    for m in active_ministers:
-        for pos in m.positions:
-            info = get_position_info(pos)
-            if info is not None and info.category == PositionCategory.SECONDARY:
-                secondary_counts[pos] = secondary_counts.get(pos, 0) + 1
-
-    # At least some SECONDARY positions might have multiple holders (not a strict requirement)
-    # This test just verifies the system allows it
-    assert isinstance(secondary_counts, dict)
 
 
 def test_eunuch_ministers_only_have_eunuch_positions():
@@ -360,10 +301,24 @@ def test_non_eunuch_ministers_no_eunuch_positions():
                 f"Non-eunuch minister {m.name} has EUNUCH position '{pos}'"
 
 
+def test_unique_positions_single_holder_in_roster():
+    """Unique positions in the initial roster should have at most one holder."""
+    from models.game import INITIAL_MINISTERS
+
+    holder: dict[str, str] = {}
+    for m in INITIAL_MINISTERS:
+        for pos in m.positions:
+            info = get_position_info(pos)
+            if info is None or not info.unique:
+                continue
+            assert pos not in holder or holder[pos] == m.name, \
+                f"Unique position '{pos}' held by both {holder.get(pos)} and {m.name}"
+            holder[pos] = m.name
+
+
 def test_initial_state_minister_position_coverage():
     """At least 80% of ministers should have positions in initial state."""
     from models.game import create_initial_state
-    from models.enums import MinisterStatus
 
     state = create_initial_state()
     total = len(state.ministers)

@@ -91,7 +91,7 @@ def test_admin_end_to_end_verification(admin_e2e_client):
         "loyalty": 63,
         "positions": [],
         "is_eunuch": False,
-        "entry_year": 1631,
+        "entry_year": 1361,
         "entry_month": 7,
         "historical_note": "e2e minister",
     }
@@ -104,14 +104,14 @@ def test_admin_end_to_end_verification(admin_e2e_client):
     assert get_minister_resp.json()["name"] == hot_reload_name
 
     updated_minister_payload = dict(minister_payload)
-    updated_minister_payload["faction"] = "东林党"
+    updated_minister_payload["faction"] = "江南士绅"
     update_minister_resp = client.put(
         f"/api/admin/ministers/{hot_reload_name}",
         headers=headers,
         json=updated_minister_payload,
     )
     assert update_minister_resp.status_code == 200
-    assert update_minister_resp.json()["faction"] == "东林党"
+    assert update_minister_resp.json()["faction"] == "江南士绅"
 
     positions_resp = client.get("/api/admin/positions", headers=headers)
     assert positions_resp.status_code == 200
@@ -120,7 +120,7 @@ def test_admin_end_to_end_verification(admin_e2e_client):
     event_id = "admin-e2e-event"
     event_payload = {
         "script_id": event_id,
-        "trigger_year": 1633,
+        "trigger_year": 1363,
         "trigger_month": 3,
         "title": "端到端事件",
         "is_blocking": False,
@@ -178,7 +178,7 @@ def test_admin_end_to_end_verification(admin_e2e_client):
             "loyalty": 54,
             "positions": [],
             "is_eunuch": False,
-            "entry_year": 1632,
+            "entry_year": 1362,
             "entry_month": 8,
             "historical_note": "e2e imported",
         }

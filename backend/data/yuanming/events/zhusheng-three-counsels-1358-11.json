@@ -1,0 +1,42 @@
+{
+  "script_id": "zhusheng-three-counsels-1358-11",
+  "trigger_year": 1358,
+  "trigger_month": 11,
+  "title": "朱升献三策",
+  "is_blocking": false,
+  "rich_description": "至正十八年十一月，大军至徽州，闻隐士朱升名，微服造其庐。朱升时年已高，议论英发，为陈天下大势良久。\n\n临别，朱升献九字之策：高筑墙，广积粮，缓称王。\n\n主公归应天，召集幕府议此三策。诸臣或谓当急称大号以系人心，或谓当从老儒之谋。其议当何从？",
+  "historical_hint": "朱升所献高筑墙、广积粮、缓称王九字，为元末群雄角逐中最著名的战略方针之一：缮治城守以固根本，劝课农桑以充军实，缓建名号以免为众矢之的。朱元璋奉行之，得以在元廷与群雄的夹缝中悄然坐大，待四方强弱易形，再一举而定乾坤。其要义在于藏锋守拙、后发制人。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "谨遵三策，定为根本",
+      "description": "缮城垣，兴屯田，缓大号，蓄力以待天时。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "朱升",
+          15
+        ]
+      ],
+      "state_effects": {
+        "region.应天.stability": 6,
+        "global.grain": 20,
+        "global.court_prestige": -3
+      }
+    },
+    {
+      "label": "善其意而缓行之",
+      "description": "深然其言，然四方观望，名号固根本亦不可尽废。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "朱升",
+          5
+        ]
+      ],
+      "state_effects": {
+        "global.grain": 10
+      }
+    }
+  ]
+}

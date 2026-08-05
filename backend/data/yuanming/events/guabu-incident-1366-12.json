@@ -1,0 +1,33 @@
+{
+  "script_id": "guabu-incident-1366-12",
+  "trigger_year": 1366,
+  "trigger_month": 12,
+  "title": "瓜步之变·小明王之殁",
+  "is_blocking": false,
+  "rich_description": "至正二十六年十二月，小明王韩林儿自滁州赴应天，舟行至瓜步，风浪骤起，舟覆，溺于江中。闻者莫不惊愕，道路私语，或疑其事非偶然。\n\n龙凤之号，维系红巾旧部十余年。今其主暴亡，诸将以为名分之累一朝顿释；而悠悠之口，不可不防。\n\n小明王之丧，当以何礼处之？",
+  "historical_hint": "至正二十六年十二月，韩林儿自滁州迁往应天，途经瓜步时舟覆溺亡，龙凤政权至此实际上终结。其死因史书讳莫如深，后世多疑非出偶然。对朱元璋而言，这一事件使他摆脱了名义上的最后羁绊，次年即改元吴元年，为开国称帝扫清了名分障碍，处置丧礼的轻重厚薄，处处牵动观瞻。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "发丧以礼，厚葬小明王",
+      "description": "讣告四方，以诸侯之礼治丧，塞悠悠之口。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 5,
+        "faction.龙凤政权.satisfaction": 5
+      }
+    },
+    {
+      "label": "秘不发丧，迳行郊祀",
+      "description": "匿其丧不报，即日改岁议礼，明示天命归我。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 8,
+        "faction.龙凤政权.satisfaction": -10,
+        "faction.龙凤政权.rebellion_risk": 10
+      }
+    }
+  ]
+}

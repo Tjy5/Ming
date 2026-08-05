@@ -95,7 +95,7 @@ def test_chat_explore_prefix_forces_query_intent():
 
     stream_response = asyncio.run(
         chat_routes.chat_stream(
-            ChatRequest(message=f"{chat_routes.EXPLORE_PREFIX}处理天启驾崩，信王继位")
+            ChatRequest(message=f"{chat_routes.EXPLORE_PREFIX}处理陈友谅东侵，应天守备")
         )
     )
     payload = asyncio.run(_collect_stream_payload(stream_response))
@@ -165,8 +165,8 @@ def test_chat_execute_intent_emits_reactions_and_done_contains_reactions(monkeyp
 
     expected_reactions = [
         {
-            "minister_name": "钱谦益",
-            "faction": "东林党",
+            "minister_name": "宋濂",
+            "faction": "幕府文臣",
             "reaction_type": "反对",
             "reaction_text": "此策恐伤民心。",
             "loyalty_change": -2,

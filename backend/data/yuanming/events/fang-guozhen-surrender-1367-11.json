@@ -1,0 +1,41 @@
+{
+  "script_id": "fang-guozhen-surrender-1367-11",
+  "trigger_year": 1367,
+  "trigger_month": 11,
+  "title": "方国珍纳土",
+  "is_blocking": false,
+  "rich_description": "至正二十七年十一月，王师徇浙东，汤和、廖永忠水陆并进。方国珍穷蹙失据，遣其子奉表乞降，献庆元、台、温三郡之地，只身入朝。\n\n方氏据海隅二十年，首鼠两端，屡降屡叛。今穷而来归，纳之则示天下以宽，诛之则绝后来降者之望。\n\n方国珍之降，受与不受？",
+  "historical_hint": "方国珍起兵最早于群雄，据浙东沿海二十余年，在元廷与各路势力之间反复降叛，却始终保境自全。至正二十七年末，面对朱元璋的压倒性兵威，他最终选择纳土归降。对这种首鼠两端的割据者如何处置，是新生政权向天下降人展示信义与威刑尺度的重要标本。处置得宜，则浙东可传檄而定，东南大局遂无复后顾。",
+  "condition": {
+    "type": "script_resolved",
+    "script_id": "northern-expedition-1367-10"
+  },
+  "choices": [
+    {
+      "label": "许其归顺，仍保宗祏",
+      "description": "赦其既往，授以虚衔厚禄，使天下降人安心。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "方国珍",
+          20
+        ]
+      ],
+      "state_effects": {
+        "faction.东南群雄.satisfaction": 15,
+        "faction.东南群雄.rebellion_risk": -20
+      }
+    },
+    {
+      "label": "夺其兵柄，徙置应天",
+      "description": "收其舟师甲仗，徙其宗族于京师，绝其复叛之根。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.东南群雄.satisfaction": -10,
+        "faction.东南群雄.rebellion_risk": -15,
+        "global.court_prestige": 5
+      }
+    }
+  ]
+}

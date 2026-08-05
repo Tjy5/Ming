@@ -157,7 +157,7 @@ class AdminScriptChoice(BaseModel):
 
 class AdminScriptEvent(BaseModel):
     script_id: str = Field(min_length=1)
-    trigger_year: int = Field(ge=1621, le=1644)
+    trigger_year: int = Field(ge=1328, le=1368)
     trigger_month: int = Field(ge=1, le=12)
     title: str = Field(min_length=1)
     rich_description: str

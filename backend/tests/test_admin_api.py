@@ -112,14 +112,14 @@ def test_admin_minister_crud(admin_test_env):
     _manager, _db = admin_test_env
     payload = {
         "name": "测试大臣甲",
-        "faction": "中立派",
-        "personality_tags": ["翰林"],
+        "faction": "江南士绅",
+        "personality_tags": ["儒雅"],
         "abilities": {"civil": 60, "military": 20, "diplomacy": 55},
         "status": "idle",
         "loyalty": 55,
         "positions": [],
         "is_eunuch": False,
-        "entry_year": 1628,
+        "entry_year": 1357,
         "entry_month": 1,
         "historical_note": "测试数据",
     }
@@ -131,9 +131,9 @@ def test_admin_minister_crud(admin_test_env):
     assert any(item["name"] == "测试大臣甲" for item in ministers)
 
     updated_payload = dict(payload)
-    updated_payload["faction"] = "东林党"
+    updated_payload["faction"] = "幕府文臣"
     updated = asyncio.run(admin_routes.admin_update_minister("测试大臣甲", updated_payload, None))
-    assert updated["faction"] == "东林党"
+    assert updated["faction"] == "幕府文臣"
 
     deleted = asyncio.run(admin_routes.admin_delete_minister("测试大臣甲", None))
     assert deleted["ok"] is True
@@ -143,12 +143,12 @@ def test_admin_minister_crud(admin_test_env):
 
 def _build_minister_payload(name: str, *, position: str, category: str) -> dict:
     tags: list[str] = []
-    faction = "中立派"
+    faction = "江南士绅"
     is_eunuch = False
 
     if category == "NOBLE":
         tags = ["勋贵"]
-        faction = "勋贵集团"
+        faction = "汉政权"
     elif category == "EUNUCH":
         is_eunuch = True
     elif "大学士" in position:
@@ -163,7 +163,7 @@ def _build_minister_payload(name: str, *, position: str, category: str) -> dict:
         "loyalty": 60,
         "positions": [position],
         "is_eunuch": is_eunuch,
-        "entry_year": 1629,
+        "entry_year": 1359,
         "entry_month": 1,
         "historical_note": "测试任职约束",
     }
@@ -173,21 +173,21 @@ def test_admin_update_minister_idempotent(admin_test_env):
     _manager, _db = admin_test_env
     payload = {
         "name": "测试大臣幂等",
-        "faction": "中立派",
-        "personality_tags": ["翰林"],
+        "faction": "江南士绅",
+        "personality_tags": ["儒雅"],
         "abilities": {"civil": 70, "military": 20, "diplomacy": 60},
         "status": "idle",
         "loyalty": 58,
         "positions": [],
         "is_eunuch": False,
-        "entry_year": 1628,
+        "entry_year": 1358,
         "entry_month": 4,
         "historical_note": "幂等测试",
     }
 
     asyncio.run(admin_routes.admin_create_minister(payload, None))
     update_payload = dict(payload)
-    update_payload["faction"] = "东林党"
+    update_payload["faction"] = "幕府文臣"
 
     first = asyncio.run(admin_routes.admin_update_minister("测试大臣幂等", update_payload, None))
     second = asyncio.run(admin_routes.admin_update_minister("测试大臣幂等", update_payload, None))
@@ -204,14 +204,14 @@ def test_admin_create_minister_rejects_historical_constraint(admin_test_env):
 
     payload = {
         "name": "非法任命测试",
-        "faction": "中立派",
+        "faction": "江南士绅",
         "personality_tags": [],
         "abilities": {"civil": 40, "military": 20, "diplomacy": 30},
         "status": "idle",
         "loyalty": 40,
         "positions": [eunuch_position["name"]],
         "is_eunuch": False,
-        "entry_year": 1630,
+        "entry_year": 1360,
         "entry_month": 1,
         "historical_note": "应当被拒绝",
     }
@@ -261,7 +261,7 @@ def test_admin_event_crud(admin_test_env):
     _manager, _db = admin_test_env
     payload = {
         "script_id": "admin-test-event",
-        "trigger_year": 1632,
+        "trigger_year": 1360,
         "trigger_month": 6,
         "title": "管理员测试事件",
         "is_blocking": False,
@@ -315,7 +315,7 @@ def test_admin_event_rejects_trigger_year_out_of_range(admin_test_env):
     }
 
     payload_low = dict(base_payload)
-    payload_low["trigger_year"] = 1620
+    payload_low["trigger_year"] = 1327
     with pytest.raises(HTTPException) as low_exc:
         asyncio.run(admin_routes.admin_create_event(payload_low, None))
     assert low_exc.value.status_code == 422
@@ -323,7 +323,7 @@ def test_admin_event_rejects_trigger_year_out_of_range(admin_test_env):
 
     payload_high = dict(base_payload)
     payload_high["script_id"] = "admin-invalid-year-high"
-    payload_high["trigger_year"] = 1645
+    payload_high["trigger_year"] = 1369
     with pytest.raises(HTTPException) as high_exc:
         asyncio.run(admin_routes.admin_create_event(payload_high, None))
     assert high_exc.value.status_code == 422
@@ -334,7 +334,7 @@ def test_admin_event_accepts_trigger_year_boundaries(admin_test_env):
     _manager, _db = admin_test_env
     payload_low = {
         "script_id": "admin-year-lower-bound",
-        "trigger_year": 1621,
+        "trigger_year": 1328,
         "trigger_month": 1,
         "title": "合法下边界年份",
         "is_blocking": False,
@@ -353,21 +353,21 @@ def test_admin_event_accepts_trigger_year_boundaries(admin_test_env):
     }
     payload_high = dict(payload_low)
     payload_high["script_id"] = "admin-year-upper-bound"
-    payload_high["trigger_year"] = 1644
+    payload_high["trigger_year"] = 1368
     payload_high["trigger_month"] = 12
     payload_high["title"] = "合法上边界年份"
 
     created_low = asyncio.run(admin_routes.admin_create_event(payload_low, None))
     created_high = asyncio.run(admin_routes.admin_create_event(payload_high, None))
-    assert created_low["trigger_year"] == 1621
-    assert created_high["trigger_year"] == 1644
+    assert created_low["trigger_year"] == 1328
+    assert created_high["trigger_year"] == 1368
 
 
 def test_admin_event_delete_rejected_when_active_in_saves(admin_test_env):
     _manager, db_path = admin_test_env
     payload = {
         "script_id": "admin-test-active-event",
-        "trigger_year": 1632,
+        "trigger_year": 1360,
         "trigger_month": 7,
         "title": "管理员测试激活事件",
         "is_blocking": False,
@@ -397,7 +397,7 @@ def test_admin_event_delete_rejected_when_active_in_saves(admin_test_env):
     with sqlite3.connect(str(db_path), timeout=5) as conn:
         conn.execute(
             "INSERT INTO saves (name, game_time, created_at, state_json) VALUES (?, ?, ?, ?)",
-            ("test", "崇祯五年七月", "2026-02-22T00:00:00+00:00", state_json),
+            ("test", "至正二十年七月", "2026-02-22T00:00:00+00:00", state_json),
         )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -462,7 +462,7 @@ def test_admin_create_event_rejects_invalid_condition(admin_test_env):
     _manager, _db = admin_test_env
     payload = {
         "script_id": "admin-invalid-condition",
-        "trigger_year": 1632,
+        "trigger_year": 1360,
         "trigger_month": 8,
         "title": "无效条件事件",
         "is_blocking": False,
@@ -489,7 +489,7 @@ def test_admin_create_event_rejects_empty_choice_description(admin_test_env):
     _manager, _db = admin_test_env
     payload = {
         "script_id": "admin-empty-choice-description",
-        "trigger_year": 1632,
+        "trigger_year": 1360,
         "trigger_month": 8,
         "title": "空描述事件",
         "is_blocking": False,
@@ -518,7 +518,7 @@ def test_admin_create_event_rejects_empty_choice_description(admin_test_env):
     military=st.integers(min_value=0, max_value=100),
     diplomacy=st.integers(min_value=0, max_value=100),
     loyalty=st.integers(min_value=0, max_value=100),
-    entry_year=st.integers(min_value=1621, max_value=1644),
+    entry_year=st.integers(min_value=1328, max_value=1368),
     entry_month=st.integers(min_value=1, max_value=12),
 )
 @settings(

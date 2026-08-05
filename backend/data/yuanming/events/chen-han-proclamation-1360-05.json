@@ -1,0 +1,32 @@
+{
+  "script_id": "chen-han-proclamation-1360-05",
+  "trigger_year": 1360,
+  "trigger_month": 5,
+  "title": "陈友谅弑主称帝",
+  "is_blocking": true,
+  "rich_description": "至正二十年闰五月，震雷般的消息传至应天：陈友谅弑其主徐寿辉于采石舟中，自立为帝，国号大汉，尽据湖广江西之地。\n\n陈友谅既称帝，志在必吞江东，遣使约张士诚东西夹击，楼船千里，旌旗蔽江，顺流直薄应天。城中闻之，人心惶惶，议者或欲奔钟山，或欲弃城东走。\n\n大敌当前，主公何以定人心、定战守？",
+  "historical_hint": "陈友谅杀徐寿辉自立，国号汉，据地千里，拥当时江南最精锐的水军，挟上游之势顺江而东，是朱元璋生平遭遇的最强对手。应天文武一时震恐，奔逃之议四起。朱元璋用刘基之谋，伏兵诱敌，已显破汉之志，而其先定战守、安定人心的处置，正是后来龙湾大捷的前提。强弱之势既明，战守之策乃定，此实江东存亡之一大关键。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "遣使观衅，暂避其锋",
+      "description": "卑辞厚币以骄其志，徐待其师老兵疲。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.汉政权.satisfaction": 5,
+        "global.court_prestige": -5
+      }
+    },
+    {
+      "label": "厉兵秣马，决计迎敌",
+      "description": "亲巡城垒，誓师励众，示以必战，以固众志。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_morale": 8,
+        "faction.汉政权.rebellion_risk": 10
+      }
+    }
+  ]
+}

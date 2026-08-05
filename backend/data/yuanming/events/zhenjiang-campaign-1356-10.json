@@ -1,0 +1,32 @@
+{
+  "script_id": "zhenjiang-campaign-1356-10",
+  "trigger_year": 1356,
+  "trigger_month": 10,
+  "title": "徐达克镇江",
+  "is_blocking": false,
+  "rich_description": "至正十六年十月，徐达提兵东下，一战而克镇江。捷报至应天，满府称贺。\n\n镇江既下，应天东顾之忧稍纾，然常州、江阴一线，张士诚兵锋相接，边境骚然。徐达请乘胜东进，幕府则请缮守固圉，以观时变。\n\n东路方略，当如何措置？",
+  "historical_hint": "攻克集庆的同年，朱元璋命徐达东取镇江，打开通向苏常的门户。镇江地处长江与运河之交，为东南形胜锁钥，得之则西屏应天、东窥三吴。自此朱元璋与张士诚两军犬牙相接，围绕常州、江阴展开长达十年的拉锯，东路一线的攻守取舍，直接牵动对陈友谅决战时的侧背安危。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "乘胜东进，徐图常州",
+      "description": "命徐达引军继进，蚕食苏常，使张士诚不得安枕。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.镇江.stability": 8,
+        "global.military_morale": 5
+      }
+    },
+    {
+      "label": "固守镇江，休卒缮城",
+      "description": "深沟高垒，养精蓄锐，先固东门之屏，再图后举。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.镇江.garrison": 3000,
+        "global.grain": -10
+      }
+    }
+  ]
+}

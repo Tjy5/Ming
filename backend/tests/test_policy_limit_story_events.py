@@ -61,7 +61,7 @@ def test_non_panel_decree_is_exempt_from_monthly_limit():
 
     decree = StructuredDecree(
         type=DecreeType.PERSONNEL,
-        target="魏忠贤",
+        target="杨宪",
         sub_action=PersonnelAction.DISMISS,
     )
     assert check_preconditions(state, decree, enforce_monthly_limit=False) is None
@@ -106,12 +106,12 @@ def test_script_free_text_maps_to_choice_and_executes():
     result = asyncio.run(routes.execute_decree(
         routes.DecreeRequest(
             source_script_id=active_script,
-            free_text="即刻清算阉党",
+            free_text="裁汰冗员，整肃幕府",
         )
     ))
 
-    wei = next(m for m in result["state"]["ministers"] if m["name"] == "魏忠贤")
-    assert wei["status"] == "idle"
+    yang = next(m for m in result["state"]["ministers"] if m["name"] == "杨宪")
+    assert yang["status"] == "idle"
     assert active_script in result["state"]["resolved_script_ids"]
     assert result["state"]["decrees_this_month"] == {}
 
@@ -141,15 +141,15 @@ def test_script_free_text_low_confidence_returns_freeform_empty_and_preserves_st
 
 def test_inject_script_events_respects_persisted_trigger_decision():
     state = GameState(
-        time=GameTime(year=1627, month=8, era_name="天启", era_year=7),
+        time=GameTime(year=1356, month=3, era_name="至正", era_year=16),
         factions=[Faction(name="test", satisfaction=50, influence=50, rebellion_risk=10)],
         regions=[Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)],
     )
-    script_id = "chongzhen-accession-1627-08"
+    script_id = "yingtian-founding-1356-03"
     state.trigger_decisions[script_id] = TriggerDecision(
         should_trigger=False,
         reason="manual",
-        timestamp="1627-08",
+        timestamp="1356-03",
     )
 
     injected = inject_script_events(state)
@@ -201,16 +201,19 @@ def test_advance_month_uses_provider_trigger_decisions():
     inner = _TrackingProvider()
     api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
     api_state._state = create_initial_state()
+    # 推进至 1356/7（龙凤册命事件触发月）
+    api_state._state.time.month = 6
 
     result = asyncio.run(routes.advance_month_endpoint())
-    month9_script_ids = [s.script_id for s in get_scripts_for_time(1627, 9)]
+    month7_script_ids = [s.script_id for s in get_scripts_for_time(1356, 7)]
 
     assert inner.trigger_called is True
-    for script_id in month9_script_ids:
+    assert len(month7_script_ids) >= 1
+    for script_id in month7_script_ids:
         assert script_id in result["state"]["trigger_decisions"]
         assert result["state"]["trigger_decisions"][script_id]["should_trigger"] is False
     active_ids = {e["script_id"] for e in result["state"]["active_events"] if e.get("script_id")}
-    for script_id in month9_script_ids:
+    for script_id in month7_script_ids:
         assert script_id not in active_ids
 
 
@@ -231,7 +234,7 @@ def test_new_game_uses_ai_trigger_decisions_for_initial_scripts():
     api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
 
     result = asyncio.run(routes.new_game())
-    opening_script = "chongzhen-accession-1627-08"
+    opening_script = "yingtian-founding-1356-03"
     active_ids = {e["script_id"] for e in result["active_events"] if e.get("script_id")}
 
     assert inner.trigger_called is True

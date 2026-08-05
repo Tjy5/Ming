@@ -50,12 +50,12 @@ def test_parse_debate_response_coerces_personnel_sub_action():
         "minister_b_position": "主张任命",
         "option_a": {
             "type": "personnel",
-            "target": "魏忠贤",
+            "target": "杨宪",
             "sub_action": "remove_official",
         },
         "option_b": {
             "type": "personnel",
-            "target": "徐光启",
+            "target": "刘基",
             "sub_action": "appoint_new",
         },
         "keywords": ["人事", "任免"],

@@ -1,0 +1,32 @@
+{
+  "script_id": "wuguo-duke-1361-01",
+  "trigger_year": 1361,
+  "trigger_month": 1,
+  "title": "小明王封吴国公",
+  "is_blocking": false,
+  "rich_description": "至正二十一年正月，亳州使节再至应天，奉龙凤正朔，进封主公为吴国公，加仪同三司，开府江东。\n\n龙湾新胜，威震江汉，此一封拜，名义愈重。受之，则仍居龙凤藩臣之列；辞之，则几乎明示自王之志。幕府议论纷纭，文武各执一词。\n\n吴国公之封，受与不受？",
+  "historical_hint": "龙湾大捷之后，朱元璋的声望与实力俱上台阶，龙凤政权进封其为吴国公，既是笼络也是羁縻。这一时期他外奉龙凤正朔以收红巾旧部之心，内修政刑以实江东之基，名号与实利之间的拿捏愈发自如。受封而不自缚，正是缓称王方略的自然延伸。名器之予夺，实亦时势之予夺，识者于此观其器量。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "拜表称臣，以假威重",
+      "description": "具表谢恩，奉其正朔，借宋室之名以镇抚远近。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": 8,
+        "global.court_prestige": 6
+      }
+    },
+    {
+      "label": "受而不谢，恩威自出",
+      "description": "受其印绶而不修谢表，示江东之政自出我门。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": -6,
+        "global.court_prestige": 8
+      }
+    }
+  ]
+}

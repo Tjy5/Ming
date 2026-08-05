@@ -1,0 +1,38 @@
+{
+  "script_id": "redturban-remnants-1357-06",
+  "trigger_year": 1357,
+  "trigger_month": 6,
+  "title": "红巾残部来投",
+  "is_blocking": false,
+  "rich_description": "至正十七年六月，两淮连岁兵荒，红巾溃卒数千，裹挟流民，沿淮而南，叩太平军门求食，言愿归附主公麾下。\n\n此辈皆百战余生的敢死之士，收之则骤得精兵，然饥军难制，恐复为地方之患；遣之则汹汹数万，散入田间，亦恐激而为盗。\n\n收之乎？遣之乎？",
+  "historical_hint": "元末江淮间溃兵流民相裹为群，是各路势力共同面对的兵源与乱源。朱元璋起兵江淮，其部下多收编红巾别部与地方义兵，并辅以严明的军纪约束，使降卒化为可用之兵而非劫掠之寇。收编与遣散的抉择，考验的是主君既得其力、又制其患的统御之能。能化乱源为兵源者，方可言经营江淮、图谋久远。",
+  "condition": {
+    "type": "region_field_lt",
+    "region": "两淮",
+    "field": "stability",
+    "value": 30
+  },
+  "choices": [
+    {
+      "label": "收编其众，择壮补军",
+      "description": "简其精壮编入行伍，老弱屯田安置，一举而兵农两益。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": 3,
+        "global.population": 30,
+        "region.两淮.rebellion_risk": -10
+      }
+    },
+    {
+      "label": "遣散归农，勿扰地方",
+      "description": "给粮遣之还乡复业，勿令悍卒入军坏我纪律。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.两淮.stability": 8,
+        "region.两淮.civil_morale": 5
+      }
+    }
+  ]
+}

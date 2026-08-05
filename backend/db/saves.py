@@ -60,11 +60,15 @@ def save_game(state: GameState, name: str | None = None) -> int:
 
 
 _ERA_CONFIG = [
-    {"name": "天启", "start_year": 1621},
-    {"name": "崇祯", "start_year": 1628},
+    {"name": "天历", "start_year": 1328},
+    {"name": "至顺", "start_year": 1330},
+    {"name": "元统", "start_year": 1333},
+    {"name": "至元", "start_year": 1335},
+    {"name": "至正", "start_year": 1341},
+    {"name": "洪武", "start_year": 1368},
 ]
 
-_DISASTER_BY_THREAT = {"none": 0, "后金": 40, "民变": 60, "土司": 30, "海盗": 20}
+_DISASTER_BY_THREAT = {"none": 0, "元军": 40, "汉军": 45, "吴军": 40, "民变": 60, "土司": 30, "海盗": 20}
 _TAX_RATE_BY_CONTRIB = {"low": 0.3, "medium": 0.5, "high": 0.8}
 
 
@@ -88,11 +92,11 @@ def _migrate_save(data: dict) -> list[str]:
     t = data.setdefault("time", {})
     year = t.get("year")
     if isinstance(year, int) and year < 100:
-        year = year + 1627
+        year = year + 1356
         t["year"] = year
 
     if "era_name" not in t or "era_year" not in t:
-        y = year if isinstance(year, int) else 1627
+        y = year if isinstance(year, int) else 1356
         if "year" not in t:
             t["year"] = y
         era = _ERA_CONFIG[0]
@@ -190,12 +194,12 @@ def _migrate_save(data: dict) -> list[str]:
 
         if len(data["ministers"]) < 50:
             t_data = data.get("time", {})
-            raw_year = t_data.get("year", 1627)
-            raw_month = t_data.get("month", 8)
+            raw_year = t_data.get("year", 1356)
+            raw_month = t_data.get("month", 3)
             try:
                 curr_key = int(raw_year) * 12 + int(raw_month)
             except (TypeError, ValueError):
-                curr_key = 1627 * 12 + 8
+                curr_key = 1356 * 12 + 3
 
             existing = []
             existing_names: set[str] = set()
@@ -210,8 +214,8 @@ def _migrate_save(data: dict) -> list[str]:
                     old_m.setdefault("historical_note", im.historical_note)
                 else:
                     old_m.setdefault("position", "")
-                    old_m.setdefault("entry_year", 1627)
-                    old_m.setdefault("entry_month", 8)
+                    old_m.setdefault("entry_year", 1356)
+                    old_m.setdefault("entry_month", 3)
                     old_m.setdefault("historical_note", "")
                 existing.append(old_m)
 
@@ -239,12 +243,17 @@ def _migrate_save(data: dict) -> list[str]:
                     if "position" in m and "positions" not in m:
                         m["positions"] = [m.pop("position")] if m["position"] else []
                     m.setdefault("positions", im.positions if im else [])
-                    m.setdefault("entry_year", im.entry_year if im else 1627)
-                    m.setdefault("entry_month", im.entry_month if im else 8)
+                    m.setdefault("entry_year", im.entry_year if im else 1356)
+                    m.setdefault("entry_month", im.entry_month if im else 3)
                     m.setdefault("historical_note", im.historical_note if im else "")
                     m.setdefault("is_eunuch", im.is_eunuch if im else False)
             if fields_patched:
                 notes.append("补全了大臣生平属性")
+
+    # ── phase field (阶段A预留) ──
+    if "phase" not in data:
+        data["phase"] = "governance"
+        notes.append("补充了阶段字段")
 
     # ── resolved_script_ids ──
     if "resolved_script_ids" not in data:

@@ -63,9 +63,14 @@ LOCK_TIMEOUT_SECONDS = _parse_lock_timeout_seconds(
 
 # ── Era Config ──────────────────────────────────────────
 
+# 元末（元顺帝）年号表，覆盖朱元璋全生命周期 1328–1368
 ERA_CONFIG = [
-    {"name": "天启", "start_year": 1621},
-    {"name": "崇祯", "start_year": 1628},
+    {"name": "天历", "start_year": 1328},
+    {"name": "至顺", "start_year": 1330},
+    {"name": "元统", "start_year": 1333},
+    {"name": "至元", "start_year": 1335},
+    {"name": "至正", "start_year": 1341},
+    {"name": "洪武", "start_year": 1368},
 ]
 
 
@@ -487,37 +492,37 @@ def apply_region_control_consequences(state: GameState, attr: dict) -> None:
 
 CHAIN_EVENTS = [
     {
-        "name": "流寇势力扩大",
-        "check": lambda s: _region(s, "陕西").stability < 20 and s.civil_morale < 40,
-        "apply": lambda s, a: _chain_apply(s, a, "流寇势力扩大", [
-            ("陕西", "stability", -5), ("中原", "stability", -10),
-            ("陕西", "rebellion_risk", 10), ("中原", "rebellion_risk", 5),
-            ("陕西", "disaster_level", 10),
+        "name": "红巾烽火",
+        "check": lambda s: _region(s, "两淮").stability < 20 and s.civil_morale < 40,
+        "apply": lambda s, a: _chain_apply(s, a, "红巾烽火", [
+            ("两淮", "stability", -5), ("镇江", "stability", -10),
+            ("两淮", "rebellion_risk", 10), ("镇江", "rebellion_risk", 5),
+            ("两淮", "disaster_level", 10),
         ]),
     },
     {
-        "name": "边军哗变",
+        "name": "军中哗变",
         "check": lambda s: s.military_morale < 25 and s.national_treasury < 8,
-        "apply": lambda s, a: _chain_apply(s, a, "边军哗变", [
-            ("辽东", "stability", -20), ("辽东", "rebellion_risk", 15),
-        ], faction_effects=[("辽东边将", "rebellion_risk", 25)]),
+        "apply": lambda s, a: _chain_apply(s, a, "军中哗变", [
+            ("镇江", "stability", -20), ("镇江", "rebellion_risk", 15),
+        ], faction_effects=[("淮西勋将", "rebellion_risk", 25)]),
     },
     {
-        "name": "朝堂危机",
+        "name": "军府危机",
         "check": lambda s: any(f.rebellion_risk > 80 for f in s.factions) and s.court_prestige < 30,
         "apply": lambda s, a: _chain_crisis(s, a),
     },
     {
-        "name": "江南税变",
-        "check": lambda s: s.national_treasury < 5 and _region(s, "江南").stability > 50,
-        "apply": lambda s, a: _chain_jiangnan(s, a),
+        "name": "杭州税变",
+        "check": lambda s: s.national_treasury < 5 and _region(s, "杭州").stability > 50,
+        "apply": lambda s, a: _chain_hangzhou(s, a),
     },
     {
-        "name": "后金入寇",
-        "check": lambda s: _region(s, "辽东").stability < 15 and s.military_strength < 15,
-        "apply": lambda s, a: _chain_apply(s, a, "后金入寇", [
-            ("辽东", "stability", -20), ("京畿", "stability", -10),
-            ("辽东", "disaster_level", 20), ("京畿", "disaster_level", 10),
+        "name": "汉军东进",
+        "check": lambda s: _region(s, "武昌").stability < 15 and s.military_strength < 15,
+        "apply": lambda s, a: _chain_apply(s, a, "汉军东进", [
+            ("武昌", "stability", -20), ("应天", "stability", -10),
+            ("武昌", "disaster_level", 20), ("应天", "disaster_level", 10),
         ], global_effects=[("military_morale", -15)]),
     },
 ]
@@ -616,24 +621,24 @@ def _chain_apply(state, attr, event_name, region_effects, faction_effects=None, 
 
 def _chain_crisis(state, attr):
     state.court_prestige -= 15
-    _attr_add(attr, "court_prestige", "朝堂危机", -15)
+    _attr_add(attr, "court_prestige", "军府危机", -15)
     for f in state.factions:
         f.rebellion_risk += 10
-        _attr_add(attr, f"{f.name}_rebellion_risk", "朝堂危机", 10)
+        _attr_add(attr, f"{f.name}_rebellion_risk", "军府危机", 10)
 
 
-def _chain_jiangnan(state, attr):
-    r = _region(state, "江南", context="_chain_jiangnan")
+def _chain_hangzhou(state, attr):
+    r = _region(state, "杭州", context="_chain_hangzhou")
     if r is None:
         return
     r.stability -= 15
     r.civil_morale -= 10
     r.tax_rate -= 0.2
-    _attr_add(attr, "江南_stability", "江南税变", -15)
-    _attr_add(attr, "江南_civil_morale", "江南税变", -10)
-    _attr_add(attr, "江南_tax_rate", "江南税变", -0.2)
+    _attr_add(attr, "杭州_stability", "杭州税变", -15)
+    _attr_add(attr, "杭州_civil_morale", "杭州税变", -10)
+    _attr_add(attr, "杭州_tax_rate", "杭州税变", -0.2)
     state.national_treasury += 10
-    _attr_add(attr, "national_treasury", "江南税变", 10)
+    _attr_add(attr, "national_treasury", "杭州税变", 10)
 
 
 def _time_to_months(year: int, month: int) -> int:
@@ -759,8 +764,8 @@ def detect_memorial_triggers(state: GameState, attr: dict) -> list[Memorial]:
             dev += 20 - state.military_strength
         urg = "critical" if morale_crisis and supply_crisis else "high"
         _add("military_crisis", "national",
-             _pick_minister_by_ability(state, "military", faction="辽东边将"),
-             "边军军情急报", urg, dev)
+             _pick_minister_by_ability(state, "military", faction="淮西勋将"),
+             "军中急报", urg, dev)
 
     # sort: urgency desc, deviation desc, minister index asc → take top 2
     candidates.sort(key=lambda c: (-c["priority"], -c["deviation"], c["idx"]))
@@ -995,8 +1000,15 @@ def advance_time(state: GameState) -> None:
 
 # ── Game End Check ───────────────────────────────────────
 
-FINAL_JUDGEMENT_YEAR = 1644
-FINAL_JUDGEMENT_MONTH = 3
+# 阶段切换点（1356 克应天，跑团→治理；切换逻辑属阶段D，此处仅预留常量）
+LIFE_STORY_START_YEAR = 1328
+LIFE_STORY_START_MONTH = 10
+GOVERNANCE_PHASE_YEAR = 1356
+GOVERNANCE_PHASE_MONTH = 3
+
+# 终局：1368 年正月称帝建明
+FINAL_JUDGEMENT_YEAR = 1368
+FINAL_JUDGEMENT_MONTH = 1
 
 
 def _is_final_judgement_time(state: GameState) -> bool:
@@ -1010,20 +1022,20 @@ def check_game_end(state: GameState) -> dict | None:
     unstable_count = sum(1 for r in state.regions if r.control == RegionControl.UNSTABLE)
 
     if fallen_count == len(state.regions):
-        return {"result": "defeat", "message": "社稷倾覆，大明亡矣"}
+        return {"result": "defeat", "message": "基业尽失，霸业成空"}
     if fallen_count >= 6:
-        return {"result": "defeat", "message": "山河崩裂，六镇沦陷"}
+        return {"result": "defeat", "message": "山河崩裂，六镇沦丧"}
     if fallen_count >= 4 and state.court_prestige < 40:
-        return {"result": "defeat", "message": "半壁江山尽失，朝纲不可复支"}
+        return {"result": "defeat", "message": "半壁沦丧，军府不可复支"}
     if state.court_prestige <= 0:
-        return {"result": "defeat", "message": "天子威严尽失，朝纲崩坏"}
+        return {"result": "defeat", "message": "主帅威严尽失，众叛亲离"}
     if _is_final_judgement_time(state):
         if (fallen_count == 0
                 and unstable_count <= 1
                 and all(f.rebellion_risk <= 35 for f in state.factions)
                 and state.court_prestige >= 70):
-            return {"result": "victory", "message": "中兴大明，力挽狂澜"}
-        return {"result": "defeat", "message": "甲申之变，历史重演"}
+            return {"result": "victory", "message": "扫平群雄，肇建大明"}
+        return {"result": "defeat", "message": "天命靡常，霸业未成"}
     return None
 
 
@@ -1597,7 +1609,7 @@ _INDICATOR_LABELS = {
     "military_strength": "军力",
     "civil_morale": "民心",
     "military_morale": "军心",
-    "court_prestige": "朝廷威望",
+    "court_prestige": "军府威望",
 }
 _MINISTER_STATUS_LABELS = {
     "active": "在朝",
@@ -1609,31 +1621,31 @@ _MINISTER_STATUS_LABELS = {
 
 def _describe_decree_action(decree: StructuredDecree) -> str:
     if decree.type == DecreeType.TAX_INCREASE:
-        return "下旨加征赋税，试图补强国库"
+        return "下令加征赋税，以充府库"
     if decree.type == DecreeType.TAX_DECREASE:
-        return "下旨减免赋税，以安抚民生"
+        return "下令减免赋税，以安抚民生"
     if decree.type == DecreeType.RECRUIT_TROOPS:
-        return "下旨征兵备战，强化边防"
+        return "下令募兵备战，以固根本"
     if decree.type == DecreeType.DISBAND_TROOPS:
-        return "下旨裁撤兵员，缓解财政压力"
+        return "下令裁撤兵员，缓解粮饷压力"
     if decree.type == DecreeType.DIPLOMACY:
-        target = decree.target or "外邦"
-        return f"下旨调整对{target}外交策略"
+        target = decree.target or "邻邦"
+        return f"下令与{target}通好，调整对外方略"
     if decree.type == DecreeType.DISASTER_RELIEF:
         target = decree.target or "灾区"
-        return f"下旨赈济{target}，缓和灾情"
+        return f"下令赈济{target}，缓和灾情"
     if decree.type == DecreeType.HARSH_PUNISHMENT:
-        return "下旨严刑峻法，整肃朝纲"
+        return "下令严刑峻法，整肃纲纪"
     if decree.type == DecreeType.PERSONNEL:
-        target = decree.target or "相关官员"
+        target = decree.target or "相关将吏"
         if decree.sub_action == PersonnelAction.EXECUTE:
-            return f"下旨处决{target}，朝堂震动"
+            return f"下令处决{target}，军府震动"
         if decree.sub_action == PersonnelAction.DISMISS:
-            return f"下旨罢免{target}，调整权力格局"
+            return f"下令罢免{target}，调整权力格局"
         if decree.sub_action == PersonnelAction.APPOINT:
-            return f"下旨起用{target}，重整用人布局"
-        return "下旨调整人事，重排朝班"
-    return "下旨处理政务，朝局随之变化"
+            return f"下令起用{target}，重整用人布局"
+        return "下令调整人事，重排幕府班序"
+    return "下令处置政务，军府随之变化"
 
 
 def _build_action_implications(

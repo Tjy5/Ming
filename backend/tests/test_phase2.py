@@ -26,7 +26,7 @@ from db.saves import _migrate_save
 
 class TestMinisterModel:
     def test_valid_minister(self):
-        m = Minister(name="张三", faction="东林党", personality_tags=["忠诚", "刚烈"],
+        m = Minister(name="张三", faction="幕府文臣", personality_tags=["忠诚", "刚烈"],
                      abilities=MinisterAbilities(civil=80, military=50, diplomacy=60))
         assert m.status == MinisterStatus.ACTIVE
 
@@ -82,7 +82,7 @@ class TestInitialMinisters:
 
     def test_entry_dates_in_range(self):
         for m in INITIAL_MINISTERS:
-            assert 1550 <= m.entry_year <= 1650, f"{m.name} entry_year={m.entry_year}"
+            assert 1328 <= m.entry_year <= 1368, f"{m.name} entry_year={m.entry_year}"
             assert 1 <= m.entry_month <= 12, f"{m.name} entry_month={m.entry_month}"
 
     def test_all_required_fields_present(self):
@@ -98,6 +98,12 @@ class TestInitialMinisters:
                 assert resolve_position(pos) is not None, \
                     f"{m.name} has unresolved position: {pos}"
 
+    def test_key_figures_present(self):
+        names = {m.name for m in INITIAL_MINISTERS}
+        for expected in ("徐达", "常遇春", "李善长", "刘基", "朱升", "汤和",
+                         "陈友谅", "张士诚", "明玉珍", "方国珍", "扩廓帖木儿"):
+            assert expected in names, f"{expected} missing from roster"
+
     def test_names_strip_consistency(self):
         for m in INITIAL_MINISTERS:
             assert m.name == m.name.strip(), f"'{m.name}' has leading/trailing whitespace"
@@ -109,15 +115,15 @@ class TestInitialMinisters:
             json.dumps(
                 [
                     {
-                        "name": "测试大臣",
+                        "name": "测试幕僚",
                         "faction": INITIAL_FACTIONS[0].name,
                         "personality_tags": ["谨慎"],
                         "abilities": {"civil": 50, "military": 40, "diplomacy": 30},
                         "status": "active",
                         "loyalty": 55,
-                        "position": "东阁大学士",
-                        "entry_year": 1627,
-                        "entry_month": 8,
+                        "position": "中书参政",
+                        "entry_year": 1356,
+                        "entry_month": 3,
                         "historical_note": "测试运行时数据。",
                     }
                 ],
@@ -129,9 +135,9 @@ class TestInitialMinisters:
             json.dumps(
                 [
                     {
-                        "name": "测试大臣",
-                        "birth_year": 1600,
-                        "death_year": 1650,
+                        "name": "测试幕僚",
+                        "birth_year": 1320,
+                        "death_year": 1380,
                         "office_history": ["不应进入运行时履历"],
                         "related_events": ["不应进入运行时事件"],
                         "major_contributions": ["不应进入运行时事功"],
@@ -156,39 +162,39 @@ class TestInitialMinisters:
 class TestConditionalInjection:
     def _state_at(self, year, month, **kw):
         return GameState(
-            time=GameTime(year=year, month=month, era_name="天启", era_year=7),
+            time=GameTime(year=year, month=month, era_name="至正", era_year=year - 1340),
             factions=kw.get("factions", [Faction(name="test", satisfaction=50, influence=50, rebellion_risk=10)]),
             regions=kw.get("regions", [Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)]),
             ministers=kw.get("ministers", []),
         )
 
     def test_unconditional_event_injects(self):
-        # eunuch-party-purge-1627-12 has condition=None, always fires
-        state = self._state_at(1627, 12)
+        # longfeng-commission-1356-07 has condition=None, always fires
+        state = self._state_at(1356, 7)
         injected = inject_script_events(state)
-        assert "阉党清算·边镇欠饷" in injected
+        assert "龙凤册命·小明王遣使" in injected
 
     def test_conditional_event_pass_injects(self):
-        # yuan-chonghuan-arrest at 1629/12 requires "jisi-invasion" resolved
-        state = self._state_at(1629, 12)
-        state.resolved_script_ids = {"jisi-invasion"}
+        # chen-youliang-endgame at 1363/9 requires "poyang-battle-1363-07" resolved
+        state = self._state_at(1363, 9)
+        state.resolved_script_ids = {"poyang-battle-1363-07"}
         injected = inject_script_events(state)
-        assert any("袁崇焕" in t for t in injected)
+        assert any("陈友谅" in t for t in injected)
 
     def test_conditional_event_fail_skips(self):
-        # yuan-chonghuan-arrest condition fails without "jisi-invasion" resolved
-        state = self._state_at(1629, 12)
+        # chen-youliang-endgame condition fails without "poyang-battle-1363-07" resolved
+        state = self._state_at(1363, 9)
         state.resolved_script_ids = set()
         injected = inject_script_events(state)
-        assert not any("袁崇焕" in t for t in injected)
+        assert not any("陈友谅" in t for t in injected)
 
     def test_wrong_month_not_injected(self):
-        state = self._state_at(1627, 11)
+        state = self._state_at(1356, 6)
         injected = inject_script_events(state)
-        assert "阉党清算·边镇欠饷" not in injected
+        assert "龙凤册命·小明王遣使" not in injected
 
     def test_idempotent(self):
-        state = self._state_at(1627, 12)
+        state = self._state_at(1356, 7)
         inject_script_events(state)
         count_before = len(state.active_events)
         inject_script_events(state)
@@ -220,26 +226,40 @@ class TestDebateMinisterSelection:
             assert {r1[0].name, r1[1].name} == {r2[0].name, r2[1].name}
 
 
-# ── 12.5 Start time 1627/10 and era resolution ────────
+# ── 12.5 Start time 1356/3 and era resolution ────────
 
 class TestStartTimeAndEra:
     def test_initial_state_time(self):
         state = create_initial_state()
-        assert state.time.year == 1627
-        assert state.time.month == 8
-        assert state.time.era_name == "天启"
-        assert state.time.era_year == 7
+        assert state.time.year == 1356
+        assert state.time.month == 3
+        assert state.time.era_name == "至正"
+        assert state.time.era_year == 16
 
-    def test_era_resolution_tianqi(self):
-        assert resolve_era(1627) == ("天启", 7)
+    def test_era_resolution_tianli(self):
+        assert resolve_era(1328) == ("天历", 1)
 
-    def test_era_resolution_chongzhen(self):
-        assert resolve_era(1628) == ("崇祯", 1)
-        assert resolve_era(1630) == ("崇祯", 3)
+    def test_era_resolution_zhizheng(self):
+        assert resolve_era(1341) == ("至正", 1)
+        assert resolve_era(1356) == ("至正", 16)
+        assert resolve_era(1367) == ("至正", 27)
 
     def test_era_resolution_boundary(self):
-        assert resolve_era(1621) == ("天启", 1)
-        assert resolve_era(1644) == ("崇祯", 17)
+        assert resolve_era(1333) == ("元统", 1)
+        assert resolve_era(1368) == ("洪武", 1)
+
+    def test_phase_switch_point_constants(self):
+        from engine.core import (
+            LIFE_STORY_START_YEAR, GOVERNANCE_PHASE_YEAR, GOVERNANCE_PHASE_MONTH,
+            FINAL_JUDGEMENT_YEAR, FINAL_JUDGEMENT_MONTH,
+        )
+        assert LIFE_STORY_START_YEAR == 1328
+        assert (GOVERNANCE_PHASE_YEAR, GOVERNANCE_PHASE_MONTH) == (1356, 3)
+        assert (FINAL_JUDGEMENT_YEAR, FINAL_JUDGEMENT_MONTH) == (1368, 1)
+
+    def test_initial_state_phase_reserved(self):
+        state = create_initial_state()
+        assert state.phase == "governance"
 
 
 # ── 12.6 Save migration ──────────────────────────────
@@ -247,7 +267,7 @@ class TestStartTimeAndEra:
 class TestSaveMigration:
     def _old_save(self, include_ministers=False, ministers_val=None):
         data = {
-            "time": {"year": 1630, "month": 6},
+            "time": {"year": 1360, "month": 6},
             "treasury": 100, "population": 100, "military_supply": 80,
             "civil_morale": 60, "military_morale": 70, "court_prestige": 75,
             "factions": [], "active_events": [], "history_log": [],
@@ -272,8 +292,8 @@ class TestSaveMigration:
 
     def test_valid_ministers_preserved(self):
         data = self._old_save(include_ministers=True)
-        data["time"]["era_name"] = "崇祯"
-        data["time"]["era_year"] = 3
+        data["time"]["era_name"] = "至正"
+        data["time"]["era_year"] = 20
         data["resolved_script_ids"] = []
         notes = _migrate_save(data)
         assert len(data["ministers"]) == len(INITIAL_MINISTERS)
@@ -285,6 +305,14 @@ class TestSaveMigration:
         _migrate_save(data)
         assert data["time"]["year"] == original_year
 
+    def test_phase_backfilled(self):
+        data = self._old_save(include_ministers=True)
+        data["time"]["era_name"] = "至正"
+        data["time"]["era_year"] = 20
+        data["resolved_script_ids"] = []
+        _migrate_save(data)
+        assert data["phase"] == "governance"
+
     def test_idempotent(self):
         data = self._old_save()
         _migrate_save(data)
@@ -295,8 +323,8 @@ class TestSaveMigration:
     def test_small_roster_migration_expands(self):
         small = [m.model_dump() for m in INITIAL_MINISTERS[:3]]
         data = self._old_save(ministers_val=small)
-        data["time"]["year"] = 1627
-        data["time"]["month"] = 8
+        data["time"]["year"] = 1356
+        data["time"]["month"] = 3
         notes = _migrate_save(data)
         assert len(data["ministers"]) >= 100, f"Expected >=100, got {len(data['ministers'])}"
         assert any("已扩充大臣至100+人" in n for n in notes)
@@ -306,8 +334,8 @@ class TestSaveMigration:
     def test_small_roster_migration_preserves_existing(self):
         small = [m.model_dump() for m in INITIAL_MINISTERS[:5]]
         data = self._old_save(ministers_val=small)
-        data["time"]["year"] = 1627
-        data["time"]["month"] = 8
+        data["time"]["year"] = 1356
+        data["time"]["month"] = 3
         _migrate_save(data)
         expanded_names = {m["name"] for m in data["ministers"]}
         for orig in small:

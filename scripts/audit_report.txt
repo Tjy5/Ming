@@ -1,0 +1,97 @@
+Runtime ministers: 60
+Review entries:    100
+Common (in both):  53
+In review only:    47
+In runtime only:   7
+
+============================================================
+Ministers in review but NOT in runtime (potential additions):
+============================================================
+  丁启睿 | faction: 中原剿匪系 | position: 御史
+  何可纲 | faction: 辽东边将 | position: 副总兵
+  何如宠 | faction: 东林党 | position: 礼部侍郎
+  何腾蛟 | faction: 中立派 | position: 南阳知府
+  傅宗龙 | faction: 中原剿匪系 | position: 巡抚
+  刘兴祚 | faction: 辽东边将 | position: 副将
+  刘文炳 | faction: 勋贵集团 | position: 新城侯
+  卢象升 | faction: 中原剿匪系 | position: 大名知府
+  吴三桂 | faction: 辽东边将 | position: 千总
+  吴甘来 | faction: 中立派 | position: 御史
+  周文郁 | faction: 辽东边将 | position: 参将
+  唐世济 | faction: 温体仁派 | position: 御史
+  堵胤锡 | faction: 中立派 | position: 知县
+  姜曰广 | faction: 东林党 | position: 翰林侍读
+  宋应星 | faction: 中立派 | position: 教谕
+  尤世禄 | faction: 辽东边将 | position: 宣府总兵
+  左良玉 | faction: 中原剿匪系 | position: 参将
+  张世泽 | faction: 勋贵集团 | position: 英国公世子
+  张四知 | faction: 周延儒派 | position: 吏部侍郎
+  张国维 | faction: 中立派 | position: 御史
+  成基命 | faction: 东林党 | position: 礼部侍郎
+  文震孟 | faction: 东林党 | position: 翰林编修
+  方孔炤 | faction: 中立派 | position: 湖广佥事
+  方岳贡 | faction: 中立派 | position: 知府
+  施凤来 | faction: 阉党残余 | position: 武英殿大学士
+  曹变蛟 | faction: 中原剿匪系 | position: 千总
+  曹文诏 | faction: 辽东边将 | position: 参将
+  朱国弼 | faction: 勋贵集团 | position: 保国公
+  来宗道 | faction: 中立派 | position: 大学士
+  杨廷麟 | faction: 中立派 | position: 翰林编修
+  洪承畴 | faction: 中原剿匪系 | position: 陕西参政
+  猛如虎 | faction: 中原剿匪系 | position: 参将
+  田尔耕 | faction: 阉党残余 | position: 锦衣卫指挥使
+  白广恩 | faction: 中原剿匪系 | position: 参将
+  范复粹 | faction: 中立派 | position: 礼部侍郎
+  许显纯 | faction: 阉党残余 | position: 北镇抚司
+  贺人龙 | faction: 中原剿匪系 | position: 参将
+  贺逢圣 | faction: 周延儒派 | position: 翰林编修
+  金国凤 | faction: 辽东边将 | position: 参将
+  闵洪学 | faction: 温体仁派 | position: 吏部尚书
+  阮大铖 | faction: 阉党残余 | position: 太常少卿
+  陈奇瑜 | faction: 中原剿匪系 | position: 陕西参议
+  陈子龙 | faction: 中立派 | position: 进士
+  马世奇 | faction: 东林党 | position: 翰林编修
+  马世龙 | faction: 辽东边将 | position: 总兵
+  高弘图 | faction: 东林党 | position: 光禄少卿
+  黄龙 | faction: 辽东边将 | position: 参将
+
+============================================================
+Ministers in runtime but NOT in review (stale review entries):
+============================================================
+  乔允升 | faction: 东林党 | position: 刑部侍郎
+  南居益 | faction: 中立派 | position: 工部尚书
+  张凤翔 | faction: 中立派 | position: 刑部主事
+  房壮丽 | faction: 中立派 | position: 户部侍郎
+  曹于汴 | faction: 东林党 | position: 太仆寺卿
+  解学龙 | faction: 东林党 | position: 工部主事
+  骆养性 | faction: 中立派 | position: 指挥使
+
+============================================================
+Runtime faction distribution:
+============================================================
+  东林党: 14
+  中立派: 12
+  勋贵集团: 7
+  阉党残余: 6
+  辽东边将: 6
+  温体仁派: 6
+  周延儒派: 5
+  中原剿匪系: 4
+
+============================================================
+Review faction distribution (for missing ministers):
+============================================================
+  中立派: 11
+  中原剿匪系: 10
+  辽东边将: 9
+  东林党: 6
+  阉党残余: 4
+  勋贵集团: 3
+  温体仁派: 2
+  周延儒派: 2
+
+============================================================
+Runtime field validation:
+============================================================
+  All runtime ministers have required fields.
+  No duplicate names found.

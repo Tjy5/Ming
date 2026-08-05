@@ -16,22 +16,23 @@ def test_compile_condition_none_returns_none():
 
 def test_compile_condition_minister_alive():
     state = create_initial_state()
-    fn = compile_condition({"type": "minister_alive", "name": "魏忠贤"})
+    fn = compile_condition({"type": "minister_alive", "name": "杨宪"})
     assert fn is not None
     assert fn(state) is True
 
-    target = next(m for m in state.ministers if m.name == "魏忠贤")
+    target = next(m for m in state.ministers if m.name == "杨宪")
     target.status = MinisterStatus.REMOVED
     assert fn(state) is False
 
 
 def test_compile_condition_and_with_state_field_gt():
     state = create_initial_state()
+    state.military_strength = 25
     fn = compile_condition(
         {
             "type": "and",
             "conditions": [
-                {"type": "minister_active", "name": "孙承宗"},
+                {"type": "minister_active", "name": "徐达"},
                 {"type": "state_field_gt", "field": "military_strength", "value": 20},
             ],
         }
@@ -39,7 +40,7 @@ def test_compile_condition_and_with_state_field_gt():
     assert fn is not None
     assert fn(state) is True
 
-    state.military_strength = 20
+    state.military_strength = 15
     assert fn(state) is False
 
 

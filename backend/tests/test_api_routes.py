@@ -85,7 +85,7 @@ def test_personnel_target_must_exist():
 def test_get_history_normalizes_negative_offset_and_small_limit():
     api_state._state = create_initial_state()
     api_state._state.history_log = [
-        HistoryEntry(year=1627, month=i, decree_type="x")
+        HistoryEntry(year=1356, month=i, decree_type="x")
         for i in range(1, 6)
     ]
 

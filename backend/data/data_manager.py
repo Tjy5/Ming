@@ -19,7 +19,7 @@ class DataManager:
         ministers_path: Path | None = None,
         events_dir: Path | None = None,
     ) -> None:
-        base_dir = Path(__file__).resolve().parents[1] / "data"
+        base_dir = Path(__file__).resolve().parents[1] / "data" / "yuanming"
         self.ministers_path = ministers_path or (base_dir / "ministers.json")
         self.events_dir = events_dir or (base_dir / "events")
 

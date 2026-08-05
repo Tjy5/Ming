@@ -1,0 +1,43 @@
+{
+  "script_id": "longfeng-commission-1356-07",
+  "trigger_year": 1356,
+  "trigger_month": 7,
+  "title": "龙凤册命·小明王遣使",
+  "is_blocking": false,
+  "rich_description": "至正十六年七月，亳州小明王韩林儿遣使至应天，颁龙凤诏书，授主公江南行省平章政事之职，总制江南诸军。\n\n时刘福通拥韩林儿为共主，建号大宋，诸路红巾皆奉其正朔。受其册命，则名分有所凭依，亦为其所制；不受，则旗号无所假借，且开罪于北方义军。\n\n使者候于馆驿，军中议论不一。主公当如何处置？",
+  "historical_hint": "龙凤政权是韩山童之子韩林儿在刘福通拥戴下建立的北方红巾中枢。朱元璋起于郭子兴部下，本属红巾系统，名义上长期接受龙凤官职封拜，借其名号以号令江淮、抵御元廷口实。但自渡江以后，他实力日滋，对亳州政权渐成听调不听宣之势，册命之受与不受，实为借名与自立之间的微妙权衡。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "奉正朔，受册封",
+      "description": "北面拜受，以宋之名号号令江南，假借威重以服远近。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": 10,
+        "global.court_prestige": 5
+      }
+    },
+    {
+      "label": "虚与委蛇，自营实利",
+      "description": "受册而不深附，名号借以号令，军政大事皆自裁决。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": -5,
+        "global.court_prestige": 3
+      }
+    },
+    {
+      "label": "婉拒册命，渐露峥嵘",
+      "description": "谢其使者而不拜，明示江东之事当由自专。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": -12,
+        "faction.龙凤政权.rebellion_risk": 8,
+        "global.court_prestige": 8
+      }
+    }
+  ]
+}

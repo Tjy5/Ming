@@ -1,0 +1,33 @@
+{
+  "script_id": "wu-king-proclamation-1364-01",
+  "trigger_year": 1364,
+  "trigger_month": 1,
+  "title": "自立为吴王",
+  "is_blocking": true,
+  "rich_description": "至正二十四年正月，江汉甫定，群臣合辞劝进。主公乃于应天自立为吴王，建百官司属，置中书省、大都督府、御史台，以李善长为右相国，徐达为左相国，刘基、宋濂等居帷幄。\n\n然小明王尚在滁州，龙凤正朔犹奉于外。建制自王，与北面之礼如何两全，庙堂之议不可不审。\n\n称王建制之礼，当以何义处之？",
+  "historical_hint": "至正二十四年正月，朱元璋自立为吴王，建置中书省、大都督府等一整套政权机构，沿用龙凤年号而实为一国。称王而不称帝，仍奉龙凤正朔于名分，自理一国政事于实际，这一步把缓称王的方略转化为称王不称帝的过渡形态，制度之备自此粲然，为日后开国规模立下骨架。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "建百官司，立中书省",
+      "description": "广置官属，明定职掌，以王者之制纲纪江东。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 10,
+        "global.national_treasury": -3,
+        "faction.幕府文臣.satisfaction": 8
+      }
+    },
+    {
+      "label": "谦抑自居，仍奉龙凤",
+      "description": "王号自立而正朔不改，以示不忘本，安笼旧部之心。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.龙凤政权.satisfaction": 10,
+        "global.court_prestige": 5
+      }
+    }
+  ]
+}

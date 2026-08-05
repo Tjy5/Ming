@@ -1,0 +1,44 @@
+{
+  "script_id": "han-regroup-1363-09",
+  "trigger_year": 1363,
+  "trigger_month": 9,
+  "title": "汉军拥立陈理",
+  "is_blocking": false,
+  "rich_description": "至正二十三年九月，谍报自武昌至：陈友谅既亡，张定边等收合余烬，奉其幼子陈理嗣位于武昌，改元德寿，江汉诸郡或附或叛，人心惶惶。\n\n幼主新立，根基未固，此正百年不遇之机。诸将请急攻武昌，一鼓而下；幕臣则谓宜先抚近郡，孤其外援，徐图其本。\n\n灭汉之役，当以何策竟功？",
+  "historical_hint": "鄱阳湖败后，汉军残部拥陈友谅之子陈理还据武昌称帝，勉强维系国祚。一个骤然失主的政权，外有强邻压境、内有诸将携贰，正是所谓因其衰敝而取之的最佳时机。历史上朱元璋次年春即亲征，陈理衔璧出降，汉地尽归，前后不过数月。乘其未定而取之，则事半而功倍；缓之，则恐生他变。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "script_resolved",
+        "script_id": "poyang-battle-1363-07"
+      },
+      {
+        "type": "minister_removed",
+        "name": "陈友谅"
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "乘其新丧，诏谕诸郡",
+      "description": "以恩诏招徕汉地郡县，孤武昌之势，使其自拔来归。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.汉政权.satisfaction": 8,
+        "region.武昌.rebellion_risk": -10
+      }
+    },
+    {
+      "label": "急攻武昌，勿令喘息",
+      "description": "乘胜之师鼓行而西，直指武昌，犁其巢穴而后已。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -2,
+        "region.武昌.stability": -10
+      }
+    }
+  ]
+}

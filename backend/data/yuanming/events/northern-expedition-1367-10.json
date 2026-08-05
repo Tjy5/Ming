@@ -1,0 +1,39 @@
+{
+  "script_id": "northern-expedition-1367-10",
+  "trigger_year": 1367,
+  "trigger_month": 10,
+  "title": "誓师北伐",
+  "is_blocking": true,
+  "rich_description": "至正二十七年十月，东南底定，主公召诸将于戟门，谕以中原赤子久困胡尘，当提兵北向，驱逐胡虏，恢复中华。\n\n乃命徐达为征虏大将军，常遇春为副将军，统师二十五万，由淮入河，先取山东，撤其屏蔽；旋师河南，断其羽翼；然后进兵大都，克定元都。\n\n檄文既下，天地改色。北伐之师，当以何序而进？",
+  "historical_hint": "至正二十七年十月，朱元璋命徐达、常遇春统二十五万大军北伐，檄谕齐鲁河洛之民，提出驱逐胡虏、恢复中华、立纲陈纪、救济斯民的纲领。其用兵次第为先取山东撤其屏蔽，再下河南断其羽翼，然后进逼大都，使元廷孤绝无援。这一稳扎稳打的战略，使北伐成为中国历史上罕见的由南而北完成统一的范例。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "拜徐达为大将军，大举北伐",
+      "description": "悉发精锐，分道并进，直捣燕云，与元室决存亡。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "徐达",
+          10
+        ]
+      ],
+      "state_effects": {
+        "global.military_strength": -5,
+        "global.military_morale": 12,
+        "faction.元廷.rebellion_risk": 20,
+        "region.大都.stability": -8
+      }
+    },
+    {
+      "label": "先定闽广，后图中原",
+      "description": "命偏师先取闽广，绝南顾之忧，再举中原之役。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.东南群雄.rebellion_risk": 10,
+        "global.military_strength": -2
+      }
+    }
+  ]
+}

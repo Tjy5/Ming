@@ -1,0 +1,58 @@
+{
+  "script_id": "xuda-eastern-campaign-1358-05",
+  "trigger_year": 1358,
+  "trigger_month": 5,
+  "title": "徐达请东征",
+  "is_blocking": false,
+  "rich_description": "至正十八年五月，徐达上言：张士诚连岁窥我边境，常州守备脆弱，可乘其无备，提一旅之师东出，拔常州以断平江右臂。\n\n幕府持两端：或谓兵锋方锐，宜取常州；或谓两淮饥馑，军食未充，宜缮守待时。徐达以军令状自任，意甚坚决。\n\n东征之议，许乎不许？",
+  "historical_hint": "徐达是朱元璋倚为左右手的方面之将，渡江以后常统偏师独当一面。攻取常州一类的相机进取，既开拓疆土，也考验后方粮运与多线统筹。将帅进取之心与中枢持重之虑之间的张力，是军事集团决策中的常态，良将知兵，明主知时。进退之间，所较者非一城之得失，乃全局之先后也。",
+  "condition": {
+    "type": "and",
+    "conditions": [
+      {
+        "type": "minister_active",
+        "name": "徐达"
+      },
+      {
+        "type": "state_field_gt",
+        "field": "military_strength",
+        "value": 20
+      }
+    ]
+  },
+  "choices": [
+    {
+      "label": "许其提兵东出",
+      "description": "付以偏师，相机攻取，使东路诸将得竟其功。",
+      "decrees": [
+        {
+          "type": "recruit_troops"
+        }
+      ],
+      "loyalty_effects": [
+        [
+          "徐达",
+          8
+        ]
+      ],
+      "state_effects": {
+        "region.镇江.stability": 5,
+        "faction.吴政权.rebellion_risk": 8
+      }
+    },
+    {
+      "label": "持重，命其缮守",
+      "description": "以东路非今日之急，饬其深垒自固，毋轻启衅。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "徐达",
+          -5
+        ]
+      ],
+      "state_effects": {
+        "region.镇江.garrison": 2000
+      }
+    }
+  ]
+}

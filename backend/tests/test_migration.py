@@ -21,40 +21,40 @@ class TestYearMigration:
     def test_relative_year_converts(self):
         data = _old_save_data(1)
         _migrate_save(data)
-        assert data["time"]["year"] == 1628  # 1 + 1627
+        assert data["time"]["year"] == 1357  # 1 + 1356
 
     def test_relative_year_zero(self):
         data = _old_save_data(0)
         _migrate_save(data)
-        assert data["time"]["year"] == 1627
+        assert data["time"]["year"] == 1356
 
-    def test_relative_year_17(self):
-        data = _old_save_data(17)
+    def test_relative_year_12(self):
+        data = _old_save_data(12)
         _migrate_save(data)
-        assert data["time"]["year"] == 1644  # 17 + 1627
+        assert data["time"]["year"] == 1368  # 12 + 1356
 
-    def test_absolute_year_1627_preserved(self):
-        data = _old_save_data(1627)
+    def test_absolute_year_1356_preserved(self):
+        data = _old_save_data(1356)
         _migrate_save(data)
-        assert data["time"]["year"] == 1627
+        assert data["time"]["year"] == 1356
 
-    def test_absolute_year_1644_preserved(self):
-        data = _old_save_data(1644)
+    def test_absolute_year_1368_preserved(self):
+        data = _old_save_data(1368)
         _migrate_save(data)
-        assert data["time"]["year"] == 1644
+        assert data["time"]["year"] == 1368
 
-    def test_absolute_year_1600_preserved(self):
-        data = _old_save_data(1600)
+    def test_absolute_year_1340_preserved(self):
+        data = _old_save_data(1340)
         _migrate_save(data)
-        assert data["time"]["year"] == 1600
+        assert data["time"]["year"] == 1340
 
     def test_boundary_99_converts(self):
         data = _old_save_data(99)
         _migrate_save(data)
-        assert data["time"]["year"] == 99 + 1627
+        assert data["time"]["year"] == 99 + 1356
 
     def test_boundary_100_no_convert(self):
-        """year=100 is NOT < 100, should stay 100 (not added to 1627)."""
+        """year=100 is NOT < 100, should stay 100 (not added to 1356)."""
         data = _old_save_data(100)
         _migrate_save(data)
         assert data["time"]["year"] == 100  # stays as-is, not treated as relative
@@ -65,26 +65,27 @@ class TestYearMigration:
         assert len(notes) > 0
 
     def test_no_migration_for_absolute_with_era(self):
-        data = _old_save_data(1630, include_ministers=True)
-        data["time"]["era_name"] = "崇祯"
-        data["time"]["era_year"] = 3
+        data = _old_save_data(1360, include_ministers=True)
+        data["time"]["era_name"] = "至正"
+        data["time"]["era_year"] = 20
+        data["phase"] = "governance"
         data["resolved_script_ids"] = []
         notes = _migrate_save(data)
         assert len(notes) == 0
 
 
 class TestEraMigration:
-    def test_era_added_tianqi(self):
-        data = _old_save_data(1627)
+    def test_era_added_tianli(self):
+        data = _old_save_data(1328)
         _migrate_save(data)
-        assert data["time"]["era_name"] == "天启"
-        assert data["time"]["era_year"] == 7  # 1627 - 1621 + 1
+        assert data["time"]["era_name"] == "天历"
+        assert data["time"]["era_year"] == 1  # 1328 - 1328 + 1
 
-    def test_era_added_chongzhen(self):
-        data = _old_save_data(1630)
+    def test_era_added_zhizheng(self):
+        data = _old_save_data(1360)
         _migrate_save(data)
-        assert data["time"]["era_name"] == "崇祯"
-        assert data["time"]["era_year"] == 3  # 1630 - 1628 + 1
+        assert data["time"]["era_name"] == "至正"
+        assert data["time"]["era_year"] == 20  # 1360 - 1341 + 1
 
 
 class TestRegionMigration:
@@ -119,7 +120,7 @@ class TestRegionMigration:
 
     def test_rebellion_risk_with_threat(self):
         region = {"name": "t", "stability": 30, "garrison": 1000,
-                  "control": "朝廷", "threat": "后金", "tax_contribution": "low"}
+                  "control": "朝廷", "threat": "元军", "tax_contribution": "low"}
         data = _old_save_data(1627, regions=[region])
         _migrate_save(data)
         assert data["regions"][0]["rebellion_risk"] == 70  # 100 - 30
@@ -133,7 +134,7 @@ class TestRegionMigration:
             assert data["regions"][0]["tax_rate"] == expected
 
     def test_disaster_level_by_threat(self):
-        for threat, expected in [("none", 0), ("后金", 40), ("民变", 60), ("土司", 30)]:
+        for threat, expected in [("none", 0), ("元军", 40), ("汉军", 45), ("民变", 60), ("土司", 30)]:
             region = {"name": "t", "stability": 50, "garrison": 1000,
                       "control": "朝廷", "threat": threat, "tax_contribution": "medium"}
             data = _old_save_data(1627, regions=[region])

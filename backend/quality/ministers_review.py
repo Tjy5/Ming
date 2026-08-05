@@ -9,9 +9,9 @@ from typing import Any
 ALLOWED_SOURCE_TIERS = {"A_PRIMARY", "B_DATABASE", "C_SECONDARY"}
 ALLOWED_REVIEW_STATUS = {"pending", "in_review", "verified", "rejected"}
 
-DEFAULT_MINISTERS_PATH = Path("data/ministers.json")
-DEFAULT_REVIEW_PATH = Path("data/ministers_review.json")
-DEFAULT_REPORT_PATH = Path("data/ministers_review_report.md")
+DEFAULT_MINISTERS_PATH = Path("data/yuanming/ministers.json")
+DEFAULT_REVIEW_PATH = Path("data/yuanming/ministers_review.json")
+DEFAULT_REPORT_PATH = Path("data/yuanming/ministers_review_report.md")
 
 
 @dataclass

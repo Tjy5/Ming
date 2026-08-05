@@ -1,12 +1,12 @@
 from models.enums import DecreeType
 
 DECREE_LABELS: dict[DecreeType, str] = {
-    DecreeType.TAX_INCREASE: "加税",
-    DecreeType.TAX_DECREASE: "减税",
-    DecreeType.RECRUIT_TROOPS: "增兵",
-    DecreeType.DISBAND_TROOPS: "裁兵",
+    DecreeType.TAX_INCREASE: "加征",
+    DecreeType.TAX_DECREASE: "减赋",
+    DecreeType.RECRUIT_TROOPS: "募兵",
+    DecreeType.DISBAND_TROOPS: "裁军",
     DecreeType.PERSONNEL: "任免",
-    DecreeType.DIPLOMACY: "外交",
+    DecreeType.DIPLOMACY: "通好",
     DecreeType.DISASTER_RELIEF: "赈灾",
     DecreeType.HARSH_PUNISHMENT: "严刑",
 }
@@ -25,55 +25,55 @@ EXECUTION_REBELLION_RISK = 10
 DECREE_EFFECTS: dict[DecreeType, dict[str, int]] = {
     DecreeType.TAX_INCREASE:      {"national_treasury": 4,  "grain": 12,  "population": 0,    "military_strength": 0,   "civil_morale": -5,  "military_morale": 0,   "court_prestige": 0},
     DecreeType.TAX_DECREASE:      {"national_treasury": -3, "grain": -8,  "population": 0,    "military_strength": 0,   "civil_morale": 6,   "military_morale": 0,   "court_prestige": -3},
-    DecreeType.RECRUIT_TROOPS:    {"national_treasury": -4, "grain": -15, "population": -750, "military_strength": 8,   "civil_morale": -3,  "military_morale": 8,   "court_prestige": 0},
-    DecreeType.DISBAND_TROOPS:    {"national_treasury": 2,  "grain": 6,   "population": 450,  "military_strength": -6,  "civil_morale": 2,   "military_morale": -10, "court_prestige": -5},
+    DecreeType.RECRUIT_TROOPS:    {"national_treasury": -4, "grain": -15, "population": -30,  "military_strength": 8,   "civil_morale": -3,  "military_morale": 8,   "court_prestige": 0},
+    DecreeType.DISBAND_TROOPS:    {"national_treasury": 2,  "grain": 6,   "population": 20,   "military_strength": -6,  "civil_morale": 2,   "military_morale": -10, "court_prestige": -5},
     DecreeType.PERSONNEL:         {"national_treasury": -1, "grain": 0,   "population": 0,    "military_strength": 0,   "civil_morale": 0,   "military_morale": 0,   "court_prestige": 5},
     DecreeType.DIPLOMACY:         {"national_treasury": -2, "grain": -5,  "population": 0,    "military_strength": 0,   "civil_morale": 0,   "military_morale": 3,   "court_prestige": 8},
-    DecreeType.DISASTER_RELIEF:   {"national_treasury": -3, "grain": -25, "population": 450,  "military_strength": 0,   "civil_morale": 10,  "military_morale": 0,   "court_prestige": 4},
-    DecreeType.HARSH_PUNISHMENT:  {"national_treasury": 0,  "grain": 0,   "population": -450, "military_strength": 0,   "civil_morale": -10, "military_morale": 5,   "court_prestige": 3},
+    DecreeType.DISASTER_RELIEF:   {"national_treasury": -3, "grain": -25, "population": 25,   "military_strength": 0,   "civil_morale": 10,  "military_morale": 0,   "court_prestige": 4},
+    DecreeType.HARSH_PUNISHMENT:  {"national_treasury": 0,  "grain": 0,   "population": -25,  "military_strength": 0,   "civil_morale": -10, "military_morale": 5,   "court_prestige": 3},
 }
 
-# 8 factions × 8 decree types
+# 8 factions × 8 decree types（元末群雄立场）
 FACTION_STANCE: dict[str, dict[DecreeType, int]] = {
-    "东林党": {
-        DecreeType.TAX_INCREASE: -12, DecreeType.TAX_DECREASE: 8,   DecreeType.RECRUIT_TROOPS: -5,
-        DecreeType.DISBAND_TROOPS: 3, DecreeType.PERSONNEL: 6,      DecreeType.DIPLOMACY: 4,
-        DecreeType.DISASTER_RELIEF: 10, DecreeType.HARSH_PUNISHMENT: -15,
-    },
-    "阉党残余": {
-        DecreeType.TAX_INCREASE: 5,   DecreeType.TAX_DECREASE: -8,  DecreeType.RECRUIT_TROOPS: 3,
-        DecreeType.DISBAND_TROOPS: -3, DecreeType.PERSONNEL: -8,    DecreeType.DIPLOMACY: -5,
-        DecreeType.DISASTER_RELIEF: -3, DecreeType.HARSH_PUNISHMENT: 12,
-    },
-    "勋贵集团": {
-        DecreeType.TAX_INCREASE: -3,  DecreeType.TAX_DECREASE: 5,   DecreeType.RECRUIT_TROOPS: -8,
-        DecreeType.DISBAND_TROOPS: 8, DecreeType.PERSONNEL: 3,      DecreeType.DIPLOMACY: 6,
-        DecreeType.DISASTER_RELIEF: 2, DecreeType.HARSH_PUNISHMENT: -5,
-    },
-    "辽东边将": {
+    "淮西勋将": {
         DecreeType.TAX_INCREASE: 3,   DecreeType.TAX_DECREASE: -5,  DecreeType.RECRUIT_TROOPS: 10,
         DecreeType.DISBAND_TROOPS: -12, DecreeType.PERSONNEL: -3,   DecreeType.DIPLOMACY: 8,
         DecreeType.DISASTER_RELIEF: 0, DecreeType.HARSH_PUNISHMENT: 5,
     },
-    "中原剿匪系": {
-        DecreeType.TAX_INCREASE: 2,   DecreeType.TAX_DECREASE: -6,  DecreeType.RECRUIT_TROOPS: 9,
-        DecreeType.DISBAND_TROOPS: -10, DecreeType.PERSONNEL: 4,    DecreeType.DIPLOMACY: -2,
-        DecreeType.DISASTER_RELIEF: 2, DecreeType.HARSH_PUNISHMENT: 8,
+    "幕府文臣": {
+        DecreeType.TAX_INCREASE: -12, DecreeType.TAX_DECREASE: 8,   DecreeType.RECRUIT_TROOPS: -5,
+        DecreeType.DISBAND_TROOPS: 3, DecreeType.PERSONNEL: 6,      DecreeType.DIPLOMACY: 4,
+        DecreeType.DISASTER_RELIEF: 10, DecreeType.HARSH_PUNISHMENT: -15,
     },
-    "温体仁派": {
-        DecreeType.TAX_INCREASE: 4,   DecreeType.TAX_DECREASE: -6,  DecreeType.RECRUIT_TROOPS: 1,
-        DecreeType.DISBAND_TROOPS: -2, DecreeType.PERSONNEL: 9,     DecreeType.DIPLOMACY: -4,
-        DecreeType.DISASTER_RELIEF: -4, DecreeType.HARSH_PUNISHMENT: 10,
+    "江南士绅": {
+        DecreeType.TAX_INCREASE: -8,  DecreeType.TAX_DECREASE: 6,   DecreeType.RECRUIT_TROOPS: -3,
+        DecreeType.DISBAND_TROOPS: 2, DecreeType.PERSONNEL: 2,      DecreeType.DIPLOMACY: 5,
+        DecreeType.DISASTER_RELIEF: 8, DecreeType.HARSH_PUNISHMENT: -8,
     },
-    "周延儒派": {
-        DecreeType.TAX_INCREASE: -4,  DecreeType.TAX_DECREASE: 4,   DecreeType.RECRUIT_TROOPS: -2,
-        DecreeType.DISBAND_TROOPS: 2, DecreeType.PERSONNEL: 8,      DecreeType.DIPLOMACY: 5,
-        DecreeType.DISASTER_RELIEF: 3, DecreeType.HARSH_PUNISHMENT: -8,
+    "龙凤政权": {
+        DecreeType.TAX_INCREASE: 2,   DecreeType.TAX_DECREASE: -2,  DecreeType.RECRUIT_TROOPS: 5,
+        DecreeType.DISBAND_TROOPS: -5, DecreeType.PERSONNEL: 8,     DecreeType.DIPLOMACY: 6,
+        DecreeType.DISASTER_RELIEF: 3, DecreeType.HARSH_PUNISHMENT: -5,
     },
-    "中立派": {
-        DecreeType.TAX_INCREASE: -2,  DecreeType.TAX_DECREASE: 2,   DecreeType.RECRUIT_TROOPS: 2,
-        DecreeType.DISBAND_TROOPS: 1, DecreeType.PERSONNEL: 1,      DecreeType.DIPLOMACY: 3,
-        DecreeType.DISASTER_RELIEF: 5, DecreeType.HARSH_PUNISHMENT: -3,
+    "汉政权": {
+        DecreeType.TAX_INCREASE: 0,   DecreeType.TAX_DECREASE: 0,   DecreeType.RECRUIT_TROOPS: -10,
+        DecreeType.DISBAND_TROOPS: 8, DecreeType.PERSONNEL: -2,     DecreeType.DIPLOMACY: 10,
+        DecreeType.DISASTER_RELIEF: 0, DecreeType.HARSH_PUNISHMENT: -3,
+    },
+    "吴政权": {
+        DecreeType.TAX_INCREASE: -2,  DecreeType.TAX_DECREASE: 2,   DecreeType.RECRUIT_TROOPS: -8,
+        DecreeType.DISBAND_TROOPS: 6, DecreeType.PERSONNEL: 0,      DecreeType.DIPLOMACY: 10,
+        DecreeType.DISASTER_RELIEF: 2, DecreeType.HARSH_PUNISHMENT: -2,
+    },
+    "元廷": {
+        DecreeType.TAX_INCREASE: 3,   DecreeType.TAX_DECREASE: -3,  DecreeType.RECRUIT_TROOPS: -12,
+        DecreeType.DISBAND_TROOPS: 10, DecreeType.PERSONNEL: -5,    DecreeType.DIPLOMACY: 8,
+        DecreeType.DISASTER_RELIEF: -2, DecreeType.HARSH_PUNISHMENT: 3,
+    },
+    "东南群雄": {
+        DecreeType.TAX_INCREASE: -3,  DecreeType.TAX_DECREASE: 3,   DecreeType.RECRUIT_TROOPS: -6,
+        DecreeType.DISBAND_TROOPS: 5, DecreeType.PERSONNEL: 2,      DecreeType.DIPLOMACY: 12,
+        DecreeType.DISASTER_RELIEF: 3, DecreeType.HARSH_PUNISHMENT: -4,
     },
 }
 
@@ -95,25 +95,25 @@ DECREE_TARGET_REQUIRED: dict[DecreeType, str] = {
     DecreeType.DIPLOMACY: "diplomacy_target",
 }
 
-REGION_NAMES = {"京畿", "辽东", "陕西", "江南", "中原", "山东", "云贵", "川蜀"}
-DIPLOMACY_TARGETS = {"后金", "蒙古", "朝鲜"}
+REGION_NAMES = {"应天", "太平", "镇江", "两淮", "杭州", "武昌", "平江", "大都"}
+DIPLOMACY_TARGETS = {"龙凤政权", "汉政权", "吴政权", "元廷", "东南群雄"}
 
 PRECONDITION_MESSAGES: dict[DecreeType, str] = {
-    DecreeType.TAX_INCREASE:     "民心过低，仓促加税恐激民变（需要民心>5，当前{civil_morale}）",
-    DecreeType.TAX_DECREASE:     "国库存银不足，无力减税（需要国库>8万两，当前{national_treasury}）",
-    DecreeType.RECRUIT_TROOPS:   "银粮或人口不足，无法征兵（需要国库≥8万两且人口≥1200万人，当前{national_treasury}/{population}）",
-    DecreeType.DISBAND_TROOPS:   "军力不足（需要军力>8万人，当前{military_strength}）",
-    DecreeType.PERSONNEL:        "朝廷威望不足（需要威望>10，当前{court_prestige}）",
-    DecreeType.DIPLOMACY:        "国库存银不足，无力外交（需要国库≥5万两，当前{national_treasury}）",
-    DecreeType.DISASTER_RELIEF:  "银粮不足，无法赈灾（需要国库≥6万两且粮储≥120万石，当前{national_treasury}/{grain}）",
-    DecreeType.HARSH_PUNISHMENT: "朝廷威望不足（需要威望>5，当前{court_prestige}）",
+    DecreeType.TAX_INCREASE:     "民心浮动，仓促加征恐激变乱（需要民心>5，当前{civil_morale}）",
+    DecreeType.TAX_DECREASE:     "府库存银不足，无力减赋（需要国库>8万两，当前{national_treasury}）",
+    DecreeType.RECRUIT_TROOPS:   "银粮或丁口不足，难以募兵（需要国库≥8万两且丁口≥1200万，当前{national_treasury}/{population}）",
+    DecreeType.DISBAND_TROOPS:   "军力单薄，不可再裁（需要军力>8万人，当前{military_strength}）",
+    DecreeType.PERSONNEL:        "军府威望不足以服众（需要威望>10，当前{court_prestige}）",
+    DecreeType.DIPLOMACY:        "府库存银不足，无力遣使（需要国库≥5万两，当前{national_treasury}）",
+    DecreeType.DISASTER_RELIEF:  "银粮不足，难以赈济（需要国库≥6万两且粮储≥120万石，当前{national_treasury}/{grain}）",
+    DecreeType.HARSH_PUNISHMENT: "军府威望不足，严刑恐失人心（需要威望>5，当前{court_prestige}）",
 }
 
 
 TARGET_MISSING_MESSAGES: dict[DecreeType, str] = {
     DecreeType.DISASTER_RELIEF: "赈灾需要指定目标区域",
     DecreeType.PERSONNEL: "任免需要指定目标人物和任免类型",
-    DecreeType.DIPLOMACY: "外交需要指定目标（后金/蒙古/朝鲜）",
+    DecreeType.DIPLOMACY: "通好需要指定目标（龙凤政权/汉政权/吴政权/元廷/东南群雄）",
 }
 
 
@@ -145,12 +145,12 @@ WRITABLE_FIELDS: dict[str, dict] = {
     "region.*.disaster_level":    {"type": "int"},
     "region.*.tax_rate":          {"type": "float"},
     "region.*.control":           {"type": "str", "valid": {"朝廷", "失控", "沦陷"}},
-    "region.*.threat":            {"type": "str", "valid": {"none", "后金", "民变", "土司", "海盗"}},
+    "region.*.threat":            {"type": "str", "valid": {"none", "元军", "汉军", "吴军", "民变", "土司", "海盗"}},
 }
 
 # Fields that SHALL NOT be modified by AI
 SYSTEM_FIELDS = frozenset({
-    "time", "decree_count", "history_log", "memorials",
+    "time", "phase", "decree_count", "history_log", "memorials",
     "memorial_cooldowns", "event_cooldowns", "resolved_script_ids",
     "loyalty_zero_triggered", "last_assembly", "last_assembly_month",
 })

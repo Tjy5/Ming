@@ -105,8 +105,8 @@ def test_validate_strict_passes_with_complete_entry():
 
 def test_audit_passes_on_current_data():
     base = Path(__file__).resolve().parent.parent
-    ministers_path = base / "data" / "ministers.json"
-    review_path = base / "data" / "ministers_review.json"
+    ministers_path = base / "data" / "yuanming" / "ministers.json"
+    review_path = base / "data" / "yuanming" / "ministers_review.json"
 
     ministers = load_ministers(ministers_path)
     review_entries = load_review_entries(review_path)
@@ -123,8 +123,8 @@ def test_audit_passes_on_current_data():
 
 
 def test_audit_stale_and_missing_reported():
-    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "ministers.json")
-    review_entries = load_review_entries(Path(__file__).resolve().parent.parent / "data" / "ministers_review.json")
+    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "yuanming" / "ministers.json")
+    review_entries = load_review_entries(Path(__file__).resolve().parent.parent / "data" / "yuanming" / "ministers_review.json")
 
     result = validate_review_entries(ministers, review_entries, strict=False)
 
@@ -135,6 +135,6 @@ def test_audit_stale_and_missing_reported():
 
 
 def test_roster_names_unique():
-    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "ministers.json")
+    ministers = load_ministers(Path(__file__).resolve().parent.parent / "data" / "yuanming" / "ministers.json")
     names = [m["name"] for m in ministers]
     assert len(names) == len(set(names)), f"Found {len(names) - len(set(names))} duplicate names"

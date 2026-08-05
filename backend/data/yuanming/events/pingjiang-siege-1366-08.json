@@ -1,0 +1,39 @@
+{
+  "script_id": "pingjiang-siege-1366-08",
+  "trigger_year": 1366,
+  "trigger_month": 8,
+  "title": "大军围平江",
+  "is_blocking": false,
+  "rich_description": "至正二十六年八月，王师既克湖杭，遂移檄数张士诚之罪，命徐达为大将军、常遇春副之，督二十万众进围平江。\n\n平江城高池深，张士诚积粟支十年，负隅死守。诸将或主长围久困，断其馈运，使其自毙；或主乘锐急攻，一鼓而下，免劳老师。\n\n平江之攻，围乎？攻乎？",
+  "historical_hint": "灭汉之后，朱元璋挥师东向，历两年剪除张士诚的羽翼，至正二十六年秋合围其都城平江。平江城坚粟足，张士诚拒守逾十月，最终粮尽城破。围与攻的选择，实质是以时间换伤亡、还是以伤亡换时间的权衡，也直接决定江南繁庶之地能保留几分元气。攻坚与困守之间，最见统帅之持重与决断。",
+  "condition": {
+    "type": "region_field_lt",
+    "region": "平江",
+    "field": "stability",
+    "value": 40
+  },
+  "choices": [
+    {
+      "label": "长围久困，绝其馈运",
+      "description": "筑垒连营，四面团住，使城中粮尽自降，保全江南元气。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.平江.stability": -15,
+        "global.grain": -50,
+        "faction.吴政权.rebellion_risk": -10
+      }
+    },
+    {
+      "label": "督师急攻，期在必克",
+      "description": "云梯冲车，昼夜急攻，不惜伤亡以求速下。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -5,
+        "region.平江.stability": -20,
+        "faction.吴政权.rebellion_risk": -15
+      }
+    }
+  ]
+}

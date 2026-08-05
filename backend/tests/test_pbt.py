@@ -21,12 +21,12 @@ from db.saves import _migrate_save
 st_prestige = st.integers(min_value=0, max_value=100)
 
 
-def make_state(court_prestige=75, ministers=None) -> GameState:
+def make_state(court_prestige=62, ministers=None) -> GameState:
     return GameState(
-        time=GameTime(year=1630, month=6, era_name="崇祯", era_year=3),
-        national_treasury=20, imperial_treasury=10, grain=500,
-        population=15000, military_strength=40,
-        civil_morale=60, military_morale=70,
+        time=GameTime(year=1360, month=6, era_name="至正", era_year=20),
+        national_treasury=15, imperial_treasury=8, grain=420,
+        population=1600, military_strength=18,
+        civil_morale=62, military_morale=68,
         court_prestige=court_prestige,
         factions=[f.model_copy() for f in INITIAL_FACTIONS],
         regions=[r.model_copy() for r in INITIAL_REGIONS],
@@ -96,9 +96,9 @@ def test_non_personnel_preserves_ministers(dt):
     statuses_before = [m.status for m in state.ministers]
     decree = StructuredDecree(type=dt)
     if dt == DecreeType.DISASTER_RELIEF:
-        decree.target = "陕西"
+        decree.target = "两淮"
     elif dt == DecreeType.DIPLOMACY:
-        decree.target = "后金"
+        decree.target = "汉政权"
     process_decree(state, decree)
     statuses_after = [m.status for m in state.ministers]
     assert statuses_before == statuses_after
@@ -132,22 +132,22 @@ def test_transition_commutativity(data):
 @given(risk=st.integers(min_value=0, max_value=100))
 @settings(max_examples=30)
 def test_condition_false_no_trace(risk):
-    # yuan-chonghuan-arrest at 1629/12 requires "jisi-invasion" resolved;
+    # chen-youliang-endgame at 1363/9 requires "poyang-battle-1363-07" resolved;
     # without that prerequisite, it should never inject.
     state = GameState(
-        time=GameTime(year=1629, month=12, era_name="崇祯", era_year=2),
+        time=GameTime(year=1363, month=9, era_name="至正", era_year=23),
         factions=[Faction(name="test", satisfaction=50, influence=25, rebellion_risk=risk)],
         regions=[Region(name="test", stability=50, garrison=10000, tax_contribution=TaxContribution.MEDIUM)],
     )
     state.resolved_script_ids = set()  # prerequisite NOT met
     inject_script_events(state)
-    assert not any(e.script_id == "yuan-chonghuan-arrest" for e in state.active_events)
-    assert "yuan-chonghuan-arrest" not in state.resolved_script_ids
+    assert not any(e.script_id == "chen-youliang-endgame-1363-09" for e in state.active_events)
+    assert "chen-youliang-endgame-1363-09" not in state.resolved_script_ids
 
 
 # ── 13.7 Save migration idempotency ─────────────────
 
-@given(year=st.integers(min_value=1621, max_value=1644))
+@given(year=st.integers(min_value=1328, max_value=1368))
 @settings(max_examples=30)
 def test_save_migration_idempotent(year):
     data = {
@@ -174,7 +174,7 @@ def test_opening_effects_clamp(national_treasury, prestige):
     state = create_initial_state()
     state.national_treasury = national_treasury
     state.court_prestige = prestige
-    evt = next(e for e in state.active_events if e.script_id == "chongzhen-accession-1627-08")
+    evt = next(e for e in state.active_events if e.script_id == "yingtian-founding-1356-03")
     for choice in evt.choices:
         if choice.decrees:
             s = create_initial_state()

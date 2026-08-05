@@ -20,7 +20,9 @@ class RegionControl(str, Enum):
 
 class RegionThreat(str, Enum):
     NONE = "none"
-    HOUJIN = "后金"
+    YUAN = "元军"
+    HAN = "汉军"
+    WU = "吴军"
     REBELLION = "民变"
     TUSI = "土司"
     PIRATE = "海盗"
@@ -39,9 +41,11 @@ class PersonnelAction(str, Enum):
 
 
 class DiplomacyTarget(str, Enum):
-    HOUJIN = "后金"
-    MONGOL = "蒙古"
-    JOSEON = "朝鲜"
+    LONGFENG = "龙凤政权"
+    HAN = "汉政权"
+    WU = "吴政权"
+    YUAN = "元廷"
+    SOUTHEAST = "东南群雄"
 
 
 class EventUrgency(str, Enum):

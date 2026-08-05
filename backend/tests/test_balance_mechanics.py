@@ -42,7 +42,7 @@ def _make_state(**overrides) -> GameState:
 class TestRegionControl:
     def test_court_to_unstable(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 14
         r.control = RegionControl.COURT
         update_region_control(s)
@@ -50,7 +50,7 @@ class TestRegionControl:
 
     def test_court_stays_at_boundary(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 15
         r.control = RegionControl.COURT
         update_region_control(s)
@@ -58,7 +58,7 @@ class TestRegionControl:
 
     def test_unstable_to_fallen(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 5
         r.control = RegionControl.UNSTABLE
         update_region_control(s)
@@ -66,7 +66,7 @@ class TestRegionControl:
 
     def test_unstable_recovery_to_court(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 36
         r.rebellion_risk = 59
         r.control = RegionControl.UNSTABLE
@@ -75,7 +75,7 @@ class TestRegionControl:
 
     def test_unstable_no_recovery_high_rebellion(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 50
         r.rebellion_risk = 60
         r.control = RegionControl.UNSTABLE
@@ -84,7 +84,7 @@ class TestRegionControl:
 
     def test_fallen_recovery_to_unstable(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 25
         r.rebellion_risk = 70
         r.control = RegionControl.FALLEN
@@ -93,7 +93,7 @@ class TestRegionControl:
 
     def test_fallen_stays_if_low_stability(self):
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 24
         r.rebellion_risk = 50
         r.control = RegionControl.FALLEN
@@ -103,7 +103,7 @@ class TestRegionControl:
     def test_no_oscillation_single_turn(self):
         """A region can only transition once per update call."""
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "京畿")
+        r = next(r for r in s.regions if r.name == "应天")
         r.stability = 36
         r.rebellion_risk = 30
         r.control = RegionControl.FALLEN
@@ -197,7 +197,7 @@ class TestGameEnd:
         result = check_game_end(s)
         assert result is not None
         assert result["result"] == "defeat"
-        assert "倾覆" in result["message"]
+        assert "霸业" in result["message"]
 
     def test_six_fallen_critical_defeat(self):
         s = _make_state()
@@ -221,7 +221,7 @@ class TestGameEnd:
             r.control = RegionControl.FALLEN
         s.court_prestige = 40
         result = check_game_end(s)
-        assert result is None  # not at 1644 yet, not enough to trigger defeat
+        assert result is None  # not at 1368 yet, not enough to trigger defeat
 
     def test_prestige_zero_defeat(self):
         s = _make_state()
@@ -232,7 +232,7 @@ class TestGameEnd:
 
     def test_victory_conditions(self):
         s = _make_state()
-        s.time = GameTime(year=1644, month=3, era_name="崇祯", era_year=17)
+        s.time = GameTime(year=1368, month=1, era_name="洪武", era_year=1)
         for r in s.regions:
             r.control = RegionControl.COURT
         for f in s.factions:
@@ -244,7 +244,7 @@ class TestGameEnd:
 
     def test_victory_allows_one_unstable(self):
         s = _make_state()
-        s.time = GameTime(year=1644, month=3, era_name="崇祯", era_year=17)
+        s.time = GameTime(year=1368, month=1, era_name="洪武", era_year=1)
         for r in s.regions:
             r.control = RegionControl.COURT
         s.regions[0].control = RegionControl.UNSTABLE
@@ -322,8 +322,8 @@ class TestMilitarySupplyProduction:
 
 class TestAssignUrgency:
     def test_uses_event_name_not_chain_event(self):
-        attr = {"辽东_stability": {"后金入寇": -20}}
-        result = assign_urgency("后金入寇", attr)
+        attr = {"武昌_stability": {"汉军东进": -20}}
+        result = assign_urgency("汉军东进", attr)
         assert result == EventUrgency.HIGH
 
     def test_low_urgency_no_match(self):
@@ -332,8 +332,8 @@ class TestAssignUrgency:
         assert result == EventUrgency.LOW
 
     def test_medium_urgency(self):
-        attr = {"陕西_stability": {"流寇势力扩大": -5}}
-        result = assign_urgency("流寇势力扩大", attr)
+        attr = {"两淮_stability": {"红巾烽火": -5}}
+        result = assign_urgency("红巾烽火", attr)
         assert result == EventUrgency.MEDIUM
 
 
@@ -343,13 +343,13 @@ class TestPipelineOrder:
     def test_fallen_region_earns_no_tax(self):
         """A region that becomes FALLEN should earn zero tax that turn."""
         s = _make_state()
-        r = next(r for r in s.regions if r.name == "陕西")
+        r = next(r for r in s.regions if r.name == "两淮")
         r.stability = 0
         r.control = RegionControl.UNSTABLE
         r.tax_collected = 100
         old_treasury = s.national_treasury
         process_decree(s, decree=None)
-        # after pipeline: control updates first,陕西 → FALLEN, then tax collected
-        # so 陕西 should contribute 0
+        # after pipeline: control updates first,两淮 → FALLEN, then tax collected
+        # so 两淮 should contribute 0
         # (we can't check exact treasury due to other effects, but verify control)
         assert r.control == RegionControl.FALLEN

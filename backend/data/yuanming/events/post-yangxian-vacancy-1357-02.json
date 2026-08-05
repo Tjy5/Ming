@@ -1,0 +1,34 @@
+{
+  "script_id": "post-yangxian-vacancy-1357-02",
+  "trigger_year": 1357,
+  "trigger_month": 2,
+  "title": "检校出缺·幕府人事",
+  "is_blocking": false,
+  "rich_description": "至正十七年二月，杨宪既去，检校一职虚位。侦伺之务虽不可废，然继者若不得人，则苛察之祸甚于阙官。\n\n李善长请遴选忠厚干济之士补其缺，稍宽文法，以安众心；军中则有意不设此职，以示与外府一体同心。\n\n检校之任，当补当罢？",
+  "historical_hint": "耳目之官的用废，折射创业集团的治理取向：专任刺事则上下相猜，尽废侦伺则主上易蔽。朱元璋一代的实践是在二者之间反复权衡——既设检校以通下情，又防其势成而乱政。此一细微的人事更替，实为后来明初政治风向的先声。去一检校易，定耳目之官的用舍尺度难，此中分寸，实系治体。",
+  "condition": {
+    "type": "minister_removed",
+    "name": "杨宪"
+  },
+  "choices": [
+    {
+      "label": "遴选干员，补其空缺",
+      "description": "择谨厚者领检校，明其权限，毋使复为苛政。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.court_prestige": 3
+      }
+    },
+    {
+      "label": "裁撤此职，以安众心",
+      "description": "罢检校不置，宣示府中一体，群僚闻之咸服。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.幕府文臣.satisfaction": 6,
+        "global.court_prestige": -2
+      }
+    }
+  ]
+}

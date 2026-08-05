@@ -1,0 +1,4 @@
+  File "<string>", line 28
+    print(f'Duplicates: {dups if dups else \
+                        ^
+SyntaxError: '{' was never closed

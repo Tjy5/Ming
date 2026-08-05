@@ -1,0 +1,35 @@
+{
+  "script_id": "longwan-battle-1360-06",
+  "trigger_year": 1360,
+  "trigger_month": 6,
+  "title": "龙湾之战",
+  "is_blocking": true,
+  "rich_description": "至正二十年六月，陈友谅舟师直抵应天城下，泊于龙湾。其舰高数丈，连樯为阵，望之如山。城中守军寡弱，人心危惧。\n\n刘基画策：遣康茂才诈为内应，诱陈友谅轻兵登岸；设伏于石灰山侧，俟其半济而击之。主公登卢龙山顶，黄盖之下指挥若定。\n\n战机已至，当如何进止？",
+  "historical_hint": "龙湾之战是朱元璋与陈友谅的第一次大规模决战。朱军以康茂才行诈降之计，诱使汉军舍舟登岸，随即伏兵四合，大破之于应天城郊，俘获舟楫甲仗无算，并乘胜收复太平、安庆等地。此役一举扭转了两强相争的攻守之势，使陈友谅由战略进攻转入相持，是江东存亡的真正转折点。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "诱其登岸，伏兵尽起",
+      "description": "从刘基之谋，纵敌深入，合围尽歼，乘胜逐北。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -2,
+        "global.military_morale": 12,
+        "region.应天.stability": 5,
+        "faction.汉政权.rebellion_risk": -15
+      }
+    },
+    {
+      "label": "凭城坚守，以老其师",
+      "description": "敛兵固垒，俟其粮尽自退，不敢以孤城掷侥幸。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.应天.stability": -8,
+        "region.应天.disaster_level": 10,
+        "global.military_morale": -3
+      }
+    }
+  ]
+}

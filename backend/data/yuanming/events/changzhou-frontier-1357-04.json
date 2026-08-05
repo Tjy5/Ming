@@ -1,0 +1,33 @@
+{
+  "script_id": "changzhou-frontier-1357-04",
+  "trigger_year": 1357,
+  "trigger_month": 4,
+  "title": "常州拉锯·吴军压境",
+  "is_blocking": false,
+  "rich_description": "至正十七年四月，张士诚遣将窥常州，游骑至于镇江近郊，焚掠村落，边民内徙者数千家。\n\n东路诸将请增兵镇江，以攻为守；幕府则谓汉军势大于西，不宜轻启东衅，宜遣使通好，羁縻张氏。\n\n东顾之忧，当以战弭，抑以和缓？",
+  "historical_hint": "张士诚据平江，与朱元璋壤地相接，常州、江阴一线是两军必争的缓冲地带。对朱元璋而言，两线作战最为大忌：西有陈友谅上游压境，东有张士诚富庶之众，必须在二者之间分先后、别轻重。史家多谓其定策先汉后吴，正是基于对两敌强弱与缓急的清醒判断。此策既定，其后各个击破之局始成。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "增兵镇江，以攻为守",
+      "description": "益镇江之戍，纵兵邀击，使吴军不敢东向。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "region.镇江.garrison": 2000,
+        "global.grain": -8,
+        "faction.吴政权.rebellion_risk": 5
+      }
+    },
+    {
+      "label": "遣使通好，暂纾东顾",
+      "description": "致书张士诚，约为唇齿，暂缓东路之争，专意西防。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "faction.吴政权.satisfaction": 8,
+        "global.national_treasury": -2
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "script_id": "poyang-battle-1363-07",
+  "trigger_year": 1363,
+  "trigger_month": 7,
+  "title": "鄱阳湖决战",
+  "is_blocking": true,
+  "rich_description": "至正二十三年七月，陈友谅倾国六十万，楼船数百艘，围南昌不下，转据鄱阳湖口。主公亲率舟师二十万赴之，两军遇于康郎山。\n\n汉军舰高数丈，连舟为阵，绵亘数十里；我军舟小，仰攻不利。刘基望云气，言东北风起，可以火攻。常遇春、俞通海等皆厉兵待命。\n\n成败在此一举。决战之策，当以何先？",
+  "historical_hint": "鄱阳湖之战是中古史上规模最大的水战，也是元末局势的总决战。陈友谅以巨舰连锁为阵，兵数倍于朱；朱元璋利用其舟小灵活的优势，乘风纵火，血战数十日，终以火攻破其水军。陈友谅突围时中流矢殒命，汉军土崩瓦解。自此江南群雄再无敢与朱元璋争锋者，明兴之业于此役底定。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "纵火焚舰，乘风决战",
+      "description": "以敢死士驾火舟冲其连阵，乘风纵火，聚而歼之。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -4,
+        "global.military_morale": 15,
+        "faction.汉政权.rebellion_risk": -30,
+        "region.武昌.stability": -10
+      }
+    },
+    {
+      "label": "锁湖相持，待其粮尽",
+      "description": "扼湖口不与浪战，坚壁相持，待其师老粮尽自溃。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.grain": -60,
+        "global.military_morale": 5,
+        "faction.汉政权.rebellion_risk": -15
+      }
+    },
+    {
+      "label": "分兵邀击，断其归路",
+      "description": "以轻舟绕出其后，断其樵汲归路，使六十万众坐困。",
+      "decrees": [],
+      "loyalty_effects": [],
+      "state_effects": {
+        "global.military_strength": -2,
+        "region.武昌.garrison": -3000,
+        "faction.汉政权.rebellion_risk": -20
+      }
+    }
+  ]
+}

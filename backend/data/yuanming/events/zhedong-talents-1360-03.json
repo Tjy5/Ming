@@ -1,0 +1,53 @@
+{
+  "script_id": "zhedong-talents-1360-03",
+  "trigger_year": 1360,
+  "trigger_month": 3,
+  "title": "浙东四先生至应天",
+  "is_blocking": false,
+  "rich_description": "至正二十年三月，使者赍书币往浙东，聘青田刘基、浦江宋濂、龙泉章溢、丽水叶琛。四先生感主公礼贤之诚，联袂至应天。\n\n主公出迎于郊，喜曰：我为天下屈四先生耳！刘基陈时务十八策，首言当先图陈氏，后取张氏，然后北伐中原，帝业可成。\n\n待此四人，当以何礼？",
+  "historical_hint": "至正二十年，刘基、宋濂、章溢、叶琛四位浙东名士应聘至应天，是朱元璋集团由行伍幕府转向文治政权的关键一步。刘基以王佐之略为之画策，力主先翦最强之陈友谅、再取次强之张士诚，然后挥师北向，这一方略此后几乎原样兑现。礼贤下士至此，已不仅是姿态，而是决定成败的战略投资。",
+  "condition": null,
+  "choices": [
+    {
+      "label": "筑礼贤馆，朝夕咨访",
+      "description": "虚己以听，朝夕论道，使群贤各尽其所长。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "刘基",
+          15
+        ],
+        [
+          "宋濂",
+          12
+        ],
+        [
+          "章溢",
+          10
+        ],
+        [
+          "叶琛",
+          10
+        ]
+      ],
+      "state_effects": {
+        "global.national_treasury": -2,
+        "global.court_prestige": 6
+      }
+    },
+    {
+      "label": "量才授职，即付政事",
+      "description": "即日授官分职，使以其学施于有政。",
+      "decrees": [],
+      "loyalty_effects": [
+        [
+          "刘基",
+          8
+        ]
+      ],
+      "state_effects": {
+        "global.court_prestige": 3
+      }
+    }
+  ]
+}
