@@ -39,7 +39,7 @@
 }
 
 .edict-warn {
-  background: rgba(224, 64, 64, 0.12);
+  background: rgba(176, 58, 46,0.12);
   border: 1px solid var(--red);
   color: var(--red);
   font-size: 0.8rem;
@@ -56,8 +56,8 @@
 }
 
 .edict-target-btn {
-  background: rgba(42, 26, 10, 0.08);
-  border: 1px solid #b8a080;
+  background: rgba(43, 38, 32, 0.08);
+  border: 1px solid #a08b66;
   color: #4a2a0a;
   padding: 8px;
   font-family: inherit;
@@ -68,13 +68,13 @@
 }
 
 .edict-target-btn:hover {
-  border-color: #8b4513;
+  border-color: #7a4a2a;
 }
 
 .edict-target-btn.selected {
-  border-color: #8b4513;
-  color: #8b4513;
-  background: rgba(139, 69, 19, 0.1);
+  border-color: #7a4a2a;
+  color: #7a4a2a;
+  background: rgba(122, 74, 42, 0.12);
 }
 
 .edict-personnel {
@@ -86,8 +86,8 @@
 
 .edict-personnel select,
 .edict-personnel input {
-  background: rgba(42, 26, 10, 0.08);
-  border: 1px solid #b8a080;
+  background: rgba(43, 38, 32, 0.08);
+  border: 1px solid #a08b66;
   color: #4a2a0a;
   padding: 6px 10px;
   font-family: inherit;
@@ -102,8 +102,8 @@
 
 .edict-cancel {
   padding: 6px 16px;
-  background: rgba(42, 26, 10, 0.08);
-  border: 1px solid #b8a080;
+  background: rgba(43, 38, 32, 0.08);
+  border: 1px solid #a08b66;
   color: #4a2a0a;
   cursor: pointer;
   font-family: inherit;
@@ -111,12 +111,12 @@
 }
 
 .edict-cancel:hover {
-  border-color: #8b4513;
+  border-color: #7a4a2a;
 }
 
 .edict-seal-btn {
   padding: 6px 20px;
-  background: linear-gradient(180deg, #c23b22, #8b2020);
+  background: linear-gradient(180deg, #b23a26, var(--accent-red));
   border: 1px solid var(--accent-gold);
   color: #f5e6c8;
   font-weight: bold;
@@ -139,15 +139,15 @@
 .seal-stamp {
   width: 64px;
   height: 64px;
-  border: 3px solid #c23b22;
+  border: 3px solid #b23a26;
   border-radius: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.2rem;
   font-weight: bold;
-  color: #c23b22;
-  background: rgba(194, 59, 34, 0.08);
+  color: #b23a26;
+  background: rgba(178, 58, 38,0.08);
   position: relative;
 }
 
@@ -155,7 +155,7 @@
   position: absolute;
   inset: -20px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(194, 59, 34, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(178, 58, 38,0.3) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -171,8 +171,8 @@
   padding: 3px 10px;
   font-size: 0.8rem;
   font-family: inherit;
-  border: 1px solid #b8a080;
-  background: rgba(42, 26, 10, 0.05);
+  border: 1px solid #a08b66;
+  background: rgba(43, 38, 32, 0.05);
   color: #4a2a0a;
   border-radius: 2px;
   cursor: pointer;
@@ -180,13 +180,13 @@
 }
 
 .edict-keyword:hover {
-  border-color: #8b4513;
+  border-color: #7a4a2a;
 }
 
 .edict-keyword.active {
-  border-color: #c23b22;
-  background: rgba(194, 59, 34, 0.1);
-  color: #c23b22;
+  border-color: #b23a26;
+  background: rgba(178, 58, 38,0.1);
+  color: #b23a26;
   font-weight: bold;
 }
 
@@ -198,7 +198,7 @@
 /* ── Turn Summary Modal ──────────────────────────────── */
 .turn-summary-modal {
   max-width: 700px;
-  background: linear-gradient(180deg, #1f1a16, #14100e);
+  background: linear-gradient(180deg, #f6efe0, #eae0c8);
   border: 2px solid var(--accent-gold);
   position: relative;
 }
@@ -207,13 +207,13 @@
   content: "";
   position: absolute;
   inset: 4px;
-  border: 1px solid rgba(201, 168, 76, 0.15);
+  border: 1px solid rgba(138, 109, 47,0.15);
   pointer-events: none;
 }
 
 .ts-header {
   text-align: center;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
   padding-bottom: 12px;
   margin-bottom: 16px;
   position: relative;
@@ -259,7 +259,7 @@
 .ts-section h3 {
   font-size: 0.9rem;
   color: var(--text-dim);
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
   padding-bottom: 4px;
   margin-bottom: 8px;
 }
@@ -337,7 +337,7 @@
 .ts-collapse-toggle {
   background: none;
   border: none;
-  color: var(--gold, #c9a55a);
+  color: var(--gold, var(--accent-gold));
   cursor: pointer;
   font-size: 0.78rem;
   padding: 2px 0;
@@ -362,7 +362,7 @@
 }
 
 .ts-change-item {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(43, 38, 32, 0.05);
   padding: 6px 8px;
   border-radius: 2px;
   font-size: 0.85rem;
@@ -388,14 +388,14 @@
 
 .ts-empty {
   font-size: 0.8rem;
-  color: #555;
+  color: rgba(43, 38, 32, 0.3);
   font-style: italic;
   padding: 4px;
 }
 
 .ts-footer {
   margin-top: 24px;
-  border-top: 1px solid #333;
+  border-top: 1px solid rgba(43, 38, 32, 0.16);
   padding-top: 16px;
   display: flex;
   align-items: center;
@@ -411,7 +411,7 @@
 .ts-close-btn {
   margin-left: auto;
   background: var(--accent-gold);
-  color: #000;
+  color: #f6efe0;
   font-weight: bold;
   padding: 8px 24px;
   border: none;
@@ -423,7 +423,7 @@
 /* ── Memorial Panel ──────────────────────────────────── */
 .memorial-modal {
   max-width: 600px;
-  background: linear-gradient(180deg, #1f1816, #14100e);
+  background: linear-gradient(180deg, #f6efe0, #eae0c8);
   border: 2px solid var(--accent-gold);
 }
 
@@ -449,7 +449,7 @@
 
 .memorial-card {
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -476,7 +476,7 @@
 }
 
 .memorial-card-head:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(43, 38, 32, 0.05);
 }
 
 .memorial-urg {
@@ -488,17 +488,17 @@
 }
 
 .memorial-urg.urg-critical {
-  background: rgba(224, 64, 64, 0.2);
+  background: rgba(176, 58, 46,0.2);
   color: var(--red);
 }
 
 .memorial-urg.urg-high {
-  background: rgba(229, 184, 41, 0.2);
+  background: rgba(168, 132, 31, 0.2);
   color: var(--yellow);
 }
 
 .memorial-urg.urg-medium {
-  background: rgba(102, 102, 102, 0.2);
+  background: rgba(138, 128, 104, 0.2);
   color: var(--gray);
 }
 
@@ -528,7 +528,7 @@
 
 .memorial-detail {
   padding: 0 10px 10px;
-  border-top: 1px solid #333;
+  border-top: 1px solid rgba(43, 38, 32, 0.16);
 }
 
 .memorial-content {
@@ -556,7 +556,7 @@
 
 .mem-btn {
   padding: 5px 14px;
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   background: var(--bg-card);
   color: var(--text-main);
   cursor: pointer;
@@ -577,15 +577,15 @@
 }
 
 .mem-btn.mem-approve {
-  background: rgba(76, 175, 80, 0.15);
+  background: rgba(63, 122, 78, 0.15);
   border-color: var(--green);
   color: var(--green);
 }
 
 .mem-btn.mem-reject {
-  background: rgba(255, 152, 0, 0.15);
-  border-color: #ff9800;
-  color: #ff9800;
+  background: rgba(168, 132, 31, 0.15);
+  border-color: var(--yellow);
+  color: var(--yellow);
 }
 
 .mem-btn.mem-defer {
@@ -608,8 +608,8 @@
 }
 
 .memorial-notify {
-  background: rgba(224, 64, 64, 0.08);
-  border: 1px solid rgba(224, 64, 64, 0.3);
+  background: rgba(176, 58, 46,0.08);
+  border: 1px solid rgba(176, 58, 46,0.3);
   border-radius: 3px;
 }
 
@@ -617,8 +617,8 @@
 .memorial-result {
   margin-top: 1rem;
   padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(43, 38, 32, 0.07);
+  border-top: 1px solid rgba(43, 38, 32, 0.12);
   border-radius: 0 0 4px 4px;
 }
 
@@ -632,18 +632,18 @@
 }
 
 .memorial-status-tag.status-approved {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
+  background: rgba(63, 122, 78, 0.18);
+  color: var(--green);
 }
 
 .memorial-status-tag.status-rejected {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  background: rgba(176, 58, 46, 0.18);
+  color: var(--red);
 }
 
 .memorial-status-tag.status-deferred {
-  background: rgba(234, 179, 8, 0.2);
-  color: #fde047;
+  background: rgba(168, 132, 31, 0.18);
+  color: var(--yellow);
 }
 
 .memorial-result .delta-list {
@@ -656,7 +656,7 @@
 }
 
 .memorial-result .delta-list li {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(43, 38, 32, 0.05);
   padding: 0.5rem;
   border-radius: 2px;
   font-size: 0.85rem;
@@ -665,7 +665,7 @@
 .memorial-result .narrative-reactions {
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(43, 38, 32, 0.07);
 }
 
 .memorial-result .narrative-reactions h4 {
@@ -684,7 +684,7 @@
 }
 
 .memorial-result .narrative-reactions li {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(43, 38, 32, 0.05);
   padding: 0.5rem;
   border-radius: 2px;
   font-size: 0.85rem;

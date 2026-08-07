@@ -698,6 +698,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/trpg/character": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Character */
+        get: operations["get_character_api_trpg_character_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trpg/act": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Act */
+        post: operations["act_api_trpg_act_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -757,6 +791,23 @@ export type components = {
                 [key: string]: string | boolean | number;
             } | null;
         };
+        /**
+         * ActRequest
+         * @description POST /api/trpg/act 请求体。
+         */
+        ActRequest: {
+            /** Action Text */
+            action_text: string;
+            /** Skill */
+            skill?: string | null;
+            /** Attr */
+            attr?: string | null;
+            /**
+             * Difficulty
+             * @default 常规
+             */
+            difficulty: string;
+        };
         /** AdoptSuggestionRequest */
         AdoptSuggestionRequest: {
             /** Suggestion Index */
@@ -768,9 +819,7 @@ export type components = {
             /** Triggered Events */
             triggered_events?: string[];
             /** Game Over */
-            game_over?: {
-                [key: string]: unknown;
-            } | null;
+            game_over?: Record<string, never> | null;
             /** New Ministers */
             new_ministers?: components["schemas"]["Minister"][];
         };
@@ -855,6 +904,46 @@ export type components = {
         AssemblyVoteRequest: {
             /** Decree Type */
             decree_type?: string | null;
+        };
+        /**
+         * CharacterSheet
+         * @description 角色卡：玩家（朱元璋）与关键人物共用。
+         */
+        CharacterSheet: {
+            /** Name */
+            name: string;
+            /**
+             * Is Player
+             * @default false
+             */
+            is_player: boolean;
+            /** Attrs */
+            attrs?: {
+                [key: string]: number;
+            };
+            /** Skills */
+            skills?: {
+                [key: string]: number;
+            };
+            /**
+             * Background
+             * @default
+             */
+            background: string;
+            /** Traits */
+            traits?: string[];
+            /** Status */
+            status?: string[];
+            /**
+             * Skill Points
+             * @default 0
+             */
+            skill_points: number;
+            /**
+             * Growth Points
+             * @default 0
+             */
+            growth_points: number;
         };
         /** ChatRequest */
         ChatRequest: {
@@ -987,13 +1076,9 @@ export type components = {
         DecreeResponse: {
             state: components["schemas"]["GameState"];
             /** Delta */
-            delta?: {
-                [key: string]: unknown;
-            };
+            delta?: Record<string, never>;
             /** Attribution */
-            attribution?: {
-                [key: string]: unknown;
-            };
+            attribution?: Record<string, never>;
             /**
              * Narrative
              * @default
@@ -1003,9 +1088,7 @@ export type components = {
             newly_triggered_events?: string[];
             game_time?: components["schemas"]["GameTime"];
             /** Game Over */
-            game_over?: {
-                [key: string]: unknown;
-            } | null;
+            game_over?: Record<string, never> | null;
             /** Minister Reactions */
             minister_reactions?: components["schemas"]["MinisterReaction"][];
             turn_summary?: components["schemas"]["TurnSummary"] | null;
@@ -1144,43 +1227,59 @@ export type components = {
         GameState: {
             time?: components["schemas"]["GameTime"];
             /**
+             * Phase
+             * @default life_story
+             * @enum {string}
+             */
+            phase: "life_story" | "governance";
+            /**
+             * Chapter
+             * @default childhood
+             */
+            chapter: string;
+            /**
+             * Chapter Turns
+             * @default 0
+             */
+            chapter_turns: number;
+            /**
              * National Treasury
-             * @default 20
+             * @default 15
              */
             national_treasury: number;
             /**
              * Imperial Treasury
-             * @default 10
+             * @default 8
              */
             imperial_treasury: number;
             /**
              * Grain
-             * @default 500
+             * @default 420
              */
             grain: number;
             /**
              * Population
-             * @default 15000
+             * @default 1600
              */
             population: number;
             /**
              * Military Strength
-             * @default 40
+             * @default 18
              */
             military_strength: number;
             /**
              * Civil Morale
-             * @default 60
+             * @default 62
              */
             civil_morale: number;
             /**
              * Military Morale
-             * @default 70
+             * @default 68
              */
             military_morale: number;
             /**
              * Court Prestige
-             * @default 75
+             * @default 62
              */
             court_prestige: number;
             /** Factions */
@@ -1235,48 +1334,70 @@ export type components = {
             minister_conversations?: {
                 [key: string]: components["schemas"]["ConversationMessage"][];
             };
+            /** Character Sheets */
+            character_sheets?: {
+                [key: string]: components["schemas"]["CharacterSheet"];
+            };
+            /** Growth Log */
+            growth_log?: components["schemas"]["GrowthEntry"][];
         };
         /** GameStateResponse */
         GameStateResponse: {
             time?: components["schemas"]["GameTime"];
             /**
+             * Phase
+             * @default life_story
+             * @enum {string}
+             */
+            phase: "life_story" | "governance";
+            /**
+             * Chapter
+             * @default childhood
+             */
+            chapter: string;
+            /**
+             * Chapter Turns
+             * @default 0
+             */
+            chapter_turns: number;
+            /**
              * National Treasury
-             * @default 20
+             * @default 15
              */
             national_treasury: number;
             /**
              * Imperial Treasury
-             * @default 10
+             * @default 8
              */
             imperial_treasury: number;
             /**
              * Grain
-             * @default 500
+             * @default 420
              */
             grain: number;
             /**
              * Population
-             * @default 15000
+             * @default 1600
              */
             population: number;
             /**
              * Military Strength
-             * @default 40
+             * @default 18
              */
             military_strength: number;
             /**
              * Civil Morale
-             * @default 60
+             * @default 62
              */
             civil_morale: number;
             /**
              * Military Morale
-             * @default 70
+             * @default 68
              */
             military_morale: number;
             /**
              * Court Prestige
-             * @default 75
+             * @default 62
              */
             court_prestige: number;
             /** Factions */
@@ -1331,6 +1452,12 @@ export type components = {
             minister_conversations?: {
                 [key: string]: components["schemas"]["ConversationMessage"][];
             };
+            /** Character Sheets */
+            character_sheets?: {
+                [key: string]: components["schemas"]["CharacterSheet"];
+            };
+            /** Growth Log */
+            growth_log?: components["schemas"]["GrowthEntry"][];
             /** History Total Count */
             history_total_count?: number | null;
         };
@@ -1338,24 +1465,55 @@ export type components = {
         GameTime: {
             /**
              * Year
-             * @default 1627
+             * @default 1356
              */
             year: number;
             /**
              * Month
-             * @default 1
+             * @default 3
              */
             month: number;
             /**
              * Era Name
-             * @default 天启
+             * @default 至正
              */
             era_name: string;
             /**
              * Era Year
-             * @default 7
+             * @default 16
              */
             era_year: number;
+        };
+        /**
+         * GrowthEntry
+         * @description 成长记录（写入存档 growth_log，随角色卡可查）。
+         */
+        GrowthEntry: {
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /** Name */
+            name: string;
+            /** Source */
+            source: string;
+            /**
+             * Skill Points
+             * @default 0
+             */
+            skill_points: number;
+            /**
+             * Growth Points
+             * @default 0
+             */
+            growth_points: number;
+            /** Attr Name */
+            attr_name?: string | null;
+            /**
+             * Attr Gain
+             * @default 0
+             */
+            attr_gain: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1376,9 +1534,7 @@ export type components = {
              */
             decree_desc: string;
             /** Delta */
-            delta?: {
-                [key: string]: unknown;
-            };
+            delta?: Record<string, never>;
             /**
              * Narrative
              * @default
@@ -1460,9 +1616,7 @@ export type components = {
             /** Narrative */
             narrative?: string | null;
             /** Delta */
-            delta?: {
-                [key: string]: unknown;
-            } | null;
+            delta?: Record<string, never> | null;
             /** Minister Reactions */
             minister_reactions?: components["schemas"]["MinisterReaction"][];
         };
@@ -1496,12 +1650,12 @@ export type components = {
             is_eunuch: boolean;
             /**
              * Entry Year
-             * @default 1627
+             * @default 1356
              */
             entry_year: number;
             /**
              * Entry Month
-             * @default 8
+             * @default 3
              */
             entry_month: number;
             /**
@@ -1574,12 +1728,12 @@ export type components = {
             is_eunuch: boolean;
             /**
              * Entry Year
-             * @default 1627
+             * @default 1356
              */
             entry_year: number;
             /**
              * Entry Month
-             * @default 8
+             * @default 3
              */
             entry_month: number;
             /**
@@ -1639,12 +1793,12 @@ export type components = {
             is_eunuch: boolean;
             /**
              * Entry Year
-             * @default 1627
+             * @default 1356
              */
             entry_year: number;
             /**
              * Entry Month
-             * @default 8
+             * @default 3
              */
             entry_month: number;
             /**
@@ -1675,9 +1829,7 @@ export type components = {
             /** Cost */
             cost: number;
             /** Effects */
-            effects?: {
-                [key: string]: unknown;
-            };
+            effects?: Record<string, never>;
         };
         /** ParseRequest */
         ParseRequest: {
@@ -1804,7 +1956,7 @@ export type components = {
          * RegionThreat
          * @enum {string}
          */
-        RegionThreat: "none" | "后金" | "民变" | "土司" | "海盗";
+        RegionThreat: "none" | "元军" | "汉军" | "吴军" | "民变" | "土司" | "海盗";
         /** SaveRequest */
         SaveRequest: {
             /** Name */
@@ -1822,9 +1974,7 @@ export type components = {
             target?: string | null;
             sub_action?: components["schemas"]["PersonnelAction"] | null;
             /** Parameters */
-            parameters?: {
-                [key: string]: unknown;
-            } | null;
+            parameters?: Record<string, never> | null;
         };
         /**
          * TaxContribution
@@ -1889,10 +2039,6 @@ export type components = {
             msg: string;
             /** Error Type */
             type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
         };
     };
     responses: never;
@@ -3084,9 +3230,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3156,9 +3300,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3288,9 +3430,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3325,9 +3465,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": {
-                    [key: string]: unknown;
-                };
+                "application/json": Record<string, never>;
             };
         };
         responses: {
@@ -3361,6 +3499,59 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ChatRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_character_api_trpg_character_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    act_api_trpg_act_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActRequest"];
             };
         };
         responses: {

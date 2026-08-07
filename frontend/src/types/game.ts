@@ -14,10 +14,10 @@ export type DecreeType =
   | 'disaster_relief' | 'harsh_punishment'
 
 export type RegionControl = '朝廷' | '失控' | '沦陷'
-export type RegionThreat = 'none' | '后金' | '民变' | '土司' | '海盗'
+export type RegionThreat = 'none' | '元军' | '汉军' | '吴军' | '民变' | '土司' | '海盗'
 export type TaxContribution = 'low' | 'medium' | 'high'
 export type PersonnelAction = 'appoint' | 'dismiss' | 'execute'
-export type DiplomacyTarget = '后金' | '蒙古' | '朝鲜'
+export type DiplomacyTarget = '龙凤政权' | '汉政权' | '吴政权' | '元廷' | '东南群雄'
 export type EventUrgency = '高' | '中' | '低'
 export type MinisterStatus = 'active' | 'idle' | 'removed' | 'not_yet_entered' | 'on_mission'
 export type AssemblyPhase = 'idle' | 'petition' | 'debate' | 'vote' | 'decree'
@@ -121,6 +121,11 @@ export interface TriggerDecision {
 
 export interface GameState {
   time: GameTime
+  // phase state machine: life_story (跑团叙事) / governance (治理模拟)，由后端驱动
+  phase: 'life_story' | 'governance'
+  // 人生篇章 id：childhood/monk_wanderer/enlistment/warlord
+  chapter: string
+  chapter_turns: number
   national_treasury: number
   imperial_treasury: number
   grain: number
@@ -497,8 +502,8 @@ export const DECREE_TYPES: DecreeType[] = [
   'personnel', 'diplomacy', 'disaster_relief', 'harsh_punishment',
 ]
 
-export const REGION_NAMES = ['京畿', '辽东', '陕西', '江南', '中原', '山东', '云贵', '川蜀'] as const
-export const DIPLOMACY_TARGETS: DiplomacyTarget[] = ['后金', '蒙古', '朝鲜']
+export const REGION_NAMES = ['应天', '太平', '镇江', '两淮', '杭州', '武昌', '平江', '大都'] as const
+export const DIPLOMACY_TARGETS: DiplomacyTarget[] = ['龙凤政权', '汉政权', '吴政权', '元廷', '东南群雄']
 
 export const TARGET_REQUIRED: Partial<Record<DecreeType, string>> = {
   disaster_relief: 'region',

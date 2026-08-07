@@ -63,8 +63,8 @@ export default function ModeSelectPage() {
   return (
     <div className="mode-select-page">
       <div className="mode-select-card">
-        <p className="mode-select-kicker">崇祯朝 · 起局时刻</p>
-        <h1>陛下欲以何种方式统驭朝局？</h1>
+        <p className="mode-select-kicker">元末乱世 · 起局时刻</p>
+        <h1>主公欲以何种方式统驭朝局？</h1>
         <p className="mode-select-intro">
           阻断剧情事件已触发。可先听谋臣详述局势，或直接进入操作面板裁断政务。
         </p>
@@ -76,7 +76,7 @@ export default function ModeSelectPage() {
           <div className="mode-select-event">
             <h2>当前关键事件</h2>
             <strong>{blockingEvent.name}</strong>
-            <p>{blockingEvent.description || '朝局骤变，亟需圣断。'}</p>
+            <p>{blockingEvent.description || '局势骤变，亟需裁断。'}</p>
           </div>
         )}
 

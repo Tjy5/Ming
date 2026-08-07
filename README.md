@@ -67,7 +67,7 @@ npm run dev
 
 OpenAI-compatible 服务的 `OPENAI_BASE_URL` 应填写到 `/v1`，例如 `https://example.com/v1`。如果在 AI 设置页粘贴完整的 `/v1/chat/completions` 地址，后端会自动规范化为可用的 `/v1`。
 
-> 管理页面启动脚本：运行 `start_admin.bat`，或手动启动后端后访问 `http://localhost:5173/admin`。首次访问需在 `backend/.env` 中设置 `ADMIN_PASSWORD`，然后通过 `/admin` 页面登录。
+> 管理页面：手动启动后端（`cd backend && python -m uvicorn main:app --port 8000`）与前端后访问 `http://localhost:5173/admin`。首次访问需在 `backend/.env` 中设置 `ADMIN_PASSWORD`，然后通过 `/admin` 页面登录。
 
 ## 本地健康检查
 

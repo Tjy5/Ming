@@ -1,12 +1,13 @@
+// 元末重臣头像文件名映射（图片存放于 public/portraits/，缺失时回退为 `{姓名}.png`）
 export const MINISTER_PORTRAIT_FILENAMES: Record<string, string> = {
-  魏忠贤: 'wei_zhongxian.png',
-  徐光启: 'xu_guangqi.png',
-  孙承宗: 'sun_chengzong.png',
-  袁崇焕: 'yuan_chonghuan.png',
-  周延儒: 'zhou_yanru.png',
-  温体仁: 'wen_tiren.png',
-  卢象升: 'lu_xiangsheng.png',
-  杨嗣昌: 'yang_sichang.png',
+  徐达: 'xu_da.png',
+  常遇春: 'chang_yuchun.png',
+  李善长: 'li_shanchang.png',
+  刘基: 'liu_ji.png',
+  宋濂: 'song_lian.png',
+  朱升: 'zhu_sheng.png',
+  汤和: 'tang_he.png',
+  胡大海: 'hu_dahai.png',
 }
 
 const PORTRAIT_BASE_PATH = '/portraits'

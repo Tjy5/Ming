@@ -4,7 +4,10 @@ import type { GameState, GameEvent, EventChoice, StructuredDecree } from '../typ
 
 function initialState(): GameState {
   return {
-    time: { year: 1627, month: 1, era_name: '天启', era_year: 7 },
+    time: { year: 1356, month: 3, era_name: '至正', era_year: 16 },
+    phase: 'governance',
+    chapter: 'warlord',
+    chapter_turns: 0,
     national_treasury: 20, imperial_treasury: 10, grain: 500,
     population: 15000, military_strength: 40,
     civil_morale: 60, military_morale: 70, court_prestige: 75,
@@ -17,22 +20,22 @@ function initialState(): GameState {
 
 function openingScriptEvent(): GameEvent {
   return {
-    name: '天启七年·天下大势',
-    description: '天启七年·天下大势',
+    name: '至正十六年·集庆定鼎',
+    description: '至正十六年·集庆定鼎',
     urgency: '高',
-    triggered_year: 1627, triggered_month: 1,
-    rich_description: '**天启七年，正月。** ...',
+    triggered_year: 1356, triggered_month: 3,
+    rich_description: '**至正十六年，三月。** ...',
     is_blocking: true,
-    is_scripted: true, script_id: 'tianqi-7-opening',
+    is_scripted: true, script_id: 'yingtian-founding-1356-03',
     choices: [
       {
-        label: '清除阉党，整顿朝纲',
-        description: '立即着手清除魏忠贤余党',
-        decrees: [{ type: 'personnel', target: '魏忠贤', sub_action: 'dismiss' }],
+        label: '整肃军纪，安抚民心',
+        description: '立即着手整饬军纪，招揽贤才',
+        decrees: [{ type: 'personnel', target: '杨宪', sub_action: 'dismiss' }],
       },
       {
         label: '暂观时局，徐图后计',
-        description: '初登大宝，根基未稳。',
+        description: '初定应天，根基未稳。',
         decrees: [],
       },
     ],

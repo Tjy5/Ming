@@ -9,15 +9,15 @@ interface Props {
   onAppoint: (name: string, position: string) => Promise<void>
 }
 
+// 元末吴王幕府官职树（与后端 models/positions.py POSITION_REGISTRY 对齐）
 const TREE = [
-  { group: '内阁', leaves: ['首辅大学士', '次辅大学士', '东阁大学士', '文渊阁大学士', '武英殿大学士'] },
-  { group: '六部', leaves: ['吏部尚书', '户部尚书', '礼部尚书', '兵部尚书', '刑部尚书', '工部尚书', '吏部侍郎', '户部侍郎', '礼部侍郎', '兵部侍郎', '刑部侍郎', '工部侍郎', '吏部主事', '户部主事', '礼部主事', '兵部主事', '刑部主事', '工部主事', '吏科给事中', '户科给事中', '礼科给事中', '兵科给事中', '刑科给事中', '工科给事中'] },
-  { group: '都察院', leaves: ['左都御史', '左副都御史', '右佥都御史', '监察御史'] },
-  { group: '锦衣卫', leaves: ['指挥使'] },
-  { group: '地方', leaves: ['辽东巡抚', '河南巡抚', '福建巡抚', '登莱巡抚', '宣府总兵', '山海关总兵', '东江总兵', '辽东副总兵'] },
-  { group: '京官', leaves: ['翰林学士', '太仆寺卿', '大理寺卿', '通政使', '翰林编修', '翰林修撰', '顺天府尹', '光禄寺卿'] },
-  { group: '勋戚', leaves: ['成国公', '英国公', '魏国公', '定国公', '驸马都尉', '嘉定伯', '襄城伯'] },
-  { group: '内廷', leaves: ['司礼监掌印太监', '司礼监太监', '司礼监秉笔太监'] }
+  { group: '中书省', leaves: ['左丞相', '右丞相', '平章政事', '左丞', '右丞', '参知政事'] },
+  { group: '大都督府', leaves: ['大都督', '同知都督'] },
+  { group: '御史台', leaves: ['御史大夫', '治书侍御史'] },
+  { group: '幕府文职', leaves: ['中书参政', '太史令', '博士', '都事', '郎中', '员外郎', '经历', '儒学提举'] },
+  { group: '军职', leaves: ['元帅', '总管', '判官', '参军', '万户', '镇抚', '千户', '检校'] },
+  { group: '勋爵', leaves: ['吴国公', '太师', '太尉', '司徒', '司空'] },
+  { group: '内廷', leaves: ['宣徽使', '内史监令'] }
 ]
 
 function positionMatchesLeaf(position: string, leaf: string): boolean {
@@ -25,10 +25,11 @@ function positionMatchesLeaf(position: string, leaf: string): boolean {
 }
 
 const EUNUCH_POSITIONS = new Set([
-  '司礼监掌印太监',
-  '司礼监太监',
-  '司礼监秉笔太监'
+  '宣徽使',
+  '内史监令'
 ])
+
+const NOBLE_POSITIONS = ['吴国公', '太师', '太尉', '司徒', '司空']
 
 export default function OfficialRankModal({ ministers, onClose, onAppoint }: Props) {
   const [expandedLeaf, setExpandedLeaf] = useState<string | null>(null)
@@ -43,17 +44,10 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
 
       const tags = m.personality_tags || []
       const isNoble = tags.includes('勋贵') || m.faction === '勋贵集团'
-      const isHanlin = tags.includes('翰林')
-      const isMilitary = tags.includes('武将')
-
-      const isNoblePos = ['成国公', '英国公', '魏国公', '定国公', '驸马都尉', '嘉定伯', '襄城伯'].includes(position)
-      const isCabinetPos = position.includes('大学士')
-      const isGovernorPos = position.includes('巡抚')
+      const isNoblePos = NOBLE_POSITIONS.includes(position)
 
       if (isNoble && !isNoblePos) return false
       if (!isNoble && isNoblePos) return false
-      if (isCabinetPos && !isHanlin) return false
-      if (isGovernorPos && isMilitary) return false
 
       return true
     })

@@ -2,7 +2,7 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import './index.css'
-import App from './App.tsx'
+import GameRoot from './pages/GameRoot.tsx'
 
 const AdminPage = lazy(() => import('./pages/AdminPage.tsx'))
 const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
@@ -12,7 +12,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
+        <Route path="/" element={<GameRoot />} />
         <Route
           path="/admin"
           element={(
@@ -37,7 +37,7 @@ createRoot(document.getElementById('root')!).render(
             </Suspense>
           )}
         />
-        <Route path="*" element={<App />} />
+        <Route path="*" element={<GameRoot />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

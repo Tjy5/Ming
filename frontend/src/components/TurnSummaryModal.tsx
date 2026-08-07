@@ -116,7 +116,7 @@ export default function TurnSummaryModal({ summary, onClose }: Props) {
             </div>
           </div>
           <div className="ts-col">
-            <h3>党争动态</h3>
+            <h3>派系动态</h3>
             {summary.faction_changes.length === 0
               ? <div className="ts-empty">无明显变化</div>
               : <div className="ts-changes-list">
@@ -221,7 +221,7 @@ export default function TurnSummaryModal({ summary, onClose }: Props) {
           {summary.pending_memorials_count > 0 && (
             <div className="ts-hint">⚠ 尚有 {summary.pending_memorials_count} 份奏折待批复</div>
           )}
-          <button className="ts-close-btn" onClick={onClose}>朕已阅</button>
+          <button className="ts-close-btn" onClick={onClose}>已知悉</button>
         </div>
       </motion.div>
     </div>

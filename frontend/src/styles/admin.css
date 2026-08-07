@@ -1,11 +1,12 @@
 .admin-root {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 10% 10%, rgba(201, 168, 76, 0.08), transparent 30%),
-    radial-gradient(circle at 90% 20%, rgba(139, 32, 32, 0.12), transparent 35%),
-    linear-gradient(140deg, #0f0f0f 0%, #1b1713 100%);
+  background-color: #f2e9d4;
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(138, 109, 47, 0.1), transparent 30%),
+    radial-gradient(circle at 90% 20%, rgba(160, 58, 36, 0.1), transparent 35%),
+    var(--paper-noise);
   color: var(--text-main);
-  font-family: "KaiTi", "Microsoft YaHei", serif;
+  font-family: "KaiTi", "STKaiti", "SimSun", serif;
   padding: 16px;
 }
 
@@ -15,8 +16,8 @@
   align-items: flex-start;
   gap: 16px;
   padding: 16px;
-  background: rgba(0, 0, 0, 0.38);
-  border: 1px solid rgba(201, 168, 76, 0.45);
+  background: rgba(43, 38, 32, 0.04);
+  border: 1px solid rgba(138, 109, 47, 0.45);
   border-radius: 8px;
 }
 
@@ -45,8 +46,8 @@
 }
 
 .admin-nav-item {
-  border: 1px solid #524833;
-  background: rgba(18, 18, 18, 0.8);
+  border: 1px solid rgba(138, 109, 47, 0.4);
+  background: rgba(255, 252, 244, 0.9);
   color: var(--text-dim);
   border-radius: 6px;
   padding: 8px 12px;
@@ -65,8 +66,8 @@
 }
 
 .admin-card {
-  background: rgba(7, 7, 7, 0.7);
-  border: 1px solid rgba(201, 168, 76, 0.3);
+  background: rgba(255, 252, 244, 0.85);
+  border: 1px solid rgba(138, 109, 47, 0.3);
   border-radius: 8px;
   padding: 14px;
 }
@@ -82,9 +83,9 @@
 .admin-select,
 .admin-textarea {
   width: 100%;
-  border: 1px solid #474747;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   border-radius: 4px;
-  background: #191919;
+  background: var(--bg-card);
   color: var(--text-main);
   font-family: inherit;
   padding: 8px 10px;
@@ -103,9 +104,9 @@
 }
 
 .admin-button {
-  border: 1px solid #5e4e2d;
+  border: 1px solid rgba(138, 109, 47, 0.5);
   border-radius: 4px;
-  background: #252018;
+  background: var(--bg-card);
   color: var(--text-main);
   padding: 8px 12px;
   cursor: pointer;
@@ -123,8 +124,9 @@
 }
 
 .admin-button.primary {
-  background: #4c2f11;
+  background: var(--accent-gold);
   border-color: var(--accent-gold);
+  color: #f6efe0;
 }
 
 .admin-button.small {
@@ -133,9 +135,9 @@
 }
 
 .admin-button.danger {
-  border-color: #7b2a2a;
-  color: #ff9c9c;
-  background: #2a1414;
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(176, 58, 46, 0.1);
 }
 
 .admin-table {
@@ -147,18 +149,18 @@
 .admin-table thead th {
   text-align: left;
   padding: 8px;
-  border-bottom: 1px solid #4d4434;
+  border-bottom: 1px solid rgba(138, 109, 47, 0.35);
   color: var(--accent-gold);
 }
 
 .admin-table tbody td {
   padding: 8px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid rgba(43, 38, 32, 0.14);
   vertical-align: top;
 }
 
 .admin-table tbody tr:nth-child(odd) {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(43, 38, 32, 0.03);
 }
 
 .admin-actions {
@@ -182,8 +184,9 @@
   width: min(800px, 95vw);
   max-height: 90vh;
   overflow: auto;
-  background: #101010;
-  border: 1px solid rgba(201, 168, 76, 0.5);
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  border: 1px solid rgba(138, 109, 47, 0.5);
   border-radius: 8px;
   padding: 14px;
 }
@@ -221,7 +224,7 @@
 }
 
 .admin-form-section {
-  border: 1px solid #3a3528;
+  border: 1px solid rgba(43, 38, 32, 0.2);
   border-radius: 6px;
   padding: 10px;
   display: grid;
@@ -235,12 +238,12 @@
 }
 
 .admin-subpanel {
-  border: 1px solid #2f2a20;
+  border: 1px solid rgba(43, 38, 32, 0.16);
   border-radius: 6px;
   padding: 8px;
   display: grid;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(43, 38, 32, 0.03);
 }
 
 .admin-subpanel-head {
@@ -279,18 +282,18 @@
   margin-top: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid #7a2e2e;
-  background: #2a1313;
-  color: #ffafaf;
+  border: 1px solid var(--red);
+  background: rgba(176, 58, 46, 0.1);
+  color: var(--red);
 }
 
 .admin-success {
   margin-top: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  border: 1px solid #2f6e39;
-  background: #112415;
-  color: #9dd8a7;
+  border: 1px solid var(--green);
+  background: rgba(63, 122, 78, 0.1);
+  color: var(--green);
 }
 
 .admin-error-bar {
@@ -305,8 +308,8 @@
 
 .admin-auth-card {
   width: min(420px, 92vw);
-  background: rgba(6, 6, 6, 0.78);
-  border: 1px solid rgba(201, 168, 76, 0.45);
+  background: rgba(255, 252, 244, 0.92);
+  border: 1px solid rgba(138, 109, 47, 0.45);
   border-radius: 10px;
   padding: 18px;
   display: flex;
@@ -367,9 +370,9 @@
 .admin-import-preview {
   margin: 10px 0;
   padding: 10px;
-  border: 1px solid #3d3d3d;
+  border: 1px solid rgba(43, 38, 32, 0.2);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(43, 38, 32, 0.03);
   font-size: 0.85rem;
   display: grid;
   gap: 4px;

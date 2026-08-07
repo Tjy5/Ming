@@ -17,9 +17,9 @@ function makeMinister(index: number, overrides: Partial<Minister> = {}): Ministe
     abilities: { civil: 50, military: 40, diplomacy: 45 },
     status: 'active',
     loyalty: 50,
-    positions: [index % 2 === 0 ? '东阁大学士' : '辽东巡抚'],
+    positions: [index % 2 === 0 ? '郎中' : '元帅'],
     is_eunuch: false,
-    entry_year: 1627,
+    entry_year: 1356,
     entry_month: 8,
     historical_note: '测试大臣。',
     ...overrides,
@@ -28,9 +28,9 @@ function makeMinister(index: number, overrides: Partial<Minister> = {}): Ministe
 
 function largeRoster(): Minister[] {
   const ministers = Array.from({ length: 104 }, (_, index) => makeMinister(index))
-  ministers.push(makeMinister(104, { name: '兵部检索目标', positions: ['兵部尚书'] }))
-  ministers.push(makeMinister(105, { name: '已革兵部旧臣', positions: ['兵部尚书'], status: 'removed' }))
-  ministers.push(makeMinister(106, { name: '未登场兵部候补', positions: ['兵部尚书'], status: 'not_yet_entered' }))
+  ministers.push(makeMinister(104, { name: '都督府检索目标', positions: ['大都督'] }))
+  ministers.push(makeMinister(105, { name: '已革都督府旧臣', positions: ['大都督'], status: 'removed' }))
+  ministers.push(makeMinister(106, { name: '未登场都督府候补', positions: ['大都督'], status: 'not_yet_entered' }))
   return ministers
 }
 
@@ -39,18 +39,18 @@ describe('MinisterPanel roster logic', () => {
     const ministers = largeRoster()
     expect(ministers.length).toBeGreaterThanOrEqual(100)
 
-    const matches = filterPanelMinisters(ministers, '兵部尚书', true).map(m => m.name)
+    const matches = filterPanelMinisters(ministers, '大都督', true).map(m => m.name)
 
-    expect(matches).toContain('兵部检索目标')
-    expect(matches).toContain('未登场兵部候补')
-    expect(matches).not.toContain('已革兵部旧臣')
+    expect(matches).toContain('都督府检索目标')
+    expect(matches).toContain('未登场都督府候补')
+    expect(matches).not.toContain('已革都督府旧臣')
   })
 
   it('hides not-yet-entered ministers unless the panel toggle is enabled', () => {
     const ministers = largeRoster()
 
-    expect(filterPanelMinisters(ministers, '', false).map(m => m.name)).not.toContain('未登场兵部候补')
-    expect(filterPanelMinisters(ministers, '', true).map(m => m.name)).toContain('未登场兵部候补')
+    expect(filterPanelMinisters(ministers, '', false).map(m => m.name)).not.toContain('未登场都督府候补')
+    expect(filterPanelMinisters(ministers, '', true).map(m => m.name)).toContain('未登场都督府候补')
   })
 
   it('groups a large roster by faction in display order', () => {

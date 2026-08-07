@@ -54,7 +54,7 @@ describe('OpenAPI type bridge', () => {
       name: 'event',
       description: 'event',
       urgency: '中',
-      triggered_year: 1628,
+      triggered_year: 1356,
       triggered_month: 1,
       rich_description: '',
       choices: [],

@@ -1,6 +1,6 @@
 /* ── Edict Writing Panel ──────────────────────────────── */
 .edict-panel {
-  background: #2a2218;
+  background: var(--bg-panel);
   border: 2px solid var(--accent-gold);
   border-radius: 4px;
   padding: 24px;
@@ -27,7 +27,7 @@
 }
 
 .edict-warn {
-  background: rgba(224, 64, 64, 0.12);
+  background: rgba(176, 58, 46,0.12);
   border: 1px solid var(--red);
   color: var(--red);
   font-size: 0.8rem;
@@ -45,7 +45,7 @@
 
 .edict-target-btn {
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   padding: 8px;
   font-family: inherit;
@@ -62,7 +62,7 @@
 .edict-target-btn.selected {
   border-color: var(--accent-gold);
   color: var(--accent-gold);
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(138, 109, 47,0.1);
 }
 
 .edict-personnel {
@@ -75,7 +75,7 @@
 .edict-personnel select,
 .edict-personnel input {
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   padding: 6px 10px;
   font-family: inherit;
@@ -91,7 +91,7 @@
 .edict-cancel {
   padding: 6px 16px;
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   cursor: pointer;
   font-family: inherit;
@@ -104,7 +104,7 @@
 
 .edict-seal-btn {
   padding: 6px 20px;
-  background: linear-gradient(180deg, var(--accent-red), #4a0e0e);
+  background: linear-gradient(180deg, var(--accent-red), #6e2418);
   border: 1px solid var(--accent-gold);
   color: var(--accent-gold);
   font-weight: bold;
@@ -139,7 +139,7 @@
   font-size: 1.2rem;
   font-weight: bold;
   color: var(--accent-red);
-  background: rgba(139, 32, 32, 0.1);
+  background: rgba(160, 58, 36,0.1);
 }
 
 /* ── Script Event Modal ──────────────────────────────── */
@@ -150,7 +150,7 @@
 
 .script-md-body {
   background: var(--bg-card);
-  border: 1px solid #3a3222;
+  border: 1px solid rgba(138, 109, 47, 0.35);
   border-radius: 4px;
   padding: 14px 16px;
   line-height: 1.7;
@@ -177,7 +177,7 @@
 }
 
 .script-hint-section {
-  border-top: 1px solid #333;
+  border-top: 1px solid rgba(43, 38, 32, 0.16);
   margin-top: 12px;
   padding-top: 8px;
 }
@@ -195,7 +195,7 @@
 
 .script-hint-body {
   background: var(--bg-card);
-  border: 1px solid #3a3222;
+  border: 1px solid rgba(138, 109, 47, 0.35);
   border-radius: 6px;
   padding: 12px 16px;
   margin-bottom: 12px;
@@ -218,7 +218,7 @@
   min-height: 80px;
   resize: vertical;
   background: var(--bg-card);
-  border: 1px solid #3a3222;
+  border: 1px solid rgba(138, 109, 47, 0.35);
   border-radius: 4px;
   padding: 10px 12px;
   color: var(--text-main);
@@ -263,8 +263,8 @@
   padding: 12px 14px;
   border-radius: 4px;
   border: 1px solid var(--accent-gold);
-  background: linear-gradient(180deg, var(--accent-red), #4a0e0e);
-  color: var(--text-main);
+  background: linear-gradient(180deg, var(--accent-red), #6e2418);
+  color: #f6efe0;
   cursor: pointer;
   font-family: inherit;
   transition: filter 0.15s;
@@ -275,7 +275,7 @@
 }
 
 .script-choice-btn.disabled {
-  border-color: #5b2c2c;
+  border-color: rgba(176, 58, 46, 0.45);
   background: var(--bg-card);
   color: var(--text-dim);
   cursor: not-allowed;
@@ -301,7 +301,7 @@
 .script-freetext-toggle {
   margin-top: 8px;
   background: none;
-  border: 1px dashed #555;
+  border: 1px dashed rgba(43, 38, 32, 0.3);
   color: var(--text-dim);
   padding: 8px;
   width: 100%;
@@ -327,7 +327,7 @@
 .event-scripted-badge {
   font-size: 0.6rem;
   color: var(--accent-gold);
-  background: rgba(201, 168, 76, 0.15);
+  background: rgba(138, 109, 47,0.15);
   border: 1px solid var(--accent-gold);
   border-radius: 2px;
   padding: 0 4px;
@@ -337,7 +337,7 @@
 /* ── Right Panel Tabs ──────────────────────────────────── */
 .right-panel {
   background: var(--bg-panel);
-  border-left: 1px solid #333;
+  border-left: 1px solid rgba(43, 38, 32, 0.16);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -345,7 +345,7 @@
 
 .right-panel-tabs {
   display: flex;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
   flex-shrink: 0;
 }
 
@@ -399,7 +399,7 @@
 .mp-faction-header {
   font-size: 0.75rem;
   color: var(--text-dim);
-  border-left: 3px solid #555;
+  border-left: 3px solid rgba(43, 38, 32, 0.3);
   padding-left: 6px;
   padding-right: 8px;
   margin-bottom: 2px;
@@ -429,7 +429,7 @@
 .mp-search {
   flex: 1;
   background: var(--bg-dark);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   font-size: 0.78rem;
   padding: 3px 8px;
@@ -462,7 +462,7 @@
   display: flex;
   gap: 8px;
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   border-radius: 3px;
   padding: 8px;
   position: relative;
@@ -487,7 +487,7 @@
   right: 4px;
   font-size: 0.6rem;
   color: var(--gray);
-  background: rgba(102, 102, 102, 0.15);
+  background: rgba(138, 128, 104, 0.15);
   border: 1px solid var(--gray);
   border-radius: 2px;
   padding: 0 4px;
@@ -503,7 +503,7 @@
   right: 4px;
   font-size: 0.6rem;
   color: var(--red);
-  background: rgba(224, 64, 64, 0.15);
+  background: rgba(176, 58, 46,0.15);
   border: 1px solid var(--red);
   border-radius: 2px;
   padding: 0 4px;
@@ -519,7 +519,7 @@
   right: 4px;
   font-size: 0.6rem;
   color: var(--accent-gold);
-  background: rgba(200, 160, 60, 0.15);
+  background: rgba(138, 109, 47, 0.15);
   border: 1px solid var(--accent-gold);
   border-radius: 2px;
   padding: 0 4px;
@@ -531,7 +531,7 @@
   gap: 4px;
   padding: 6px 8px;
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   border-radius: 2px;
   margin-bottom: 6px;
 }
@@ -579,9 +579,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background: rgba(43, 38, 32, 0.25);
+  border: 1px solid rgba(43, 38, 32, 0.15);
+  box-shadow: 0 2px 4px rgba(43, 38, 32, 0.3);
 }
 
 .mp-reaction-support {
@@ -606,7 +606,7 @@
   justify-content: center;
   font-size: 1.1rem;
   font-weight: bold;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .mp-info {
@@ -641,28 +641,28 @@
 .mp-position-tag {
   font-size: 0.6rem;
   color: var(--accent-gold);
-  background: rgba(218, 165, 32, 0.15);
-  border: 1px solid rgba(218, 165, 32, 0.3);
+  background: rgba(138, 109, 47,0.15);
+  border: 1px solid rgba(138, 109, 47,0.3);
   border-radius: 2px;
   padding: 1px 4px;
 }
 
 .mp-position-tag.mp-pos-noble {
-  color: #ffd700;
-  background: rgba(255, 215, 0, 0.12);
-  border-color: rgba(255, 215, 0, 0.35);
+  color: var(--yellow);
+  background: rgba(168, 132, 31,0.12);
+  border-color: rgba(168, 132, 31,0.35);
 }
 
 .mp-position-tag.mp-pos-eunuch {
-  color: #9ca3af;
-  background: rgba(156, 163, 175, 0.12);
-  border-color: rgba(156, 163, 175, 0.3);
+  color: var(--gray);
+  background: rgba(138, 128, 104,0.12);
+  border-color: rgba(138, 128, 104,0.3);
 }
 
 .mp-eunuch-badge {
   font-size: 0.55rem;
-  color: #9ca3af;
-  background: rgba(156, 163, 175, 0.15);
+  color: var(--gray);
+  background: rgba(138, 128, 104,0.15);
   border-radius: 2px;
   padding: 0 3px;
   margin-left: 4px;
@@ -678,7 +678,7 @@
 .mp-tag {
   font-size: 0.6rem;
   color: var(--text-dim);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(43, 38, 32, 0.07);
   border-radius: 2px;
   padding: 0 4px;
 }
@@ -719,7 +719,7 @@
 }
 
 .mp-loyalty-bar.loyalty-low .progress-track {
-  box-shadow: 0 0 6px rgba(224, 64, 64, 0.6);
+  box-shadow: 0 0 6px rgba(176, 58, 46,0.6);
 }
 
 /* ── Topic Selector ────────────────────────────────────── */
@@ -731,7 +731,7 @@
   border-radius: 4px;
   padding: 4px;
   /* z-index: 50; removed z-index to allow normal flow */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 16px rgba(43, 38, 32, 0.3);
 }
 
 .topic-item {
@@ -749,6 +749,6 @@
 }
 
 .topic-item:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(138, 109, 47,0.1);
   color: var(--accent-gold);
 }

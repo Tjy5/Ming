@@ -109,7 +109,7 @@ interface EditorState {
 function emptyEvent(): AdminEvent {
   return {
     script_id: '',
-    trigger_year: 1627,
+    trigger_year: 1356,
     trigger_month: 8,
     title: '',
     is_blocking: false,
@@ -619,8 +619,8 @@ export default function EventManager() {
                 <input
                   className="admin-input"
                   type="number"
-                  min={1621}
-                  max={1644}
+                  min={1328}
+                  max={1368}
                   value={editor.value.trigger_year}
                   onChange={(event) => setEditor({
                     ...editor,

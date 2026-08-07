@@ -1,8 +1,8 @@
 import type { Minister } from '../types/game'
 
 export const FACTION_ORDER = [
-  '东林党', '阉党残余', '勋贵集团', '辽东边将',
-  '中原剿匪系', '温体仁派', '周延儒派', '中立派',
+  '淮西勋将', '幕府文臣', '江南士绅', '龙凤政权',
+  '汉政权', '吴政权', '元廷', '东南群雄',
 ]
 
 export const DEFAULT_EXPANDED_FACTIONS = FACTION_ORDER.slice(0, 3)

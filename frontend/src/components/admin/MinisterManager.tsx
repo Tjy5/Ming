@@ -27,7 +27,7 @@ function emptyMinister(): Minister {
     loyalty: 50,
     positions: [],
     is_eunuch: false,
-    entry_year: 1627,
+    entry_year: 1356,
     entry_month: 8,
     historical_note: '',
     current_mission: null,

@@ -3,7 +3,7 @@ import type { Region } from '../types/game'
 export type ViewMode = 'standard' | 'disaster' | 'morale' | 'rebellion' | 'tax_rate' | 'tax_collected'
 
 const TAX_LABELS = { low: '低', medium: '中', high: '高' } as const
-const THREAT_LABELS: Record<string, string> = { none: '无', 后金: '后金', 民变: '民变', 土司: '土司', 海盗: '海盗' }
+const THREAT_LABELS: Record<string, string> = { none: '无', 元军: '元军', 汉军: '汉军', 吴军: '吴军', 民变: '民变', 土司: '土司', 海盗: '海盗' }
 
 function threeLevel(value: number, low: number, high: number): 'high' | 'mid' | 'low' {
   if (value > high) return 'high'

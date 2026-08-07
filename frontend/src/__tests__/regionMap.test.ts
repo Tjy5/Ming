@@ -4,7 +4,7 @@ import type { Region } from '../types/game'
 
 function makeRegion(overrides: Partial<Region> = {}): Region {
   return {
-    name: '京畿', stability: 50, garrison: 10000,
+    name: '应天', stability: 50, garrison: 10000,
     control: '朝廷', threat: 'none', tax_contribution: 'medium',
     civil_morale: 50, rebellion_risk: 20, tax_rate: 0.5,
     tax_collected: 30, disaster_level: 10, ...overrides,

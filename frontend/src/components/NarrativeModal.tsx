@@ -86,7 +86,7 @@ export default function NarrativeModal({ narrative, delta, ministerReactions = [
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal narrative-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="narrative-header">圣旨已下</h3>
+        <h3 className="narrative-header">令谕已下</h3>
         <p className="narrative-text">{narrative}</p>
 
         {turnSummary && (
@@ -136,7 +136,7 @@ export default function NarrativeModal({ narrative, delta, ministerReactions = [
 
                 {turnSummary.faction_changes.length > 0 && (
                   <div className="narrative-summary-block">
-                    <div className="narrative-summary-title">党争变化</div>
+                    <div className="narrative-summary-title">派系变化</div>
                     <ul className="narrative-summary-list">
                       {turnSummary.faction_changes.map(f => (
                         <li key={f.name}>

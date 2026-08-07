@@ -24,7 +24,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
     try {
       const errorCode = await onChoose([], scriptId, trimmed)
       if (errorCode === 'FREEFORM_EMPTY') {
-        setWarning('旨意不明，请重新输入')
+        setWarning('指令不明，请重新输入')
       }
     } finally {
       setSubmitting(false)
@@ -62,7 +62,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
             maxLength={200}
             value={freeText}
             onChange={e => { setFreeText(e.target.value); setWarning(null) }}
-            placeholder="输入你的旨意（如：罢免魏忠贤、加征辽饷、按兵不动...）"
+            placeholder="输入你的指令（如：罢免贪官、开仓赈济、按兵不动...）"
             disabled={submitting}
           />
           <div className="script-freetext-footer">
@@ -80,7 +80,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
               disabled={!freeText.trim() || submitting}
               onClick={handleSubmit}
             >
-              {submitting ? '处理中…' : '颁旨'}
+              {submitting ? '处理中…' : '下令'}
             </button>
           </div>
         </div>

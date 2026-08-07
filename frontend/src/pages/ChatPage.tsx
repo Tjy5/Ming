@@ -43,7 +43,7 @@ const QUICK_DECREE_TYPES: DecreeType[] = [
   'diplomacy',
 ]
 const EXPLORE_PREFIX = '详细介绍当前局势：'
-const OPENING_BRIEFING_MESSAGE = '请为朕简述当前大明局势'
+const OPENING_BRIEFING_MESSAGE = '请为我简述当前军政局势'
 
 function buildId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -254,7 +254,7 @@ export default function ChatPage() {
         if (assistantId) {
           setMessages((prev) => prev.map((msg) => (
             msg.id === assistantId
-              ? { ...msg, content: `臣启陛下：${message}` }
+              ? { ...msg, content: `启禀主公：${message}` }
               : msg
           )))
         }
@@ -287,7 +287,7 @@ export default function ChatPage() {
           if (msg.content.trim()) return msg
           return {
             ...msg,
-            content: `臣启陛下：${message}`,
+            content: `启禀主公：${message}`,
           }
         }))
       }
@@ -372,7 +372,7 @@ export default function ChatPage() {
       <main className="chat-message-list" ref={listRef}>
         {!hasMessages && (
           <div className="chat-situation">
-            <h2>军机处局势总览</h2>
+            <h2>幕府局势总览</h2>
             <div className="chat-situation-grid">
               <section className="chat-situation-card">
                 <h3>活跃事件</h3>
@@ -557,7 +557,7 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleInputKeyDown}
-            placeholder="请降旨…（如：加征辽饷 / 国库还有多少 / 进入下月）"
+            placeholder="请输入指令…（如：整顿军备 / 国库还有多少 / 进入下月）"
             disabled={sending || !!gameOver}
           />
           <button type="submit" disabled={sending || !input.trim() || !!gameOver}>
@@ -569,7 +569,7 @@ export default function ChatPage() {
       {gameOver && (
         <div className="chat-gameover-overlay">
           <div className="chat-gameover-card">
-            <h2>{gameOver.result === 'defeat' ? '国祚断绝' : '中兴有望'}</h2>
+            <h2>{gameOver.result === 'defeat' ? '基业倾覆' : '王业可期'}</h2>
             <p>{gameOver.message}</p>
             <div className="chat-gameover-actions">
               <button type="button" onClick={() => navigate('/')}>返回朝堂</button>

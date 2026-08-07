@@ -1,7 +1,7 @@
 /* ── Court Assembly ──────────────────────────────────── */
 .assembly-modal {
   max-width: 640px;
-  background: linear-gradient(180deg, #1a1816, #12100e);
+  background: linear-gradient(180deg, #f6efe0, #eae0c8);
   border: 2px solid var(--accent-gold);
 }
 
@@ -33,7 +33,7 @@
 
 .assembly-select {
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   padding: 6px 10px;
   font-family: inherit;
@@ -51,7 +51,7 @@
   text-align: left;
   padding: 6px 10px;
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   font-family: inherit;
   font-size: 0.8rem;
@@ -117,7 +117,7 @@
 
 .assembly-debate {
   background: var(--bg-card);
-  border: 1px solid #3a3222;
+  border: 1px solid rgba(138, 109, 47, 0.35);
   border-radius: 4px;
   padding: 10px 14px;
   font-size: 0.85rem;
@@ -149,7 +149,7 @@
 
 .suggestion-card {
   background: var(--bg-card);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   border-radius: 3px;
   padding: 10px;
 }
@@ -181,7 +181,7 @@
 
 .sg-adopt-btn {
   padding: 5px 14px;
-  background: linear-gradient(180deg, var(--accent-red), #4a0e0e);
+  background: linear-gradient(180deg, var(--accent-red), #6e2418);
   border: 1px solid var(--accent-gold);
   color: var(--accent-gold);
   font-weight: bold;
@@ -221,7 +221,7 @@
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 20px 50px rgba(43, 38, 32, 0.3);
 }
 
 .md-content {
@@ -231,7 +231,7 @@
 
 .md-left {
   width: 30%;
-  border-right: 1px solid #333;
+  border-right: 1px solid rgba(43, 38, 32, 0.16);
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -291,7 +291,7 @@
   color: var(--accent-gold);
   margin-top: 12px;
   margin-bottom: 6px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
   padding-bottom: 2px;
 }
 
@@ -307,7 +307,7 @@
   color: var(--text-dim);
   font-style: italic;
   line-height: 1.5;
-  background: rgba(255, 215, 0, 0.05);
+  background: rgba(168, 132, 31, 0.08);
   padding: 8px;
   border-radius: 4px;
   white-space: pre-wrap;
@@ -330,7 +330,7 @@
 }
 
 .md-historical-box::-webkit-scrollbar-thumb {
-  background: #444;
+  background: rgba(43, 38, 32, 0.25);
   border-radius: 2px;
 }
 
@@ -351,7 +351,7 @@
   width: 70%;
   display: flex;
   flex-direction: column;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(43, 38, 32, 0.05);
 }
 
 .md-messages {
@@ -393,7 +393,7 @@
 
 .md-message-user .md-bubble {
   background: var(--accent-gold);
-  color: #1a1a1a;
+  color: var(--bg-panel);
   border-bottom-right-radius: 2px;
 }
 
@@ -401,12 +401,12 @@
   background: var(--bg-card);
   color: var(--text-main);
   border-bottom-left-radius: 2px;
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
 }
 
 .md-input-area {
   padding: 16px;
-  border-top: 1px solid #333;
+  border-top: 1px solid rgba(43, 38, 32, 0.16);
   display: flex;
   gap: 12px;
 }
@@ -414,7 +414,7 @@
 .md-input-area input {
   flex: 1;
   background: var(--bg-dark);
-  border: 1px solid #444;
+  border: 1px solid rgba(43, 38, 32, 0.25);
   color: var(--text-main);
   padding: 10px 16px;
   border-radius: 20px;
@@ -428,7 +428,7 @@
 
 .md-input-area button {
   background: var(--accent-gold);
-  color: #1a1a1a;
+  color: var(--bg-panel);
   border: none;
   padding: 0 24px;
   border-radius: 20px;
@@ -450,7 +450,7 @@
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: bold;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(43, 38, 32, 0.25);
   z-index: 10;
 }
 
@@ -486,8 +486,9 @@
   flex-direction: column;
   gap: 20px;
   padding: 20px;
-  background: #1a1a1a;
-  border: 1px solid var(--accent-gold);
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  border: 2px solid var(--accent-gold);
   border-radius: 8px;
   max-height: 80vh;
   overflow-y: auto;
@@ -517,7 +518,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #333;
+  background: rgba(43, 38, 32, 0.16);
   transition: all 0.3s ease;
 }
 
@@ -527,7 +528,7 @@
 }
 
 .assembly-error {
-  background: rgba(255, 0, 0, 0.1);
+  background: rgba(176, 58, 46, 0.1);
   border: 1px solid var(--red);
   color: var(--red);
   padding: 10px;
@@ -561,13 +562,13 @@
   display: flex;
   justify-content: flex-end;
   padding-top: 10px;
-  border-top: 1px solid #333;
+  border-top: 1px solid rgba(43, 38, 32, 0.16);
 }
 
 .assembly-close-btn {
-  background: #333;
+  background: rgba(43, 38, 32, 0.16);
   color: var(--text-main);
-  border: 1px solid #555;
+  border: 1px solid rgba(43, 38, 32, 0.3);
   padding: 8px 20px;
   border-radius: 4px;
   cursor: pointer;
@@ -575,7 +576,7 @@
 }
 
 .assembly-close-btn:hover {
-  background: #444;
+  background: rgba(43, 38, 32, 0.25);
 }
 
 /* ── Petition Phase ── */
@@ -592,8 +593,8 @@
 }
 
 .petition-card {
-  background: #252525;
-  border: 1px solid #444;
+  background: var(--bg-card);
+  border: 1px solid rgba(43, 38, 32, 0.25);
   padding: 12px;
   border-radius: 4px;
   transition: all 0.2s;
@@ -628,12 +629,12 @@
 }
 
 .urg-mid {
-  background: #f0ad4e;
+  background: var(--yellow);
   color: black;
 }
 
 .urg-low {
-  background: #777;
+  background: var(--gray);
   color: white;
 }
 
@@ -645,7 +646,7 @@
 
 .petition-btn {
   background: var(--accent-gold);
-  color: #000;
+  color: #f6efe0;
   border: none;
   padding: 6px 12px;
   border-radius: 4px;
@@ -671,9 +672,9 @@
 }
 
 .skip-btn {
-  background: #555;
+  background: rgba(43, 38, 32, 0.3);
   color: var(--text-main);
-  border: 1px solid #777;
+  border: 1px solid var(--gray);
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
@@ -681,7 +682,7 @@
 }
 
 .skip-btn:hover {
-  background: #666;
+  background: var(--gray);
 }
 
 .skip-btn:disabled {
@@ -697,7 +698,7 @@
 }
 
 .debate-topic-box {
-  background: #252525;
+  background: var(--bg-card);
   border: 2px solid var(--accent-gold);
   padding: 15px;
   border-radius: 4px;
@@ -729,15 +730,15 @@
 }
 
 .debate-col.support h4 {
-  color: #5cb85c;
+  color: var(--green);
 }
 
 .debate-col.oppose h4 {
-  color: #d9534f;
+  color: var(--red);
 }
 
 .speech-card {
-  background: #2a2a2a;
+  background: var(--bg-card);
   border-left: 4px solid var(--accent-gold);
   padding: 10px;
   margin-bottom: 10px;
@@ -754,7 +755,7 @@
 .faction-tag {
   font-size: 0.8rem;
   color: var(--text-dim);
-  background: #333;
+  background: rgba(43, 38, 32, 0.16);
   padding: 2px 6px;
   border-radius: 2px;
 }
@@ -786,7 +787,7 @@
 }
 
 .debate-neutral h4 {
-  color: #999;
+  color: var(--gray);
   margin: 0 0 10px 0;
 }
 
@@ -818,7 +819,7 @@
 
 .next-btn {
   background: var(--accent-gold);
-  color: #000;
+  color: #f6efe0;
   padding: 10px 20px;
   border: none;
   font-weight: bold;
@@ -865,7 +866,7 @@
 .stat-bar {
   flex: 1;
   height: 24px;
-  background: #333;
+  background: rgba(43, 38, 32, 0.16);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -876,15 +877,15 @@
 }
 
 .stat-bar .fill.support {
-  background: #5cb85c;
+  background: var(--green);
 }
 
 .stat-bar .fill.oppose {
-  background: #d9534f;
+  background: var(--red);
 }
 
 .stat-bar .fill.abstain {
-  background: #777;
+  background: var(--gray);
 }
 
 .stat-count {
@@ -907,7 +908,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px;
-  background: #252525;
+  background: var(--bg-card);
   border-radius: 4px;
 }
 
@@ -923,15 +924,15 @@
 }
 
 .vote-val.pos {
-  color: #5cb85c;
+  color: var(--green);
 }
 
 .vote-val.neg {
-  color: #d9534f;
+  color: var(--red);
 }
 
 .vote-val.neu {
-  color: #777;
+  color: var(--gray);
 }
 
 .vote-reason {
@@ -954,7 +955,7 @@
 }
 
 .decree-opt-btn {
-  background: #2a2a2a;
+  background: var(--bg-card);
   border: 1px solid var(--accent-gold);
   padding: 15px;
   text-align: left;
@@ -967,7 +968,7 @@
 }
 
 .decree-opt-btn:hover {
-  background: rgba(201, 168, 76, 0.1);
+  background: rgba(138, 109, 47,0.1);
   border-color: var(--accent-gold);
   transform: translateX(5px);
 }
@@ -1011,9 +1012,9 @@
 }
 
 .assembly-select {
-  background: #2a2a2a;
+  background: var(--bg-card);
   color: var(--text-main);
-  border: 1px solid #555;
+  border: 1px solid rgba(43, 38, 32, 0.3);
   padding: 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -1021,7 +1022,7 @@
 
 .assembly-start-btn {
   background: var(--accent-gold);
-  color: #000;
+  color: #f6efe0;
   border: none;
   padding: 10px;
   border-radius: 4px;

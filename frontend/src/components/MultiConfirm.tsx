@@ -24,7 +24,7 @@ export default function MultiConfirm({ decrees, onConfirm, onCancel }: Props) {
         <p className="confirm-note">共 {decrees.length} 道政令</p>
         <div className="modal-actions">
           <button className="modal-btn" onClick={onCancel}>取消</button>
-          <button className="modal-btn primary" onClick={onConfirm}>确认下旨</button>
+          <button className="modal-btn primary" onClick={onConfirm}>确认下令</button>
         </div>
       </div>
     </div>

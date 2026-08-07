@@ -85,10 +85,10 @@ export default function ActionArea({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && !textLocked && handleSubmit()}
-          placeholder="输入政令（如：加征辽饷）"
+          placeholder="输入政令（如：整顿军备）"
           disabled={textLocked}
         />
-        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}>下旨</button>
+        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}>下令</button>
       </div>
 
       <button

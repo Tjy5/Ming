@@ -1,5 +1,6 @@
+/* 元末主题全局字体：Windows 自带楷体/宋体（不引入外部字体） */
 :root {
-  font-family: "KaiTi", "Microsoft YaHei", serif;
+  font-family: "KaiTi", "STKaiti", "SimSun", serif;
   line-height: 1.5;
   color: var(--text-main);
   background: var(--bg-dark);

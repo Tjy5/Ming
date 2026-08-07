@@ -78,8 +78,9 @@ function App() {
     }
   }, [setCapabilities])
 
-  // Fetch initial state
+  // Fetch initial state（GameRoot 已按 phase 分流并预载时跳过）
   useEffect(() => {
+    if (useStore.getState().state) return
     api.getState()
       .then((s) => setState(s))
       .catch(() => {
