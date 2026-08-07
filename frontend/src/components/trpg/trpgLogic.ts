@@ -3,7 +3,15 @@
  * 叙事流条目拼装。独立于 React，便于 vitest 单测（与现有测试组织方式一致）。
  */
 import type { GameState, HistoryEntry } from '../../types/game'
-import type { ActPayload, ActResponse, RollResult, RollTier, TrpgOption } from '../../types/trpg'
+import type {
+  ActPayload,
+  ActResponse,
+  ConvergeResponse,
+  MilestoneCompleteResponse,
+  RollResult,
+  RollTier,
+  TrpgOption,
+} from '../../types/trpg'
 import { TIER_LABELS } from '../../types/trpg'
 
 // ── 检定分级展示 ─────────────────────────────────────────
@@ -42,8 +50,9 @@ export function rollSummary(roll: RollResult): string {
 
 /**
  * 分支选项点击 → act 请求体。
- * 契约说明：后端 ActRequest 暂无 option_id 字段（见阶段C 报告遗留事项），
- * 以选项文案作为行动文本传递，option_id 由调用方自行记录。
+ * 契约说明：后端 ActRequest 已支持可选 option_id（阶段D 第 5.1 节，随响应回显、
+ * 不校验匹配）；前端仍以选项文案作为行动文本传递（向后兼容），option_id 由调用方
+ * 自行记录。
  */
 export function buildActFromOption(option: TrpgOption): ActPayload {
   const text = option.description
@@ -57,6 +66,22 @@ export function buildActFromFreeText(text: string): ActPayload | null {
   const trimmed = text.trim()
   if (!trimmed) return null
   return { action_text: trimmed }
+}
+
+// ── 选项路由：收束抉择 / 里程碑联动 ──────────────────────
+
+/** 选项是否收束抉择；返回 accept/refuse，否则 null */
+export function optionConvergence(option: TrpgOption): 'accept' | 'refuse' | null {
+  return option.convergence === 'accept' || option.convergence === 'refuse'
+    ? option.convergence
+    : null
+}
+
+/** 选项是否携带里程碑联动；返回 milestone_id，否则 null */
+export function optionMilestoneId(option: TrpgOption): string | null {
+  return option.milestone_id && option.milestone_id.trim()
+    ? option.milestone_id
+    : null
 }
 
 // ── phase 路由判定 ───────────────────────────────────────
@@ -133,6 +158,44 @@ export function appendActResult(
       roll: res.roll,
       chapterTitle: res.chapter_title,
       source: res.source,
+    },
+  ]
+}
+
+/** 关键事件完成响应 → 追加行动卡 + 叙事卡（无检定骰） */
+export function appendMilestoneResult(
+  feed: FeedItem[],
+  actionText: string,
+  res: Pick<MilestoneCompleteResponse, 'narrative' | 'chapter_title'>,
+): FeedItem[] {
+  return [
+    ...feed,
+    { kind: 'action', id: nextFeedId('act'), text: actionText },
+    {
+      kind: 'narrative',
+      id: nextFeedId('nar'),
+      text: res.narrative,
+      roll: null,
+      chapterTitle: res.chapter_title,
+      source: 'milestone',
+    },
+  ]
+}
+
+/** 收束抉择响应 → 追加叙事卡（无行动卡、无检定骰） */
+export function appendConvergeResult(
+  feed: FeedItem[],
+  res: Pick<ConvergeResponse, 'narrative' | 'chapter_title'>,
+): FeedItem[] {
+  return [
+    ...feed,
+    {
+      kind: 'narrative',
+      id: nextFeedId('nar'),
+      text: res.narrative,
+      roll: null,
+      chapterTitle: res.chapter_title,
+      source: 'converge',
     },
   ]
 }

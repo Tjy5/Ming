@@ -12,7 +12,10 @@ class DecreeRequest(BaseModel):
     free_text: str | None = None
     source_script_id: str | None = None
     loyalty_effects: list[tuple[str, int]] | None = None
-    state_effects: dict[str, int] | None = None
+    # int = 数值增量；str = 枚举字段直设（region.*.threat/control，史实威胁清除）。
+    # 与 models/game.py EventChoice / api/admin_routes.py AdminScriptChoice 同步放宽
+    # （脚本事件 choice 的 state_effects 原样回传，校验不匹配会 422）。
+    state_effects: dict[str, int | str] | None = None
 
 
 class ParseRequest(BaseModel):

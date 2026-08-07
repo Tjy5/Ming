@@ -27,12 +27,22 @@ from .tables import (
     PRECONDITION_MESSAGES, TARGET_MISSING_MESSAGES,
     WRITABLE_FIELDS, VALID_STATUS_TRANSITIONS,
     DECREE_LABELS,
+    DECREE_CATEGORY_MODIFIER_KEY,
     CONSECUTIVE_WAIT_THRESHOLD, WAIT_PRESTIGE_PENALTY, WAIT_MORALE_PENALTY,
     PENDING_MEMORIAL_THRESHOLD, PENDING_MEMORIAL_PRESTIGE_PENALTY,
     APPOINT_LOYALTY_BONUS, DISMISS_LOYALTY_PENALTY,
     EXECUTION_SATISFACTION_PENALTY, EXECUTION_REBELLION_RISK,
 )
 from .scripts import get_scripts_for_time, ScriptEvent
+# 跑团 ↔ 治理互通（阶段D）：政令效果修正 + 治理→跑团回写钩子。
+# 无循环依赖：trpg 包模块级仅依赖 models/ai，engine 仅被 trpg 延迟导入。
+from trpg.modifiers import get_player_modifiers
+from trpg.writeback import (
+    CIVIL_COLLAPSE_THRESHOLD,
+    apply_betrayal_check,
+    writeback_civil_collapse,
+    writeback_defeat,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -221,10 +231,12 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
 
     for r in state.regions:
         if r.threat != RegionThreat.NONE:
-            r.stability -= 2
+            # 阶段D 平衡修复（e2e 暴露，主会话裁决）：受威胁区域稳定度漂移 -2→-1，
+            # 保留威胁压力但放缓恶化（配合史实威胁清除与维稳成本下调）
+            r.stability -= 1
             r.civil_morale -= 1
             r.disaster_level += 2
-            _attr_add(attr, f"{r.name}_stability", "自然变化", -2)
+            _attr_add(attr, f"{r.name}_stability", "自然变化", -1)
             _attr_add(attr, f"{r.name}_civil_morale", "自然变化", -1)
             _attr_add(attr, f"{r.name}_disaster_level", "自然变化", 2)
         elif r.disaster_level > 20:
@@ -278,11 +290,27 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
 # ── Base Effects ─────────────────────────────────────────
 
 def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -> None:
-    """Apply direct decree effect table deltas to global state fields."""
+    """Apply direct decree effect table deltas to global state fields.
+
+    阶段D（design 第 3.1 节，跑团→治理数据互通）：政令效果幅度按玩家角色卡
+    修正——政令类别 → DECREE_CATEGORY_MODIFIER_KEY → get_player_modifiers 取
+    success_mod（±0.5 封顶），效果增量 ×(1+success_mod)；角色卡缺失（{}）时
+    安全跳过；other 类政令不修正。
+    """
     effects = DECREE_EFFECTS[decree.type]
+    modifier_key = DECREE_CATEGORY_MODIFIER_KEY.get(decree_category_of(decree.type))
+    scale = 1.0
+    if modifier_key is not None:
+        success_mod = float(get_player_modifiers(state).get(modifier_key, 0.0))
+        scale = 1.0 + success_mod
     for field, delta in effects.items():
         if delta == 0:
             continue
+        if scale != 1.0:
+            # 幅度缩放：正增量向下取整、负增量向上取整（同向放大/缩小幅度）
+            delta = math.floor(delta * scale) if delta > 0 else math.ceil(delta * scale)
+            if delta == 0:
+                continue
         setattr(state, field, getattr(state, field) + delta)
         _attr_add(attr, field, "base_effect", delta)
 
@@ -374,10 +402,10 @@ def generate_minister_reactions(
         )
         if stance_val > 0:
             rtype = "support"
-            rtext = f"{minister.name}拱手道：陛下圣明。"
+            rtext = f"{minister.name}拱手道：主公圣明。"
         else:
             rtype = "oppose"
-            rtext = f"{minister.name}跪奏：臣以为此举不妥，恳请陛下三思。"
+            rtext = f"{minister.name}跪奏：臣以为此举不妥，恳请主公三思。"
         reactions.append(MinisterReaction(
             minister_name=minister.name,
             faction=minister.faction,
@@ -456,16 +484,23 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
 
 # ── Region Control State Machine ─────────────────────────
 
-def update_region_control(state: GameState) -> None:
+def update_region_control(state: GameState) -> list[str]:
+    """Region control state machine; returns names of regions newly FALLEN.
+
+    阶段D：返回本轮新沦陷区域名，供 process_decree 挂战败回写钩子。
+    """
+    newly_fallen: list[str] = []
     for r in state.regions:
         if r.control == RegionControl.COURT and r.stability < 15:
             r.control = RegionControl.UNSTABLE
         elif r.control == RegionControl.UNSTABLE and r.stability <= 5:
             r.control = RegionControl.FALLEN
+            newly_fallen.append(r.name)
         elif r.control == RegionControl.UNSTABLE and r.stability > 35 and r.rebellion_risk < 60:
             r.control = RegionControl.COURT
         elif r.control == RegionControl.FALLEN and r.stability >= 25 and r.rebellion_risk <= 70:
             r.control = RegionControl.UNSTABLE
+    return newly_fallen
 
 
 def apply_region_control_consequences(state: GameState, attr: dict) -> None:
@@ -1513,10 +1548,22 @@ def process_decree(
     # 6. clamp
     clamp_state(state)
     # 6.1 region control (before tax so fallen regions stop paying)
-    update_region_control(state)
+    newly_fallen = update_region_control(state)
+    # 6.1.1 战败回写（design 第 3.2 节）：本轮新沦陷区域 → 玩家军事 -2 + 状态"挫败"
+    if newly_fallen:
+        writeback_defeat(state)
     # 6.2 cascading impact from territorial loss
     apply_region_control_consequences(state, attr)
     clamp_state(state)
+    # 6.2.1 民心崩溃回写（design 第 3.2 节）：本轮民心从阈值上方落入崩溃区间
+    # （穿越检测，避免低民心期间每回合重复扣属性）→ 玩家政治 -2
+    if (
+        before_snapshot.get("civil_morale", state.civil_morale) > CIVIL_COLLAPSE_THRESHOLD
+        and state.civil_morale <= CIVIL_COLLAPSE_THRESHOLD
+    ):
+        writeback_civil_collapse(state)
+    # 6.2.2 大臣叛离回写（design 第 3.2 节）：忠诚归零的在朝大臣 → 概率特质"多疑"
+    apply_betrayal_check(state)
     # 6.3 tax recalculation & revenue (uses up-to-date control state)
     recalc_tax_collected(state, decree_tax_modifier)
     collect_tax_revenue(state, attr)

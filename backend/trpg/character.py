@@ -46,7 +46,9 @@ PLAYER_BACKGROUND = (
     "濠州钟离贫农出身，幼年牧牛；至正四年灾疫丧亲，入皇觉寺为行童，"
     "托钵云游淮西数年；至正十二年投郭子兴红巾军，以骁勇任亲兵九夫长。"
 )
-PLAYER_TRAITS = ["坚韧", "多疑", "志向远大"]
+# 初始特质不含"多疑"：叛离回写钩子（trpg/writeback.writeback_minister_betrayal）
+# 是其唯一授予路径（阶段D 校准，防钩子恒无效）。
+PLAYER_TRAITS = ["坚韧", "志向远大"]
 
 # 关键人物名单（与 ministers.json 交集生成角色卡）
 KEY_FIGURE_NAMES: tuple[str, ...] = (

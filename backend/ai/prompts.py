@@ -42,7 +42,7 @@ def build_narrative_prompt(
         触发事件：{', '.join(events) if events else '无'}
         涉及区域：{', '.join(region_names)}
 
-        请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合明朝历史背景。
+        请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合元末明初历史背景。
         若有大臣被处决，叙事必须描述处决事实，且不得描述已处决大臣仍在活动。
         """
 
@@ -84,19 +84,19 @@ def build_parse_prompt(text: str, state: GameState) -> str:
         """
 
 
-MEMORIAL_SYSTEM_PROMPT = "你是《大明：危局》的奏折生成器。以明朝大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。"
-MINISTER_REACTION_SYSTEM_PROMPT = "你是《大明：危局》的大臣反应生成器。输出一句简短的大臣反应，30-50字。"
-TURN_COMMENTARY_SYSTEM_PROMPT = "你是《大明：危局》的朝政总评生成器。输出50-100字的朝政概况。"
+MEMORIAL_SYSTEM_PROMPT = "你是元末明初历史模拟游戏的奏折生成器。以元末群雄幕府大臣口吻撰写奏折，文风典雅庄重。仅输出JSON。"
+MINISTER_REACTION_SYSTEM_PROMPT = "你是元末明初历史模拟游戏的大臣反应生成器。输出一句简短的大臣反应，30-50字。"
+TURN_COMMENTARY_SYSTEM_PROMPT = "你是元末明初历史模拟游戏的朝政总评生成器。输出50-100字的朝政概况。"
 MINISTER_DIALOGUE_SYSTEM_PROMPT = (
-    "你是大明崇祯朝大臣角色扮演引擎。"
-    "必须以第一人称回复皇帝，语气要符合该大臣身份、派系与性格。"
+    "你是元末至正朝大臣角色扮演引擎。"
+    "必须以第一人称回复主公（吴王朱元璋），语气要符合该大臣身份、派系与性格。"
     "回复内容要结合当前国情与对话历史。"
     "仅输出JSON：{\"reply\":\"...\",\"loyalty_change\":0,\"mood\":\"neutral\"}。"
     "loyalty_change 必须是 -3 到 3 的整数。"
     "mood 只能是 support、neutral、oppose。"
 )
 NARRATIVE_SYSTEM_PROMPT = (
-    "你是一款历史模拟游戏《大明：危局》的AI引擎。"
+    "你是一款元末明初历史模拟游戏的AI引擎。"
     "你的任务是根据玩家的政令和游戏状态，生成一段生动、古风的历史叙事，描述政令的执行结果和影响。"
     "请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"
 )
@@ -109,13 +109,13 @@ REJECTION_SYSTEM_PROMPT = (
     "请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"
 )
 CHAT_CLASSIFY_PROMPT = (
-    "你是《大明：危局》的聊天意图分类器。"
+    "你是元末明初历史模拟游戏的聊天意图分类器。"
     "请将玩家输入分类为 query、execute、advance_month 三类之一。"
     "仅输出JSON：{\"intent\":\"query|execute|advance_month\",\"confidence\":0.0-1.0,\"reason\":\"...\"}。"
 )
 CHAT_QUERY_PROMPT = (
-    "你是《大明：危局》的内阁谋臣。"
-    "玩家是皇帝，必须称呼为“陛下”。"
+    "你是元末明初历史模拟游戏的幕府谋臣。"
+    "玩家是主公（吴王朱元璋），必须称呼为“主公”。"
     "仅基于给定游戏状态回答问题，不得编造不存在的数据。"
     "回答使用古风汉语，简洁明晰。"
 )
@@ -152,7 +152,7 @@ def _format_chat_history(conversation_history: list[dict], *, limit: int = 20) -
         content = str(item.get("content", "")).strip()
         if not content:
             continue
-        speaker = "陛下" if role == "user" else "内阁"
+        speaker = "主公" if role == "user" else "幕府"
         lines.append(f"{speaker}：{content}")
     return "\n".join(lines) if lines else "无"
 
@@ -201,8 +201,8 @@ def build_chat_query_prompt(
     return (
         f"当前局势：\n{_chat_state_snapshot(game_state)}\n\n"
         f"最近对话：\n{history_text}\n\n"
-        f"陛下提问：{text}\n\n"
-        "请以内阁谋臣口吻作答；若问题超出当前状态可知范围，请直言无法从现有军报确定。"
+        f"主公提问：{text}\n\n"
+        "请以幕府谋臣口吻作答；若问题超出当前状态可知范围，请直言无法从现有军报确定。"
     )
 
 
@@ -217,7 +217,7 @@ def build_memorial_prompt(
         f"上奏大臣：{author.name}（{author.faction}），性格：{_join_tags(author.personality_tags)}\n"
         f"触发原因：{trigger_reason}\n"
         f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}\n\n"
-        "请以该大臣的口吻撰写一份明朝风格的奏折（200-500字），并推荐1-3条建议政令。\n"
+        "请以该大臣的口吻撰写一份元末明初风格的奏折（200-500字），并推荐1-3条建议政令。\n"
         f"可用政令type：{decree_types}\n"
         '严格输出JSON：{{"content":"奏折正文","suggested_decrees":[{{"type":"...","target":"..."}}]}}'
     )
@@ -248,7 +248,7 @@ def build_turn_commentary_prompt(summary_data: dict, game_state: GameState) -> s
         f"本月大事：{events_text}\n"
         f"政令与局势影响：{implications_text}\n"
         f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
-        "请写一段50-100字的朝政总评，明朝奏报风格，概括本月朝政态势。"
+        "请写一段50-100字的朝政总评，元末明初奏报风格，概括本月朝政态势。"
         "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
     )
 
@@ -283,7 +283,7 @@ def build_minister_dialogue_prompt(
         if not content:
             continue
         if role == "user":
-            speaker = "皇帝"
+            speaker = "主公"
         elif role == "assistant":
             speaker = minister.name
         else:
@@ -306,7 +306,7 @@ def build_minister_dialogue_prompt(
         f"民心：{game_state.civil_morale}，军心：{game_state.military_morale}，威望：{game_state.court_prestige}\n"
         f"近期事件：{recent_events}\n\n"
         f"历史对话：\n{history_text}\n\n"
-        f"皇帝本轮问话：{message}\n"
+        f"主公本轮问话：{message}\n"
         "请严格输出JSON对象，不要输出额外说明。"
     )
 

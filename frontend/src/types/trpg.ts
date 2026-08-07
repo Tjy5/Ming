@@ -52,6 +52,51 @@ export interface TrpgOption {
   option_id: string
   label: string
   description: string
+  /** 可选：关联里程碑 ID（选中后调 milestones/{id}/complete 而非 /act） */
+  milestone_id?: string | null
+  /** 可选：1360 收束抉择标记（accept=接受招揽 / refuse=继续流窜，路由到 /converge） */
+  convergence?: 'accept' | 'refuse'
+}
+
+/** 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局分支 */
+export type ConvergeChoice = 'accept' | 'refuse'
+
+/** POST /api/trpg/converge 响应（与 /act 同构字段子集 + 结局信息） */
+export interface ConvergeResponse {
+  choice: ConvergeChoice
+  narrative: string
+  /** 仅"继续流窜"携带（result=defeat）；接受招揽为 null */
+  game_over: { result: 'victory' | 'defeat'; message: string } | null
+  /** 接受招揽时为 yingtian-founding（已达成，409 闸口拦截重复完成） */
+  converged_milestone: string | null
+  phase: GamePhase
+  chapter: string
+  chapter_title: string
+  chapter_turns: number
+  pacing: PacingStatus
+  frozen: boolean
+  time: GameTime
+}
+
+/** POST /api/trpg/milestones/{id}/complete 响应（与 /act 同构字段子集） */
+export interface MilestoneCompleteResponse {
+  milestone: string
+  title: string
+  narrative: string
+  transition: {
+    from_chapter: string
+    to_chapter: string
+    year: number
+    summary: string
+  } | null
+  growth: ApiGrowthEntry | null
+  phase: GamePhase
+  chapter: string
+  chapter_title: string
+  chapter_turns: number
+  pacing: PacingStatus
+  frozen: boolean
+  time: GameTime
 }
 
 // ── GET /api/trpg/character 响应 ────────────────────────

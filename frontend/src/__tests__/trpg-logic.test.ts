@@ -3,10 +3,14 @@ import type { HistoryEntry } from '../types/game'
 import type { ActResponse, RollResult, TrpgOption } from '../types/trpg'
 import {
   appendActResult,
+  appendConvergeResult,
+  appendMilestoneResult,
   buildActFromFreeText,
   buildActFromOption,
   detectPhaseSwitch,
   feedFromHistory,
+  optionConvergence,
+  optionMilestoneId,
   resolvePhaseRoute,
   rollSummary,
   tierClass,
@@ -145,6 +149,54 @@ describe('detectPhaseSwitch（act 响应是否触发 phase 切换）', () => {
 
   it('returns true when the response moves to governance', () => {
     expect(detectPhaseSwitch('life_story', { phase: 'governance' })).toBe(true)
+  })
+})
+
+describe('optionConvergence / optionMilestoneId（选项路由判定）', () => {
+  it('recognizes convergence accept/refuse markers', () => {
+    expect(optionConvergence(option({ convergence: 'accept' }))).toBe('accept')
+    expect(optionConvergence(option({ convergence: 'refuse' }))).toBe('refuse')
+    expect(optionConvergence(option())).toBeNull()
+    expect(optionConvergence(option({ convergence: undefined }))).toBeNull()
+  })
+
+  it('extracts non-empty milestone_id only', () => {
+    expect(optionMilestoneId(option({ milestone_id: 'famine-1344' }))).toBe('famine-1344')
+    expect(optionMilestoneId(option({ milestone_id: '  ' }))).toBeNull()
+    expect(optionMilestoneId(option())).toBeNull()
+    expect(optionMilestoneId(option({ milestone_id: null }))).toBeNull()
+  })
+})
+
+describe('appendMilestoneResult / appendConvergeResult（关键事件/收束 → 叙事流）', () => {
+  it('appends action card + narrative card without roll for milestone completion', () => {
+    const feed = appendMilestoneResult([], '完成关键事件：灾疫丧亲', {
+      narrative: '岁月流转，新篇开启。',
+      chapter_title: '僧旅飘零',
+    })
+    expect(feed).toHaveLength(2)
+    expect(feed[0]).toEqual({ kind: 'action', id: expect.any(String), text: '完成关键事件：灾疫丧亲' })
+    expect(feed[1]).toMatchObject({
+      kind: 'narrative',
+      text: '岁月流转，新篇开启。',
+      roll: null,
+      chapterTitle: '僧旅飘零',
+      source: 'milestone',
+    })
+  })
+
+  it('appends narrative-only card for convergence choice', () => {
+    const feed = appendConvergeResult([], {
+      narrative: '【收束·身死】霸业未成。',
+      chapter_title: '割据江东',
+    })
+    expect(feed).toHaveLength(1)
+    expect(feed[0]).toMatchObject({
+      kind: 'narrative',
+      text: '【收束·身死】霸业未成。',
+      roll: null,
+      source: 'converge',
+    })
   })
 })
 

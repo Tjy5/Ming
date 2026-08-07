@@ -226,15 +226,15 @@ class TestDebateMinisterSelection:
             assert {r1[0].name, r1[1].name} == {r2[0].name, r2[1].name}
 
 
-# ── 12.5 Start time 1356/3 and era resolution ────────
+# ── 12.5 Start time 1328/10 and era resolution ────────
 
 class TestStartTimeAndEra:
     def test_initial_state_time(self):
         state = create_initial_state()
-        assert state.time.year == 1356
-        assert state.time.month == 3
-        assert state.time.era_name == "至正"
-        assert state.time.era_year == 16
+        assert state.time.year == 1328
+        assert state.time.month == 10
+        assert state.time.era_name == "天历"
+        assert state.time.era_year == 1
 
     def test_era_resolution_tianli(self):
         assert resolve_era(1328) == ("天历", 1)

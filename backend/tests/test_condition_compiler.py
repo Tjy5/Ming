@@ -27,6 +27,8 @@ def test_compile_condition_minister_alive():
 
 def test_compile_condition_and_with_state_field_gt():
     state = create_initial_state()
+    # 新档开局 1328-10 徐达尚未入仕（NOT_YET_ENTERED），显式置为在朝以测条件语义
+    next(m for m in state.ministers if m.name == "徐达").status = MinisterStatus.ACTIVE
     state.military_strength = 25
     fn = compile_condition(
         {

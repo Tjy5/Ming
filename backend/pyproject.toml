@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+markers = [
+    "e2e: 端到端通关模拟（史实主路径 1328→1368）。默认跳过，设 RUN_E2E=1 运行：`RUN_E2E=1 python -m pytest tests -m e2e`；常规套件命令 `python -m pytest tests -q -m \"not e2e\"`",
+]
+# 按 implement.md 命名的 e2e_playthrough.py 纳入收集（默认 test_*.py 模式不匹配）
+python_files = ["test_*.py", "*_test.py", "e2e_*.py"]

@@ -9,7 +9,7 @@ from api import state as api_state
 from db.saves import _migrate_save
 from engine.core import check_preconditions, inject_script_events, process_decree
 from engine.scripts import get_scripts_for_time
-from models.enums import DecreeType, PersonnelAction, TaxContribution
+from models.enums import DecreeType, MinisterStatus, PersonnelAction, TaxContribution
 from models.game import (
     Faction,
     GameState,
@@ -34,6 +34,20 @@ def _restore_route_globals():
 
 def _mock_provider():
     return ResilientProvider(MockProvider(), timeout=1, retries=1)
+
+
+def _governance_opening_state():
+    """治理开局态：拨到切换点 1356-03 + 注入脚本事件 + 激活已入仕大臣。
+
+    （新档开局 1328-10 为跑团开局：无治理脚本事件、大臣均未入仕。）
+    """
+    state = create_initial_state()
+    state.time = GameTime(year=1356, month=3, era_name="至正", era_year=16)
+    inject_script_events(state)
+    for m in state.ministers:
+        if m.status == MinisterStatus.NOT_YET_ENTERED:
+            m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
+    return state
 
 
 def test_panel_decree_limit_is_category_keyed():
@@ -97,7 +111,7 @@ def test_migrate_decrees_this_month_from_type_keys_to_categories():
 
 def test_script_free_text_maps_to_choice_and_executes():
     api_state._provider = _mock_provider()
-    state = create_initial_state()
+    state = _governance_opening_state()
     api_state._state = state
 
     active_script = next((e.script_id for e in state.active_events if e.script_id), None)
@@ -118,7 +132,7 @@ def test_script_free_text_maps_to_choice_and_executes():
 
 def test_script_free_text_low_confidence_returns_freeform_empty_and_preserves_state():
     api_state._provider = _mock_provider()
-    state = create_initial_state()
+    state = _governance_opening_state()
     api_state._state = state
     before = state.model_dump()
 
@@ -169,7 +183,7 @@ def test_script_free_text_uses_provider_classification_path():
 
     inner = _TrackingProvider()
     api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
-    state = create_initial_state()
+    state = _governance_opening_state()
     api_state._state = state
     active_script = next((e.script_id for e in state.active_events if e.script_id), None)
     assert active_script is not None
@@ -200,7 +214,7 @@ def test_advance_month_uses_provider_trigger_decisions():
 
     inner = _TrackingProvider()
     api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
-    api_state._state = create_initial_state()
+    api_state._state = _governance_opening_state()
     # 推进至 1356/7（龙凤册命事件触发月）
     api_state._state.time.month = 6
 
@@ -217,7 +231,12 @@ def test_advance_month_uses_provider_trigger_decisions():
         assert script_id not in active_ids
 
 
-def test_new_game_uses_ai_trigger_decisions_for_initial_scripts():
+def test_new_game_is_trpg_opening_without_governance_scripts():
+    """新档开局 1328-10 为跑团开局：无治理脚本候选，AI 触发决策不被调用。
+
+    （治理脚本自 1356-03 起，经 advance-month 的 AI 决策路径注入——
+    见 test_advance_month_uses_provider_trigger_decisions。）
+    """
     class _TrackingProvider(MockProvider):
         def __init__(self):
             self.trigger_called = False
@@ -237,7 +256,8 @@ def test_new_game_uses_ai_trigger_decisions_for_initial_scripts():
     opening_script = "yingtian-founding-1356-03"
     active_ids = {e["script_id"] for e in result["active_events"] if e.get("script_id")}
 
-    assert inner.trigger_called is True
-    assert opening_script in result["trigger_decisions"]
-    assert result["trigger_decisions"][opening_script]["should_trigger"] is False
+    assert inner.trigger_called is False
+    assert result["trigger_decisions"] == {}
     assert opening_script not in active_ids
+    assert result["time"]["year"] == 1328
+    assert result["phase"] == "life_story"

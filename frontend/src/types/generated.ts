@@ -732,6 +732,66 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/trpg/milestones/{milestone_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Milestone
+         * @description 完成关键事件（里程碑）：成长奖励 + 章推进 + 时间对齐里程碑日期。
+         *
+         *     - 已解析里程碑 → 409（milestone_already_resolved，单次史实事件不可重复完成）。
+         *     - 未知里程碑 → 404（milestone_not_found）。
+         *     - 时间轴由里程碑日期锚定：完成即把 state.time 对齐到该里程碑 year/month
+         *       并 resolve_era（birth-1328=1328-10 与开局一致；yingtian-founding=1356-03
+         *       与 phase_switch 配置一致）；仅向前对齐——里程碑日期早于当前时间时保持
+         *       当前不回拨（其余切换/叙事/快照逻辑照常）。
+         *     - 带 phase_switch 标记的里程碑（yingtian-founding）且 phase 尚未切换时：
+         *       翻转 phase → to_phase（governance）、写存档快照（回滚点）、
+         *       过渡叙事追加 history_log（decree_type=trpg_act）。
+         *     - 进入 governance 后（is_frozen）里程碑仍可完成：不翻 phase、无异常。
+         */
+        post: operations["complete_milestone_api_trpg_milestones__milestone_id__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/trpg/converge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Converge
+         * @description 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局分支。
+         *
+         *     - 仅在 check_convergence_hook 激活时可用（life_story + 时间 ≥ fallback_year
+         *       + yingtian-founding 未达成）；否则 409 convergence_not_pending。
+         *     - 接受：yingtian-founding 写入 resolved_script_ids（409 闸口由此拦截其后的
+         *       重复完成）、phase → governance、时间对齐 fallback_year（保留当前月份 +
+         *       resolve_era）、过渡叙事 history_log、存档快照（回滚点）。
+         *     - 拒绝：身死结局分支——响应携带 game_over（与治理侧契约同构
+         *       {result: "defeat", message}），状态不变；结局不持久化（治理侧同口径，
+         *       重载后可重作抉择）。
+         */
+        post: operations["converge_api_trpg_converge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -802,11 +862,10 @@ export type components = {
             skill?: string | null;
             /** Attr */
             attr?: string | null;
-            /**
-             * Difficulty
-             * @default 常规
-             */
-            difficulty: string;
+            /** Difficulty */
+            difficulty?: string | null;
+            /** Option Id */
+            option_id?: string | null;
         };
         /** AdoptSuggestionRequest */
         AdoptSuggestionRequest: {
@@ -957,6 +1016,19 @@ export type components = {
             /** Decree Type */
             decree_type: string;
         };
+        /**
+         * ConvergeRequest
+         * @description POST /api/trpg/converge 请求体（1360 收束抉择）。
+         *
+         *     choice: accept=接受招揽强制切换治理 / refuse=继续流窜进入身死结局分支。
+         */
+        ConvergeRequest: {
+            /**
+             * Choice
+             * @enum {string}
+             */
+            choice: "accept" | "refuse";
+        };
         /** ConversationMessage */
         ConversationMessage: {
             /** Id */
@@ -1069,7 +1141,7 @@ export type components = {
             ][] | null;
             /** State Effects */
             state_effects?: {
-                [key: string]: number;
+                [key: string]: number | string;
             } | null;
         };
         /** DecreeResponse */
@@ -1140,7 +1212,7 @@ export type components = {
             ][];
             /** State Effects */
             state_effects?: {
-                [key: string]: number;
+                [key: string]: number | string;
             };
         };
         /**
@@ -3552,6 +3624,70 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ActRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_milestone_api_trpg_milestones__milestone_id__complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                milestone_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    converge_api_trpg_converge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConvergeRequest"];
             };
         };
         responses: {

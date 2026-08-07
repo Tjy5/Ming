@@ -332,7 +332,8 @@ class EventChoice(BaseModel):
     description: str = ""
     decrees: list[StructuredDecree] = Field(default_factory=list)
     loyalty_effects: list[tuple[str, int]] = Field(default_factory=list)
-    state_effects: dict[str, int] = Field(default_factory=dict)
+    # int = 数值增量；str = 枚举字段直设（region.*.threat/control，史实威胁清除）
+    state_effects: dict[str, int | str] = Field(default_factory=dict)
 
 
 class GameEvent(BaseModel):
@@ -666,7 +667,10 @@ def _time_key(year: int, month: int) -> int:
 
 
 def create_initial_state() -> GameState:
-    start_key = _time_key(1356, 3)
+    # 跑团开局时间锚点：1328-10（出生月，与 birth-1328 里程碑一致；阶段D 时间轴对齐）
+    from engine.core import LIFE_STORY_START_MONTH, LIFE_STORY_START_YEAR, resolve_era
+    start_key = _time_key(LIFE_STORY_START_YEAR, LIFE_STORY_START_MONTH)
+    era_name, era_year = resolve_era(LIFE_STORY_START_YEAR)
     ministers: list[Minister] = []
     for tpl in get_initial_ministers():
         m = tpl.model_copy()
@@ -677,7 +681,12 @@ def create_initial_state() -> GameState:
         ministers.append(m)
 
     state = GameState(
-        time=GameTime(year=1356, month=3, era_name="至正", era_year=16),
+        time=GameTime(
+            year=LIFE_STORY_START_YEAR,
+            month=LIFE_STORY_START_MONTH,
+            era_name=era_name,
+            era_year=era_year,
+        ),
         national_treasury=15, imperial_treasury=8, grain=420,
         population=1600, military_strength=18,
         civil_morale=62, military_morale=68, court_prestige=62,

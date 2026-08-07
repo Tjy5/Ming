@@ -106,7 +106,7 @@ async def assembly_petition():
                 continue
             petitions.append(AssemblyPetition(
                 minister_name=m.name,
-                content=f"臣{m.name}谨奏：{m.faction}所忧政务，望陛下裁断。",
+                content=f"臣{m.name}谨奏：{m.faction}所忧政务，望主公裁断。",
                 urgency="中",
             ))
         assembly.petitions = petitions
@@ -154,7 +154,7 @@ async def assembly_debate(req: AssemblyDebateRequest):
             speeches.append(AssemblySpeech(
                 minister_name=m.name,
                 faction=m.faction,
-                content=f"臣{m.name}以为此议当慎行，请陛下明断。",
+                content=f"臣{m.name}以为此议当慎行，请主公明断。",
                 stance="中立",
             ))
         if req.decree_type:

@@ -148,32 +148,25 @@ class TestDeletedEvents:
 # ── 游戏开局时间与开局事件 ──
 
 class TestGameStartTime:
-    def test_initial_state_month_is_3(self):
+    def test_initial_state_month_is_10(self):
         state = create_initial_state()
-        assert state.time.month == 3
+        assert state.time.month == 10
 
-    def test_initial_state_year_is_1356(self):
+    def test_initial_state_year_is_1328(self):
         state = create_initial_state()
-        assert state.time.year == 1356
+        assert state.time.year == 1328
 
-    def test_initial_state_has_opening_event(self):
+    def test_initial_state_era_is_tianli_first_year(self):
         state = create_initial_state()
-        scripted = [e for e in state.active_events if e.is_scripted]
-        assert len(scripted) >= 1
-        assert any(e.script_id == "yingtian-founding-1356-03" for e in scripted)
+        assert state.time.era_name == "天历"
+        assert state.time.era_year == 1
 
-    def test_opening_event_is_blocking(self):
+    def test_initial_state_trpg_opening_defaults(self):
+        """跑团开局：life_story 童年章；治理脚本事件（1356-03 起）此时尚未注入。"""
         state = create_initial_state()
-        evt = next(e for e in state.active_events
-                   if e.script_id == "yingtian-founding-1356-03")
-        assert evt.is_blocking is True
-
-    def test_opening_event_has_rich_description(self):
-        state = create_initial_state()
-        evt = next(e for e in state.active_events
-                   if e.script_id == "yingtian-founding-1356-03")
-        assert evt.rich_description
-        assert len(evt.rich_description) > 50
+        assert state.phase == "life_story"
+        assert state.chapter == "childhood"
+        assert not any(e.is_scripted for e in state.active_events)
 
 
 # ── 平江之围触发时点 ──

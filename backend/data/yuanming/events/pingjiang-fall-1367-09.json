@@ -20,7 +20,8 @@
         "global.national_treasury": 8,
         "global.grain": 80,
         "faction.吴政权.satisfaction": -15,
-        "region.平江.rebellion_risk": -20
+        "region.平江.rebellion_risk": -20,
+        "region.平江.threat": "none"
       }
     },
     {

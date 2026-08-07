@@ -536,3 +536,64 @@
   letter-spacing: 0.2em;
   cursor: pointer;
 }
+
+/* ── 1360 收束抉择横幅 ───────────────────────────────── */
+.ls-convergence-banner {
+  margin-bottom: 10px;
+  padding: 10px 14px;
+  background: rgba(173, 43, 35, 0.08);
+  border: 1px solid var(--accent-red);
+  border-radius: 6px;
+}
+
+.ls-convergence-banner h3 {
+  color: var(--accent-red);
+  letter-spacing: 0.15em;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+}
+
+.ls-convergence-banner p {
+  color: var(--text-main);
+  font-size: 0.82rem;
+  line-height: 1.7;
+}
+
+/* ── 结局覆盖层（身死等终局）────────────────────────── */
+.ls-ending-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 95;
+}
+
+.ls-ending-card {
+  max-width: 480px;
+  margin: 0 20px;
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  border: 2px solid var(--red);
+  border-radius: 8px;
+  padding: 28px 32px;
+  text-align: center;
+}
+
+.ls-ending-card h2 {
+  color: var(--red);
+  letter-spacing: 0.3em;
+  margin-bottom: 14px;
+}
+
+.ls-ending-narrative {
+  color: var(--text-main);
+  line-height: 1.9;
+  margin-bottom: 12px;
+}
+
+.ls-ending-note {
+  color: rgba(240, 228, 200, 0.55);
+  font-size: 0.8rem;
+}

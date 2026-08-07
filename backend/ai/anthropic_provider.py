@@ -208,7 +208,7 @@ class AnthropicProvider(AIProvider):
             )
 
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
-        prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
+        prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知主公为何不能执行。\n\n政令：{decree}"
         try:
             response = await self._messages_create(
                 model=self.model,
@@ -219,7 +219,7 @@ class AnthropicProvider(AIProvider):
             )
             return response.content[0].text.strip()
         except Exception:
-            return f"陛下，此令行不通：{reason}"
+            return f"主公，此令行不通：{reason}"
 
     async def generate_debate_narrative(
         self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
@@ -330,7 +330,7 @@ class AnthropicProvider(AIProvider):
             response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
-                system="你是崇祯朝会奏事生成器。仅输出JSON，不要输出额外文本。",
+                system="你是元末至正朝会奏事生成器。仅输出JSON，不要输出额外文本。",
                 messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
                 temperature=0.6,
             )
@@ -391,7 +391,7 @@ class AnthropicProvider(AIProvider):
             response = await self._messages_create(
                 model=self.model,
                 max_tokens=2048,
-                system="你是崇祯朝会辩论生成器。仅输出JSON，不要输出额外文本。",
+                system="你是元末至正朝会辩论生成器。仅输出JSON，不要输出额外文本。",
                 messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
                 temperature=0.7,
             )
@@ -480,7 +480,7 @@ class AnthropicProvider(AIProvider):
             ],
             "suggestions": [{
                 "title": f"就'{topic}'拟议",
-                "description": "请陛下据朝议定夺。",
+                "description": "请主公据朝议定夺。",
                 "decree_type": decree_type.value,
                 "supporter_names": supporters[:8],
             }],

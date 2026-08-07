@@ -152,7 +152,8 @@ class AdminScriptChoice(BaseModel):
     description: str = Field(min_length=1)
     decrees: list[StructuredDecree] = Field(default_factory=list)
     loyalty_effects: list[tuple[str, int]] = Field(default_factory=list)
-    state_effects: dict[str, int] = Field(default_factory=dict)
+    # int = 数值增量；str = 枚举字段直设（region.*.threat/control，史实威胁清除）
+    state_effects: dict[str, int | str] = Field(default_factory=dict)
 
 
 class AdminScriptEvent(BaseModel):

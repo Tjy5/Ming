@@ -298,7 +298,7 @@ class TestGenerateMinisterReactions:
         apply_loyalty_modification(state, decree, attr)
         reactions = generate_minister_reactions(state, decree, attr)
         types = {r.reaction_type for r in reactions}
-        # TAX_INCREASE: 幕府文臣 stance=-12 (oppose), 阉党 stance=5 (not>5), 边将 stance=3 (not>5)
+        # TAX_INCREASE: 幕府文臣 stance=-12 (oppose), 江南士绅 stance=-8 (oppose), 淮西勋将 stance=3 (not>5)
         assert "oppose" in types
 
     def test_max_two_per_type(self):

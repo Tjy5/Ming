@@ -22,7 +22,11 @@
         "global.military_strength": -5,
         "global.military_morale": 12,
         "faction.元廷.rebellion_risk": 20,
-        "region.大都.stability": -8
+        "region.大都.stability": -8,
+        "region.镇江.threat": "none",
+        "region.两淮.threat": "none",
+        "region.大都.threat": "none",
+        "region.杭州.threat": "none"
       }
     },
     {

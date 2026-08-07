@@ -3,6 +3,9 @@
  * + 分支选项/自由行动。每次 act 响应后同步 phase/chapter；检测到 phase
  * 切换（→ governance）时同步全局状态并跳转治理界面（切换触发归阶段D，
  * 此处仅按后端 state.phase 响应）。
+ * 阶段D 扩展：选项路由——收束抉择（convergence 标记 → /converge）、
+ * 里程碑联动（milestone_id → milestones/{id}/complete）；convergence_hook
+ * 非空时渲染收束横幅；"继续流窜"结局渲染此局已终覆盖层。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -14,6 +17,8 @@ import type {
   ActPayload,
   ApiCharacterSheet,
   ApiGrowthEntry,
+  ConvergeChoice,
+  ConvergenceHook,
   RollResult,
   TrpgOption,
 } from '../types/trpg'
@@ -23,10 +28,14 @@ import DiceRollView from '../components/trpg/DiceRollView'
 import OptionList from '../components/trpg/OptionList'
 import {
   appendActResult,
+  appendConvergeResult,
+  appendMilestoneResult,
   buildActFromFreeText,
   buildActFromOption,
   detectPhaseSwitch,
   feedFromHistory,
+  optionConvergence,
+  optionMilestoneId,
   type FeedItem,
 } from '../components/trpg/trpgLogic'
 import './LifeStoryPage.css'
@@ -60,6 +69,8 @@ export default function LifeStoryPage() {
   const [freeText, setFreeText] = useState('')
   const [transition, setTransition] = useState<TransitionInfo | null>(null)
   const transitioned = useRef(false)
+  const [convergenceHook, setConvergenceHook] = useState<ConvergenceHook | null>(null)
+  const [ending, setEnding] = useState<{ message: string } | null>(null)
 
   // 播种：从存档历史回放此前的跑团叙事
   useEffect(() => {
@@ -106,6 +117,7 @@ export default function LifeStoryPage() {
       setFeed((f) => appendActResult(f, payload.action_text, res))
       setLastRoll(res.roll)
       setOptions(res.options)
+      setConvergenceHook(res.convergence_hook)
       setChapterTitle(res.chapter_title)
       setChapterTurns(res.chapter_turns)
       setTime(res.time)
@@ -127,6 +139,84 @@ export default function LifeStoryPage() {
     }
   }, [acting])
 
+  // 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局覆盖层
+  const performConverge = useCallback(async (choice: ConvergeChoice) => {
+    if (acting || transitioned.current || ending) return
+    setActing(true)
+    setError(null)
+    try {
+      const res = await trpgApi.converge(choice)
+      setFeed((f) => appendConvergeResult(f, res))
+      setOptions([])
+      setConvergenceHook(null)
+      setChapterTitle(res.chapter_title)
+      setChapterTurns(res.chapter_turns)
+      setTime(res.time)
+      if (res.game_over) {
+        setEnding({ message: res.game_over.message })
+        return
+      }
+      // 接受招揽 → phase 切换：拉取全量状态，展示过渡剧情后跳转治理界面
+      if (detectPhaseSwitch('life_story', res)) {
+        const latest = await api.getState()
+        setTransition({ narrative: res.narrative, latest })
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body.message : '收束抉择失败，请稍后重试')
+    } finally {
+      setActing(false)
+    }
+  }, [acting, ending])
+
+  // 里程碑联动：带 milestone_id 的选项 → 完成关键事件端点（成长奖励/章推进/phase 切换）
+  const performCompleteMilestone = useCallback(async (milestoneId: string, optionLabel: string) => {
+    if (acting || transitioned.current || ending) return
+    setActing(true)
+    setError(null)
+    try {
+      const res = await trpgApi.completeMilestone(milestoneId)
+      setFeed((f) => appendMilestoneResult(f, optionLabel, res))
+      setOptions([])
+      setChapterTitle(res.chapter_title)
+      setChapterTurns(res.chapter_turns)
+      setTime(res.time)
+      if (res.growth) setLatestGrowth(res.growth)
+      // 同步角色卡数值变化（成长点/属性），失败不阻断主流程
+      trpgApi.getCharacter()
+        .then((c) => setSheet(c.player))
+        .catch((e) => console.warn('角色卡刷新失败，保留本地数据', e))
+      // phase 切换检测（yingtian-founding → governance）
+      if (detectPhaseSwitch('life_story', res)) {
+        const latest = await api.getState()
+        setTransition({ narrative: res.narrative, latest })
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        // 里程碑已达成（milestone_already_resolved）：提示后静默回退，不崩溃
+        setError('该事件已达成，无需重复完成')
+      } else {
+        setError(e instanceof ApiError ? e.body.message : '关键事件提交失败，请稍后重试')
+      }
+    } finally {
+      setActing(false)
+    }
+  }, [acting, ending])
+
+  // 选项路由：收束抉择 → /converge；里程碑联动 → complete 端点；其余 → /act
+  const handleOption = useCallback((option: TrpgOption) => {
+    const convergence = optionConvergence(option)
+    if (convergence) {
+      void performConverge(convergence)
+      return
+    }
+    const milestoneId = optionMilestoneId(option)
+    if (milestoneId) {
+      void performCompleteMilestone(milestoneId, option.label)
+      return
+    }
+    void performAct(buildActFromOption(option))
+  }, [performAct, performConverge, performCompleteMilestone])
+
   const handleFreeSubmit = (e: FormEvent) => {
     e.preventDefault()
     const payload = buildActFromFreeText(freeText)
@@ -135,7 +225,7 @@ export default function LifeStoryPage() {
     void performAct(payload)
   }
 
-  const busy = acting || !!transition
+  const busy = acting || !!transition || !!ending
 
   return (
     <div className="life-story-page">
@@ -158,10 +248,16 @@ export default function LifeStoryPage() {
       <footer className="ls-bottom">
         <DiceRollView roll={lastRoll} />
         <div className="ls-action-area">
+          {convergenceHook && (
+            <div className="ls-convergence-banner">
+              <h3>大势已定 · 收束抉择</h3>
+              <p>{convergenceHook.message}</p>
+            </div>
+          )}
           <OptionList
             options={options}
             disabled={busy}
-            onSelect={(option) => void performAct(buildActFromOption(option))}
+            onSelect={handleOption}
           />
           <form className="ls-freetext" onSubmit={handleFreeSubmit}>
             <input
@@ -194,6 +290,16 @@ export default function LifeStoryPage() {
             >
               进入治理模拟
             </button>
+          </div>
+        </div>
+      )}
+
+      {ending && (
+        <div className="ls-ending-overlay">
+          <div className="ls-ending-card">
+            <h2>此局已终</h2>
+            <p className="ls-ending-narrative">{ending.message}</p>
+            <p className="ls-ending-note">刷新页面可重作抉择。</p>
           </div>
         </div>
       )}

@@ -643,7 +643,7 @@ async def _fill_memorial_content(
                 mem.content = draft.content
                 mem.suggested_decrees = draft.suggested_decrees
             except Exception:
-                mem.content = f"臣{mem.author_name}伏惟陛下圣鉴，伏乞圣裁。"
+                mem.content = f"臣{mem.author_name}伏惟主公圣鉴，伏乞圣裁。"
 
 
 # ── Streaming helpers ────────────────────────────────────

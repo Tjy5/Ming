@@ -15,7 +15,8 @@
       "loyalty_effects": [],
       "state_effects": {
         "region.镇江.stability": 8,
-        "global.military_morale": 5
+        "global.military_morale": 5,
+        "region.镇江.threat": "none"
       }
     },
     {

@@ -22,14 +22,19 @@ EXECUTION_SATISFACTION_PENALTY = 15
 EXECUTION_REBELLION_RISK = 10
 
 # 8 types × 7 fields: national_treasury, grain, population, military_strength, civil_morale, military_morale, court_prestige
+# 阶段D 平衡基线（2026-08-07）：数值未调整——既有治理回归面（test_balance_mechanics
+# 等 541 用例）全绿；通关性整体验证归 e2e（步骤 7），若暴露失衡再按表项校准并注明理由。
 DECREE_EFFECTS: dict[DecreeType, dict[str, int]] = {
     DecreeType.TAX_INCREASE:      {"national_treasury": 4,  "grain": 12,  "population": 0,    "military_strength": 0,   "civil_morale": -5,  "military_morale": 0,   "court_prestige": 0},
     DecreeType.TAX_DECREASE:      {"national_treasury": -3, "grain": -8,  "population": 0,    "military_strength": 0,   "civil_morale": 6,   "military_morale": 0,   "court_prestige": -3},
-    DecreeType.RECRUIT_TROOPS:    {"national_treasury": -4, "grain": -15, "population": -30,  "military_strength": 8,   "civil_morale": -3,  "military_morale": 8,   "court_prestige": 0},
+    # 阶段D 平衡修复（e2e 暴露，主会话裁决 2026-08-07）：
+    # - RECRUIT_TROOPS 粮 -15→-8：受威胁区域维稳成本与粮收入（约 12-18/月）匹配；
+    # - DISASTER_RELIEF 粮 -25→-12：同上，避免赈灾被粮前置（>120）过早锁死。
+    DecreeType.RECRUIT_TROOPS:    {"national_treasury": -4, "grain": -8,  "population": -30,  "military_strength": 8,   "civil_morale": -3,  "military_morale": 8,   "court_prestige": 0},
     DecreeType.DISBAND_TROOPS:    {"national_treasury": 2,  "grain": 6,   "population": 20,   "military_strength": -6,  "civil_morale": 2,   "military_morale": -10, "court_prestige": -5},
     DecreeType.PERSONNEL:         {"national_treasury": -1, "grain": 0,   "population": 0,    "military_strength": 0,   "civil_morale": 0,   "military_morale": 0,   "court_prestige": 5},
     DecreeType.DIPLOMACY:         {"national_treasury": -2, "grain": -5,  "population": 0,    "military_strength": 0,   "civil_morale": 0,   "military_morale": 3,   "court_prestige": 8},
-    DecreeType.DISASTER_RELIEF:   {"national_treasury": -3, "grain": -25, "population": 25,   "military_strength": 0,   "civil_morale": 10,  "military_morale": 0,   "court_prestige": 4},
+    DecreeType.DISASTER_RELIEF:   {"national_treasury": -3, "grain": -12, "population": 25,   "military_strength": 0,   "civil_morale": 10,  "military_morale": 0,   "court_prestige": 4},
     DecreeType.HARSH_PUNISHMENT:  {"national_treasury": 0,  "grain": 0,   "population": -25,  "military_strength": 0,   "civil_morale": -10, "military_morale": 5,   "court_prestige": 3},
 }
 
@@ -164,3 +169,13 @@ VALID_STATUS_TRANSITIONS = frozenset({
     ("not_yet_entered", "active"), ("not_yet_entered", "removed"),
     ("active", "on_mission"), ("on_mission", "active"), ("on_mission", "removed"),
 })
+
+# ── TRPG ↔ 治理数据互通（阶段D，design 第 3.1 节）─────────
+# 政令类别 → 角色卡 modifier 键（键集与 trpg/modifiers.get_player_modifiers 一致）。
+# other 类政令不修正（None）；culture 键预留（引擎当前无文教/基建类政令）。
+DECREE_CATEGORY_MODIFIER_KEY: dict[str, str | None] = {
+    "domestic": "domestic",
+    "military": "military",
+    "diplomacy": "diplomacy",
+    "other": None,
+}

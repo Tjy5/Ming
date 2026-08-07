@@ -474,7 +474,7 @@ class OpenAIProvider(AIProvider):
             )
 
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
-        prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知陛下为何不能执行。\n\n政令：{decree}"
+        prompt = f"玩家试图执行以下政令，但被系统拒绝（原有：{reason}）。请以大臣劝谏的口吻，委婉但坚定地告知主公为何不能执行。\n\n政令：{decree}"
         try:
             response = await self._chat_completion_with_fallback(
                 task_name="rejection_narrative",
@@ -487,7 +487,7 @@ class OpenAIProvider(AIProvider):
             )
             return response.choices[0].message.content.strip()
         except Exception:
-            return f"陛下，此令行不通：{reason}"
+            return f"主公，此令行不通：{reason}"
 
     async def generate_debate_narrative(
         self, topic: str, minister_a: Minister, minister_b: Minister, game_state: GameState,
@@ -571,7 +571,7 @@ class OpenAIProvider(AIProvider):
                 model=self.model,
                 messages=[
                     {"role": "system", "content": (
-                        "你是崇祯模拟器的朝会辩论生成器。输出JSON：{"
+                        "你是元末明初模拟器的朝会辩论生成器。输出JSON：{"
                         "\"debate_text\":\"300-500字多人对话\","
                         "\"participants\":[{\"name\":\"...\",\"position\":\"...\",\"argument_text\":\"...\"}],"
                         "\"suggestions\":[{\"title\":\"...\",\"description\":\"...\",\"decree_type\":\"...\",\"supporter_names\":[]}],"

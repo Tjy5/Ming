@@ -250,7 +250,7 @@ async def chat_stream(req: ChatRequest):
 
                     delta = _state_delta(before_state, state)
                     effects_applied = _has_effects(delta)
-                    reply = f"陛下，已入{state.time.year}年{state.time.month}月。"
+                    reply = f"主公，已入{state.time.year}年{state.time.month}月。"
                     if new_ministers:
                         reply += f" 新入朝臣：{'、'.join(new_ministers)}。"
                     if triggered_events:
@@ -273,7 +273,7 @@ async def chat_stream(req: ChatRequest):
                     return
 
                 response = await execute_decree(DecreeRequest(free_text=message))
-                reply = str(response.get("narrative", "")).strip() or "陛下，旨意已行。"
+                reply = str(response.get("narrative", "")).strip() or "主公，旨意已行。"
                 minister_reactions = _normalize_minister_reactions(response.get("minister_reactions"))
                 raw_delta = response.get("delta")
                 if isinstance(raw_delta, dict):

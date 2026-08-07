@@ -45,7 +45,7 @@ class HProvider(OpenAIProvider):
         user_agent = (
             os.getenv("H_USER_AGENT")
             or os.getenv("HOTARU_USER_AGENT")
-            or "Mozilla/5.0 (compatible; ChongzhenSimulator/1.0)"
+            or "Mozilla/5.0 (compatible; YuanmingSimulator/1.0)"
         )
         self.client = openai.AsyncOpenAI(
             api_key=api_key,

@@ -9,10 +9,12 @@ from api import routes
 from api import state as api_state
 from api import settings_routes
 from api import assembly_routes
-from models.enums import DecreeType, PersonnelAction
+from engine.core import inject_script_events
+from models.enums import DecreeType, MinisterStatus, PersonnelAction
 from models.game import (
     CourtAssembly,
     FreeformResult,
+    GameTime,
     HistoryEntry,
     PolicySuggestion,
     StructuredDecree,
@@ -33,6 +35,20 @@ def _restore_route_globals():
 
 def _mock_provider():
     return ResilientProvider(MockProvider(), timeout=1, retries=1)
+
+
+def _governance_opening_state():
+    """治理开局态：拨到切换点 1356-03 + 注入脚本事件 + 激活已入仕大臣。
+
+    （新档开局 1328-10 为跑团开局：无治理脚本事件、大臣均未入仕。）
+    """
+    state = create_initial_state()
+    state.time = GameTime(year=1356, month=3, era_name="至正", era_year=16)
+    inject_script_events(state)
+    for m in state.ministers:
+        if m.status == MinisterStatus.NOT_YET_ENTERED:
+            m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
+    return state
 
 
 def test_execute_decree_is_atomic_when_later_decree_fails_precondition():
@@ -115,7 +131,7 @@ def test_execute_decree_summary_includes_action_implications_for_commentary():
 
 def test_execute_decree_wait_turn_includes_memorial_triggers():
     api_state._provider = _mock_provider()
-    state = create_initial_state()
+    state = _governance_opening_state()
     state.factions[0].satisfaction = 10
     api_state._state = state
 
@@ -133,7 +149,7 @@ def test_execute_decree_wait_turn_includes_memorial_triggers():
 
 def test_adopt_suggestion_includes_memorial_triggers():
     api_state._provider = _mock_provider()
-    state = create_initial_state()
+    state = _governance_opening_state()
     state.factions[0].satisfaction = 10
     state.last_assembly = CourtAssembly(
         topic="严刑峻法之议",
@@ -381,7 +397,7 @@ def test_freeform_empty_returns_error_with_script_id():
             )
 
     api_state._provider = ResilientProvider(_EmptyFreeformMock(), timeout=1, retries=1)
-    state = create_initial_state()
+    state = _governance_opening_state()
     api_state._state = state
 
     active_script = next(
@@ -409,7 +425,7 @@ def test_minister_dialogue_returns_503_when_ai_fails_and_mock_disabled(monkeypat
     monkeypatch.setenv("AI_PROVIDER", "openai")
     monkeypatch.delenv("AI_ENABLE_MOCK_FALLBACK", raising=False)
     api_state._provider = ResilientProvider(_FailDialogueProvider(), timeout=1, retries=1)
-    api_state._state = create_initial_state()
+    api_state._state = _governance_opening_state()
 
     minister_name = next(m.name for m in api_state._state.ministers if m.status.value == "active")
 
@@ -472,7 +488,7 @@ def test_invalid_script_id_rejected():
 
 def test_script_already_resolved_rejected():
     api_state._provider = _mock_provider()
-    state = create_initial_state()
+    state = _governance_opening_state()
     active_script = next(
         (e.script_id for e in state.active_events if e.script_id), None
     )

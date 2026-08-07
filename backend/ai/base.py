@@ -195,7 +195,7 @@ class AIProvider(abc.ABC):
                     "faction": minister.faction,
                     "content": (
                         f"臣{minister.name}以为'{topic}'当"
-                        f"{('力行' if stance == '赞成' else '慎行' if stance == '反对' else '缓议')}，请陛下裁断。"
+                        f"{('力行' if stance == '赞成' else '慎行' if stance == '反对' else '缓议')}，请主公裁断。"
                     ),
                     "stance": stance,
                 }

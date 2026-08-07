@@ -44,7 +44,7 @@ class ZProvider(OpenAIProvider):
             api_key=api_key,
             base_url=base_url,
             http_client=http_client,
-            default_headers={"User-Agent": "Mozilla/5.0 (compatible; ChongzhenSimulator/1.0)"},
+            default_headers={"User-Agent": "Mozilla/5.0 (compatible; YuanmingSimulator/1.0)"},
         )
         self.model = os.getenv("Z_MODEL", "qwen3.5-plus-2026-02-15")
         self._configure_task_models(

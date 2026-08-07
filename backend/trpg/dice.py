@@ -34,6 +34,25 @@ DC_MODIFIERS: dict[str, int] = {
     "extreme": -40,
 }
 
+# ── 篇章 DC 曲线（阶段D 第 4.1 节）───────────────────────
+# /act 未显式指定 difficulty（缺省/常规视为未指定）时按当前章默认难度；
+# 显式指定（简易/困难/极难等）尊重原值。未知章兜底"常规"。
+CHAPTER_DIFFICULTY: dict[str, str] = {
+    "childhood": "简易",
+    "monk_wanderer": "常规",
+    "enlistment": "困难",
+    "warlord": "极难",
+}
+
+DEFAULT_DIFFICULTY = "常规"
+
+
+def chapter_default_difficulty(chapter_id: str | None) -> str:
+    """当前章默认难度；未知章/空 → 常规。"""
+    if not chapter_id:
+        return DEFAULT_DIFFICULTY
+    return CHAPTER_DIFFICULTY.get(chapter_id, DEFAULT_DIFFICULTY)
+
 # 大小成功/失败的固定骰面区间（优先于目标值比较）
 CRITICAL_SUCCESS_MAX = 5       # 1-5 大成功
 CRITICAL_FAILURE_MIN = 96      # 96-100 大失败

@@ -18,6 +18,7 @@ from models.trpg import (
     CharacterSheet,
     RollResult,
 )
+from trpg import chapter as chapter_mod
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,23 @@ GM_SYSTEM_PROMPT = (
 
 GM_JSON_SCHEMA = (
     '{"narrative": "叙事文本", '
-    '"options": [{"option_id": "稳定英文ID", "label": "选项简述", "description": "选项说明"}], '
+    '"options": [{"option_id": "稳定英文ID", "label": "选项简述", '
+    '"description": "选项说明", "milestone_id": "可选，timeline.json 里程碑id"}], '
     '"state_changes": {}}'
 )
+
+
+def _milestone_prompt_hint() -> str:
+    """里程碑联动提示：列出 timeline.json 有效里程碑 id，指导 AI 在合适剧情点
+    为选项携带可选 milestone_id（玩家选择后完成对应关键事件：时间跳到其日期；
+    yingtian-founding 完成触发切换至治理阶段）。"""
+    milestones = chapter_mod.get_milestones()
+    listing = "；".join(f"{m.get('id')}({m.get('title', '')})" for m in milestones)
+    return (
+        "可选字段 milestone_id（取值限下列有效 id）：在剧情推进到关键节点时，"
+        "可为相应选项附带该字段；玩家选择后完成对应关键事件（时间跳到其日期；"
+        f"yingtian-founding 触发切换至治理阶段）。有效里程碑：{listing}"
+    )
 
 
 def build_gm_prompt(context: dict) -> str:
@@ -59,6 +74,7 @@ def build_gm_prompt(context: dict) -> str:
     recent = context.get("recent_narratives") or []
     if recent:
         lines.append("最近剧情摘要：" + "；".join(recent))
+    lines.append(_milestone_prompt_hint())
     lines.append(
         f"请生成一段叙事和 {MIN_OPTIONS}-{MAX_OPTIONS} 个分支选项，"
         f"严格按如下 JSON 结构输出：{GM_JSON_SCHEMA}"
@@ -201,11 +217,16 @@ def parse_gm_response(raw: object) -> dict | None:
         if not label:
             return None
         option_id = str(item.get("option_id") or "").strip() or f"opt_ai_{idx + 1}"
-        options.append({
+        option: dict = {
             "option_id": option_id,
             "label": label,
             "description": str(item.get("description") or "").strip(),
-        })
+        }
+        # 可选里程碑联动：AI 选项可携带 milestone_id（前端据此调 complete 端点而非 /act）
+        raw_milestone = item.get("milestone_id")
+        if isinstance(raw_milestone, str) and raw_milestone.strip():
+            option["milestone_id"] = raw_milestone.strip()
+        options.append(option)
 
     state_changes = payload.get("state_changes")
     if not isinstance(state_changes, dict):

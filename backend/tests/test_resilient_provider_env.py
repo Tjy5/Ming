@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from ai.provider import MockProvider, ResilientProvider
+from models.enums import MinisterStatus
 from models.game import create_initial_state
 
 
@@ -37,6 +38,8 @@ def test_resilient_provider_dialogue_raises_when_mock_provider_disabled(monkeypa
 
     provider = ResilientProvider(_FailDialogueProvider(), timeout=1, retries=1)
     state = create_initial_state()
+    # 新档开局 1328-10 大臣均未入仕，显式激活一名
+    state.ministers[0].status = MinisterStatus.ACTIVE
     minister = next(m for m in state.ministers if m.status.value == "active")
 
     with pytest.raises(RuntimeError, match="dialogue failed"):
@@ -56,6 +59,8 @@ def test_resilient_provider_dialogue_uses_mock_fallback_when_provider_is_mock(mo
 
     provider = ResilientProvider(_FailDialogueProvider(), timeout=1, retries=1)
     state = create_initial_state()
+    # 新档开局 1328-10 大臣均未入仕，显式激活一名
+    state.ministers[0].status = MinisterStatus.ACTIVE
     minister = next(m for m in state.ministers if m.status.value == "active")
 
     result = asyncio.run(

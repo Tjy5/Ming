@@ -66,7 +66,7 @@ class TestFastAPIAppRoutes:
             from main import app
             schema = app.openapi()
             assert "info" in schema
-            assert schema["info"]["title"] == "大明：危局"
+            assert schema["info"]["title"] == "元末纪事"
         finally:
             sys.path.pop(0)
 

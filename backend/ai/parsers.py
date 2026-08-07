@@ -135,7 +135,7 @@ async def classify_script_choice(
 
 
 SCRIPT_CHOICE_CLASSIFICATION_SYSTEM_PROMPT = """\
-你是崇祯模拟器的剧情选项分类器。请将玩家输入映射到给定剧情事件的候选选项索引。
+你是元末明初模拟器的剧情选项分类器。请将玩家输入映射到给定剧情事件的候选选项索引。
 
 你必须严格输出一个JSON对象，不要输出代码块或额外文字：
 {
@@ -217,7 +217,7 @@ def parse_script_choice_classification_response(
 
 
 SCRIPT_TRIGGER_SELECTION_SYSTEM_PROMPT = """\
-你是崇祯模拟器的剧情触发决策器。请判断候选剧情事件在当前局势下是否应触发。
+你是元末明初模拟器的剧情触发决策器。请判断候选剧情事件在当前局势下是否应触发。
 
 你必须严格输出一个JSON对象，不要输出代码块或额外文字：
 {
@@ -324,7 +324,7 @@ def build_debate_prompt(
 
 
 DEBATE_SYSTEM_PROMPT = (
-    "你是崇祯模拟器的朝堂辩论生成器。仅输出一个JSON对象，不要输出Markdown代码块或额外文字。"
+    "你是元末明初模拟器的朝堂辩论生成器。仅输出一个JSON对象，不要输出Markdown代码块或额外文字。"
     "字段：debate_text（200-300字），minister_a_position（≤50字），minister_b_position（≤50字），"
     "option_a（{type,target,sub_action}），option_b（同），keywords（字符串数组，≤5个，去重）。"
     "type只能是：tax_increase,tax_decrease,recruit_troops,disband_troops,personnel,diplomacy,disaster_relief,harsh_punishment。"
@@ -599,7 +599,7 @@ def parse_memorial_draft(
 
 
 _FREEFORM_SYSTEM_PROMPT = """\
-你是崇祯模拟器的AI执政引擎。玩家扮演崇祯皇帝，你负责将玩家的自由文本指令转化为游戏状态变化。
+你是元末明初模拟器的AI执政引擎。玩家扮演元末群雄之主朱元璋（自濠州红巾军亲兵至应天吴王，1368 建明），你负责将玩家的自由文本指令转化为游戏状态变化。
 
 你必须严格输出一个JSON对象，不要输出代码块或额外文字。
 

@@ -34,14 +34,14 @@ NARRATIVE_TEMPLATES: dict[DecreeType, str] = {
 }
 
 REJECTION_TEMPLATES: dict[DecreeType, str] = {
-    DecreeType.TAX_INCREASE: "陛下，民心已然不稳，再加赋税恐激民变。臣请陛下三思。",
-    DecreeType.TAX_DECREASE: "陛下，国库空虚，实难再减赋税。臣请陛下先充实国库。",
-    DecreeType.RECRUIT_TROOPS: "陛下，钱粮或人口不足，难以征兵。臣请陛下筹措资源后再议。",
-    DecreeType.DISBAND_TROOPS: "陛下，军备不足，裁兵恐致边防空虚。臣请陛下慎重。",
-    DecreeType.PERSONNEL: "陛下，朝廷威望不足以服众，此时人事变动恐生乱象。",
-    DecreeType.DIPLOMACY: "陛下，国库不足以支撑外交使费。臣请陛下先充实国库。",
-    DecreeType.DISASTER_RELIEF: "陛下，国库仅余有限银两，实难拨付赈灾银两。臣请陛下先充实国库，再议赈济之事。",
-    DecreeType.HARSH_PUNISHMENT: "陛下，朝廷威望不足，严刑峻法恐适得其反。",
+    DecreeType.TAX_INCREASE: "主公，民心已然不稳，再加赋税恐激民变。臣请主公三思。",
+    DecreeType.TAX_DECREASE: "主公，国库空虚，实难再减赋税。臣请主公先充实国库。",
+    DecreeType.RECRUIT_TROOPS: "主公，钱粮或人口不足，难以征兵。臣请主公筹措资源后再议。",
+    DecreeType.DISBAND_TROOPS: "主公，军备不足，裁兵恐致边防空虚。臣请主公慎重。",
+    DecreeType.PERSONNEL: "主公，朝廷威望不足以服众，此时人事变动恐生乱象。",
+    DecreeType.DIPLOMACY: "主公，国库不足以支撑外交使费。臣请主公先充实国库。",
+    DecreeType.DISASTER_RELIEF: "主公，国库仅余有限银两，实难拨付赈灾银两。臣请主公先充实国库，再议赈济之事。",
+    DecreeType.HARSH_PUNISHMENT: "主公，朝廷威望不足，严刑峻法恐适得其反。",
 }
 
 NEGATION_KEYWORDS = re.compile(r"不要|别|勿|禁止")
@@ -233,7 +233,7 @@ class MockProvider(AIProvider):
         return results
 
     async def rejection_narrative(self, decree: StructuredDecree, reason: str) -> str:
-        return REJECTION_TEMPLATES.get(decree.type, f"陛下，此令无法执行：{reason}")
+        return REJECTION_TEMPLATES.get(decree.type, f"主公，此令无法执行：{reason}")
 
     async def generate_debate_narrative(
         self,
@@ -264,7 +264,7 @@ class MockProvider(AIProvider):
         elif trigger_type == "military_crisis":
             decrees = [StructuredDecree(type=DecreeType.RECRUIT_TROOPS)]
 
-        content = f"臣{author.name}伏惟陛下圣鉴：{trigger_reason}事关社稷安危，臣不敢不奏。伏乞圣裁。"
+        content = f"臣{author.name}伏惟主公钧鉴：{trigger_reason}事关社稷安危，臣不敢不奏。伏乞裁断。"
         return MemorialDraft(content=content, suggested_decrees=decrees)
 
     async def generate_minister_reaction(
@@ -275,8 +275,8 @@ class MockProvider(AIProvider):
         game_state: GameState,
     ) -> str:
         if stance > 0:
-            return f"{minister.name}拱手道：陛下圣明。"
-        return f"{minister.name}跪奏：臣以为此举不妥，恳请陛下三思。"
+            return f"{minister.name}拱手道：主公圣明。"
+        return f"{minister.name}跪奏：臣以为此举不妥，恳请主公三思。"
 
     async def generate_assembly_debate(
         self,
@@ -321,7 +321,7 @@ class MockProvider(AIProvider):
             "suggestions": [
                 {
                     "title": f"就'{topic}'拟议",
-                    "description": "请陛下依朝议结果酌定施行。",
+                    "description": "请主公依朝议结果酌定施行。",
                     "decree_type": decree_type.value,
                     "supporter_names": supporters[:8],
                 }
@@ -458,7 +458,7 @@ class MockProvider(AIProvider):
                 name = match.group(1)
                 return FreeformResult(
                     effects={f"minister.{name}.status": "removed"},
-                    narrative=f"陛下龙颜大怒，下旨将{name}押赴刑场，斩首示众。",
+                    narrative=f"主公勃然大怒，下令将{name}押赴刑场，斩首示众。",
                     rationale=f"处决{name}",
                 )
 
@@ -546,32 +546,32 @@ class MockProvider(AIProvider):
     ) -> str:
         normalized = (text or "").strip()
         if not normalized:
-            return "陛下，臣在。"
+            return "主公，臣在。"
 
         if re.search(r"国库|银两|钱粮|钱", normalized):
-            return f"陛下，今国库尚存{game_state.national_treasury}万两，内帑{game_state.imperial_treasury}万两。"
+            return f"主公，今国库尚存{game_state.national_treasury}万两，内帑{game_state.imperial_treasury}万两。"
 
         if re.search(r"民心|军心|威望", normalized):
             return (
-                f"陛下，当前民心{game_state.civil_morale}，"
+                f"主公，当前民心{game_state.civil_morale}，"
                 f"军心{game_state.military_morale}，朝廷威望{game_state.court_prestige}。"
             )
 
         if re.search(r"在朝|大臣|谁在", normalized):
             active = [m.name for m in game_state.ministers if m.status.value == "active"]
             roster = "、".join(active[:12]) if active else "暂无在朝大臣"
-            return f"陛下，今在朝诸臣为：{roster}。"
+            return f"主公，今在朝诸臣为：{roster}。"
 
         if re.search(r"年月|时间|几月|何时", normalized):
-            return f"陛下，今为{game_state.time.year}年{game_state.time.month}月。"
+            return f"主公，今为{game_state.time.year}年{game_state.time.month}月。"
 
         if re.search(r"事件|局势|大事", normalized):
             events = [e.name for e in game_state.active_events[:6]]
             if events:
-                return f"陛下，当前朝局要事有：{'、'.join(events)}。"
-            return "陛下，今暂无急报大事。"
+                return f"主公，当前朝局要事有：{'、'.join(events)}。"
+            return "主公，今暂无急报大事。"
 
-        return "陛下，此问臣已记下。就现有军报观之，宜稳国库、抚民心、振军纪，以待后图。"
+        return "主公，此问臣已记下。就现有军报观之，宜稳国库、抚民心、振军纪，以待后图。"
 
     async def generate_minister_dialogue(
         self,
@@ -590,11 +590,11 @@ class MockProvider(AIProvider):
         else:
             mood = "neutral"
 
-        if minister.faction == "东林党":
-            reply = f"臣{minister.name}谨遵圣旨。然臣以为此事关乎社稷，望陛下三思而后行。"
-        elif minister.faction == "阉党残余":
-            reply = f"臣{minister.name}叩首。陛下圣明，臣当竭力奉行。"
+        if minister.faction == "淮西勋将":
+            reply = f"臣{minister.name}谨遵将令。然臣以为此事关乎社稷，望主公三思而后行。"
+        elif minister.faction == "幕府文臣":
+            reply = f"臣{minister.name}叩首。主公圣明，臣当竭力奉行。"
         else:
-            reply = f"臣{minister.name}领旨。臣当尽心竭力，不负陛下厚望。"
+            reply = f"臣{minister.name}领旨。臣当尽心竭力，不负主公厚望。"
 
         return {"reply": reply, "loyalty_change": loyalty_change, "mood": mood}

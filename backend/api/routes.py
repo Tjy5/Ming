@@ -434,7 +434,7 @@ async def _execute_decree_core(
             mem_count_before = len(state.memorials)
             delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state)
             _mem_triggers = state.memorials[mem_count_before:]
-            narrative = "陛下暂且按兵不动，静观时局变化。"
+            narrative = "主公暂且按兵不动，静观时局变化。"
             if stream_narrative_callback:
                 await stream_narrative_callback(narrative)
             if _summary:
@@ -833,9 +833,9 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
         if req.action != "approved" and narrative == "":
             if req.action == "rejected":
-                narrative = f"陛下驳回了{memorial.author_name}的奏折。"
+                narrative = f"主公驳回了{memorial.author_name}的奏折。"
             elif req.action == "deferred":
-                narrative = f"陛下将{memorial.author_name}的奏折留中待议。"
+                narrative = f"主公将{memorial.author_name}的奏折留中待议。"
 
         # 为 approved 但无有效 decree 的情况补充默认叙事
         if req.action == "approved" and not narrative:

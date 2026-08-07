@@ -17,7 +17,8 @@
         "global.military_strength": -4,
         "global.military_morale": 15,
         "faction.汉政权.rebellion_risk": -30,
-        "region.武昌.stability": -10
+        "region.武昌.stability": -10,
+        "region.武昌.threat": "none"
       }
     },
     {

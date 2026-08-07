@@ -19,7 +19,9 @@ class ScriptChoice:
     description: str
     decrees: list[StructuredDecree] = field(default_factory=list)
     loyalty_effects: list[tuple[str, int]] = field(default_factory=list)
-    state_effects: dict[str, int] = field(default_factory=dict)
+    # 数值增量（int）或枚举字段直设（str，如 region.*.threat 史实威胁清除，
+    # 阶段D 平衡修复——见 api/helpers.apply_state_effects）
+    state_effects: dict[str, int | str] = field(default_factory=dict)
 
 
 @dataclass
@@ -185,12 +187,13 @@ def _parse_choice(raw: object, *, ctx: str) -> ScriptChoice:
     state_effects_raw = raw.get("state_effects", {})
     if not isinstance(state_effects_raw, dict):
         raise ValueError(f"{ctx}.state_effects must be an object")
-    state_effects: dict[str, int] = {}
+    state_effects: dict[str, int | str] = {}
     for key, value in state_effects_raw.items():
         if not isinstance(key, str) or not key.strip():
             raise ValueError(f"{ctx}.state_effects key must be a non-empty string")
-        if not isinstance(value, int):
-            raise ValueError(f"{ctx}.state_effects['{key}'] must be an integer")
+        # int = 增量；str = 枚举字段直设（region.*.threat/control，史实威胁清除）
+        if not isinstance(value, (int, str)):
+            raise ValueError(f"{ctx}.state_effects['{key}'] must be an integer or string")
         state_effects[key] = value
 
     return ScriptChoice(

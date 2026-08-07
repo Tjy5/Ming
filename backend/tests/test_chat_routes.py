@@ -7,7 +7,9 @@ from ai.provider import MockProvider, ResilientProvider
 from api import chat_routes, routes
 from api import state as api_state
 from api.schemas import ChatRequest
-from models.game import create_initial_state
+from engine.core import inject_script_events
+from models.enums import MinisterStatus
+from models.game import GameTime, create_initial_state
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +26,20 @@ def _restore_globals():
 
 def _mock_provider():
     return ResilientProvider(MockProvider(), timeout=1, retries=1)
+
+
+def _governance_opening_state():
+    """治理开局态：拨到切换点 1356-03 + 注入脚本事件 + 激活已入仕大臣。
+
+    （新档开局 1328-10 为跑团开局：无治理脚本事件、大臣均未入仕。）
+    """
+    state = create_initial_state()
+    state.time = GameTime(year=1356, month=3, era_name="至正", era_year=16)
+    inject_script_events(state)
+    for m in state.ministers:
+        if m.status == MinisterStatus.NOT_YET_ENTERED:
+            m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
+    return state
 
 
 def _clear_blocking_script_events() -> None:
@@ -115,7 +131,7 @@ def test_chat_explore_prefix_forces_query_intent():
 
 def test_chat_execute_intent_blocked_by_pending_blocking_event():
     api_state._provider = _mock_provider()
-    api_state._state = create_initial_state()
+    api_state._state = _governance_opening_state()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="加税")))
@@ -175,7 +191,7 @@ def test_chat_execute_intent_emits_reactions_and_done_contains_reactions(monkeyp
 
     async def _fake_execute_decree(_req):
         return {
-            "narrative": "陛下，旨意已行。",
+            "narrative": "主公，旨意已行。",
             "delta": {"national_treasury": 30, "civil_morale": -10},
             "minister_reactions": expected_reactions,
         }
@@ -235,7 +251,7 @@ def test_chat_advance_month_intent_advances_game_time():
 
 def test_chat_advance_month_blocked_by_pending_blocking_event():
     api_state._provider = _mock_provider()
-    api_state._state = create_initial_state()
+    api_state._state = _governance_opening_state()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="进入下月")))

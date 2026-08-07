@@ -71,6 +71,15 @@ class TestDice:
         assert dice.dc_modifier("extreme") == -40
         assert dice.dc_modifier("未知难度") == 0
 
+    def test_chapter_default_difficulty_curve(self):
+        """篇章 DC 曲线（阶段D 4.1）：childhood 简易 → warlord 极难；未知章兜底常规。"""
+        assert dice.chapter_default_difficulty("childhood") == "简易"
+        assert dice.chapter_default_difficulty("monk_wanderer") == "常规"
+        assert dice.chapter_default_difficulty("enlistment") == "困难"
+        assert dice.chapter_default_difficulty("warlord") == "极难"
+        assert dice.chapter_default_difficulty("未知章") == "常规"
+        assert dice.chapter_default_difficulty(None) == "常规"
+
     def test_target_without_skill_is_attr_half(self):
         sheet = _fresh_sheet(军事=51)
         assert dice.compute_target(sheet, "军事") == 25  # 51//2
@@ -220,6 +229,25 @@ class TestCharacter:
         assert result["growth"]["skill_points"] == character.KEY_EVENT_POINTS
         assert any("关键事件" in e.source for e in state.growth_log)
 
+    def test_growth_chain_conversion_locked(self):
+        """成长链锁定（阶段D 4.2 校准基线）：技能点 → 成长点 → 属性投入 5:1。
+
+        10 成功回合（20 技能点）→ 4 成长点全部投入检定属性（+4）；
+        关键事件奖励（attr_name=None）仅折算成长点暂存，不自动投入属性
+        （由后续检定折算投入）。常量调整需回归此链路（e2e 属性断言复验归步骤 7）。
+        """
+        state = create_initial_state()
+        character.ensure_sheets(state)
+        sheet = state.character_sheets[PLAYER_NAME]
+        before = sheet.attrs["军事"]
+        for _ in range(10):
+            character.award_skill_points(state, PLAYER_NAME, 2, "叙事回合", "军事")
+        character.complete_key_event_with_growth(state, "birth-1328")
+        character.complete_key_event_with_growth(state, "famine-1344")
+        assert sheet.attrs["军事"] == before + 4
+        assert sheet.skill_points == 1          # 关键事件 6 点折算后余 1
+        assert sheet.growth_points == 1         # 折算的成长点暂存待投入
+
 
 # ── 3. 治理修正契约（本阶段不接入引擎）────────────────────
 
@@ -327,7 +355,7 @@ class TestChapter:
 
     def test_convergence_hook_none_cases(self):
         state = create_initial_state()
-        assert chapter.check_convergence_hook(state) is None  # 1356 < 1360
+        assert chapter.check_convergence_hook(state) is None  # 1328 < 1360
         state.time.year = 1361
         state.resolved_script_ids.add("yingtian-founding")
         assert chapter.check_convergence_hook(state) is None  # 已完成
@@ -416,6 +444,22 @@ class TestGM:
             "options": [{"label": "a"}, {"label": "b"}],
         })
         assert gm.parse_gm_response(too_few) is None
+
+    def test_parse_keeps_optional_milestone_id(self):
+        """AI 选项可携带 milestone_id（前端据此调 complete 端点而非 /act）。"""
+        raw = json.dumps({
+            "narrative": "天时已至。",
+            "options": [
+                {"option_id": "o1", "label": "完成关键事件", "description": "x",
+                 "milestone_id": "famine-1344"},
+                {"option_id": "o2", "label": "乙"},
+                {"option_id": "o3", "label": "丙"},
+            ],
+        }, ensure_ascii=False)
+        parsed = gm.parse_gm_response(raw)
+        assert parsed is not None
+        assert parsed["options"][0]["milestone_id"] == "famine-1344"
+        assert "milestone_id" not in parsed["options"][1]  # 无该字段的选项不带出
 
     def test_generate_turn_provider_none_falls_back(self):
         state = create_initial_state()
@@ -532,15 +576,21 @@ class TestApi:
 
     def test_act_difficulty_modifies_target(self):
         api_state._provider = _mock_provider()
-        api_state._state = create_initial_state()
+        # 显式难度尊重原值（用 monk_wanderer 章：其默认难度即"常规"，排除曲线干扰）
+        def _state():
+            s = create_initial_state()
+            s.chapter = "monk_wanderer"
+            return s
+
+        api_state._state = _state()
         easy = asyncio.run(trpg_routes.act(
             ActRequest(action_text="挑水劈柴", attr="体力", difficulty="简易"),
         ))
-        api_state._state = create_initial_state()
+        api_state._state = _state()
         normal = asyncio.run(trpg_routes.act(
             ActRequest(action_text="挑水劈柴", attr="体力", difficulty="常规"),
         ))
-        api_state._state = create_initial_state()
+        api_state._state = _state()
         extreme = asyncio.run(trpg_routes.act(
             ActRequest(action_text="挑水劈柴", attr="体力", difficulty="极难"),
         ))
@@ -550,6 +600,45 @@ class TestApi:
         # 体力55 → 基础 27：简易 47、常规 27、极难 -13 触底 clamp 为 1
         assert easy["roll"]["target"] - normal["roll"]["target"] == 20
         assert extreme["roll"]["target"] == 1
+
+    def test_act_echoes_option_id(self):
+        """option_id（design 第 5.1 节）：确定性选择双通道，随响应回显；不匹配忽略不报错。"""
+        api_state._provider = _mock_provider()
+        api_state._state = create_initial_state()
+        resp = asyncio.run(trpg_routes.act(ActRequest(
+            action_text="夜巡大营", option_id="opt_secure_gains",
+        )))
+        assert resp["option_id"] == "opt_secure_gains"
+        # 不传 option_id → null（向后兼容）
+        api_state._state = create_initial_state()
+        resp = asyncio.run(trpg_routes.act(ActRequest(action_text="夜巡大营")))
+        assert resp["option_id"] is None
+
+    def test_act_chapter_default_difficulty_curve(self):
+        """/act 未显式指定难度 → 按当前章默认（篇章 DC 曲线）；显式指定不被覆盖。"""
+        api_state._provider = _mock_provider()
+
+        api_state._state = create_initial_state()   # childhood → 简易
+        resp = asyncio.run(trpg_routes.act(ActRequest(action_text="挑水劈柴", attr="体力")))
+        assert resp["roll"]["dc"] == 20
+
+        state = create_initial_state()
+        state.chapter = "enlistment"                # 投军 → 困难
+        api_state._state = state
+        resp = asyncio.run(trpg_routes.act(ActRequest(action_text="夜探敌营", attr="胆略")))
+        assert resp["roll"]["dc"] == -20
+
+        api_state._state = create_initial_state()   # childhood 内显式"极难"不被覆盖
+        resp = asyncio.run(trpg_routes.act(
+            ActRequest(action_text="纵马越涧", attr="体力", difficulty="极难"),
+        ))
+        assert resp["roll"]["dc"] == -40
+
+        state = create_initial_state()
+        state.chapter = "神秘篇章"                   # 未知章兜底"常规"
+        api_state._state = state
+        resp = asyncio.run(trpg_routes.act(ActRequest(action_text="四方打听", attr="交际")))
+        assert resp["roll"]["dc"] == 0
 
     def test_act_in_governance_phase_is_auxiliary(self):
         api_state._provider = _mock_provider()

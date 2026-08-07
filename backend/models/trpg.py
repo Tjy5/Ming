@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 # ── 常量 ─────────────────────────────────────────────────
@@ -146,8 +148,23 @@ class ActRequest(BaseModel):
     skill: str | None = Field(default=None, max_length=50)
     # 可选：显式指定检定属性；缺省时按 skill 推断，再缺省用"胆略"
     attr: str | None = Field(default=None, max_length=10)
-    # 难度：简易/常规/困难/极难（兼容 easy/normal/hard/extreme）
-    difficulty: str = "常规"
+    # 难度：简易/常规/困难/极难（兼容 easy/normal/hard/extreme）。
+    # None = 未显式指定 → /act 按当前章默认难度（篇章 DC 曲线，阶段D 第 4.1 节）
+    difficulty: str | None = None
+    # 可选：选项 ID（e2e/脚本化确定性选择的双通道，design 第 5.1 节；
+    # 与既有文案回传兼容——不回传时行为不变）
+    option_id: str | None = Field(default=None, max_length=64)
+
+
+# ── ConvergeRequest ───────────────────────────────────────
+
+class ConvergeRequest(BaseModel):
+    """POST /api/trpg/converge 请求体（1360 收束抉择）。
+
+    choice: accept=接受招揽强制切换治理 / refuse=继续流窜进入身死结局分支。
+    """
+
+    choice: Literal["accept", "refuse"]
 
 
 # ── GrowthEntry ──────────────────────────────────────────

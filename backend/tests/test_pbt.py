@@ -165,21 +165,27 @@ def test_save_migration_idempotent(year):
 
 # ── 13.8 Opening script effects clamp ────────────────
 
+def _state_at_opening(national_treasury, prestige):
+    """治理开局态：1356-03 注入治理脚本事件（新档开局 1328-10 无脚本事件）。"""
+    s = create_initial_state()
+    s.time = GameTime(year=1356, month=3, era_name="至正", era_year=16)
+    inject_script_events(s)
+    s.national_treasury = national_treasury
+    s.court_prestige = prestige
+    return s
+
+
 @given(
     national_treasury=st.integers(min_value=0, max_value=10000),
     prestige=st.integers(min_value=0, max_value=100),
 )
 @settings(max_examples=30)
 def test_opening_effects_clamp(national_treasury, prestige):
-    state = create_initial_state()
-    state.national_treasury = national_treasury
-    state.court_prestige = prestige
+    state = _state_at_opening(national_treasury, prestige)
     evt = next(e for e in state.active_events if e.script_id == "yingtian-founding-1356-03")
     for choice in evt.choices:
         if choice.decrees:
-            s = create_initial_state()
-            s.national_treasury = national_treasury
-            s.court_prestige = prestige
+            s = _state_at_opening(national_treasury, prestige)
             process_decree(s, choice.decrees[0])
             assert 0 <= s.court_prestige <= 100
             assert 0 <= s.national_treasury <= 10000

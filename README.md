@@ -1,10 +1,10 @@
-# 大明：危局 (Ming: Crisis)
+# 元末纪事 (Yuanming Simulator)
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![React](https://img.shields.io/badge/react-19-blue)
 
-《大明：危局》是一款 AI 驱动的明末历史治理模拟游戏。玩家扮演崇祯皇帝，通过政令、朝议、奏折与剧情事件，在内忧外患中维持大明国祚。
+《元末纪事》是一款 AI 驱动的元末明初历史模拟游戏。玩家扮演朱元璋（自濠州红巾军亲兵至应天吴王，1368 建明），通过政令、朝议、奏折与剧情事件，在群雄逐鹿中问鼎天下。
 
 ## 当前实现状态
 
