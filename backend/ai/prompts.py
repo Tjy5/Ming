@@ -31,6 +31,14 @@ def build_narrative_prompt(
     # （engine.state_consistency）。惰性导入避免 engine/__init__ 初始化环。
     from engine.state_consistency import build_prompt_guard
     guard = build_prompt_guard(state)
+    # 数值区间概念框 + 阈值硬性预警（engine.numeric_bands，B5）——同上惰性导入
+    from engine.numeric_bands import numeric_context, region_numeric_context, threshold_alerts
+    numeric = numeric_context(state)
+    danger_regions = region_numeric_context(state)
+    alerts = threshold_alerts(state)
+    hard_constraints = ""
+    if alerts:
+        hard_constraints = "【硬性约束】\n" + "\n".join(alerts)
     return f"""
         当前时间：{state.time.year}年{state.time.month}月
 
@@ -42,10 +50,13 @@ def build_narrative_prompt(
         - 军心：{delta.get('military_morale', 0)}
         - 威望：{delta.get('court_prestige', 0)}
 
+        {numeric}
+        {danger_regions}
         {personnel_context}
         触发事件：{', '.join(events) if events else '无'}
         涉及区域：{', '.join(region_names)}
 
+        {hard_constraints}
         请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合元末明初历史背景。
         若有大臣被处决，叙事必须描述处决事实，且不得描述已处决大臣仍在活动。
         {guard}
@@ -248,11 +259,20 @@ def build_turn_commentary_prompt(summary_data: dict, game_state: GameState) -> s
     month = int(summary_data.get("month") or game_state.time.month)
     events_text = "、".join(str(e) for e in events) if events else "无"
     implications_text = "；".join(str(i) for i in implications[:4]) if implications else "无"
+    # 数值区间概念框 + 阈值硬性预警（B5，惰性导入防 engine 初始化环）
+    from engine.numeric_bands import numeric_context, threshold_alerts
+    numeric = numeric_context(game_state)
+    alerts = threshold_alerts(game_state)
+    hard_constraints = ""
+    if alerts:
+        hard_constraints = "【硬性约束】\n" + "\n".join(alerts)
     return (
         f"时间：{year}年{month}月\n"
         f"本月大事：{events_text}\n"
         f"政令与局势影响：{implications_text}\n"
-        f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n\n"
+        f"国库{game_state.national_treasury}，民心{game_state.civil_morale}，军心{game_state.military_morale}，威望{game_state.court_prestige}\n"
+        f"{numeric}\n"
+        f"{hard_constraints}\n"
         "请写一段50-100字的朝政总评，元末明初奏报风格，概括本月朝政态势。"
         "若已给出政令与局势影响，必须与之保持一致，不得写成“无事发生”。"
     )
