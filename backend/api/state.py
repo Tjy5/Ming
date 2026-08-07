@@ -27,7 +27,8 @@ from models.game import (
 )
 from models.enums import DecreeType
 from engine.core import LOCK_TIMEOUT_SECONDS
-from ai.provider import MockProvider, get_provider, get_rule_parse_fallback, set_rule_parse_fallback
+from ai.fallbacks import template_memorial
+from ai.provider import get_provider, get_rule_parse_fallback, set_rule_parse_fallback
 from ai.parsers import parse_memorial_draft
 from db.saves import init_db
 
@@ -76,17 +77,6 @@ _MAX_CHAT_CONVERSATION_MESSAGES = 100
 _chat_conversation_buffer: list[dict[str, str]] = []
 
 _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
-    "mock": {
-        "api_key_env": None,
-        "base_url_env": None,
-        "model_env": None,
-        "simple_model_env": None,
-        "provider_type_env": None,
-        "enable_thinking_env": None,
-        "enable_thinking_simple_env": None,
-        "thinking_config_env": None,
-        "thinking_config_simple_env": None,
-    },
     "openai": {
         "api_key_env": "OPENAI_API_KEY",
         "base_url_env": "OPENAI_BASE_URL",
@@ -134,7 +124,6 @@ _AI_PROVIDER_SPECS: dict[str, dict[str, str | None]] = {
 }
 
 _AI_PROVIDER_ALIASES = {
-    "mock": "mock",
     "openai": "openai",
     "google": "google",
     "h": "h",
@@ -201,7 +190,7 @@ def startup():
 def _normalize_provider_name(raw: str | None) -> str:
     value = (raw or "").strip()
     if not value:
-        value = os.getenv("AI_PROVIDER", "mock")
+        value = os.getenv("AI_PROVIDER", "openai")
     lowered = value.lower()
     return _AI_PROVIDER_ALIASES.get(lowered, value)
 
@@ -326,7 +315,7 @@ def _current_ai_settings(provider_name: str | None = None) -> dict:
         model = model or _env_value("OPENAI_MODEL_NAME")
         simple_model = simple_model or _env_value("OPENAI_SIMPLE_MODEL")
 
-    options = ["mock", "openai", "google", "h", "Z"]
+    options = ["openai", "google", "h", "Z"]
     
     custom_providers_str = _env_value("AI_CUSTOM_PROVIDERS")
     if custom_providers_str:
@@ -400,19 +389,25 @@ def _apply_ai_settings(
 
     if normalized_provider == "google" or provider_type_key in {"google", "gemini"}:
         base_url = _normalize_google_base_url(base_url)
-    elif normalized_provider != "mock":
+    else:
         base_url = _normalize_openai_base_url(base_url, normalized_provider)
 
-    if normalized_provider not in {"mock", "openai", "google"}:
-        if not api_key or not base_url:
+    if not api_key:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="invalid_ai_settings",
+            message=f"{normalized_provider} 供应商必须填写 API Key",
+        ).model_dump())
+
+    if normalized_provider not in {"openai", "google"}:
+        if not base_url:
             raise HTTPException(422, detail=ErrorResponse(
                 error_code="invalid_ai_settings",
-                message=f"{normalized_provider} 供应商必须填写 API Key 与 Base URL",
+                message=f"{normalized_provider} 供应商必须填写 Base URL",
             ).model_dump())
 
     updates: dict[str, str | None] = {"AI_PROVIDER": normalized_provider}
-    
-    if normalized_provider not in ["mock", "openai", "google", "h", "Z"]:
+
+    if normalized_provider not in ["openai", "google", "h", "Z"]:
         custom_providers_str = _env_value("AI_CUSTOM_PROVIDERS")
         existing_customs = []
         if custom_providers_str:
@@ -474,10 +469,6 @@ def _delete_ai_settings(provider: str) -> dict:
     global _provider
     normalized_provider = _normalize_provider_name(provider)
 
-    # Cannot delete mock provider (it's the fallback)
-    if normalized_provider == "mock":
-        raise ValueError("Mock 提供商不可删除")
-
     spec = _provider_spec(normalized_provider)
     
     updates: dict[str, str | None] = {}
@@ -501,14 +492,15 @@ def _delete_ai_settings(provider: str) -> dict:
     if spec.get("thinking_config_env"): updates[spec["thinking_config_env"]] = None
     if spec.get("thinking_config_simple_env"): updates[spec["thinking_config_simple_env"]] = None
     
-    # If the active provider is the one being deleted, fallback to mock
+    # If the active provider is the one being deleted, unset AI_PROVIDER so
+    # the default (openai) applies and the game requires a fresh configuration.
     if _env_value("AI_PROVIDER") == normalized_provider:
-        updates["AI_PROVIDER"] = "mock"
-    
+        updates["AI_PROVIDER"] = None
+
     _persist_env_values(updates)
     _provider = None
 
-    return _current_ai_settings(_env_value("AI_PROVIDER") or "mock")
+    return _current_ai_settings(_env_value("AI_PROVIDER") or "openai")
 
 
 def _normalize_openai_base_url(base_url: str | None, provider: str) -> str:
@@ -626,20 +618,21 @@ async def _fill_memorial_content(
         if author is None:
             author = Minister(name=mem.author_name, faction=mem.author_faction)
         draft = await provider.generate_memorial(mem.trigger_reason, author, state)
-        mem.content = draft.content
+        # 状态一致性（惰性导入防 engine 初始化环）：奏疏内容过校验/净化
+        from engine.state_consistency import sanitize_ai_text
+        mem.content = sanitize_ai_text(draft.content, state)
         mem.suggested_decrees = draft.suggested_decrees
 
     results = await asyncio.gather(
         *(_fill_one(m) for m in memorials), return_exceptions=True,
     )
-    mock = MockProvider()
     for mem, result in zip(memorials, results):
         if isinstance(result, Exception):
             try:
                 author = next((m for m in state.ministers if m.name == mem.author_name), None)
                 if author is None:
                     author = Minister(name=mem.author_name, faction=mem.author_faction)
-                draft = await mock.generate_memorial(mem.trigger_reason, author, state)
+                draft = template_memorial(mem.trigger_reason, author, state)
                 mem.content = draft.content
                 mem.suggested_decrees = draft.suggested_decrees
             except Exception:
@@ -690,8 +683,18 @@ async def _generate_narrative_with_streaming(
     decree: StructuredDecree,
     stream_callback: NarrativeChunkCallback | None,
 ) -> str:
+    # 状态一致性闭环（engine.state_consistency，惰性导入防 engine 初始化环）：
+    # 非流式可完整走 校验→重试→净化；流式无法事后重试（文本已推送），
+    # 入库/响应副本一律过校验净化，流式残留由 prompt 守卫（build_prompt_guard）兜底。
+    from engine.state_consistency import ensure_narrative_consistent, sanitize_ai_text
+
     if stream_callback is None:
-        return await provider.generate_narrative(attribution, state, triggered, decree)
+        return await ensure_narrative_consistent(
+            provider, state,
+            generate=lambda fix_instruction=None: provider.generate_narrative(
+                attribution, state, triggered, decree, fix_instruction=fix_instruction,
+            ),
+        )
 
     chunks: list[str] = []
     async for chunk in provider.stream_narrative(attribution, state, triggered, decree):
@@ -702,8 +705,8 @@ async def _generate_narrative_with_streaming(
 
     narrative = "".join(chunks)
     if narrative:
-        return narrative
+        return sanitize_ai_text(narrative, state)
     fallback = await provider.generate_narrative(attribution, state, triggered, decree)
     if fallback and stream_callback is not None:
         await stream_callback(fallback)
-    return fallback
+    return sanitize_ai_text(fallback or "", state)

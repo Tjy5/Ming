@@ -75,17 +75,6 @@ def set_rule_parse_fallback(enabled: bool) -> None:
         pass
 
 
-def mock_fallback_enabled() -> bool:
-    """Whether runtime is allowed to downgrade failed AI calls to MockProvider."""
-    raw_override = os.getenv("AI_ENABLE_MOCK_FALLBACK")
-    if raw_override is not None:
-        return _env_bool("AI_ENABLE_MOCK_FALLBACK", False)
-    provider = (os.getenv("AI_PROVIDER") or "").strip().lower()
-    return provider == "mock"
-
-
-
-
 class AIProvider(abc.ABC):
     @abc.abstractmethod
     async def generate_narrative(
@@ -94,6 +83,8 @@ class AIProvider(abc.ABC):
         game_state: GameState,
         chain_events: list[str],
         decree: StructuredDecree,
+        *,
+        fix_instruction: str | None = None,
     ) -> str: ...
 
     @abc.abstractmethod

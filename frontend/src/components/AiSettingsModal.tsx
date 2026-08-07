@@ -13,7 +13,6 @@ type ThinkingConfig = Record<string, any>
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const PROVIDER_LABELS: Record<string, string> = {
-  mock: 'Mock',
   openai: 'OpenAI',
   google: 'Google',
   h: 'Hotaru',
@@ -29,7 +28,7 @@ function getEffectiveProviderType(provider: AIProvider, providerType: string): s
 }
 
 export default function AiSettingsModal({ onClose, onSaved }: Props) {
-  const [provider, setProvider] = useState<AIProvider>('mock')
+  const [provider, setProvider] = useState<AIProvider>('openai')
   const [providerType, setProviderType] = useState('openai')
   const [customProviderInput, setCustomProviderInput] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -40,7 +39,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   // Removed unused enableThinkingSimple state
   const [thinkingConfig, setThinkingConfig] = useState<ThinkingConfig>({})
   const [thinkingConfigSimple, setThinkingConfigSimple] = useState<ThinkingConfig>({})
-  const [providerOptions, setProviderOptions] = useState<AIProvider[]>(['mock', 'openai', 'google', 'h', 'Z'])
+  const [providerOptions, setProviderOptions] = useState<AIProvider[]>(['openai', 'google', 'h', 'Z'])
   const [cache, setCache] = useState<Partial<Record<AIProvider, AISettings>>>({})
   const [models, setModels] = useState<string[]>([])
   const [modelsSource, setModelsSource] = useState('')
@@ -50,14 +49,14 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
 
-  const isMock = provider === 'mock'
-  const showBaseUrl = provider !== 'mock'
-  const showApiKey = provider !== 'mock'
-  const showModel = provider !== 'mock'
+  // 游戏强制要求配置真实 AI 供应商：API Key / Base URL / 模型 全部始终展示
+  const showBaseUrl = true
+  const showApiKey = true
+  const showModel = true
 
   const providerChoices = useMemo<AIProvider[]>(
     () => {
-      const choices: AIProvider[] = providerOptions.length ? [...providerOptions] : ['mock', 'openai', 'google', 'h', 'Z']
+      const choices: AIProvider[] = providerOptions.length ? [...providerOptions] : ['openai', 'google', 'h', 'Z']
       if (!choices.includes('custom')) {
         choices.push('custom')
       }
@@ -238,8 +237,6 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     setConfig: Dispatch<SetStateAction<ThinkingConfig>>,
     label: string,
   ) {
-    if (currentProvider === 'mock') return null
-
     const effectiveType = getEffectiveProviderType(currentProvider, currentProviderType)
 
     if (effectiveType === 'deepseek') {
@@ -383,7 +380,7 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                     }</option>
                   ))}
                 </select>
-                {(provider !== 'mock' && provider !== 'custom') && (
+                {provider !== 'custom' && (
                   <button
                     className="modal-btn ai-delete-provider-btn"
                     onClick={handleDelete}
@@ -416,22 +413,20 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               </label>
             )}
 
-            {provider !== 'mock' && (
-              <label className="ai-field">
-                <span>提供商类型</span>
-                <select
-                  value={providerType}
-                  onChange={(e) => setProviderType(e.target.value)}
-                  disabled={saving || loading}
-                >
-                  <option value="openai">OpenAI 兼容</option>
-                  <option value="openai-response">OpenAI Responses</option>
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="gemini">Gemini</option>
-                  <option value="anthropic">Anthropic</option>
-                </select>
-              </label>
-            )}
+            <label className="ai-field">
+              <span>提供商类型</span>
+              <select
+                value={providerType}
+                onChange={(e) => setProviderType(e.target.value)}
+                disabled={saving || loading}
+              >
+                <option value="openai">OpenAI 兼容</option>
+                <option value="openai-response">OpenAI Responses</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="gemini">Gemini</option>
+                <option value="anthropic">Anthropic</option>
+              </select>
+            </label>
 
             {showApiKey && (
               <label className="ai-field">
@@ -483,18 +478,16 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               </>
             )}
 
-            {!isMock && (
-              <div className="ai-model-tools">
-                <button
-                  className="modal-btn"
-                  onClick={handleFetchModels}
-                  disabled={fetchingModels || saving}
-                >
-                  {fetchingModels ? '拉取中...' : '获取模型列表'}
-                </button>
-                {modelsSource && <span className="ai-model-source">来源: {modelsSource}</span>}
-              </div>
-            )}
+            <div className="ai-model-tools">
+              <button
+                className="modal-btn"
+                onClick={handleFetchModels}
+                disabled={fetchingModels || saving}
+              >
+                {fetchingModels ? '拉取中...' : '获取模型列表'}
+              </button>
+              {modelsSource && <span className="ai-model-source">来源: {modelsSource}</span>}
+            </div>
 
             {models.length > 0 && (
               <div className="ai-model-list">

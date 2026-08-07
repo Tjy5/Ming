@@ -4,7 +4,8 @@ import json
 
 import pytest
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import state as api_state
 from api import trpg as trpg_routes
 from db import saves as db_saves
@@ -35,8 +36,8 @@ def _restore_globals():
         dice.set_seed(None)
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 def _fresh_sheet(**attrs_overrides) -> CharacterSheet:
@@ -503,7 +504,7 @@ class TestGM:
 
     def test_generate_turn_unparseable_ai_falls_back(self):
         result = asyncio.run(gm.generate_turn(
-            _mock_provider(),  # MockProvider 返回非 JSON → 解析失败 → 规则回退
+            _fake_provider(),  # FakeProvider 返回非 JSON → 解析失败 → 规则回退
             state=create_initial_state(),
             sheet=character.create_player_sheet(),
             action_text="试探",
@@ -528,7 +529,7 @@ class TestApi:
         assert PLAYER_NAME not in names
 
     def test_act_happy_path_with_rule_fallback(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = create_initial_state()
         req = ActRequest(action_text="夜巡大营，整肃军纪", skill="治军")
         resp = asyncio.run(trpg_routes.act(req))
@@ -547,7 +548,7 @@ class TestApi:
         assert len(state.growth_log) == 1
 
     def test_act_deterministic_with_same_seed(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         req = ActRequest(action_text="暗访濠州城中元军虚实")
 
         api_state._state = create_initial_state()
@@ -561,7 +562,7 @@ class TestApi:
         assert first == second  # 同输入同输出（骰子+规则回退全确定性）
 
     def test_act_explicit_attr_and_default(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = create_initial_state()
         resp = asyncio.run(trpg_routes.act(
             ActRequest(action_text="修书一封", attr="学识"),
@@ -575,7 +576,7 @@ class TestApi:
         assert resp["roll"]["attr_name"] == "胆略"  # 兜底属性
 
     def test_act_difficulty_modifies_target(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         # 显式难度尊重原值（用 monk_wanderer 章：其默认难度即"常规"，排除曲线干扰）
         def _state():
             s = create_initial_state()
@@ -603,7 +604,7 @@ class TestApi:
 
     def test_act_echoes_option_id(self):
         """option_id（design 第 5.1 节）：确定性选择双通道，随响应回显；不匹配忽略不报错。"""
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = create_initial_state()
         resp = asyncio.run(trpg_routes.act(ActRequest(
             action_text="夜巡大营", option_id="opt_secure_gains",
@@ -616,7 +617,7 @@ class TestApi:
 
     def test_act_chapter_default_difficulty_curve(self):
         """/act 未显式指定难度 → 按当前章默认（篇章 DC 曲线）；显式指定不被覆盖。"""
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
 
         api_state._state = create_initial_state()   # childhood → 简易
         resp = asyncio.run(trpg_routes.act(ActRequest(action_text="挑水劈柴", attr="体力")))
@@ -641,7 +642,7 @@ class TestApi:
         assert resp["roll"]["dc"] == 0
 
     def test_act_in_governance_phase_is_auxiliary(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         state = create_initial_state()
         state.phase = "governance"
         api_state._state = state

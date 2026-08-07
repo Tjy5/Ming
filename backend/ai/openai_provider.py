@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import MemorialStatus
+from .fallbacks import template_memorial
 from .provider import (
     AIProvider,
-    MockProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
     build_debate_prompt,
@@ -359,9 +359,12 @@ class OpenAIProvider(AIProvider):
     async def generate_narrative(
         self, delta_attribution: dict, game_state: GameState,
         chain_events: list[str], decree: StructuredDecree,
+        *, fix_instruction: str | None = None,
     ) -> str:
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
-        
+        if fix_instruction:
+            prompt = f"{prompt}\n\n{fix_instruction}"
+
         try:
             response = await self._chat_completion_with_fallback(
                 task_name="generate_narrative",
@@ -530,12 +533,12 @@ class OpenAIProvider(AIProvider):
                 response.choices[0].message.content or "", author.name, game_state,
             )
             if not draft.suggested_decrees and trigger_reason.split(":", 1)[0] != "faction_crisis":
-                mock = await MockProvider().generate_memorial(trigger_reason, author, game_state)
-                draft.suggested_decrees = mock.suggested_decrees
+                fallback = template_memorial(trigger_reason, author, game_state)
+                draft.suggested_decrees = fallback.suggested_decrees
             return draft
         except Exception as e:
             logging.error("OpenAIProvider generate_memorial fallback: %s", e)
-            return await MockProvider().generate_memorial(trigger_reason, author, game_state)
+            return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,

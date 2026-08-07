@@ -3,7 +3,8 @@ import json
 
 import pytest
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import chat_routes, routes
 from api import state as api_state
 from api.schemas import ChatRequest
@@ -24,8 +25,8 @@ def _restore_globals():
         api_state.clear_chat_conversation()
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 def _governance_opening_state():
@@ -80,7 +81,7 @@ def _parse_sse_events(payload: str) -> list[tuple[str, dict]]:
 
 
 def test_chat_query_intent_does_not_modify_state():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     before = api_state._state.model_dump()
 
@@ -105,7 +106,7 @@ def test_chat_query_intent_does_not_modify_state():
 
 
 def test_chat_explore_prefix_forces_query_intent():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     before = api_state._state.model_dump()
 
@@ -130,7 +131,7 @@ def test_chat_explore_prefix_forces_query_intent():
 
 
 def test_chat_execute_intent_blocked_by_pending_blocking_event():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = _governance_opening_state()
     before = api_state._state.model_dump()
 
@@ -153,7 +154,7 @@ def test_chat_execute_intent_blocked_by_pending_blocking_event():
 
 
 def test_chat_execute_intent_applies_effects_and_updates_state():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     _clear_blocking_script_events()
     before_treasury = api_state._state.national_treasury
@@ -175,7 +176,7 @@ def test_chat_execute_intent_applies_effects_and_updates_state():
 
 
 def test_chat_execute_intent_emits_reactions_and_done_contains_reactions(monkeypatch):
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     _clear_blocking_script_events()
 
@@ -218,7 +219,7 @@ def test_chat_execute_intent_emits_reactions_and_done_contains_reactions(monkeyp
 
 
 def test_chat_advance_month_intent_advances_game_time():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     _clear_blocking_script_events()
     before = (api_state._state.time.year, api_state._state.time.month)
@@ -250,7 +251,7 @@ def test_chat_advance_month_intent_advances_game_time():
 
 
 def test_chat_advance_month_blocked_by_pending_blocking_event():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = _governance_opening_state()
     before = api_state._state.model_dump()
 
@@ -284,7 +285,7 @@ def test_chat_conversation_buffer_trimmed_to_100_messages():
 
 
 def test_new_game_clears_chat_conversation_buffer():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     api_state.append_chat_conversation("user", "test")
     api_state.append_chat_conversation("assistant", "ok")

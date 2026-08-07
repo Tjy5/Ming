@@ -20,10 +20,23 @@ from .base import (
     _env_float,
     _env_int,
     get_rule_parse_fallback,
-    mock_fallback_enabled,
     parse_error,
 )
-from .mock_provider import MockProvider
+from .fallbacks import (
+    rule_chat_query,
+    rule_classify_chat_intent,
+    rule_classify_script_choice,
+    rule_debate_speeches,
+    rule_parse_free_input,
+    rule_petitions,
+    rule_script_trigger_decisions,
+    rule_vote_tendency,
+    template_action_implications,
+    template_assembly_debate,
+    template_memorial,
+    template_minister_reaction,
+    template_turn_commentary,
+)
 from .parsers import _validate_decrees
 
 
@@ -31,7 +44,7 @@ async def _local_rule_parse(
     text: str,
     game_state: GameState,
 ) -> list[StructuredDecree] | None:
-    fallback = await MockProvider().parse_free_input(text, game_state)
+    fallback = rule_parse_free_input(text, game_state)
     if isinstance(fallback, dict):
         return None
     validated = _validate_decrees(fallback)
@@ -185,11 +198,16 @@ class ResilientProvider(AIProvider):
         game_state: GameState,
         chain_events: list[str],
         decree: StructuredDecree,
+        *,
+        fix_instruction: str | None = None,
     ) -> str:
         for attempt in range(self._retries):
             try:
                 return await asyncio.wait_for(
-                    self._inner.generate_narrative(delta_attribution, game_state, chain_events, decree),
+                    self._inner.generate_narrative(
+                        delta_attribution, game_state, chain_events, decree,
+                        fix_instruction=fix_instruction,
+                    ),
                     timeout=self._timeout,
                 )
             except Exception as e:
@@ -324,8 +342,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_memorial", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().generate_memorial(trigger_reason, author, game_state)
-        return await MockProvider().generate_memorial(trigger_reason, author, game_state)
+                    return template_memorial(trigger_reason, author, game_state)
+        return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self,
@@ -343,8 +361,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_minister_reaction", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().generate_minister_reaction(minister, decree, stance, game_state)
-        return await MockProvider().generate_minister_reaction(minister, decree, stance, game_state)
+                    return template_minister_reaction(minister, decree, stance, game_state)
+        return template_minister_reaction(minister, decree, stance, game_state)
 
     async def generate_assembly_debate(
         self,
@@ -380,8 +398,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_petitions", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().generate_petitions(participants, game_state)
-        return await MockProvider().generate_petitions(participants, game_state)
+                    return rule_petitions(participants)
+        return rule_petitions(participants)
 
     async def generate_debate_speeches(
         self,
@@ -400,8 +418,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_debate_speeches", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().generate_debate_speeches(topic, participants, game_state)
-        return await MockProvider().generate_debate_speeches(topic, participants, game_state)
+                    return rule_debate_speeches(topic, participants, game_state)
+        return rule_debate_speeches(topic, participants, game_state)
 
     async def calculate_vote_tendency(
         self,
@@ -421,8 +439,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("calculate_vote_tendency", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    return await MockProvider().calculate_vote_tendency(minister, decree_type, game_state)
-        return await MockProvider().calculate_vote_tendency(minister, decree_type, game_state)
+                    return rule_vote_tendency(minister, decree_type, game_state)
+        return rule_vote_tendency(minister, decree_type, game_state)
 
     async def generate_action_implications(
         self,
@@ -438,7 +456,7 @@ class ResilientProvider(AIProvider):
                 return [str(x) for x in (result or [])][:3]
             except Exception as e:
                 self._log_retry_failure("generate_action_implications", attempt + 1, self._retries, e)
-        return await MockProvider().generate_action_implications(summary_data, game_state)
+        return template_action_implications(summary_data, game_state)
 
     async def generate_turn_commentary(
         self,
@@ -459,8 +477,8 @@ class ResilientProvider(AIProvider):
                     e,
                 )
                 if attempt == self._turn_commentary_retries - 1:
-                    return await MockProvider().generate_turn_commentary(summary_data, game_state)
-        return await MockProvider().generate_turn_commentary(summary_data, game_state)
+                    return template_turn_commentary(summary_data, game_state)
+        return template_turn_commentary(summary_data, game_state)
 
     async def classify_script_choice(
         self,
@@ -491,11 +509,7 @@ class ResilientProvider(AIProvider):
                     break
 
         try:
-            fallback = await MockProvider().classify_script_choice(
-                player_text,
-                script_context,
-                game_state=game_state,
-            )
+            fallback = await rule_classify_script_choice(player_text, script_context)
             if isinstance(fallback, dict):
                 normalized = self._normalize_script_choice_result(fallback)
                 if "error" not in normalized:
@@ -545,7 +559,7 @@ class ResilientProvider(AIProvider):
                     break
 
         try:
-            fallback = await MockProvider().select_script_trigger_decisions(game_state, candidates)
+            fallback = rule_script_trigger_decisions(game_state, candidates)
             normalized = self._normalize_script_trigger_decisions(fallback, candidate_ids)
             if "error" not in normalized:
                 return normalized
@@ -581,11 +595,7 @@ class ResilientProvider(AIProvider):
                     break
 
         try:
-            fallback = await MockProvider().classify_chat_intent(
-                text,
-                game_state,
-                conversation_history,
-            )
+            fallback = rule_classify_chat_intent(text, game_state, conversation_history)
             if isinstance(fallback, dict):
                 normalized = self._normalize_chat_intent_result(fallback)
                 if "error" not in normalized:
@@ -618,16 +628,8 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("chat_query", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    if mock_fallback_enabled():
-                        return await MockProvider().chat_query(
-                            text,
-                            game_state,
-                            conversation_history,
-                        )
                     raise
 
-        if mock_fallback_enabled():
-            return await MockProvider().chat_query(text, game_state, conversation_history)
         raise RuntimeError("chat_query failed")
 
     async def process_freeform(
@@ -665,19 +667,5 @@ class ResilientProvider(AIProvider):
             except Exception as e:
                 self._log_retry_failure("generate_minister_dialogue", attempt + 1, self._retries, e)
                 if attempt == self._retries - 1:
-                    if mock_fallback_enabled():
-                        return await MockProvider().generate_minister_dialogue(
-                            minister,
-                            message,
-                            game_state,
-                            conversation_history,
-                        )
                     raise
-        if mock_fallback_enabled():
-            return await MockProvider().generate_minister_dialogue(
-                minister,
-                message,
-                game_state,
-                conversation_history,
-            )
         raise RuntimeError("generate_minister_dialogue failed")

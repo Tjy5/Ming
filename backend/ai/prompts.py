@@ -27,6 +27,10 @@ def build_narrative_prompt(
 ) -> str:
     region_names = [r.name for r in state.regions]
     personnel_context = build_personnel_context(decree, state)
+    # 确定性守卫：不可用人物（已处决/已罢免）显式注入，属状态一致性校验层
+    # （engine.state_consistency）。惰性导入避免 engine/__init__ 初始化环。
+    from engine.state_consistency import build_prompt_guard
+    guard = build_prompt_guard(state)
     return f"""
         当前时间：{state.time.year}年{state.time.month}月
 
@@ -44,6 +48,7 @@ def build_narrative_prompt(
 
         请以具体事件描述数值变化的后果，引用至少1个地名和1个人名。避免直接提及数字。长度150-300字。风格要符合元末明初历史背景。
         若有大臣被处决，叙事必须描述处决事实，且不得描述已处决大臣仍在活动。
+        {guard}
         """
 
 

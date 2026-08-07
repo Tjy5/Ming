@@ -1217,57 +1217,72 @@ def _resolve_entity(state: GameState, category: str, name: str):
     return None
 
 
-def validate_ai_effects(effects: dict, state: GameState) -> dict:
-    """Validate AI effects against whitelist. Returns cleaned dict of valid entries only."""
+def validate_ai_effects(effects: dict, state: GameState, *, dropped_out: list | None = None) -> dict:
+    """Validate AI effects against whitelist. Returns cleaned dict of valid entries only.
+
+    ``dropped_out``（可选）：传入 list 时，被丢弃的 (path, value, 原因) 追加其中，
+    供调用方做文本/数值同源校验（freeform 叙事重写判定）。
+    """
     if not isinstance(effects, dict):
+        if dropped_out is not None and effects:
+            dropped_out.append(("<non-dict-effects>", effects, "effects 非字典"))
         return {}
     valid: dict = {}
     for path, value in effects.items():
+        drop_reason: str | None = None
         if not isinstance(path, str):
+            drop_reason = "path 非字符串"
+        if drop_reason is None and isinstance(value, (dict, list)):
+            drop_reason = "值为嵌套/非标量"
+        if drop_reason is None:
+            meta = _match_writable_pattern(path)
+            if meta is None:
+                drop_reason = "路径不在可写白名单"
+            else:
+                parts = path.split(".")
+                category = parts[0]
+                # global fields
+                if category == "global":
+                    field = parts[1] if len(parts) == 2 else None
+                    if field is None or not hasattr(state, field):
+                        drop_reason = "global 字段不存在"
+                # entity fields: verify name exists
+                elif category in ("minister", "faction", "region"):
+                    if len(parts) < 3:
+                        drop_reason = "实体路径层级不足"
+                    else:
+                        name = parts[1]
+                        entity = _resolve_entity(state, category, name)
+                        if entity is None:
+                            drop_reason = f"{category} {name} 不存在"
+                        elif category == "minister" and parts[-1] == "status":
+                            if not isinstance(value, str):
+                                drop_reason = "status 值非字符串"
+                            else:
+                                current = entity.status.value if hasattr(entity.status, "value") else str(entity.status)
+                                if (current, value) not in VALID_STATUS_TRANSITIONS:
+                                    drop_reason = f"状态转换不合法 {current}→{value}"
+                else:
+                    drop_reason = "类别不在可写范围"
+                if drop_reason is None:
+                    # type check
+                    expected_type = meta["type"]
+                    if expected_type in ("int", "float"):
+                        if isinstance(value, bool) or not isinstance(value, (int, float)):
+                            drop_reason = "数值类型不符"
+                        elif isinstance(value, float) and not math.isfinite(value):
+                            drop_reason = "数值非有限"
+                    elif expected_type == "str":
+                        if not isinstance(value, str):
+                            drop_reason = "字符串类型不符"
+                        else:
+                            valid_values = meta.get("valid")
+                            if valid_values and value not in valid_values:
+                                drop_reason = "值不在合法枚举"
+        if drop_reason is not None:
+            if dropped_out is not None:
+                dropped_out.append((path, value, drop_reason))
             continue
-        # reject nested / non-scalar values
-        if isinstance(value, (dict, list)):
-            continue
-        meta = _match_writable_pattern(path)
-        if meta is None:
-            continue
-        parts = path.split(".")
-        category = parts[0]
-        # global fields
-        if category == "global":
-            field = parts[1] if len(parts) == 2 else None
-            if field is None or not hasattr(state, field):
-                continue
-        # entity fields: verify name exists
-        elif category in ("minister", "faction", "region"):
-            if len(parts) < 3:
-                continue
-            name = parts[1]
-            entity = _resolve_entity(state, category, name)
-            if entity is None:
-                continue
-            # minister status transition validation
-            if category == "minister" and parts[-1] == "status":
-                if not isinstance(value, str):
-                    continue
-                current = entity.status.value if hasattr(entity.status, "value") else str(entity.status)
-                if (current, value) not in VALID_STATUS_TRANSITIONS:
-                    continue
-        else:
-            continue
-        # type check
-        expected_type = meta["type"]
-        if expected_type in ("int", "float"):
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                continue
-            if isinstance(value, float) and not math.isfinite(value):
-                continue
-        elif expected_type == "str":
-            if not isinstance(value, str):
-                continue
-            valid_values = meta.get("valid")
-            if valid_values and value not in valid_values:
-                continue
         valid[path] = value
     return valid
 
@@ -1459,11 +1474,15 @@ def process_decree(
     freeform: FreeformResult | None = None,
     *,
     mark_monthly_usage: bool = True,
+    dropped_out: list | None = None,
 ) -> tuple[dict, dict, list[str], dict | None, list[MinisterReaction], TurnSummary]:
     """Execute one policy resolution pipeline and return its full outcome.
 
     Returns:
     (delta, attribution, triggered_events, game_over, minister_reactions, turn_summary)
+
+    ``dropped_out``（可选）：freeform 分支中被 ``validate_ai_effects`` 丢弃的
+    (path, value, 原因) 追加于此，供调用方做文本/数值同源校验。
 
     Notes:
     - ``decree is None`` and ``freeform is None`` is treated as a wait turn.
@@ -1498,7 +1517,7 @@ def process_decree(
         _apply_mission_decree(state, freeform)
         # validate + apply AI effects (skip _mission_ keys)
         filtered_effects = {k: v for k, v in freeform.effects.items() if not k.startswith("_mission_")}
-        valid_effects = validate_ai_effects(filtered_effects, state)
+        valid_effects = validate_ai_effects(filtered_effects, state, dropped_out=dropped_out)
         dismissed, executed = apply_ai_effects(state, valid_effects, attr)
 
         # execution backlash (same logic as structured path)

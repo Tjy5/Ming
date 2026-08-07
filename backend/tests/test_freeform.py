@@ -19,9 +19,10 @@ from engine.core import (
 )
 import ai.provider as provider_mod
 from ai.provider import (
-    AIProvider, MockProvider, ResilientProvider,
+    AIProvider, ResilientProvider,
     parse_error, PARSE_ERROR_TYPE_UNAVAILABLE,
 )
+from fakes import FakeProvider
 
 
 # ── Helpers ──────────────────────────────────────────────
@@ -436,7 +437,7 @@ class TestProcessDecreeFreeform:
 class TestParsePromptFixes:
     def test_execution_keyword_maps_to_personnel_execute(self):
         """'诛杀杨宪' → personnel + execute, not harsh_punishment."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.parse_free_input("诛杀杨宪", state))
         assert isinstance(result, list)
@@ -448,7 +449,7 @@ class TestParsePromptFixes:
 
     def test_harsh_punishment_without_target(self):
         """'严刑峻法' → harsh_punishment (no specific target)."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.parse_free_input("严刑峻法", state))
         assert isinstance(result, list)
@@ -456,7 +457,7 @@ class TestParsePromptFixes:
 
     def test_execution_suffix_pattern(self):
         """'把杨宪斩了' → personnel + execute."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.parse_free_input("把杨宪斩了", state))
         assert isinstance(result, list)
@@ -466,7 +467,7 @@ class TestParsePromptFixes:
 
     def test_execution_unknown_person_not_matched(self):
         """'斩杀不存在' → harsh_punishment fallback (not a minister name)."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.parse_free_input("斩杀不存在的人", state))
         assert isinstance(result, list)
@@ -474,7 +475,7 @@ class TestParsePromptFixes:
 
     def test_dismiss_maps_to_personnel_dismiss(self):
         """'罢免杨宪' → personnel + dismiss."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.parse_free_input("罢免杨宪", state))
         assert isinstance(result, list)
@@ -482,8 +483,8 @@ class TestParsePromptFixes:
         assert result[0].sub_action == PersonnelAction.DISMISS
 
     def test_freeform_mock_execution(self):
-        """MockProvider.process_freeform: '斩杀杨宪' → FreeformResult with removed status."""
-        provider = MockProvider()
+        """FakeProvider.process_freeform: '斩杀杨宪' → FreeformResult with removed status."""
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.process_freeform("斩杀杨宪", state))
         assert isinstance(result, FreeformResult)
@@ -505,7 +506,7 @@ class _FreeformFailProvider(AIProvider):
             yield narrative
 
     async def parse_free_input(self, text, game_state):
-        return await MockProvider().parse_free_input(text, game_state)
+        return await FakeProvider().parse_free_input(text, game_state)
 
     async def rejection_narrative(self, decree, reason) -> str:
         return ""
@@ -588,7 +589,7 @@ class TestFreeformFallback:
 
     def test_freeform_success_no_fallback(self):
         """When process_freeform succeeds, no fallback needed."""
-        provider = MockProvider()
+        provider = FakeProvider()
         state = create_initial_state()
         result = asyncio.run(provider.process_freeform("加税", state))
         assert isinstance(result, FreeformResult)

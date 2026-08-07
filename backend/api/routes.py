@@ -20,6 +20,14 @@ from models.positions import (
     PositionCategory, PositionInfo, POSITION_REGISTRY,
     get_positions_by_category, calculate_position_weight,
 )
+# 状态一致性校验层：模块级导入（engine 包此时已完成初始化，无环）。
+# 注意：若改为函数内导入，会因函数级局部作用域导致其他分支 UnboundLocalError。
+from engine.state_consistency import (
+    ensure_narrative_consistent,
+    sanitize_ai_text,
+    sanitize_narrative,
+    validate_narrative_against_dropped,
+)
 from engine.core import (
     check_preconditions,
     finalize_month_advance,
@@ -277,10 +285,20 @@ async def _execute_decree_core(
 
                 if isinstance(freeform, FreeformResult):
                     mem_count_before = len(state.memorials)
+                    # 状态一致性：落库后校验 freeform 叙事；被 validate_ai_effects 丢弃的
+                    # effects 不再被叙事描述（文本/数值同源）
+                    dropped_out: list = []
                     delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
-                        state, freeform=freeform,
+                        state, freeform=freeform, dropped_out=dropped_out,
                     )
                     _mem_triggers = state.memorials[mem_count_before:]
+
+                    narrative = sanitize_ai_text(freeform.narrative, state)
+                    if dropped_out:
+                        # 丢弃了无效 effects：叙事不得描述未生效目标的变化（文本/数值同源）
+                        narrative = sanitize_narrative(
+                            narrative, validate_narrative_against_dropped(narrative, dropped_out),
+                        )
 
                     if _summary:
                         ai_implications = await provider.generate_action_implications(
@@ -288,23 +306,25 @@ async def _execute_decree_core(
                         )
                         if ai_implications:
                             _summary.action_implications = ai_implications
-                        _summary.commentary = await provider.generate_turn_commentary(
-                            _summary.model_dump(), state,
+                        _summary.commentary = sanitize_ai_text(
+                            await provider.generate_turn_commentary(
+                                _summary.model_dump(), state,
+                            ), state,
                         )
 
                     state.history_log.append(HistoryEntry(
                         year=state.time.year, month=state.time.month,
                         decree_type="freeform",
                         decree_desc=free_text_for_history[:50],
-                        delta=delta, narrative=freeform.narrative,
+                        delta=delta, narrative=narrative,
                     ))
 
-                    if stream_narrative_callback and freeform.narrative:
-                        await stream_narrative_callback(freeform.narrative)
+                    if stream_narrative_callback and narrative:
+                        await stream_narrative_callback(narrative)
 
                     last_response = DecreeResponse(
                         state=state, delta=delta, attribution=attribution,
-                        narrative=freeform.narrative, newly_triggered_events=triggered,
+                        narrative=narrative, newly_triggered_events=triggered,
                         game_time=state.time, game_over=game_over,
                         minister_reactions=_reactions,
                         turn_summary=_summary,
@@ -392,8 +412,10 @@ async def _execute_decree_core(
                     )
                     if ai_implications:
                         _summary.action_implications = ai_implications
-                    _summary.commentary = await provider.generate_turn_commentary(
-                        _summary.model_dump(), state,
+                    _summary.commentary = sanitize_ai_text(
+                        await provider.generate_turn_commentary(
+                            _summary.model_dump(), state,
+                        ), state,
                     )
 
                 state.history_log.append(HistoryEntry(
@@ -443,8 +465,10 @@ async def _execute_decree_core(
                 )
                 if ai_implications:
                     _summary.action_implications = ai_implications
-                _summary.commentary = await provider.generate_turn_commentary(
-                    _summary.model_dump(), state,
+                _summary.commentary = sanitize_ai_text(
+                    await provider.generate_turn_commentary(
+                        _summary.model_dump(), state,
+                    ), state,
                 )
             state.history_log.append(HistoryEntry(
                 year=state.time.year, month=state.time.month,
@@ -828,7 +852,14 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 if game_over:
                     break
             if last_decree is not None:
-                narrative = await provider.generate_narrative(last_attr, state, last_triggered, last_decree)
+                # 状态一致性闭环：校验→重试→净化（模块级导入，见文件头注释）
+                narrative = await ensure_narrative_consistent(
+                    provider, state,
+                    generate=lambda fix_instruction=None: provider.generate_narrative(
+                        last_attr, state, last_triggered, last_decree,
+                        fix_instruction=fix_instruction,
+                    ),
+                )
                 state.history_log[-1].narrative = narrative
 
         if req.action != "approved" and narrative == "":

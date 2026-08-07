@@ -15,7 +15,8 @@ import json
 import pytest
 from fastapi import HTTPException
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import routes as api_routes
 from api import state as api_state
 from api import trpg as trpg_routes
@@ -29,8 +30,8 @@ from trpg import chapter as chapter_mod
 from trpg import character as character_mod
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 @pytest.fixture(autouse=True)
@@ -269,7 +270,7 @@ class TestConvergence:
         return state
 
     def test_act_attaches_convergence_options_when_hook_active(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = self._warlord_at_1360()
         resp = asyncio.run(trpg_routes.act(ActRequest(action_text="整顿残军")))
         assert resp["convergence_hook"] is not None
@@ -281,7 +282,7 @@ class TestConvergence:
         }
 
     def test_act_no_convergence_options_before_fallback(self):
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = create_initial_state()  # 1328-10 < 1360
         resp = asyncio.run(trpg_routes.act(ActRequest(action_text="牧牛于野")))
         assert resp["convergence_hook"] is None
@@ -289,7 +290,7 @@ class TestConvergence:
 
     def test_act_no_convergence_in_governance(self):
         """governance（is_frozen）不触发收束。"""
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         state = self._warlord_at_1360()
         state.phase = "governance"
         api_state._state = state
@@ -367,14 +368,14 @@ class TestConvergence:
 class TestStateChangesApplication:
     def test_act_rule_fallback_returns_empty_result(self):
         """规则回退 state_changes 恒 {} → applied/ignored 均空（向后兼容）。"""
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         api_state._state = create_initial_state()
         resp = asyncio.run(trpg_routes.act(ActRequest(action_text="巡查营寨")))
         assert resp["state_changes_result"] == {"applied": [], "ignored": []}
         assert "state_changes" in resp  # 原始字段保留
 
     def test_act_applies_ai_state_changes(self):
-        class _StateChangeProvider(MockProvider):
+        class _StateChangeProvider(FakeProvider):
             async def chat_query(self, text, game_state, history):
                 return json.dumps({
                     "narrative": "整饬一新，军心稍定。",
@@ -475,7 +476,7 @@ class TestThreatClearing:
 
     def test_freeform_script_resolution_clears_threat(self):
         """端到端：自由文本解析镇江事件 choice 0 → 威胁清除落库，无 500（回归步骤7 修复）。"""
-        api_state._provider = _mock_provider()
+        api_state._provider = _fake_provider()
         state = create_initial_state()
         state.time = GameTime(year=1356, month=10, era_name="至正", era_year=16)
         inject_script_events(state)

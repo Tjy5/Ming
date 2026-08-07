@@ -478,14 +478,23 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             mark_monthly_usage=False,
         )
         mem_triggers = state.memorials[mem_count_before:]
-        narrative = await provider.generate_narrative(attr, state, triggered, decree)
+        # 状态一致性闭环（惰性导入防 engine 初始化环）：校验→重试→净化
+        from engine.state_consistency import ensure_narrative_consistent, sanitize_ai_text
+        narrative = await ensure_narrative_consistent(
+            provider, state,
+            generate=lambda fix_instruction=None: provider.generate_narrative(
+                attr, state, triggered, decree, fix_instruction=fix_instruction,
+            ),
+        )
         if summary:
             ai_implications = await provider.generate_action_implications(
                 {"rule_based_implications": summary.action_implications}, state,
             )
             if ai_implications:
                 summary.action_implications = ai_implications
-            summary.commentary = await provider.generate_turn_commentary(summary.model_dump(), state)
+            summary.commentary = sanitize_ai_text(
+                await provider.generate_turn_commentary(summary.model_dump(), state), state,
+            )
         state.history_log.append(HistoryEntry(
             year=state.time.year, month=state.time.month,
             decree_type=decree.type.value, decree_desc=decree.target or "",

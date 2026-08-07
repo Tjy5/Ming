@@ -5,18 +5,18 @@ import os
 from dotenv import load_dotenv
 
 from .base import AIProvider
-from .mock_provider import MockProvider
 from .resilient import ResilientProvider
 
-_PROVIDERS: dict[str, type[AIProvider]] = {
-    "mock": MockProvider,
-}
+# Test-only provider registry: tests may register a deterministic fake here.
+# The product itself has no bundled provider — playing requires a configured
+# AI provider (API key etc.).
+_PROVIDERS: dict[str, type[AIProvider]] = {}
 
 
 def get_provider(name: str | None = None) -> AIProvider:
     if name is None:
         load_dotenv()
-        name = os.getenv("AI_PROVIDER", "mock")
+        name = os.getenv("AI_PROVIDER", "openai")
 
     normalized = (name or "").strip()
     lowered = normalized.lower()
@@ -24,7 +24,7 @@ def get_provider(name: str | None = None) -> AIProvider:
         normalized = "Z"
     elif lowered in {"hotaru", "h"}:
         normalized = "h"
-    elif lowered in {"openai", "google", "mock"}:
+    elif lowered in {"openai", "google"}:
         normalized = lowered
 
     if normalized == "openai":
@@ -54,11 +54,11 @@ def get_provider(name: str | None = None) -> AIProvider:
     # Fallback to provider based on user selected provider_type (default OpenAI)
     prefix = normalized.upper().replace("-", "_").replace(" ", "_")
     provider_type = os.getenv(f"{prefix}_PROVIDER_TYPE", "openai").lower()
-    
+
     if provider_type in {"google", "gemini"}:
         from .google_provider import GoogleProvider
         return ResilientProvider(GoogleProvider(prefix=prefix))
-        
+
     if provider_type == "anthropic":
         from .anthropic_provider import AnthropicProvider
         return ResilientProvider(AnthropicProvider(prefix=prefix))
@@ -66,7 +66,6 @@ def get_provider(name: str | None = None) -> AIProvider:
     if provider_type == "openai-response":
         from .openai_response_provider import OpenAIResponseProvider
         return ResilientProvider(OpenAIResponseProvider(prefix=prefix))
-        
+
     from .openai_provider import OpenAIProvider
     return ResilientProvider(OpenAIProvider(prefix=prefix))
-

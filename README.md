@@ -20,15 +20,30 @@
 - 政令限制：操作面板政令按类别限频（内政/军事/外交/其他）。
 - AI 交互能力：大臣对话、朝议、回合点评、奏折生成等。
 
+## 重要：必须先配置 AI 供应商
+
+本游戏**没有内置 Mock 供应商**，必须配置真实可用的 AI 供应商（API Key 等）才能游玩。
+推荐在游戏内右上角「AI 设置」页面完成配置，支持 OpenAI 兼容接口 / Google / Hotaru / Z 及自定义供应商。
+
 ## 技术栈
 
 - 后端：FastAPI + Pydantic + aiosqlite
 - 前端：React 19 + Vite + TypeScript
-- 模型接入：OpenAI / Google / Anthropic / Mock（可切换，含重试与回退）
+- 模型接入：OpenAI / Google / Anthropic / Hotaru / Z（可切换，含重试与失败兜底）
 
 ## 快速开始
 
-### 1) 后端
+### 一键启动（推荐给玩家/测试）
+
+双击项目根目录的 `start.bat`：
+
+1. 自动检查 Python / Node.js 环境（首次运行自动安装前端依赖与后端依赖）；
+2. 分别弹出前后端窗口（后端 `http://localhost:8000`，前端 `http://localhost:5173`）；
+3. 浏览器自动打开游戏页面，先在右上角「AI 设置」中配置 API Key 等，再开始游玩。
+
+### 手动启动（开发）
+
+#### 1) 后端
 
 ```bash
 pip install -r backend/requirements.txt
@@ -44,7 +59,7 @@ python -m uvicorn main:app --reload --port 8000
 > set PYTHONPATH=backend && uvicorn backend.main:app --reload --port 8000     # cmd
 > ```
 
-### 2) 前端
+#### 2) 前端
 
 ```bash
 cd frontend
@@ -56,13 +71,13 @@ npm run dev
 
 ## 环境变量（核心）
 
-在 `backend/.env` 中配置：
+在 `backend/.env` 中配置（或直接在游戏内「AI 设置」页面配置）：
 
-- `AI_PROVIDER`：`mock`（默认）/ `openai` / `google` / `h` / `Z`
+- `AI_PROVIDER`：`openai`（默认）/ `google` / `h` / `Z` / 自定义前缀
 - OpenAI 路径常用项：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL_NAME`
 - Google 路径常用项：`GOOGLE_API_KEY`、`GOOGLE_BASE_URL`、`GOOGLE_MODEL_NAME`
 - Anthropic/自定义供应商通过设置页与对应前缀环境变量管理
-- `AI_ENABLE_MOCK_FALLBACK`：控制运行时是否允许回退到 Mock
+- `AI_RULE_PARSE_FALLBACK`：可选；置 `1` 时政令解析在 AI 失败后回退本地关键词规则（默认关闭）
 - `ADMIN_PASSWORD`：访问 `/admin` 管理页面必需，未设置时管理接口不可用
 
 OpenAI-compatible 服务的 `OPENAI_BASE_URL` 应填写到 `/v1`，例如 `https://example.com/v1`。如果在 AI 设置页粘贴完整的 `/v1/chat/completions` 地址，后端会自动规范化为可用的 `/v1`。

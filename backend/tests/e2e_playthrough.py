@@ -3,7 +3,8 @@
 - 标记 @pytest.mark.e2e；默认跳过（pytest 7.4 的 addopts -m 会覆盖命令行 -m，
   故用环境变量闸口）：`RUN_E2E=1 python -m pytest tests -m e2e` 运行通关模拟；
   常规套件命令 `python -m pytest tests -q -m "not e2e"`。
-- 无外部依赖、可复现：AI_PROVIDER=mock 走规则回退；dice.set_seed 固定骰序；
+- 无外部依赖、可复现：测试注入 tests.fakes.FakeProvider（确定性规则/模板，
+  产品无内置 provider）；dice.set_seed 固定骰序；
   治理段用 engine 层（process_decree/advance_month/check_game_end）驱动，
   跑团段走 API 层（/act、/milestones/{id}/complete）。
 - 断言（design 第 5 节）：
@@ -20,7 +21,8 @@ import os
 
 import pytest
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import state as api_state
 from api import trpg as trpg_routes
 from engine.core import (
@@ -67,8 +69,8 @@ MAIN_PATH_MILESTONES: list[tuple[str, str, int, int]] = [
 ]
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 def _can_issue(state: GameState, decree: StructuredDecree) -> bool:
@@ -155,7 +157,7 @@ def _resolve_script_events(state: GameState) -> None:
 @pytest.mark.e2e
 def test_historical_main_path_playthrough():
     dice_mod.set_seed(2026)
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = create_initial_state()
     character_mod.ensure_sheets(state)
     api_state._state = state

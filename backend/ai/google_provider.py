@@ -12,9 +12,9 @@ from dotenv import load_dotenv
 
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, MemorialStatus, MinisterStatus
+from .fallbacks import template_assembly_debate, template_memorial
 from .provider import (
     AIProvider,
-    MockProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     parse_error,
     build_debate_prompt,
@@ -171,8 +171,11 @@ class GoogleProvider(AIProvider):
     async def generate_narrative(
         self, delta_attribution: dict, game_state: GameState,
         chain_events: list[str], decree: StructuredDecree,
+        *, fix_instruction: str | None = None,
     ) -> str:
         prompt = _build_narrative_prompt(delta_attribution, game_state, chain_events, decree)
+        if fix_instruction:
+            prompt = f"{prompt}\n\n{fix_instruction}"
 
         try:
             response = await self.client.aio.models.generate_content(
@@ -316,12 +319,12 @@ class GoogleProvider(AIProvider):
             )
             draft = parse_memorial_draft(response.text or "", author.name, game_state)
             if not draft.suggested_decrees and trigger_reason.split(":", 1)[0] != "faction_crisis":
-                mock = await MockProvider().generate_memorial(trigger_reason, author, game_state)
-                draft.suggested_decrees = mock.suggested_decrees
+                fallback = template_memorial(trigger_reason, author, game_state)
+                draft.suggested_decrees = fallback.suggested_decrees
             return draft
         except Exception as e:
             logging.error("GoogleProvider generate_memorial fallback: %s", e)
-            return await MockProvider().generate_memorial(trigger_reason, author, game_state)
+            return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
         self, minister: Minister, decree: StructuredDecree, stance: int, game_state: GameState,
@@ -511,7 +514,7 @@ class GoogleProvider(AIProvider):
     ) -> dict | None:
         speeches = await self.generate_debate_speeches(topic, participants, game_state)
         if not speeches:
-            return await MockProvider().generate_assembly_debate(topic, participants, game_state)
+            return template_assembly_debate(topic, participants, game_state)
 
         speech_map = {
             str(s.get("minister_name")): str(s.get("content", ""))

@@ -4,7 +4,8 @@ import os
 import pytest
 from fastapi import HTTPException
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import routes
 from api import state as api_state
 from api import settings_routes
@@ -33,8 +34,8 @@ def _restore_route_globals():
         api_state._provider = old_provider
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 def _governance_opening_state():
@@ -52,7 +53,7 @@ def _governance_opening_state():
 
 
 def test_execute_decree_is_atomic_when_later_decree_fails_precondition():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     api_state._state.civil_morale = 12  # HARSH_PUNISHMENT passes (>5), TAX_INCREASE fails after (civil_morale drops to ~2)
     before = api_state._state.model_dump()
@@ -74,7 +75,7 @@ def test_execute_decree_is_atomic_when_later_decree_fails_precondition():
 
 
 def test_personnel_target_must_exist():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
     before = api_state._state.model_dump()
 
@@ -113,7 +114,7 @@ def test_get_history_normalizes_negative_offset_and_small_limit():
 
 
 def test_execute_decree_summary_includes_action_implications_for_commentary():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
 
     req = routes.DecreeRequest(
@@ -130,7 +131,7 @@ def test_execute_decree_summary_includes_action_implications_for_commentary():
 
 
 def test_execute_decree_wait_turn_includes_memorial_triggers():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = _governance_opening_state()
     state.factions[0].satisfaction = 10
     api_state._state = state
@@ -148,7 +149,7 @@ def test_execute_decree_wait_turn_includes_memorial_triggers():
 
 
 def test_adopt_suggestion_includes_memorial_triggers():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = _governance_opening_state()
     state.factions[0].satisfaction = 10
     state.last_assembly = CourtAssembly(
@@ -179,7 +180,7 @@ def test_split_stream_sentences_preserves_sentence_boundaries():
 
 
 def test_execute_decree_stream_emits_final_event():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
 
     req = routes.DecreeRequest(decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)])
@@ -197,7 +198,7 @@ def test_execute_decree_stream_emits_final_event():
 
 
 def test_execute_decree_stream_emits_provider_token_chunks():
-    class _TokenStreamMockProvider(MockProvider):
+    class _TokenStreamFakeProvider(FakeProvider):
         async def generate_narrative(self, *a, **kw) -> str:
             return "甲乙"
 
@@ -205,7 +206,7 @@ def test_execute_decree_stream_emits_provider_token_chunks():
             yield "甲"
             yield "乙"
 
-    api_state._provider = ResilientProvider(_TokenStreamMockProvider(), timeout=1, retries=1)
+    api_state._provider = ResilientProvider(_TokenStreamFakeProvider(), timeout=1, retries=1)
     api_state._state = create_initial_state()
 
     req = routes.DecreeRequest(decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)])
@@ -224,7 +225,7 @@ def test_execute_decree_stream_emits_provider_token_chunks():
 
 
 def test_execute_decree_stream_emits_fallback_narrative_chunk():
-    class _EmptyStreamMockProvider(MockProvider):
+    class _EmptyStreamFakeProvider(FakeProvider):
         async def generate_narrative(self, *a, **kw) -> str:
             return "整段叙事"
 
@@ -232,7 +233,7 @@ def test_execute_decree_stream_emits_fallback_narrative_chunk():
             if False:
                 yield ""
 
-    api_state._provider = ResilientProvider(_EmptyStreamMockProvider(), timeout=1, retries=1)
+    api_state._provider = ResilientProvider(_EmptyStreamFakeProvider(), timeout=1, retries=1)
     api_state._state = create_initial_state()
 
     req = routes.DecreeRequest(decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)])
@@ -251,17 +252,33 @@ def test_execute_decree_stream_emits_fallback_narrative_chunk():
 
 def test_update_ai_settings_persists_provider_and_returns_snapshot(tmp_path, monkeypatch):
     monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
-    monkeypatch.setenv("AI_PROVIDER", "mock")
+    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
     api_state._provider = object()
 
     from api.schemas import AISettingsRequest
-    result = asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(provider="mock")))
+    result = asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
+        provider="openai",
+        api_key="sk-test",
+    )))
 
-    assert result["provider"] == "mock"
-    assert os.getenv("AI_PROVIDER") == "mock"
+    assert result["provider"] == "openai"
+    assert os.getenv("AI_PROVIDER") == "openai"
     assert api_state._provider is not None
     assert (tmp_path / ".env").exists()
-    assert "AI_PROVIDER=mock" in (tmp_path / ".env").read_text(encoding="utf-8")
+    assert "AI_PROVIDER=openai" in (tmp_path / ".env").read_text(encoding="utf-8")
+
+
+def test_update_ai_settings_requires_api_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
+    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
+
+    from api.schemas import AISettingsRequest
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
+            provider="openai",
+            api_key="",
+        )))
+    assert exc_info.value.status_code == 422
 
 
 def test_update_ai_settings_normalizes_openai_chat_completions_base_url(tmp_path, monkeypatch):
@@ -389,7 +406,7 @@ def test_list_ai_models_rejects_private_base_url_by_default():
 # ── 10.3 FREEFORM_EMPTY error when source_script_id present ──
 
 def test_freeform_empty_returns_error_with_script_id():
-    class _EmptyFreeformMock(MockProvider):
+    class _EmptyFreeformMock(FakeProvider):
         async def process_freeform(self, text, game_state, *, script_context=None):
             return FreeformResult(
                 effects={}, narrative="", rationale="",
@@ -417,13 +434,12 @@ def test_freeform_empty_returns_error_with_script_id():
     assert exc_info.value.detail["error_code"] == "FREEFORM_EMPTY"
 
 
-def test_minister_dialogue_returns_503_when_ai_fails_and_mock_disabled(monkeypatch):
-    class _FailDialogueProvider(MockProvider):
+def test_minister_dialogue_returns_503_when_ai_fails(monkeypatch):
+    class _FailDialogueProvider(FakeProvider):
         async def generate_minister_dialogue(self, *args, **kwargs):
             raise RuntimeError("dialogue failed")
 
     monkeypatch.setenv("AI_PROVIDER", "openai")
-    monkeypatch.delenv("AI_ENABLE_MOCK_FALLBACK", raising=False)
     api_state._provider = ResilientProvider(_FailDialogueProvider(), timeout=1, retries=1)
     api_state._state = _governance_opening_state()
 
@@ -444,7 +460,7 @@ def test_minister_dialogue_returns_503_when_ai_fails_and_mock_disabled(monkeypat
 # ── 10.10 200-char limit boundary test ──
 
 def test_200_char_limit_accepted():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
 
     text_200 = "字" * 200
@@ -458,7 +474,7 @@ def test_200_char_limit_accepted():
 
 
 def test_201_char_limit_rejected():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
 
     text_201 = "字" * 201
@@ -474,7 +490,7 @@ def test_201_char_limit_rejected():
 # ── 10.11 source_script_id validation tests ──
 
 def test_invalid_script_id_rejected():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
 
     with pytest.raises(HTTPException) as exc_info:
@@ -487,7 +503,7 @@ def test_invalid_script_id_rejected():
 
 
 def test_script_already_resolved_rejected():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = _governance_opening_state()
     active_script = next(
         (e.script_id for e in state.active_events if e.script_id), None
@@ -506,7 +522,7 @@ def test_script_already_resolved_rejected():
 
 
 def test_script_not_active_rejected():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = create_initial_state()
     # Use a valid script ID from registry that's NOT in active_events
     from engine.scripts import SCRIPT_REGISTRY

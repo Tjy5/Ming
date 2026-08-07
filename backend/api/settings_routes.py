@@ -105,9 +105,6 @@ async def list_ai_models(req: AIModelListRequest):
     )
     base_url = _clean_optional(req.base_url) if req.base_url is not None else current_base_url
 
-    if provider == "mock":
-        return {"provider": provider, "models": [], "source": "mock"}
-
     provider_type = (req.provider_type or current.get("provider_type") or "openai").lower()
 
     if provider == "google" or provider_type in ["google", "gemini"]:

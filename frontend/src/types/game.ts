@@ -450,7 +450,7 @@ export interface Capabilities {
 
 export const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, assembly_supported: false, memorial_enabled: false }
 
-export type AIProvider = 'mock' | 'openai' | 'google' | 'h' | 'Z' | (string & {})
+export type AIProvider = 'openai' | 'google' | 'h' | 'Z' | (string & {})
 
 export interface AISettings {
   provider: AIProvider

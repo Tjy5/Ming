@@ -4,7 +4,6 @@ from engine.tables import FACTION_STANCE
 from models.game import GameState, Minister, INITIAL_FACTIONS, INITIAL_MINISTERS
 from models.enums import DecreeType, MinisterStatus
 
-from ai.provider import MockProvider
 
 
 DEBATE_TOPICS: dict[str, list[dict[str, str]]] = {
@@ -25,8 +24,9 @@ _FACTION_ORDER = {f.name: i for i, f in enumerate(INITIAL_FACTIONS)}
 
 
 def is_ai_provider(provider) -> bool:
-    inner = getattr(provider, "_inner", provider)
-    return not isinstance(inner, MockProvider)
+    # Every configured provider is an AI provider; the bundled mock provider
+    # was removed. Retained as a predicate for /api/capabilities.
+    return True
 
 
 def _pick_active_minister(state: GameState, faction_name: str) -> Minister | None:

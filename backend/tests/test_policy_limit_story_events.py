@@ -3,7 +3,8 @@ import asyncio
 import pytest
 from fastapi import HTTPException
 
-from ai.provider import MockProvider, ResilientProvider
+from ai.provider import ResilientProvider
+from fakes import FakeProvider
 from api import routes
 from api import state as api_state
 from db.saves import _migrate_save
@@ -32,8 +33,8 @@ def _restore_route_globals():
         api_state._provider = old_provider
 
 
-def _mock_provider():
-    return ResilientProvider(MockProvider(), timeout=1, retries=1)
+def _fake_provider():
+    return ResilientProvider(FakeProvider(), timeout=1, retries=1)
 
 
 def _governance_opening_state():
@@ -110,7 +111,7 @@ def test_migrate_decrees_this_month_from_type_keys_to_categories():
 
 
 def test_script_free_text_maps_to_choice_and_executes():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = _governance_opening_state()
     api_state._state = state
 
@@ -131,7 +132,7 @@ def test_script_free_text_maps_to_choice_and_executes():
 
 
 def test_script_free_text_low_confidence_returns_freeform_empty_and_preserves_state():
-    api_state._provider = _mock_provider()
+    api_state._provider = _fake_provider()
     state = _governance_opening_state()
     api_state._state = state
     before = state.model_dump()
@@ -173,7 +174,7 @@ def test_inject_script_events_respects_persisted_trigger_decision():
 
 
 def test_script_free_text_uses_provider_classification_path():
-    class _TrackingProvider(MockProvider):
+    class _TrackingProvider(FakeProvider):
         def __init__(self):
             self.classify_called = False
 
@@ -200,7 +201,7 @@ def test_script_free_text_uses_provider_classification_path():
 
 
 def test_advance_month_uses_provider_trigger_decisions():
-    class _TrackingProvider(MockProvider):
+    class _TrackingProvider(FakeProvider):
         def __init__(self):
             self.trigger_called = False
 
@@ -237,7 +238,7 @@ def test_new_game_is_trpg_opening_without_governance_scripts():
     （治理脚本自 1356-03 起，经 advance-month 的 AI 决策路径注入——
     见 test_advance_month_uses_provider_trigger_decisions。）
     """
-    class _TrackingProvider(MockProvider):
+    class _TrackingProvider(FakeProvider):
         def __init__(self):
             self.trigger_called = False
 
