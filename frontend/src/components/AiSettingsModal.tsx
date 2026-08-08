@@ -48,6 +48,22 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const [fetchingModels, setFetchingModels] = useState(false)
   const [error, setError] = useState('')
   const [hint, setHint] = useState('')
+  // 08-07-improve-ai-settings-page：测试连接状态
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle')
+  const [testDetail, setTestDetail] = useState('')
+
+  // 错误诊断：error_code → 可读原因 + 建议（与后端 ai.errors.ERROR_DIAGNOSIS 对齐）
+  const ERROR_DIAGNOSIS: Record<string, string> = {
+    missing_api_key: '未填写 API Key，请先在设置中填入。',
+    invalid_api_key: 'API Key 无效（401），请核对是否已复制完整、未含多余空格。',
+    quota: '账户额度不足或被限流（429），请检查账单或稍后重试。',
+    model_not_found: '模型名不存在（404），请检查 Model 字段是否拼写正确。',
+    invalid_base_url: 'Base URL 格式无效，应为 http(s):// 开头的兼容端点。',
+    network: '网络连接失败，请检查网络、代理或 Base URL 是否可达。',
+    timeout: '请求超时，供应商响应过慢或网络不稳定，请重试。',
+    format: '供应商返回格式异常，请确认 Base URL 指向的是 OpenAI 兼容接口。',
+    model_list_failed: '获取模型列表/连接失败，请检查密钥、地址与网络。',
+  }
 
   // 游戏强制要求配置真实 AI 供应商：API Key / Base URL / 模型 全部始终展示
   const showBaseUrl = true
@@ -227,6 +243,38 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       setError(e instanceof ApiError ? e.body.message : '获取模型列表失败')
     } finally {
       setFetchingModels(false)
+    }
+  }
+
+  // 08-07-improve-ai-settings-page：真实链路探测（最小 chat completion）
+  async function handleTestConnection() {
+    setTestState('testing')
+    setTestDetail('')
+    setError('')
+    try {
+      const res = await api.testAiConnection({
+        provider,
+        provider_type: providerType,
+        api_key: showApiKey ? (apiKey || null) : null,
+        base_url: showBaseUrl ? (baseUrl || null) : null,
+        model: showModel ? (model || null) : null,
+      })
+      if (res.ok) {
+        setTestState('ok')
+        setTestDetail(`连接成功${res.latency_ms ? `（${res.latency_ms}ms）` : ''}`)
+      } else {
+        setTestState('error')
+        const code = res.error_code || 'model_list_failed'
+        setTestDetail(ERROR_DIAGNOSIS[code] || res.message || '连接失败')
+      }
+    } catch (e) {
+      setTestState('error')
+      const code = e instanceof ApiError ? e.body.error_code : null
+      setTestDetail(
+        code && ERROR_DIAGNOSIS[code]
+          ? ERROR_DIAGNOSIS[code]
+          : (e instanceof ApiError ? e.body.message : '测试连接失败，请检查后端服务')
+      )
     }
   }
 
@@ -486,8 +534,18 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               >
                 {fetchingModels ? '拉取中...' : '获取模型列表'}
               </button>
+              <button
+                className="modal-btn"
+                onClick={handleTestConnection}
+                disabled={testState === 'testing' || saving}
+                title="用当前配置发起一次真实最小请求，验证端到端可用"
+              >
+                {testState === 'testing' ? '测试中...' : '测试连接'}
+              </button>
               {modelsSource && <span className="ai-model-source">来源: {modelsSource}</span>}
             </div>
+            {testState === 'ok' && <p className="ai-hint">✓ {testDetail}</p>}
+            {testState === 'error' && <p className="ai-error">✗ {testDetail}</p>}
 
             {models.length > 0 && (
               <div className="ai-model-list">

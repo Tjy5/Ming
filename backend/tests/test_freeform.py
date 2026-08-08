@@ -311,7 +311,10 @@ class TestProcessDecreeFreeform:
         )
         _, attr, _, _, _, _ = process_decree(state, freeform=freeform)
         # national_treasury effect should be recorded in attribution.
-        assert attr.get("national_treasury", {}).get("旨意影响") == -20
+        # 08-07-decree-execution-loss：官僚执行损耗使实际效果 ≤ 目标（到手可能被盘剥）
+        applied = attr.get("national_treasury", {}).get("旨意影响")
+        assert applied is not None and applied < 0
+        assert abs(applied) <= 20
 
     def test_freeform_chain_events_trigger(self):
         state = make_state(civil_morale=5, national_treasury=1, military_morale=5)

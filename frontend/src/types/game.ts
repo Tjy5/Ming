@@ -54,6 +54,9 @@ export interface MinisterAbilities {
   civil: number
   military: number
   diplomacy: number
+  administration: number
+  knowledge: number
+  politics: number
 }
 
 export interface MissionState {
@@ -71,6 +74,9 @@ export interface Minister {
   abilities: MinisterAbilities
   status: MinisterStatus
   loyalty: number
+  corruption: number
+  ambition: number
+  influence: number
   positions: string[]
   is_eunuch: boolean
   entry_year: number

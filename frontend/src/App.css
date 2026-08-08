@@ -2,3 +2,64 @@
 @import './styles/script-and-panels.css';
 @import './styles/edict-turn-memorial.css';
 @import './styles/assembly.css';
+
+/* 08-07-frontend-ui-polish：指引手册与选省面板 */
+.guide-panel {
+  max-width: 520px;
+  border-color: var(--accent-gold);
+}
+.guide-section {
+  margin: 1rem 0;
+  line-height: 1.7;
+  color: var(--ink);
+}
+.guide-section h3 {
+  color: var(--accent-gold);
+  font-family: var(--font-kai);
+  margin-bottom: 0.4rem;
+}
+.guide-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.guide-progress {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+.guide-skip {
+  position: absolute;
+  top: 0.8rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.guide-skip:hover {
+  color: var(--accent-gold);
+}
+.region-detail-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1.5rem;
+  color: var(--ink);
+}
+.region-detail-list li {
+  border-bottom: 1px dashed var(--border-faint);
+  padding-bottom: 0.3rem;
+}
+.region-detail-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+.resource-item {
+  cursor: help;
+}

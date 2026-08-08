@@ -593,6 +593,19 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  // 08-07-improve-ai-settings-page：真实链路探测（最小 chat completion）
+  testAiConnection: (payload: {
+    provider?: AIProvider
+    provider_type?: string | null
+    api_key?: string | null
+    base_url?: string | null
+    model?: string | null
+  }) =>
+    request<{ ok: boolean; error_code: string | null; message: string; latency_ms: number }>('/settings/ai/test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   advanceMonth: (signal?: AbortSignal) => request<AdvanceMonthResponse>('/advance-month', { method: 'POST', signal }),
 }
 

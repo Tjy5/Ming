@@ -89,6 +89,9 @@ class MinisterAbilities(BaseModel):
     civil: int = Field(default=0, ge=0, le=100)
     military: int = Field(default=0, ge=0, le=100)
     diplomacy: int = Field(default=0, ge=0, le=100)
+    administration: int = Field(default=50, ge=0, le=100)  # 管理（08-07-minister-agent）
+    knowledge: int = Field(default=50, ge=0, le=100)        # 知识
+    politics: int = Field(default=50, ge=0, le=100)         # 政治
 
 
 class MissionState(BaseModel):
@@ -99,6 +102,15 @@ class MissionState(BaseModel):
     effects: dict = Field(default_factory=dict)
 
 
+class PolicyProgress(BaseModel):
+    """国家层面的长期在办国策（区别于大臣任务 MissionState），随存档持久化。"""
+    name: str
+    started_year: int
+    started_month: int
+    summary: str = ""
+    effects: dict = Field(default_factory=dict)
+
+
 class Minister(BaseModel):
     name: str
     faction: str
@@ -106,6 +118,9 @@ class Minister(BaseModel):
     abilities: MinisterAbilities = Field(default_factory=MinisterAbilities)
     status: MinisterStatus = MinisterStatus.ACTIVE
     loyalty: int = Field(default=50, ge=0, le=100)
+    corruption: int = Field(default=10, ge=0, le=100)
+    ambition: int = Field(default=30, ge=0, le=100)   # 野心（08-07-minister-agent）
+    influence: int = Field(default=30, ge=0, le=100)  # 势力（个人）
     positions: list[str] = Field(default_factory=list)
     is_eunuch: bool = False
     entry_year: int = 1356
@@ -434,6 +449,10 @@ class GameState(BaseModel):
     # ── TRPG（阶段B）：角色卡与成长记录，随存档持久化 ──
     character_sheets: dict[str, CharacterSheet] = Field(default_factory=dict)
     growth_log: list[GrowthEntry] = Field(default_factory=list)
+    # 执行损耗随机偏差 seed；None 表示确定性（无偏差），兼容 PBT/测试
+    execution_rng_seed: int | None = None
+    # 在办国策（国家层面长期政令，区别于大臣任务），随存档持久化
+    active_policies: list[PolicyProgress] = Field(default_factory=list)
 
     @field_validator("minister_conversations", mode="before")
     @classmethod
@@ -748,9 +767,15 @@ def clamp_state(state: GameState) -> None:
         r.disaster_level = clamp_indicator(r.disaster_level)
     for m in state.ministers:
         m.loyalty = clamp_indicator(m.loyalty)
+        m.corruption = clamp_indicator(m.corruption)
+        m.ambition = clamp_indicator(m.ambition)
+        m.influence = clamp_indicator(m.influence)
         m.abilities.civil = clamp_indicator(m.abilities.civil)
         m.abilities.military = clamp_indicator(m.abilities.military)
         m.abilities.diplomacy = clamp_indicator(m.abilities.diplomacy)
+        m.abilities.administration = clamp_indicator(m.abilities.administration)
+        m.abilities.knowledge = clamp_indicator(m.abilities.knowledge)
+        m.abilities.politics = clamp_indicator(m.abilities.politics)
 
 
 # ── Dialogue Models ─────────────────────────────────────

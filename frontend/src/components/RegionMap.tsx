@@ -30,9 +30,10 @@ interface Props {
   regions: Region[]
   highlightRegion?: string
   toasts?: string[]
+  onRegionClick?: (region: Region) => void
 }
 
-export default function RegionMap({ regions, highlightRegion, toasts }: Props) {
+export default function RegionMap({ regions, highlightRegion, toasts, onRegionClick }: Props) {
   const [tooltip, setTooltip] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('standard')
 
@@ -58,7 +59,10 @@ export default function RegionMap({ regions, highlightRegion, toasts }: Props) {
             <div
               key={r.name}
               className={`region-block ${stabClassMap[level]}${highlighted ? ' highlight-pulse' : ''}`}
-              onClick={() => setTooltip(tooltip === r.name ? null : r.name)}
+              onClick={() => {
+                setTooltip(tooltip === r.name ? null : r.name)
+                onRegionClick?.(r)
+              }}
               style={{ backgroundColor: CONTROL_BG[r.control] }}
             >
               <div className="region-name">{r.name}</div>

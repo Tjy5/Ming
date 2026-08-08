@@ -108,6 +108,7 @@ def _apply_one(state: GameState, key: str, raw_value) -> bool:
         logger.info("state_changes 忽略（目标实体不存在）: %s", key)
         return False
     field = key.rsplit(".", 1)[-1]
+    parts = key.split(".")
     ftype = spec["type"]
     try:
         if ftype == "str":
@@ -121,10 +122,20 @@ def _apply_one(state: GameState, key: str, raw_value) -> bool:
             return True
         if ftype == "int":
             delta = int(raw_value)
+            # 08-07-decree-execution-loss：全局数值增量经执行损耗，防止跑团 GM 绕过
+            if parts[0] == "global":
+                from engine.execution_loss import apply_execution_loss
+                net = apply_execution_loss(state, {field: delta}, {field: f"trpg:{key}"})
+                delta = net.get(field, delta)
             setattr(target, field, getattr(target, field) + delta)
             return True
         if ftype == "float":
             delta = round(float(raw_value), 2)
+            # 同上：全局 float 增量（如税收比例）经损耗
+            if parts[0] == "global":
+                from engine.execution_loss import apply_execution_loss
+                net = apply_execution_loss(state, {field: delta}, {field: f"trpg:{key}"})
+                delta = net.get(field, delta)
             setattr(target, field, round(getattr(target, field) + delta, 2))
             return True
     except (TypeError, ValueError):

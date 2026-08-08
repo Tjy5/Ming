@@ -649,42 +649,9 @@ _FREEFORM_SYSTEM_PROMPT = """\
 
 
 def _serialize_game_state(state: GameState) -> str:
-    t = state.time
-    lines = [f"当前时间：{t.era_name}{t.era_year}年（{t.year}年）{t.month}月"]
-    lines.append(
-        f"国库={state.national_treasury} 人口={state.population} 军需={state.military_strength} "
-        f"民心={state.civil_morale} 军心={state.military_morale} 威望={state.court_prestige}"
-    )
-
-    lines.append("\n大臣：")
-    for m in state.ministers:
-        if m.status == _MS.REMOVED:
-            continue
-        tags = "、".join(m.personality_tags) if m.personality_tags else "无"
-        lines.append(
-            f"  {m.name}（{m.faction}，{m.status.value}，忠诚{m.loyalty}，"
-            f"文{m.abilities.civil}/武{m.abilities.military}/外{m.abilities.diplomacy}，性格：{tags}）"
-        )
-
-    lines.append("\n派系：")
-    for f in state.factions:
-        lines.append(f"  {f.name}（满意度{f.satisfaction} 影响力{f.influence} 叛乱风险{f.rebellion_risk}）")
-
-    lines.append("\n区域：")
-    for r in state.regions:
-        lines.append(
-            f"  {r.name}（稳定{r.stability} 驻军{r.garrison} 控制={r.control.value if hasattr(r.control, 'value') else r.control} "
-            f"威胁={r.threat.value if hasattr(r.threat, 'value') else r.threat} 民心{r.civil_morale} "
-            f"叛乱{r.rebellion_risk} 灾害{r.disaster_level} 税率{r.tax_rate}）"
-        )
-
-    if state.active_events:
-        lines.append("\n活跃事件：")
-        for e in state.active_events:
-            urg = e.urgency.value if hasattr(e.urgency, "value") else e.urgency
-            lines.append(f"  {e.name}（紧急度：{urg}）")
-
-    return "\n".join(lines)
+    # 08-07-ai-memory-decree-prompts：统一复用 build_global_situation（年号/数值区间/守卫/在办任务）
+    from ai.prompts import build_global_situation
+    return build_global_situation(state)
 
 
 def build_freeform_user_prompt(
@@ -703,7 +670,10 @@ def build_freeform_user_prompt(
     return "\n".join(parts)
 
 
-def parse_freeform_response(data: dict, current_year: int = 1627, current_month: int = 1) -> FreeformResult | dict:
+def parse_freeform_response(data: dict, current_year: int | None = None, current_month: int | None = None) -> FreeformResult | dict:
+    # 08-07-historical-accuracy：年号必须来自 game_state，禁止静默错代（原默认 1627 明末）
+    if current_year is None or current_month is None:
+        return parse_error("缺少当前年号：current_year/current_month 必须由 game_state 注入")
     if "error" in data:
         return parse_error(data["error"])
 

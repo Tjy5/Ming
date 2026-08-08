@@ -221,6 +221,10 @@ async def _execute_decree_core(
 
     async with _lock:
         state = _get_state().model_copy(deep=True)
+        # 08-07-decree-execution-loss：运行时启用可控随机偏差（测试/默认无 seed → 确定性）
+        state.execution_rng_seed = hash(
+            f"{state.time.year}-{state.time.month}-{state.decree_count}"
+        ) & 0xFFFFFFFF
         provider = _get_provider()
 
         if req.source_script_id:
@@ -807,6 +811,10 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
     async with _lock:
         state = _get_state()
+        # 08-07-decree-execution-loss：运行时启用可控随机偏差
+        state.execution_rng_seed = hash(
+            f"{state.time.year}-{state.time.month}-{state.decree_count}"
+        ) & 0xFFFFFFFF
         memorial = next((m for m in state.memorials if m.id == memorial_id), None)
         if memorial is None:
             raise HTTPException(404, detail=ErrorResponse(

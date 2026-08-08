@@ -249,6 +249,27 @@ def _check_invented_speaker(sentence: str, state: GameState) -> list[dict]:
     return issues
 
 
+# 时代错乱词表（元末至正设定下不应出现的后代年号/事件）
+_ANACHRONISMS = ("崇祯", "明朝", "永乐", "迁都北京", "建文帝", "朱棣", "北京城")
+
+
+def _check_anachronism(sentence: str, state: GameState) -> list[dict]:
+    """规则C（时代错乱）：元末设定下出现的后代年号/事件/人物。
+
+    仅当 state 处于明朝建立前（year < 1368）才拦截，避免误伤后期剧本。
+    """
+    if getattr(state.time, "year", 9999) >= 1368:
+        return []
+    hits = [w for w in _ANACHRONISMS if w in sentence]
+    if not hits:
+        return []
+    return [{
+        "type": "anachronism",
+        "actor": "",
+        "reason": f"时代错乱：出现后代年号/事件 {hits}（当前为元末至正年间）",
+    }]
+
+
 def validate_narrative_against_dropped(text: str, dropped_out: list) -> list[dict]:
     """freeform 同源校验：叙事中出现"被丢弃 effects"的目标实体名 → 文本描述未生效内容。
 
@@ -290,6 +311,9 @@ def validate_narrative_text(text: str, state: GameState) -> list[dict]:
             issue["sentence"] = sentence
             issues.append(issue)
         for issue in _check_invented_speaker(sentence, state):
+            issue["sentence"] = sentence
+            issues.append(issue)
+        for issue in _check_anachronism(sentence, state):
             issue["sentence"] = sentence
             issues.append(issue)
     return issues

@@ -20,6 +20,7 @@ import AiSettingsModal from './components/AiSettingsModal'
 import MinisterDialogue from './components/MinisterDialogue'
 import OfficialRankModal from './components/OfficialRankModal'
 import MissionPanel from './components/MissionPanel'
+import GuideModal, { shouldAutoOpenGuide } from './components/GuideModal'
 import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
@@ -57,6 +58,13 @@ function App() {
   const blockingPushedFor = useRef<string | null>(null)
   const [memorialResolving, setMemorialResolving] = useState(false)
   const [dialogueMinisterName, setDialogueMinisterName] = useState<string | null>(null)
+  // 08-07-frontend-ui-polish：地图选省 + 指引手册
+  const [selectedRegion, setSelectedRegion] = useState<import('./types/game').Region | null>(null)
+  const [guideOpen, setGuideOpen] = useState(false)
+
+  useEffect(() => {
+    if (shouldAutoOpenGuide()) setGuideOpen(true)
+  }, [])
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -276,10 +284,11 @@ function App() {
         onShowSaves={() => setShowSaves(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
         onOpenChat={() => navigate('/chat')}
+        onOpenGuide={() => setGuideOpen(true)}
         onNewGame={handleNewGame}
       />
       <div className="main-area">
-        <RegionMap regions={state.regions} />
+        <RegionMap regions={state.regions} onRegionClick={(r) => setSelectedRegion(r)} />
         <div className="right-panel">
           <div className="right-panel-tabs">
             <button
@@ -448,6 +457,36 @@ function App() {
           onStateUpdate={setState}
         />
       )}
+
+      {selectedRegion && (
+        <div className="modal-overlay" onClick={() => setSelectedRegion(null)} data-testid="region-panel">
+          <div className="modal-panel region-detail-panel" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">{selectedRegion.name}</h2>
+            <ul className="region-detail-list">
+              <li>稳定度：{selectedRegion.stability}</li>
+              <li>驻军：{selectedRegion.garrison.toLocaleString()}</li>
+              <li>控制：{selectedRegion.control}</li>
+              <li>威胁：{selectedRegion.threat}</li>
+              <li>民心：{selectedRegion.civil_morale}</li>
+              <li>动乱风险：{selectedRegion.rebellion_risk}</li>
+              <li>灾害等级：{selectedRegion.disaster_level}</li>
+              <li>税率：{Math.round(selectedRegion.tax_rate * 100)}%</li>
+            </ul>
+            <div className="region-detail-actions">
+              <button
+                className="modal-btn primary"
+                onClick={() => {
+                  setSelectedRegion(null)
+                  setRightTab('minister')
+                }}
+              >调阅军队</button>
+              <button className="modal-btn" onClick={() => setSelectedRegion(null)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
 
       {toast && <div className="toast">{toast}</div>}
 

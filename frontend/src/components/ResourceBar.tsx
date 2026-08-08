@@ -11,6 +11,7 @@ interface Props {
   onNewGame: () => void
   onOpenAiSettings: () => void
   onOpenChat: () => void
+  onOpenGuide?: () => void
 }
 
 const RESOURCES: { key: keyof GameState; label: string; max: number; unit: string }[] = [
@@ -24,6 +25,18 @@ const RESOURCES: { key: keyof GameState; label: string; max: number; unit: strin
   { key: 'court_prestige', label: '威望', unit: '%', max: 100 },
 ]
 
+// 08-07-frontend-ui-polish：资源悬停说明（构成/含义）
+const RESOURCE_INFO: Record<string, string> = {
+  national_treasury: '国库：税收与赏赐之和，减军费与工程开销。',
+  imperial_treasury: '内帑：君主私库，用于特殊赏赐与应急。',
+  grain: '粮草：军需与赈灾之本，灾年 pivotal。',
+  population: '人口：治下编户，影响赋税与兵源。',
+  military_strength: '兵力：常备军，守土与征伐之基。',
+  civil_morale: '民心：治下安宁度，过低则生民变。',
+  military_morale: '军心：将士效命度，关乎战力。',
+  court_prestige: '威望：君主号令之重，影响外交与朝堂。',
+}
+
 function barColor(val: number, max: number): string {
   const pct = val / max
   if (pct > 0.6) return 'var(--green)'
@@ -31,7 +44,7 @@ function barColor(val: number, max: number): string {
   return 'var(--red)'
 }
 
-export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat }: Props) {
+export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenGuide }: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
 
   useEffect(() => {
@@ -56,7 +69,7 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         const diff = val - prev
         const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : ''
         return (
-          <div className="resource-item" key={key}>
+          <div className="resource-item" key={key} title={RESOURCE_INFO[key] || label}>
             <div className="resource-label">
               <span>{label}</span>
               <span className={`val ${cls}`}>{val}<small>{unit}</small></span>
@@ -82,6 +95,9 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
         <button className="toolbar-btn" onClick={onOpenChat}>对话模式</button>
         <button className="toolbar-btn" onClick={onOpenAiSettings}>AI设置</button>
+        {onOpenGuide && (
+          <button className="toolbar-btn" onClick={onOpenGuide} title="查看界面操作指引">指引</button>
+        )}
         <button className="toolbar-btn" onClick={onNewGame}>新局</button>
       </div>
     </div>

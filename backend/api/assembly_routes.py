@@ -14,6 +14,7 @@ from models.game import (
 from models.enums import DecreeType, AssemblyPhase
 from engine.core import process_decree, check_preconditions, validate_target
 from ai.provider import infer_decree_type_from_topic
+from engine.tables import FACTION_STANCE
 from .schemas import (
     AdoptSuggestionRequest,
     AssemblyDebateRequest,
@@ -190,6 +191,42 @@ async def assembly_debate(req: AssemblyDebateRequest):
 
 # ── POST /api/assembly/vote ─────────────────────────────
 
+def _vote_reason(m, stance: str, decree_type) -> str:
+    """08-07-minister-agent-enhancement：按八维 + 派系立场生成的差异化投票理由。"""
+    a = m.abilities
+    reasons = []
+    if stance == "赞成":
+        if a.military >= 70 and m.ambition >= 50:
+            reasons.append("臣以为当以兵威定之，迟则生变")
+        elif a.civil >= 70 and m.ambition < 40:
+            reasons.append("内政稳固，行之有利")
+        elif m.ambition >= 70:
+            reasons.append("此乃扩势良机，不可失")
+        else:
+            reasons.append("于国于民，利大于弊")
+    elif stance == "反对":
+        if m.corruption < 30:
+            reasons.append("用度当惜，勿加重民赋")
+        elif m.loyalty < 40:
+            reasons.append("此举恐损根基，宜缓")
+        elif a.military < 40 and decree_type in (DecreeType.RECRUIT_TROOPS, DecreeType.DISBAND_TROOPS):
+            reasons.append("兵事非所长，恐难竟功")
+        else:
+            reasons.append("弊多利少，不宜轻动")
+    else:  # 弃权
+        if m.ambition >= 70:
+            reasons.append("风头不便，且观后效")
+        else:
+            reasons.append("利弊相当，未敢轻断")
+    # 派系立场强化
+    fs = FACTION_STANCE.get(m.faction, {}).get(decree_type.value if hasattr(decree_type, "value") else decree_type, 0)
+    if fs >= 8:
+        reasons.append(f"{m.faction}之利，自当力挺")
+    elif fs <= -8:
+        reasons.append(f"有违{m.faction}根本，难以苟同")
+    return "；".join(reasons)
+
+
 @assembly_router.post("/assembly/vote")
 async def assembly_vote(req: AssemblyVoteRequest):
     async with _lock:
@@ -223,7 +260,7 @@ async def assembly_vote(req: AssemblyVoteRequest):
             votes.append(AssemblyVote(
                 minister_name=m.name,
                 vote=vote,
-                reason=f"派系立场与忠诚度综合判断（忠诚度{m.loyalty}）",
+                reason=_vote_reason(m, vote, decree_type),
             ))
         assembly.phase = AssemblyPhase.VOTE
         assembly.votes = votes

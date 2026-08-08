@@ -21,6 +21,17 @@ const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: stri
   { key: 'civil', label: '文', color: 'var(--green)' },
   { key: 'military', label: '武', color: 'var(--red)' },
   { key: 'diplomacy', label: '略', color: 'var(--accent-gold)' },
+  { key: 'administration', label: '管', color: 'var(--blue)' },
+  { key: 'knowledge', label: '知', color: 'var(--purple)' },
+  { key: 'politics', label: '政', color: 'var(--ink)' },
+]
+
+// 八维扩展属性（忠诚/腐败/野心/势力）展示
+const TRAIT_LABELS: { key: keyof Minister; label: string; color: string }[] = [
+  { key: 'loyalty', label: '忠', color: 'var(--green)' },
+  { key: 'corruption', label: '腐', color: 'var(--red)' },
+  { key: 'ambition', label: '野', color: 'var(--accent-gold)' },
+  { key: 'influence', label: '势', color: 'var(--blue)' },
 ]
 
 // Helper to detect NOBLE positions by suffix (公、侯、伯)
@@ -117,6 +128,18 @@ function MinisterCard({ minister, reaction, onClick }: {
             </div>
             <span className="mp-ability-val">{minister.loyalty}</span>
           </div>
+          {TRAIT_LABELS.filter((t) => t.key !== 'loyalty').map(({ key, label, color }) => (
+            <div key={key} className="mp-ability-row">
+              <span className="mp-ability-label">{label}</span>
+              <div className="progress-track">
+                <div
+                  className="progress-fill"
+                  style={{ width: `${(minister[key] as number)}%`, backgroundColor: color }}
+                />
+              </div>
+              <span className="mp-ability-val">{minister[key] as number}</span>
+            </div>
+          ))}
         </div>
       </div>
       {idle && <div className="mp-idle-badge">赋闲</div>}

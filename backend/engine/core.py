@@ -296,13 +296,21 @@ def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -
     修正——政令类别 → DECREE_CATEGORY_MODIFIER_KEY → get_player_modifiers 取
     success_mod（±0.5 封顶），效果增量 ×(1+success_mod)；角色卡缺失（{}）时
     安全跳过；other 类政令不修正。
+
+    08-07-decree-execution-loss：在玩家修正后的"目标效果"上叠加官僚执行损耗
+    （execution_loss_factor）与可控随机偏差（seed 派生），归因拆分为
+    base_effect（目标）与 execution_loss（净损耗）。
     """
+    from engine.execution_loss import apply_execution_loss
+
     effects = DECREE_EFFECTS[decree.type]
     modifier_key = DECREE_CATEGORY_MODIFIER_KEY.get(decree_category_of(decree.type))
     scale = 1.0
     if modifier_key is not None:
         success_mod = float(get_player_modifiers(state).get(modifier_key, 0.0))
         scale = 1.0 + success_mod
+    # 先算各字段"目标效果"（含玩家角色卡修正）
+    target_deltas: dict[str, int] = {}
     for field, delta in effects.items():
         if delta == 0:
             continue
@@ -311,8 +319,17 @@ def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -
             delta = math.floor(delta * scale) if delta > 0 else math.ceil(delta * scale)
             if delta == 0:
                 continue
-        setattr(state, field, getattr(state, field) + delta)
-        _attr_add(attr, field, "base_effect", delta)
+        target_deltas[field] = delta
+    # 统一施加执行损耗 + 偏差
+    seed_keys = {f: f"{decree.type}:{f}" for f in target_deltas}
+    net_deltas = apply_execution_loss(state, target_deltas, seed_keys)
+    for field, target in target_deltas.items():
+        net = net_deltas[field]
+        if net == 0:
+            continue
+        setattr(state, field, getattr(state, field) + net)
+        _attr_add(attr, field, "base_effect", target)
+        _attr_add(attr, field, "execution_loss", net - target)
 
 
 # ── Faction Reactions ────────────────────────────────────
@@ -1518,6 +1535,22 @@ def process_decree(
         # validate + apply AI effects (skip _mission_ keys)
         filtered_effects = {k: v for k, v in freeform.effects.items() if not k.startswith("_mission_")}
         valid_effects = validate_ai_effects(filtered_effects, state, dropped_out=dropped_out)
+        # 08-07-decree-execution-loss：对全局数值增量施加执行损耗，防止 AI 自由政令绕过
+        from engine.execution_loss import apply_execution_loss
+        global_deltas = {
+            k.split(".")[1]: int(v)
+            for k, v in valid_effects.items()
+            if k.startswith("global.") and isinstance(v, (int, float))
+        }
+        if global_deltas:
+            loss_keys = {f: f"freeform:{f}" for f in global_deltas}
+            net = apply_execution_loss(state, global_deltas, loss_keys)
+            for f, scaled in net.items():
+                path = f"global.{f}"
+                if scaled == 0:
+                    valid_effects.pop(path, None)
+                else:
+                    valid_effects[path] = scaled
         dismissed, executed = apply_ai_effects(state, valid_effects, attr)
 
         # execution backlash (same logic as structured path)
