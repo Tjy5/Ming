@@ -23,6 +23,7 @@ from ai.config import AIConfigurationError
 from ai.errors import new_request_id, public_error_detail
 from ai.provider import get_provider
 from db.saves import init_db
+from models.world import BranchId, GameId, WorldVersionRef
 
 
 # ── TimedLock ────────────────────────────────────────────
@@ -66,16 +67,93 @@ _MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
 _MAX_CHAT_CONVERSATION_MESSAGES = 100
 _chat_conversation_buffer: list[dict[str, str]] = []
 
+
+class _WorldHeadCache:
+    """Discardable process cache for one committed branch head.
+
+    ``_state`` stays as the compatibility slot because existing routes and
+    tests still assign it directly. A direct assignment automatically
+    invalidates the durable version reference on the next facade access.
+    """
+
+    def __init__(self) -> None:
+        self._published_state: GameState | None = None
+        self._version_ref: WorldVersionRef | None = None
+
+    def _synchronize_legacy_slot(self) -> None:
+        if self._published_state is not _state:
+            self._published_state = _state
+            self._version_ref = None
+
+    def get(self) -> GameState:
+        global _state
+        self._synchronize_legacy_slot()
+        if _state is None:
+            _state = create_initial_state()
+            self._published_state = _state
+        return _state
+
+    def publish(self, state: GameState, ref: WorldVersionRef | None) -> None:
+        global _state
+        _state = state
+        self._published_state = state
+        self._version_ref = ref
+
+    def ref(self) -> WorldVersionRef | None:
+        self._synchronize_legacy_slot()
+        return self._version_ref
+
+    def restore_ref(self, ref: WorldVersionRef | None) -> None:
+        self._published_state = _state
+        self._version_ref = ref
+
+    def clear(self) -> None:
+        global _state
+        _state = None
+        self._published_state = None
+        self._version_ref = None
+
+
+_world_head_cache = _WorldHeadCache()
+
+
 def _get_state() -> GameState:
-    global _state
-    if _state is None:
-        _state = create_initial_state()
-    return _state
+    return _world_head_cache.get()
 
 
 def _set_state(s: GameState) -> None:
-    global _state
-    _state = s
+    # Existing routes are still wholly on the legacy path. Publishing through
+    # this compatibility function therefore clears any durable head identity.
+    _world_head_cache.publish(s, None)
+
+
+def _get_world_head_ref() -> WorldVersionRef | None:
+    return _world_head_cache.ref()
+
+
+def _publish_world_head(state: GameState, ref: WorldVersionRef) -> None:
+    state.world_metadata = state.world_metadata.model_copy(
+        update={
+            "game_id": ref.game_id,
+            "branch_id": ref.branch_id,
+            "version_id": ref.version_id,
+            "source_kind": "settlement" if ref.settlement_id else state.world_metadata.source_kind,
+            "source_ref": (
+                str(ref.settlement_id)
+                if ref.settlement_id
+                else state.world_metadata.source_ref
+            ),
+        },
+    )
+    _world_head_cache.publish(state, ref)
+
+
+def _reload_world_head(game_id: GameId, branch_id: BranchId) -> GameState:
+    from db.worlds import load_branch_head
+
+    snapshot = load_branch_head(game_id, branch_id)
+    _world_head_cache.publish(snapshot.state, snapshot.ref)
+    return snapshot.state
 
 
 def _get_provider():

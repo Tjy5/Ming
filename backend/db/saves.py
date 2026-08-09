@@ -23,6 +23,7 @@ COMPATIBLE_YEAR_MAX = 1368
 def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), timeout=5)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -40,8 +41,10 @@ def init_db() -> None:
     # Keep all local SQLite schema initialization behind the existing startup
     # hook while the assessment repository remains a separate data owner.
     from .ai_assessments import init_ai_assessments
+    from .worlds import init_worlds_db
 
     init_ai_assessments()
+    init_worlds_db()
 
 
 def _era_display(state: GameState) -> str:

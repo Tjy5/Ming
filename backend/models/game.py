@@ -16,6 +16,7 @@ from .enums import (
 )
 from .positions import resolve_position
 from .trpg import CharacterSheet, GrowthEntry
+from .world import EntityId, PlayerWorldStatus, WorldEntity, WorldSnapshotMetadata
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
@@ -411,6 +412,12 @@ def _default_conversation_timestamp() -> str:
 
 class GameState(BaseModel):
     time: GameTime = Field(default_factory=GameTime)
+    # Additive world-version foundation. Legacy gameplay continues to use the
+    # lists below until its route is migrated; committed world snapshots carry
+    # their durable identity here and can be reloaded without process state.
+    world_metadata: WorldSnapshotMetadata = Field(default_factory=WorldSnapshotMetadata)
+    entity_registry: dict[EntityId, WorldEntity] = Field(default_factory=dict)
+    player_world_status: PlayerWorldStatus = Field(default_factory=PlayerWorldStatus)
     # phase state machine (阶段切换逻辑属阶段D)
     # 阶段B：默认翻转为 life_story（跑团叙事开局）；治理开局档由存档迁移保留 governance
     phase: Literal["life_story", "governance"] = "life_story"

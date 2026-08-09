@@ -1477,6 +1477,21 @@ export type components = {
             conversation_id: string;
             state: components["schemas"]["GameState"];
         };
+        /** EntitySource */
+        EntitySource: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "initial_data" | "legacy_save" | "adjudication" | "system";
+            /** Reference */
+            reference?: string | null;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
         /** ErrorResponse */
         ErrorResponse: {
             /** Error Code */
@@ -1544,6 +1559,51 @@ export type components = {
             /** Rebellion Risk After */
             rebellion_risk_after: number;
         };
+        /** FactionEntity */
+        FactionEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "faction";
+            /** Member Ids */
+            member_ids?: string[];
+            /** Influence */
+            influence?: number | null;
+        };
         /** GameEvent */
         GameEvent: {
             /** Name */
@@ -1598,6 +1658,12 @@ export type components = {
         /** GameState */
         GameState: {
             time?: components["schemas"]["GameTime"];
+            world_metadata?: components["schemas"]["WorldSnapshotMetadata"];
+            /** Entity Registry */
+            entity_registry?: {
+                [key: string]: components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"];
+            };
+            player_world_status?: components["schemas"]["PlayerWorldStatus"];
             /**
              * Phase
              * @default life_story
@@ -1720,6 +1786,12 @@ export type components = {
         /** GameStateResponse */
         GameStateResponse: {
             time?: components["schemas"]["GameTime"];
+            world_metadata?: components["schemas"]["WorldSnapshotMetadata"];
+            /** Entity Registry */
+            entity_registry?: {
+                [key: string]: components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"];
+            };
+            player_world_status?: components["schemas"]["PlayerWorldStatus"];
             /**
              * Phase
              * @default life_story
@@ -1940,6 +2012,51 @@ export type components = {
             before: number;
             /** After */
             after: number;
+        };
+        /** InstitutionEntity */
+        InstitutionEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "institution";
+            /** Institution Kind */
+            institution_kind: string;
+            /** Member Ids */
+            member_ids?: string[];
         };
         /** Memorial */
         Memorial: {
@@ -2271,16 +2388,159 @@ export type components = {
             /** Effects */
             effects?: Record<string, never>;
         };
+        /** OfficeEntity */
+        OfficeEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "office";
+            /** Holder Entity Id */
+            holder_entity_id?: string | null;
+            /**
+             * Responsibility
+             * @default
+             */
+            responsibility: string;
+        };
         /** ParseRequest */
         ParseRequest: {
             /** Text */
             text: string;
+        };
+        /** PermissionReference */
+        PermissionReference: {
+            /**
+             * Permission Id
+             * Format: uuid
+             */
+            permission_id: string;
+            /** Capability */
+            capability: string;
+            /** Scope Entity Id */
+            scope_entity_id?: string | null;
+            /** Granted By Entity Id */
+            granted_by_entity_id?: string | null;
+        };
+        /** PersonEntity */
+        PersonEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "person";
+            /** Legacy Name */
+            legacy_name?: string | null;
+            /** Faction Ids */
+            faction_ids?: string[];
+            /** Office Ids */
+            office_ids?: string[];
+            /** Roles */
+            roles?: string[];
         };
         /**
          * PersonnelAction
          * @enum {string}
          */
         PersonnelAction: "appoint" | "dismiss" | "execute";
+        /** PlayerWorldStatus */
+        PlayerWorldStatus: {
+            /** Player Character Id */
+            player_character_id?: string | null;
+            /**
+             * Life Status
+             * @default alive
+             * @enum {string}
+             */
+            life_status: "alive" | "dead";
+            /**
+             * Identity Summary
+             * @default
+             */
+            identity_summary: string;
+            /** Controlled Faction Id */
+            controlled_faction_id?: string | null;
+            /** Location Entity Id */
+            location_entity_id?: string | null;
+            /**
+             * Freedom Status
+             * @default free
+             * @enum {string}
+             */
+            freedom_status: "free" | "detained" | "exiled" | "hidden";
+            /** Actionable Goal Ids */
+            actionable_goal_ids?: string[];
+            /** Terminal Settlement Id */
+            terminal_settlement_id?: string | null;
+            /** Terminal Version Id */
+            terminal_version_id?: string | null;
+        };
         /**
          * PolicyProgress
          * @description 国家层面的长期在办国策（区别于大臣任务 MissionState），随存档持久化。
@@ -2411,11 +2671,82 @@ export type components = {
             /** Source */
             source: string;
         };
+        /** RegionEntity */
+        RegionEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "region";
+            /** Legacy Name */
+            legacy_name?: string | null;
+            /** Controller Entity Id */
+            controller_entity_id?: string | null;
+        };
         /**
          * RegionThreat
          * @enum {string}
          */
         RegionThreat: "none" | "元军" | "汉军" | "吴军" | "民变" | "土司" | "海盗";
+        /** RelationshipEdge */
+        RelationshipEdge: {
+            /**
+             * Relationship Id
+             * Format: uuid
+             */
+            relationship_id: string;
+            /** Relationship Type */
+            relationship_type: string;
+            /**
+             * From Entity Id
+             * Format: uuid
+             */
+            from_entity_id: string;
+            /**
+             * To Entity Id
+             * Format: uuid
+             */
+            to_entity_id: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "ended";
+        };
         /** SaveRequest */
         SaveRequest: {
             /** Name */
@@ -2440,6 +2771,51 @@ export type components = {
          * @enum {string}
          */
         TaxContribution: "low" | "medium" | "high";
+        /** TemporaryAuthorityEntity */
+        TemporaryAuthorityEntity: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+            /** Created By Settlement Id */
+            created_by_settlement_id?: string | null;
+            /** Origin Version Id */
+            origin_version_id?: string | null;
+            /** Active From */
+            active_from?: string | null;
+            /** Ended At */
+            ended_at?: string | null;
+            source: components["schemas"]["EntitySource"];
+            /** Permissions */
+            permissions?: components["schemas"]["PermissionReference"][];
+            /** Relationships */
+            relationships?: components["schemas"]["RelationshipEdge"][];
+            /** Knowledge Boundaries */
+            knowledge_boundaries?: string[];
+            /**
+             * Available
+             * @default true
+             */
+            available: boolean;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            entity_type: "temporary_authority";
+            /** Represented Entity Ids */
+            represented_entity_ids?: string[];
+            /** Expires On */
+            expires_on?: string | null;
+        };
         /** TriggerDecision */
         TriggerDecision: {
             /** Should Trigger */
@@ -2498,6 +2874,45 @@ export type components = {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WorldSnapshotMetadata
+         * @description Version identity embedded in a recoverable state snapshot.
+         *
+         *     The database graph remains authoritative. These fields let a decoded
+         *     snapshot explain where it came from without relying on process-local state.
+         */
+        WorldSnapshotMetadata: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             * @enum {integer}
+             */
+            schema_version: 1;
+            /**
+             * Calendar Schema Version
+             * @default yuanming-calendar-v1
+             */
+            calendar_schema_version: string;
+            /** Game Id */
+            game_id?: string | null;
+            /** Branch Id */
+            branch_id?: string | null;
+            /** Version Id */
+            version_id?: string | null;
+            /**
+             * Source Kind
+             * @default initial
+             * @enum {string}
+             */
+            source_kind: "initial" | "legacy_save" | "settlement";
+            /** Source Ref */
+            source_ref?: string | null;
+            /** Imported At */
+            imported_at?: string | null;
+            /** Migration Notes */
+            migration_notes?: string[];
         };
     };
     responses: never;
