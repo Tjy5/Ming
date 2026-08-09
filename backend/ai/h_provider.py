@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from typing import Any, Mapping
+
 import httpx
-import openai
+import openai  # compatibility: tests patch the historical module-level SDK handle
 from dotenv import load_dotenv
 
 from .openai_provider import OpenAIProvider
@@ -10,48 +12,50 @@ from .openai_provider import OpenAIProvider
 load_dotenv()
 
 
-def _read_required_openai_config(
-    api_key_env: str,
-    base_url_env: str,
-    fallback_api_key_env: str | None,
-    fallback_base_url_env: str | None,
-    error_message: str,
-) -> tuple[str, str]:
-    api_key = (os.getenv(api_key_env) or (os.getenv(fallback_api_key_env) if fallback_api_key_env else "") or "").strip()
-    base_url = (os.getenv(base_url_env) or (os.getenv(fallback_base_url_env) if fallback_base_url_env else "") or "").strip()
-    if not api_key or not base_url:
-        raise ValueError(error_message)
-    return api_key, base_url
-
-
 class HProvider(OpenAIProvider):
-    def __init__(self):
-        # Initialize OpenAIProvider but override the client with Hotaru settings
-        super().__init__()
-        
-        # Override the client and model with Hotaru specific configuration
-        trust_env_proxy = os.getenv("OPENAI_TRUST_ENV_PROXY", "0").lower() in ("1", "true", "yes", "on")
-        http_client = httpx.AsyncClient(trust_env=trust_env_proxy)
+    """Hotaru OpenAI-compatible provider without a throwaway parent client."""
 
-        api_key, base_url = _read_required_openai_config(
-            "H_API_KEY",
-            "H_BASE_URL",
-            "HOTARU_API_KEY",
-            "HOTARU_BASE_URL",
-            "H_API_KEY and H_BASE_URL must be set in .env",
-        )
-
-        # Hotaru may block OpenAI SDK default UA; allow override and keep a safe default.
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        model: str | None = None,
+        *,
+        simple_model: str | None = None,
+        enable_thinking: bool | None = None,
+        enable_thinking_simple: bool | None = None,
+        thinking_config: Mapping[str, Any] | None = None,
+        thinking_config_simple: Mapping[str, Any] | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        sdk_max_retries: int | None = None,
+        use_environment: bool = True,
+    ) -> None:
+        if use_environment:
+            api_key = api_key or os.getenv("H_API_KEY") or os.getenv("HOTARU_API_KEY")
+            base_url = base_url or os.getenv("H_BASE_URL") or os.getenv("HOTARU_BASE_URL")
+            model = model or os.getenv("H_MODEL") or os.getenv(
+                "HOTARU_MODEL",
+                "gemini-3-pro-preview",
+            )
+        if not api_key or not base_url:
+            raise ValueError("Hotaru API Key and Base URL are required")
         user_agent = (
-            os.getenv("H_USER_AGENT")
-            or os.getenv("HOTARU_USER_AGENT")
-            or "Mozilla/5.0 (compatible; YuanmingSimulator/1.0)"
-        )
-        self.client = openai.AsyncOpenAI(
+            (os.getenv("H_USER_AGENT") or os.getenv("HOTARU_USER_AGENT"))
+            if use_environment
+            else None
+        ) or "Mozilla/5.0 (compatible; YuanmingSimulator/1.0)"
+        super().__init__(
             api_key=api_key,
             base_url=base_url,
+            model=model,
+            prefix="HOTARU",
+            simple_model=simple_model,
+            enable_thinking=enable_thinking,
+            enable_thinking_simple=enable_thinking_simple,
+            thinking_config=thinking_config,
+            thinking_config_simple=thinking_config_simple,
             http_client=http_client,
+            sdk_max_retries=sdk_max_retries,
             default_headers={"User-Agent": user_agent},
+            use_environment=use_environment,
         )
-        self.model = os.getenv("H_MODEL") or os.getenv("HOTARU_MODEL", "gemini-3-pro-preview")
-        self._configure_task_models("HOTARU")

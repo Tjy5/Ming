@@ -5,6 +5,9 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterator
+from typing import Any, Mapping
+
+import httpx
 
 from google import genai
 from google.genai import types
@@ -13,6 +16,8 @@ from dotenv import load_dotenv
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, MemorialStatus, MinisterStatus
 from .fallbacks import template_assembly_debate, template_memorial
+from .base import GenerationResult
+from .errors import log_safe_provider_exception
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -59,6 +64,8 @@ from .prompts import (
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 class GoogleProvider(AIProvider):
     def __init__(
@@ -67,9 +74,29 @@ class GoogleProvider(AIProvider):
         base_url: str | None = None,
         model: str | None = None,
         prefix: str = "GOOGLE",
+        simple_model: str | None = None,
+        enable_thinking: bool | None = None,
+        enable_thinking_simple: bool | None = None,
+        thinking_config: Mapping[str, Any] | None = None,
+        thinking_config_simple: Mapping[str, Any] | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        sdk_max_retries: int | None = None,
+        use_environment: bool = True,
     ):
-        actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY") or os.getenv("OPENAI_API_KEY")
-        actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
+        self._use_environment = use_environment
+        if use_environment:
+            actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY")
+            actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or ""
+            actual_model = (
+                model
+                or os.getenv(f"{prefix}_MODEL_NAME")
+                or os.getenv(f"{prefix}_MODEL")
+                or "gemini-2.0-flash-exp"
+            )
+        else:
+            actual_api_key = api_key
+            actual_base_url = base_url or ""
+            actual_model = model
 
         # google-genai SDK auto-appends /v1beta/models/..., so strip path suffixes
         # e.g. "https://x666.me/v1" -> "https://x666.me"
@@ -78,11 +105,20 @@ class GoogleProvider(AIProvider):
                 actual_base_url = actual_base_url[: -len(suffix)]
                 break
 
+        http_options_kwargs: dict[str, Any] = {"base_url": actual_base_url}
+        if http_client is not None:
+            http_options_kwargs["httpx_async_client"] = http_client
+        if sdk_max_retries is not None:
+            http_options_kwargs["retry_options"] = types.HttpRetryOptions(
+                attempts=max(1, sdk_max_retries + 1),
+            )
         self.client = genai.Client(
             api_key=actual_api_key,
-            http_options=types.HttpOptions(base_url=actual_base_url),
+            http_options=types.HttpOptions(**http_options_kwargs),
         )
-        self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or os.getenv("OPENAI_MODEL_NAME", "gemini-2.0-flash-exp")
+        self.model = actual_model
+        self.simple_model = simple_model
+        self._explicit_thinking_config = dict(thinking_config) if thinking_config is not None else None
         self._thinking_level = self._load_thinking_level(prefix)
 
     @staticmethod
@@ -103,14 +139,24 @@ class GoogleProvider(AIProvider):
 
     def _load_thinking_level(self, prefix: str) -> types.ThinkingLevel | None:
         env_name = f"{prefix}_THINKING_CONFIG"
-        raw_config = (os.getenv(env_name) or "").strip()
-        if not raw_config:
-            return None
-        try:
-            payload = json.loads(raw_config)
-        except json.JSONDecodeError as exc:
-            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
-            return None
+        if not self._use_environment:
+            payload = self._explicit_thinking_config
+            if payload is None:
+                return None
+        else:
+            raw_config = (os.getenv(env_name) or "").strip()
+            if not raw_config:
+                return None
+            try:
+                payload = json.loads(raw_config)
+            except json.JSONDecodeError as exc:
+                log_safe_provider_exception(
+                    logger,
+                    stage="load_thinking_config",
+                    exc=exc,
+                    level=logging.WARNING,
+                )
+                return None
         if not isinstance(payload, dict):
             logging.warning("Ignore non-object %s payload", env_name)
             return None
@@ -124,6 +170,43 @@ class GoogleProvider(AIProvider):
         if self._thinking_level is not None:
             kwargs["thinking_config"] = types.ThinkingConfig(thinking_level=self._thinking_level)
         return types.GenerateContentConfig(**kwargs)
+
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        config_kwargs: dict[str, Any] = {
+            "temperature": 0.0,
+            "max_output_tokens": max(1, max_output_tokens),
+        }
+        if system_prompt:
+            config_kwargs["system_instruction"] = system_prompt
+        if response_json:
+            config_kwargs["response_mime_type"] = "application/json"
+        response = await self.client.aio.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=self._build_generate_content_config(**config_kwargs),
+        )
+        text = (response.text or "").strip()
+        if not text:
+            raise ValueError("provider returned empty generation content")
+        usage = getattr(response, "usage_metadata", None)
+        return GenerationResult(
+            text=text,
+            input_tokens=getattr(usage, "prompt_token_count", None),
+            output_tokens=getattr(usage, "candidates_token_count", None),
+            provider_request_id=None,
+        )
+
+    async def aclose(self) -> None:
+        close = getattr(self.client.aio, "aclose", None)
+        if callable(close):
+            await close()
 
     @staticmethod
     def _safety_off() -> list:
@@ -189,7 +272,7 @@ class GoogleProvider(AIProvider):
             )
             return response.text.strip()
         except Exception as e:
-            logging.error(f"Google AI generate_narrative error: {e}")
+            log_safe_provider_exception(logger, stage="generate_narrative", exc=e)
             return "（AI服务响应异常，但政令已执行）"
 
     async def stream_narrative(
@@ -228,7 +311,7 @@ class GoogleProvider(AIProvider):
                         yield text
                 return
             except Exception as e:
-                logging.error(f"Google AI stream_narrative error: {e}")
+                log_safe_provider_exception(logger, stage="stream_narrative", exc=e)
                 if emitted_any:
                     return
 
@@ -258,10 +341,10 @@ class GoogleProvider(AIProvider):
             return parse_decree_response(data)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Google AI JSON parse error: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input_json", exc=e)
             return parse_error("AI返回格式异常，请重试")
         except Exception as e:
-            logging.error(f"Google AI parse_free_input error: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input", exc=e)
             return parse_error(
                 "AI解析服务暂时不可用，请使用按钮操作",
                 PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -323,7 +406,7 @@ class GoogleProvider(AIProvider):
                 draft.suggested_decrees = fallback.suggested_decrees
             return draft
         except Exception as e:
-            logging.error("GoogleProvider generate_memorial fallback: %s", e)
+            log_safe_provider_exception(logger, stage="generate_memorial", exc=e)
             return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
@@ -365,7 +448,7 @@ class GoogleProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_dialogue_payload(data)
         except Exception as e:
-            logging.error(f"Google generate_minister_dialogue error: {e}")
+            log_safe_provider_exception(logger, stage="generate_minister_dialogue", exc=e)
             raise
 
     async def generate_petitions(
@@ -405,7 +488,7 @@ class GoogleProvider(AIProvider):
             elif isinstance(payload, list):
                 raw_petitions = payload
         except Exception as e:
-            logging.error("Google generate_petitions error: %s", e)
+            log_safe_provider_exception(logger, stage="generate_petitions", exc=e)
 
         petitions: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -469,7 +552,7 @@ class GoogleProvider(AIProvider):
             elif isinstance(payload, list):
                 raw_speeches = payload
         except Exception as e:
-            logging.error("Google generate_debate_speeches error: %s", e)
+            log_safe_provider_exception(logger, stage="generate_debate_speeches", exc=e)
 
         speeches: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -610,7 +693,7 @@ class GoogleProvider(AIProvider):
                 "reason": parsed.reason,
             }
         except Exception as e:
-            logging.error(f"Google classify_script_choice error: {e}")
+            log_safe_provider_exception(logger, stage="classify_script_choice", exc=e)
             return parse_error("脚本选项分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def select_script_trigger_decisions(
@@ -646,7 +729,11 @@ class GoogleProvider(AIProvider):
             )
             return parsed
         except Exception as e:
-            logging.error(f"Google select_script_trigger_decisions error: {e}")
+            log_safe_provider_exception(
+                logger,
+                stage="select_script_trigger_decisions",
+                exc=e,
+            )
             return parse_error("剧情触发决策服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     def _extract_image_b64(self, response) -> str | None:
@@ -685,10 +772,10 @@ class GoogleProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return _parse_freeform_response(data, game_state.time.year, game_state.time.month)
         except json.JSONDecodeError as e:
-            logging.error(f"Google freeform JSON parse error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform_json", exc=e)
             return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
         except Exception as e:
-            logging.error(f"Google process_freeform error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform", exc=e)
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def classify_chat_intent(
@@ -713,7 +800,7 @@ class GoogleProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_chat_intent_payload(data)
         except Exception as e:
-            logging.error("Google classify_chat_intent error: %s", e)
+            log_safe_provider_exception(logger, stage="classify_chat_intent", exc=e)
             return parse_error("聊天意图分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def chat_query(
@@ -738,5 +825,5 @@ class GoogleProvider(AIProvider):
                 raise ValueError("chat query reply is empty")
             return content
         except Exception as e:
-            logging.error("Google chat_query error: %s", e)
+            log_safe_provider_exception(logger, stage="chat_query", exc=e)
             raise

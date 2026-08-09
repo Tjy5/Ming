@@ -4,12 +4,17 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterator
+from typing import Any, Mapping
+
+import httpx
 
 from anthropic import AsyncAnthropic
 
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import DecreeType, MemorialStatus, MinisterStatus
 from .fallbacks import template_assembly_debate, template_memorial
+from .base import GenerationResult
+from .errors import log_safe_provider_exception
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -54,6 +59,8 @@ from .prompts import (
     normalize_dialogue_payload,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class AnthropicProvider(AIProvider):
     def __init__(
@@ -62,30 +69,66 @@ class AnthropicProvider(AIProvider):
         base_url: str | None = None,
         model: str | None = None,
         prefix: str = "ANTHROPIC",
+        simple_model: str | None = None,
+        enable_thinking: bool | None = None,
+        enable_thinking_simple: bool | None = None,
+        thinking_config: Mapping[str, Any] | None = None,
+        thinking_config_simple: Mapping[str, Any] | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        sdk_max_retries: int | None = None,
+        use_environment: bool = True,
     ):
-        actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY") or os.getenv("OPENAI_API_KEY")
-        actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or os.getenv("OPENAI_BASE_URL", "")
+        self._use_environment = use_environment
+        if use_environment:
+            actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY")
+            actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or ""
+            actual_model = (
+                model
+                or os.getenv(f"{prefix}_MODEL_NAME")
+                or os.getenv(f"{prefix}_MODEL")
+                or "claude-3-5-sonnet-latest"
+            )
+        else:
+            actual_api_key = api_key
+            actual_base_url = base_url or ""
+            actual_model = model
 
         kwargs = {}
         if actual_api_key:
             kwargs["api_key"] = actual_api_key
         if actual_base_url:
             kwargs["base_url"] = actual_base_url
+        if http_client is not None:
+            kwargs["http_client"] = http_client
+        if sdk_max_retries is not None:
+            kwargs["max_retries"] = max(0, sdk_max_retries)
 
         self.client = AsyncAnthropic(**kwargs)
-        self.model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL") or "claude-3-5-sonnet-latest"
+        self.model = actual_model
+        self.simple_model = simple_model
+        self._explicit_thinking_config = dict(thinking_config) if thinking_config is not None else None
         self._thinking_config = self._load_thinking_config(prefix)
 
     def _load_thinking_config(self, prefix: str) -> dict[str, object] | None:
         env_name = f"{prefix}_THINKING_CONFIG"
-        raw_config = (os.getenv(env_name) or "").strip()
-        if not raw_config:
-            return None
-        try:
-            payload = json.loads(raw_config)
-        except json.JSONDecodeError as exc:
-            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
-            return None
+        if not self._use_environment:
+            payload = self._explicit_thinking_config
+            if payload is None:
+                return None
+        else:
+            raw_config = (os.getenv(env_name) or "").strip()
+            if not raw_config:
+                return None
+            try:
+                payload = json.loads(raw_config)
+            except json.JSONDecodeError as exc:
+                log_safe_provider_exception(
+                    logger,
+                    stage="load_thinking_config",
+                    exc=exc,
+                    level=logging.WARNING,
+                )
+                return None
         if not isinstance(payload, dict):
             logging.warning("Ignore non-object %s payload", env_name)
             return None
@@ -100,6 +143,42 @@ class AnthropicProvider(AIProvider):
         if self._thinking_config is not None:
             kwargs["thinking"] = self._thinking_config
         return self.client.messages.stream(**kwargs)
+
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        system = system_prompt or "Return only the requested content."
+        if response_json:
+            system = f"{system}\nReturn one valid JSON object and no markdown."
+        response = await self._messages_create(
+            model=self.model,
+            max_tokens=max(1, max_output_tokens),
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        )
+        text = "".join(
+            str(getattr(block, "text", ""))
+            for block in response.content
+            if getattr(block, "type", "") == "text"
+        ).strip()
+        if not text:
+            raise ValueError("provider returned empty generation content")
+        usage = getattr(response, "usage", None)
+        return GenerationResult(
+            text=text,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            provider_request_id=getattr(response, "_request_id", None),
+        )
+
+    async def aclose(self) -> None:
+        await self.client.close()
 
 
     @staticmethod
@@ -155,7 +234,7 @@ class AnthropicProvider(AIProvider):
             )
             return response.content[0].text.strip()
         except Exception as e:
-            logging.error(f"Anthropic AI generate_narrative error: {e}")
+            log_safe_provider_exception(logger, stage="generate_narrative", exc=e)
             return "（AI服务响应异常，但政令已执行）"
 
     async def stream_narrative(
@@ -176,7 +255,7 @@ class AnthropicProvider(AIProvider):
                     if text:
                         yield text
         except Exception as e:
-            logging.error(f"Anthropic AI stream_narrative error: {e}")
+            log_safe_provider_exception(logger, stage="stream_narrative", exc=e)
             fallback = await self.generate_narrative(
                 delta_attribution, game_state, chain_events, decree,
             )
@@ -201,10 +280,10 @@ class AnthropicProvider(AIProvider):
             return parse_decree_response(data)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Anthropic JSON parse error: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input_json", exc=e)
             return parse_error("AI返回格式异常，请重试")
         except Exception as e:
-            logging.error(f"Anthropic parse_free_input error: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input", exc=e)
             return parse_error(
                 "AI解析服务暂时不可用，请使用按钮操作",
                 PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -242,7 +321,7 @@ class AnthropicProvider(AIProvider):
             payload = json.loads(extract_json_object_text(content))
             return parse_debate_response(payload, minister_a, minister_b)
         except Exception as e:
-            logging.error(f"Anthropic debate error: {e}")
+            log_safe_provider_exception(logger, stage="generate_debate_narrative", exc=e)
             return None
 
 
@@ -265,7 +344,7 @@ class AnthropicProvider(AIProvider):
                 draft.suggested_decrees = fallback.suggested_decrees
             return draft
         except Exception as e:
-            logging.error("AnthropicProvider generate_memorial fallback: %s", e)
+            log_safe_provider_exception(logger, stage="generate_memorial", exc=e)
             return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
@@ -306,7 +385,7 @@ class AnthropicProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_dialogue_payload(data)
         except Exception as e:
-            logging.error(f"Anthropic generate_minister_dialogue error: {e}")
+            log_safe_provider_exception(logger, stage="generate_minister_dialogue", exc=e)
             raise
 
     async def generate_petitions(
@@ -343,7 +422,7 @@ class AnthropicProvider(AIProvider):
             elif isinstance(payload, list):
                 raw_petitions = payload
         except Exception as e:
-            logging.error("Anthropic generate_petitions error: %s", e)
+            log_safe_provider_exception(logger, stage="generate_petitions", exc=e)
 
         petitions: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -404,7 +483,7 @@ class AnthropicProvider(AIProvider):
             elif isinstance(payload, list):
                 raw_speeches = payload
         except Exception as e:
-            logging.error("Anthropic generate_debate_speeches error: %s", e)
+            log_safe_provider_exception(logger, stage="generate_debate_speeches", exc=e)
 
         speeches: list[dict] = []
         by_name = {m.name: m for m in participants}
@@ -544,7 +623,7 @@ class AnthropicProvider(AIProvider):
                 "reason": parsed.reason,
             }
         except Exception as e:
-            logging.error(f"Anthropic classify_script_choice error: {e}")
+            log_safe_provider_exception(logger, stage="classify_script_choice", exc=e)
             return parse_error("脚本选项分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def select_script_trigger_decisions(
@@ -577,7 +656,11 @@ class AnthropicProvider(AIProvider):
             )
             return parsed
         except Exception as e:
-            logging.error(f"Anthropic select_script_trigger_decisions error: {e}")
+            log_safe_provider_exception(
+                logger,
+                stage="select_script_trigger_decisions",
+                exc=e,
+            )
             return parse_error("剧情触发决策服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def process_freeform(
@@ -597,10 +680,10 @@ class AnthropicProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return _parse_freeform_response(data, game_state.time.year, game_state.time.month)
         except json.JSONDecodeError as e:
-            logging.error(f"Anthropic freeform JSON parse error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform_json", exc=e)
             return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
         except Exception as e:
-            logging.error(f"Anthropic process_freeform error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform", exc=e)
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def classify_chat_intent(
@@ -622,7 +705,7 @@ class AnthropicProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_chat_intent_payload(data)
         except Exception as e:
-            logging.error("Anthropic classify_chat_intent error: %s", e)
+            log_safe_provider_exception(logger, stage="classify_chat_intent", exc=e)
             return parse_error("聊天意图分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def chat_query(
@@ -645,5 +728,5 @@ class AnthropicProvider(AIProvider):
                 raise ValueError("chat query reply is empty")
             return content
         except Exception as e:
-            logging.error("Anthropic chat_query error: %s", e)
+            log_safe_provider_exception(logger, stage="chat_query", exc=e)
             raise

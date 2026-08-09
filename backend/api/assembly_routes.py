@@ -41,6 +41,7 @@ from .state import (
 )
 
 assembly_router = APIRouter(prefix="/api")
+logger = logging.getLogger(__name__)
 
 
 # ── POST /api/assembly/start ────────────────────────────
@@ -304,7 +305,10 @@ async def assembly_decree(req: AssemblyDecreeRequest):
                 if not check_preconditions(state, decree, enforce_monthly_limit=False):
                     decree_effects = process_decree(state, decree, mark_monthly_usage=False)
             except Exception as e:
-                logging.error(f"Failed to execute decree in assembly: {e}")
+                logger.error(
+                    "Assembly decree execution failed: exception_type=%s",
+                    type(e).__name__,
+                )
 
         if decision == "adopt":
             if majority_vote == "赞成":

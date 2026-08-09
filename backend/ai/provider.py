@@ -8,6 +8,7 @@ This module intentionally re-exports symbols that were historically defined in
 
 from .base import (
     AIProvider,
+    GenerationResult,
     PARSE_ERROR_TYPE_PARSE,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     get_rule_parse_fallback,
@@ -66,6 +67,7 @@ _rule_parse_fallback_enabled = get_rule_parse_fallback()
 
 __all__ = [
     "AIProvider",
+    "GenerationResult",
     "DEBATE_SYSTEM_PROMPT",
     "DIPLOMACY_KEYWORDS",
     "EXECUTION_PREFIX_RE",

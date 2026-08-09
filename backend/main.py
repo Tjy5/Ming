@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+import logging
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-import logging
 
+from ai.errors import new_request_id, public_error_detail
 from api.routes import router
 from api.save_routes import save_router
 from api.settings_routes import settings_router
@@ -14,6 +16,45 @@ from api.admin_routes import admin_router
 from api.chat_routes import chat_router
 from api.trpg import trpg_router
 from api.state import startup as api_startup
+
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_validation_errors(exc: RequestValidationError) -> list[dict[str, Any]]:
+    safe_errors: list[dict[str, Any]] = []
+    for error in exc.errors():
+        location = [
+            item
+            for item in error.get("loc", ())
+            if isinstance(item, (str, int)) and not isinstance(item, bool)
+        ]
+        error_type = error.get("type")
+        safe_errors.append(
+            {
+                "type": error_type if isinstance(error_type, str) else "validation_error",
+                "loc": location,
+                "msg": "请求字段校验失败",
+            },
+        )
+    return safe_errors
+
+
+def _invalid_ai_settings_detail(exc: RequestValidationError) -> dict[str, Any]:
+    fields = sorted(
+        {
+            str(location[-1])
+            for error in exc.errors()
+            if (location := error.get("loc"))
+            and isinstance(location, (tuple, list))
+            and isinstance(location[-1], (str, int))
+        },
+    )
+    return public_error_detail(
+        "invalid_ai_settings",
+        request_id=new_request_id(),
+        details={"fields": fields},
+    )
 
 
 @asynccontextmanager
@@ -26,15 +67,19 @@ app = FastAPI(title="元末纪事", lifespan=lifespan)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    logging.error(f"Validation error: {exc.errors()}")
-    try:
-        body = await request.json()
-        logging.error(f"Request body: {body}")
-    except Exception:
-        logging.error("Could not read request body")
+    logger.warning(
+        "Request validation failed: method=%s path=%s error_count=%d",
+        request.method,
+        request.url.path,
+        len(exc.errors()),
+    )
+    if request.url.path.startswith("/api/settings/ai"):
+        content: dict[str, Any] = {"detail": _invalid_ai_settings_detail(exc)}
+    else:
+        content = {"detail": _safe_validation_errors(exc)}
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "body": str(exc.body)},
+        content=content,
     )
 
 app.add_middleware(

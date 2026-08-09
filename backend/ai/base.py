@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import os
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 
 from models.game import (
     DebateResult,
@@ -16,6 +17,16 @@ from models.enums import DecreeType
 
 PARSE_ERROR_TYPE_PARSE = "parse_error"
 PARSE_ERROR_TYPE_UNAVAILABLE = "service_unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationResult:
+    """Safe metadata returned by a single concrete provider generation."""
+
+    text: str
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    provider_request_id: str | None = None
 
 
 def parse_error(message: str, error_type: str = PARSE_ERROR_TYPE_PARSE) -> dict:
@@ -76,6 +87,33 @@ def set_rule_parse_fallback(enabled: bool) -> None:
 
 
 class AIProvider(abc.ABC):
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        """One concrete model call with no retry, fallback, or repair pass."""
+
+        raise NotImplementedError("provider does not expose a strict generation primitive")
+
+    async def probe_generation_once(self) -> GenerationResult:
+        result = await self.generate_text_once(
+            "Reply with exactly the word OK.",
+            system_prompt="This is a minimal runtime availability check.",
+            max_output_tokens=8,
+        )
+        if not result.text.strip():
+            raise ValueError("provider returned empty probe content")
+        return result
+
+    async def aclose(self) -> None:
+        """Close provider-owned SDK and transport resources."""
+
+        return None
+
     @abc.abstractmethod
     async def generate_narrative(
         self,

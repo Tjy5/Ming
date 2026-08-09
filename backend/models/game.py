@@ -5,7 +5,7 @@ import math
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -540,7 +540,11 @@ class DecreeResponse(BaseModel):
 class ErrorResponse(BaseModel):
     error_code: str
     message: str
-    details: dict | None = None
+    details: dict[str, Any] | None = None
+    fix_hint: str | None = None
+    request_id: str | None = None
+    provider_summary: str | None = None
+    retryable: bool | None = None
 
 
 # ── Factory ──────────────────────────────────────────────

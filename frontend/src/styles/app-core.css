@@ -773,6 +773,16 @@ body {
   filter: brightness(1.15);
 }
 
+.modal-btn:focus-visible,
+.ai-field input:focus-visible,
+.ai-field select:focus-visible,
+.ai-model-btn:focus-visible,
+.ai-runtime-status summary:focus-visible,
+.ai-diagnostic-details summary:focus-visible {
+  outline: 2px solid var(--ink-teal);
+  outline-offset: 2px;
+}
+
 /* ── OfficialRankModal ─────────────────────────────────── */
 /* ── OfficialRankModal ─────────────────────────────────── */
 .official-rank-modal {
@@ -1359,7 +1369,7 @@ body {
 
 /* ── AI Settings ───────────────────────────────────────── */
 .ai-settings-modal {
-  max-width: 620px;
+  max-width: 700px;
 }
 
 .ai-settings-form {
@@ -1414,6 +1424,21 @@ body {
   border-color: var(--accent-gold);
 }
 
+.ai-field input[aria-invalid="true"],
+.ai-field select[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.ai-field-error {
+  color: var(--red) !important;
+  font-size: 0.74rem !important;
+}
+
+.ai-field-note {
+  font-size: 0.72rem !important;
+  color: var(--text-dim) !important;
+}
+
 .ai-model-tools {
   display: flex;
   align-items: center;
@@ -1427,32 +1452,11 @@ body {
 
 .ai-model-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
   gap: 6px;
   max-height: 180px;
   overflow: auto;
   padding: 2px;
-}
-
-.ai-model-item {
-  text-align: left;
-  border: 1px solid rgba(43, 38, 32, 0.25);
-  background: var(--bg-card);
-  color: var(--text-main);
-  padding: 6px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.78rem;
-}
-
-.ai-model-item:hover {
-  border-color: var(--accent-gold);
-}
-
-.ai-model-item.active {
-  border-color: var(--accent-gold);
-  background: rgba(138, 109, 47,0.12);
 }
 
 .ai-model-item-group {
@@ -1507,6 +1511,219 @@ body {
   margin-bottom: 0;
 }
 
+.ai-warning {
+  color: var(--yellow);
+  margin-bottom: 0;
+}
+
+.ai-runtime-status,
+.ai-action-card,
+.ai-diagnostic,
+.ai-assessment-result {
+  border: 1px solid var(--ink-line);
+  border-radius: 4px;
+  background: rgba(234, 224, 200, 0.55);
+  padding: 10px 12px;
+}
+
+.ai-runtime-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+
+.ai-runtime-status.effective {
+  border-left: 4px solid var(--green);
+}
+
+.ai-runtime-status.required {
+  border-left: 4px solid var(--yellow);
+}
+
+.ai-runtime-status > strong,
+.ai-action-card-header strong,
+.ai-diagnostic > strong,
+.ai-assessment-summary strong {
+  color: var(--text-main);
+  font-size: 0.86rem;
+}
+
+.ai-runtime-status > span,
+.ai-runtime-status summary,
+.ai-runtime-status details p {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.ai-runtime-status summary,
+.ai-diagnostic-details summary {
+  cursor: pointer;
+}
+
+.ai-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ai-action-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-action-card-header p,
+.ai-assessment-disclaimer {
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  margin: 3px 0 0;
+}
+
+.ai-action-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.ai-settings-modal .modal-btn:disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: 0.5;
+}
+
+.ai-cancel-btn {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.ai-progress {
+  color: var(--ink-teal);
+  margin: 0;
+}
+
+.ai-verification-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 4px solid var(--green);
+  padding-left: 9px;
+}
+
+.ai-verification-status strong {
+  color: var(--green);
+  font-size: 0.84rem;
+}
+
+.ai-verification-status span,
+.ai-verification-status p {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  margin: 0;
+}
+
+.ai-diagnostic {
+  border-left: 4px solid var(--red);
+  margin-top: 8px;
+}
+
+.ai-diagnostic p {
+  margin: 3px 0 0;
+}
+
+.ai-diagnostic-fix {
+  color: var(--text-main);
+}
+
+.ai-diagnostic-retry,
+.ai-diagnostic-details,
+.ai-diagnostic-details p {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.ai-assessment-progress {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.ai-progress-track {
+  flex: 0 0 120px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(43, 38, 32, 0.14);
+}
+
+.ai-progress-track span {
+  display: block;
+  height: 100%;
+  background: var(--ink-teal);
+  transition: width 0.2s ease;
+}
+
+.ai-assessment-result {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ai-assessment-result.tier-excellent {
+  border-left: 4px solid var(--green);
+}
+
+.ai-assessment-result.tier-usable {
+  border-left: 4px solid var(--ink-teal);
+}
+
+.ai-assessment-result.tier-high_risk,
+.ai-assessment-result.tier-unassessed {
+  border-left: 4px solid var(--yellow);
+}
+
+.ai-assessment-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ai-assessment-summary span,
+.ai-assessment-result > p {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.ai-assessment-result ul {
+  display: grid;
+  gap: 5px;
+  list-style: none;
+}
+
+.ai-assessment-result li {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.35fr) 1fr;
+  gap: 8px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--ink-line);
+  font-size: 0.75rem;
+}
+
+.ai-assessment-result li.status-pass strong {
+  color: var(--green);
+}
+
+.ai-assessment-result li.status-warn strong {
+  color: var(--yellow);
+}
+
+.ai-assessment-result li.status-fail strong {
+  color: var(--red);
+}
+
 .ai-thinking-toggle {
   display: flex;
   align-items: center;
@@ -1527,10 +1744,28 @@ body {
   color: var(--text-dim);
 }
 
-.ai-error {
-  color: var(--red);
-  margin-top: 10px;
-  margin-bottom: 0;
+@media (max-width: 640px) {
+  .ai-action-card-header,
+  .ai-model-tools,
+  .ai-provider-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ai-action-buttons {
+    flex-wrap: wrap;
+  }
+
+  .ai-assessment-progress,
+  .ai-assessment-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ai-progress-track {
+    flex-basis: auto;
+    width: 100%;
+  }
 }
 
 /* ── Loading Overlay ───────────────────────────────────── */

@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 .env
 backend/.env
+backend/.ai_settings_secret
 
 # Excluded specific files
 nul

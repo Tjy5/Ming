@@ -5,12 +5,14 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 from dotenv import load_dotenv
 
+from .errors import log_safe_provider_exception
 from .openai_provider import OpenAIProvider, _env_bool
+from .base import GenerationResult
 
 load_dotenv()
 
@@ -35,11 +37,36 @@ class OpenAIResponseProvider(OpenAIProvider):
         base_url: str | None = None,
         model: str | None = None,
         prefix: str = "OPENAI",
+        simple_model: str | None = None,
+        enable_thinking: bool | None = None,
+        enable_thinking_simple: bool | None = None,
+        thinking_config: Mapping[str, Any] | None = None,
+        thinking_config_simple: Mapping[str, Any] | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        sdk_max_retries: int | None = None,
+        use_environment: bool = True,
     ):
-        super().__init__(api_key=api_key, base_url=base_url, model=model, prefix=prefix)
+        super().__init__(
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            prefix=prefix,
+            simple_model=simple_model,
+            enable_thinking=enable_thinking,
+            enable_thinking_simple=enable_thinking_simple,
+            thinking_config=thinking_config,
+            thinking_config_simple=thinking_config_simple,
+            http_client=http_client,
+            sdk_max_retries=sdk_max_retries,
+            use_environment=use_environment,
+        )
 
-        actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY")
-        actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL") or "https://api.openai.com/v1"
+        actual_api_key = api_key if api_key is not None else os.getenv(f"{prefix}_API_KEY")
+        actual_base_url = (
+            base_url
+            if base_url is not None
+            else os.getenv(f"{prefix}_BASE_URL") or "https://api.openai.com/v1"
+        )
         actual_base_url = actual_base_url.rstrip("/")
         # Strip trailing /chat/completions if present
         for suffix in ("/chat/completions", "/v1"):
@@ -49,10 +76,7 @@ class OpenAIResponseProvider(OpenAIProvider):
 
         self._responses_base_url = actual_base_url
         self._responses_api_key = actual_api_key or ""
-        trust_env = _env_bool(f"{prefix}_TRUST_ENV_PROXY", False)
-        if not trust_env and prefix != "OPENAI":
-            trust_env = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
-        self._http = httpx.AsyncClient(trust_env=trust_env, timeout=120.0)
+        self._http = self._http_client
 
     # ── Core Responses API helpers ─────────────────────────
 
@@ -128,6 +152,37 @@ class OpenAIResponseProvider(OpenAIProvider):
                     if content.get("type") == "output_text":
                         return content.get("text", "")
         return ""
+
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        thinking_kwargs = self._chat_completion_extra_kwargs(
+            task_name="settings_single_attempt",
+            model=self.model,
+        )
+        extra_body = dict(thinking_kwargs.pop("extra_body", {}) or {})
+        extra_body.update(thinking_kwargs)
+        extra_body["max_output_tokens"] = max(1, max_output_tokens)
+        text = await self._responses_create(
+            model=self.model,
+            messages=messages,
+            temperature=0.0,
+            response_format={"type": "json_object"} if response_json else None,
+            extra_body=extra_body,
+        )
+        text = text.strip()
+        if not text:
+            raise ValueError("provider returned empty generation content")
+        return GenerationResult(text=text)
 
     # ── Streaming Responses API call ─────────────────────
 
@@ -260,7 +315,7 @@ class OpenAIResponseProvider(OpenAIProvider):
                 yield chunk
             return
         except Exception as e:
-            logger.error("Error streaming narrative via Responses API: %s", e)
+            log_safe_provider_exception(logger, stage="stream_narrative", exc=e)
         if emitted_any:
             return
         fallback = await self.generate_narrative(

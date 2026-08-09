@@ -16,6 +16,7 @@ from models.enums import DecreeType
 
 from .base import (
     AIProvider,
+    GenerationResult,
     PARSE_ERROR_TYPE_UNAVAILABLE,
     _env_float,
     _env_int,
@@ -38,6 +39,9 @@ from .fallbacks import (
     template_turn_commentary,
 )
 from .parsers import _validate_decrees
+
+
+logger = logging.getLogger(__name__)
 
 
 async def _local_rule_parse(
@@ -102,12 +106,43 @@ class ResilientProvider(AIProvider):
 
     @staticmethod
     def _log_retry_failure(operation: str, attempt: int, retries: int, exc: Exception) -> None:
-        msg = str(exc).strip()
         err_type = type(exc).__name__
-        if msg:
-            logging.error("%s attempt %d/%d failed (%s): %s", operation, attempt, retries, err_type, msg)
-        else:
-            logging.error("%s attempt %d/%d failed (%s)", operation, attempt, retries, err_type)
+        logger.error(
+            "%s attempt %d/%d failed (%s)",
+            operation,
+            attempt,
+            retries,
+            err_type,
+        )
+
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        return await asyncio.wait_for(
+            self._inner.generate_text_once(
+                prompt,
+                system_prompt=system_prompt,
+                max_output_tokens=max_output_tokens,
+                response_json=response_json,
+            ),
+            timeout=self._timeout,
+        )
+
+    async def probe_generation_once(self) -> GenerationResult:
+        return await asyncio.wait_for(
+            self._inner.probe_generation_once(),
+            timeout=self._timeout,
+        )
+
+    async def aclose(self) -> None:
+        close = getattr(self._inner, "aclose", None)
+        if callable(close):
+            await close()
 
     @staticmethod
     def _normalize_script_choice_result(result: dict) -> dict:

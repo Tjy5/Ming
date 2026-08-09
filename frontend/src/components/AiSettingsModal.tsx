@@ -1,16 +1,37 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { AIProvider, AISettings } from '../types/game'
+import type {
+  AIProvider,
+  AISettings,
+  AISettingsAssessmentResponse,
+  AISettingsAssessmentSummary,
+  AISettingsTestResponse,
+  ErrorResponse,
+} from '../types/game'
+import {
+  buildAiSettingsDraft,
+  draftFromSettings,
+  draftIdentity,
+  emptyCustomDraft,
+  fixedProviderType,
+  getEffectiveProviderType,
+  isAbortError,
+  validateAiSettingsDraft,
+} from './aiSettingsLogic'
+import type {
+  AiSettingsDraftState,
+  AiSettingsFieldErrors,
+  ThinkingConfig,
+} from './aiSettingsLogic'
 
 interface Props {
   onClose: () => void
   onSaved: (message: string) => void
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-type ThinkingConfig = Record<string, any>
-/* eslint-enable @typescript-eslint/no-explicit-any */
+type TestStatus = 'idle' | 'testing' | 'verified' | 'error' | 'cancelled' | 'expired'
+type AssessmentStatus = 'idle' | 'running' | 'complete' | 'error' | 'cancelled'
+type AssessmentReport = AISettingsAssessmentSummary & { request_id?: string }
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: 'OpenAI',
@@ -19,286 +40,531 @@ const PROVIDER_LABELS: Record<string, string> = {
   Z: 'Z',
 }
 
-function getEffectiveProviderType(provider: AIProvider, providerType: string): string {
-  if (provider === 'openai') return 'openai'
-  if (provider === 'google') return 'gemini'
-  if (provider === 'Z') return 'openai'
-  if (provider === 'h') return 'openai'
-  return (providerType || 'openai').toLowerCase()
+const SOURCE_LABELS: Record<string, string> = {
+  saved: '已保存',
+  provider_default: '供应商默认',
+  legacy_env: '旧配置草稿',
+  missing: '缺失',
+}
+
+const ASSESSMENT_TIER_LABELS: Record<AssessmentReport['tier'], string> = {
+  excellent: '优秀',
+  usable: '可用',
+  high_risk: '高风险',
+  unassessed: '未评估',
+}
+
+const ASSESSMENT_SCENARIO_LABELS: Record<string, string> = {
+  structured_schema: '结构化输出',
+  state_grounding: '当前状态依据',
+  causal_adjudication: '开放因果裁决',
+  short_memory: '短期记忆',
+}
+
+const ASSESSMENT_STATUS_LABELS: Record<string, string> = {
+  pass: '通过',
+  warn: '警告',
+  fail: '失败',
+}
+
+const FIELD_ERROR_IDS = {
+  provider: 'ai-provider-error',
+  provider_type: 'ai-provider-type-error',
+  api_key: 'ai-api-key-error',
+  base_url: 'ai-base-url-error',
+  model: 'ai-model-error',
+} as const
+
+const INITIAL_DRAFT: AiSettingsDraftState = {
+  provider: 'openai',
+  providerType: 'openai',
+  apiKey: '',
+  baseUrl: '',
+  model: '',
+  simpleModel: '',
+  thinkingConfig: {},
+  thinkingConfigSimple: {},
+}
+
+function localError(message: string, fixHint: string): ErrorResponse {
+  return {
+    error_code: 'invalid_ai_settings',
+    message,
+    details: null,
+    fix_hint: fixHint,
+    request_id: null,
+    provider_summary: null,
+    retryable: false,
+  }
+}
+
+function errorFromUnknown(error: unknown, fallbackMessage: string): ErrorResponse {
+  if (error instanceof ApiError) return error.body
+  return {
+    error_code: 'client_error',
+    message: fallbackMessage,
+    details: null,
+    fix_hint: '确认后端服务正在运行后再手动重试。',
+    request_id: null,
+    provider_summary: null,
+    retryable: true,
+  }
+}
+
+function renderDiagnostic(title: string, error: ErrorResponse | null) {
+  if (!error) return null
+  const hasDetails = !!(error.provider_summary || error.request_id)
+  return (
+    <div className="ai-diagnostic" role="alert">
+      <strong>{title}</strong>
+      <p>{error.message}</p>
+      {error.fix_hint && <p className="ai-diagnostic-fix">建议：{error.fix_hint}</p>}
+      {error.retryable && <p className="ai-diagnostic-retry">修正后可手动重试；系统不会自动重发。</p>}
+      {hasDetails && (
+        <details className="ai-diagnostic-details">
+          <summary>排障详情</summary>
+          {error.provider_summary && <p>供应商摘要：{error.provider_summary}</p>}
+          {error.request_id && <p>请求编号：{error.request_id}</p>}
+        </details>
+      )}
+    </div>
+  )
+}
+
+function endpointHost(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host
+  } catch {
+    return baseUrl || '未设置地址'
+  }
+}
+
+function formatDateTime(raw: string | null | undefined): string {
+  if (!raw) return '未知时间'
+  const timestamp = Date.parse(raw)
+  if (!Number.isFinite(timestamp)) return raw
+  return new Intl.DateTimeFormat('zh-CN', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+  }).format(new Date(timestamp))
+}
+
+function providerLabel(provider: string): string {
+  return PROVIDER_LABELS[provider] ?? provider
+}
+
+function hasFieldErrors(errors: AiSettingsFieldErrors): boolean {
+  return Object.keys(errors).length > 0
 }
 
 export default function AiSettingsModal({ onClose, onSaved }: Props) {
-  const [provider, setProvider] = useState<AIProvider>('openai')
-  const [providerType, setProviderType] = useState('openai')
-  const [customProviderInput, setCustomProviderInput] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [baseUrl, setBaseUrl] = useState('')
-  const [model, setModel] = useState('')
-  const [simpleModel, setSimpleModel] = useState('')
-  // Removed unused enableThinking state
-  // Removed unused enableThinkingSimple state
-  const [thinkingConfig, setThinkingConfig] = useState<ThinkingConfig>({})
-  const [thinkingConfigSimple, setThinkingConfigSimple] = useState<ThinkingConfig>({})
+  const [effectiveSettings, setEffectiveSettings] = useState<AISettings | null>(null)
+  const [draft, setDraft] = useState<AiSettingsDraftState>(INITIAL_DRAFT)
   const [providerOptions, setProviderOptions] = useState<AIProvider[]>(['openai', 'google', 'h', 'Z'])
-  const [cache, setCache] = useState<Partial<Record<AIProvider, AISettings>>>({})
+  const [cache, setCache] = useState<Record<string, AISettings>>({})
   const [models, setModels] = useState<string[]>([])
   const [modelsSource, setModelsSource] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [fetchingModels, setFetchingModels] = useState(false)
-  const [error, setError] = useState('')
   const [hint, setHint] = useState('')
-  // 08-07-improve-ai-settings-page：测试连接状态
-  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle')
+  const [loadError, setLoadError] = useState<ErrorResponse | null>(null)
+  const [modelError, setModelError] = useState<ErrorResponse | null>(null)
+  const [saveError, setSaveError] = useState<ErrorResponse | null>(null)
+  const [testError, setTestError] = useState<ErrorResponse | null>(null)
+  const [assessmentError, setAssessmentError] = useState<ErrorResponse | null>(null)
+  const [testStatus, setTestStatus] = useState<TestStatus>('idle')
   const [testDetail, setTestDetail] = useState('')
+  const [verification, setVerification] = useState<AISettingsTestResponse | null>(null)
+  const [assessmentStatus, setAssessmentStatus] = useState<AssessmentStatus>('idle')
+  const [assessment, setAssessment] = useState<AssessmentReport | null>(null)
+  const [assessmentInvalidated, setAssessmentInvalidated] = useState(false)
 
-  // 错误诊断：error_code → 可读原因 + 建议（与后端 ai.errors.ERROR_DIAGNOSIS 对齐）
-  const ERROR_DIAGNOSIS: Record<string, string> = {
-    missing_api_key: '未填写 API Key，请先在设置中填入。',
-    invalid_api_key: 'API Key 无效（401），请核对是否已复制完整、未含多余空格。',
-    quota: '账户额度不足或被限流（429），请检查账单或稍后重试。',
-    model_not_found: '模型名不存在（404），请检查 Model 字段是否拼写正确。',
-    invalid_base_url: 'Base URL 格式无效，应为 http(s):// 开头的兼容端点。',
-    network: '网络连接失败，请检查网络、代理或 Base URL 是否可达。',
-    timeout: '请求超时，供应商响应过慢或网络不稳定，请重试。',
-    format: '供应商返回格式异常，请确认 Base URL 指向的是 OpenAI 兼容接口。',
-    model_list_failed: '获取模型列表/连接失败，请检查密钥、地址与网络。',
-  }
+  const draftRef = useRef(draft)
+  const loadRequestIdRef = useRef(0)
+  const testRequestIdRef = useRef(0)
+  const assessmentRequestIdRef = useRef(0)
+  const testControllerRef = useRef<AbortController | null>(null)
+  const assessmentControllerRef = useRef<AbortController | null>(null)
 
-  // 游戏强制要求配置真实 AI 供应商：API Key / Base URL / 模型 全部始终展示
-  const showBaseUrl = true
-  const showApiKey = true
-  const showModel = true
+  const fieldErrors = useMemo(() => validateAiSettingsDraft(draft), [draft])
+  const currentDraftIdentity = useMemo(() => draftIdentity(draft), [draft])
+  const providerChoices = useMemo<AIProvider[]>(() => {
+    const choices = Array.from(new Set(providerOptions.length
+      ? providerOptions
+      : ['openai', 'google', 'h', 'Z'])) as AIProvider[]
+    if (!choices.includes('custom')) choices.push('custom')
+    return choices
+  }, [providerOptions])
 
-  const providerChoices = useMemo<AIProvider[]>(
-    () => {
-      const choices: AIProvider[] = providerOptions.length ? [...providerOptions] : ['openai', 'google', 'h', 'Z']
-      if (!choices.includes('custom')) {
-        choices.push('custom')
-      }
-      return choices
-    },
-    [providerOptions],
+  const testRunning = testStatus === 'testing'
+  const assessmentRunning = assessmentStatus === 'running'
+  const fieldsDisabled = loading || saving || fetchingModels || testRunning || assessmentRunning
+  const verificationValid = verification !== null
+  const canSave = !loading && !saving && verificationValid && !hasFieldErrors(fieldErrors)
+  const canAssess = verificationValid && !hasFieldErrors(fieldErrors) && !saving && !testRunning
+  const canFetchModels = !(
+    fieldErrors.provider
+    || fieldErrors.provider_type
+    || fieldErrors.api_key
+    || fieldErrors.base_url
   )
+  const providerTypeLocked = fixedProviderType(draft.provider) !== null
 
-  const applySettings = (settings: AISettings) => {
-    const nextThinkingConfig = settings.thinking_config
-      ? { ...settings.thinking_config }
-      : (settings.enable_thinking ? { enable_thinking: true } : {})
-    const nextThinkingConfigSimple = settings.thinking_config_simple
-      ? { ...settings.thinking_config_simple }
-      : (settings.enable_thinking_simple ? { enable_thinking: true } : {})
-    setProvider(settings.provider)
-    setProviderType(settings.provider_type || 'openai')
-    setApiKey(settings.api_key || '')
-    setBaseUrl(settings.base_url || '')
-    setModel(settings.model || '')
-    setSimpleModel(settings.simple_model || '')
-    // Removed unused setEnableThinking
-    // Removed unused setEnableThinkingSimple
-    setThinkingConfig(nextThinkingConfig)
-    setThinkingConfigSimple(nextThinkingConfigSimple)
-    setProviderOptions(settings.provider_options)
-    setCache((prev) => ({ ...prev, [settings.provider]: settings }))
-  }
-
-  async function loadSettings(targetProvider?: AIProvider) {
-    try {
-      setError('')
-      const settings = await api.getAiSettings(targetProvider)
-      applySettings(settings)
-      setModels([])
-      setModelsSource('')
-      setHint('')
-    } catch (e) {
-      setError(e instanceof ApiError ? e.body.message : '读取AI配置失败')
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    draftRef.current = draft
+  }, [draft])
 
   useEffect(() => {
     void loadSettings()
+    return () => {
+      loadRequestIdRef.current += 1
+      testRequestIdRef.current += 1
+      assessmentRequestIdRef.current += 1
+      testControllerRef.current?.abort()
+      assessmentControllerRef.current?.abort()
+    }
+    // Initial load and request cleanup intentionally run only for this modal instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function handleProviderChange(nextProvider: AIProvider) {
-    if (nextProvider === 'custom') {
-      setProvider('custom')
-      setProviderType('openai')
-      setApiKey('')
-      setBaseUrl('')
-      setModel('')
-      setSimpleModel('')
-      // Removed unused setEnableThinking
-      // Removed unused setEnableThinkingSimple
-      setThinkingConfig({})
-      setThinkingConfigSimple({})
-      setModels([])
-      setModelsSource('')
-      setHint('')
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || saving) return
+      testControllerRef.current?.abort()
+      assessmentControllerRef.current?.abort()
+      onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, saving])
+
+  useEffect(() => {
+    if (!verification) return
+    const expiresAt = Date.parse(verification.expires_at)
+    if (!Number.isFinite(expiresAt)) {
+      setVerification(null)
+      setTestStatus('expired')
+      setTestDetail('草稿验证已过期，请重新测试。')
       return
     }
-    setProvider(nextProvider)
+
+    let timer: number | undefined
+    const scheduleExpiry = () => {
+      const remaining = expiresAt - Date.now()
+      if (remaining <= 0) {
+        setVerification(null)
+        setTestStatus('expired')
+        setTestDetail('草稿验证已过期，请重新测试。')
+        return
+      }
+      timer = window.setTimeout(scheduleExpiry, Math.min(remaining, 2_147_483_647))
+    }
+    scheduleExpiry()
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [verification])
+
+  function clearDraftBoundResults() {
+    setVerification(null)
+    setTestStatus('idle')
+    setTestDetail('')
+    setTestError(null)
+    setAssessment(null)
+    setAssessmentStatus('idle')
+    setAssessmentError(null)
+    setAssessmentInvalidated(true)
+    setSaveError(null)
+  }
+
+  function updateDraft(patch: Partial<AiSettingsDraftState>) {
+    setDraft((current) => ({ ...current, ...patch }))
+    clearDraftBoundResults()
+  }
+
+  function applySettingsToDraft(settings: AISettings, updateEffective: boolean) {
+    const nextDraft = draftFromSettings(settings)
+    const options = (settings.provider_options ?? ['openai', 'google', 'h', 'Z']) as AIProvider[]
+    setDraft(nextDraft)
+    setProviderOptions(options)
+    setCache((current) => ({ ...current, [settings.provider]: settings }))
+    setModels([])
+    setModelsSource('')
+    setHint('')
+    setVerification(null)
+    setTestStatus('idle')
+    setTestDetail('')
+    setTestError(null)
+    setSaveError(null)
+    const loadedAssessment = settings.assessment?.config_matches ? settings.assessment : null
+    setAssessment(loadedAssessment)
+    setAssessmentStatus(loadedAssessment ? 'complete' : 'idle')
+    setAssessmentInvalidated(false)
+    setAssessmentError(null)
+    if (updateEffective || settings.effective) setEffectiveSettings(settings)
+  }
+
+  async function loadSettings(targetProvider?: AIProvider) {
+    const requestId = ++loadRequestIdRef.current
+    try {
+      setLoadError(null)
+      const settings = await api.getAiSettings(targetProvider)
+      if (requestId !== loadRequestIdRef.current) return
+      applySettingsToDraft(settings, targetProvider === undefined)
+    } catch (error) {
+      if (requestId !== loadRequestIdRef.current) return
+      setLoadError(errorFromUnknown(error, '读取 AI 配置失败。'))
+    } finally {
+      if (requestId === loadRequestIdRef.current) setLoading(false)
+    }
+  }
+
+  async function handleProviderChange(nextProvider: AIProvider) {
+    setModels([])
+    setModelsSource('')
+    setHint('')
+    clearDraftBoundResults()
+    if (nextProvider === 'custom') {
+      setDraft(emptyCustomDraft())
+      return
+    }
+
     const cached = cache[nextProvider]
     if (cached) {
-      applySettings(cached)
+      applySettingsToDraft(cached, false)
       return
     }
+
+    setDraft({
+      ...INITIAL_DRAFT,
+      provider: nextProvider,
+      providerType: fixedProviderType(nextProvider) ?? 'openai',
+    })
     setLoading(true)
     await loadSettings(nextProvider)
   }
 
+  function verificationIsCurrent(): boolean {
+    if (!verification) return false
+    const expiresAt = Date.parse(verification.expires_at)
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+      setVerification(null)
+      setTestStatus('expired')
+      setTestDetail('草稿验证已过期，请重新测试。')
+      return false
+    }
+    return true
+  }
+
   async function handleSave() {
-    if (provider === 'custom' || !provider.trim()) {
-      setError('请输入自定义供应商名称')
+    if (!verificationIsCurrent() || hasFieldErrors(fieldErrors) || !verification) {
+      setSaveError(localError(
+        '当前草稿不能保存并应用。',
+        '修正字段并完成一次真实连接测试后再保存。',
+      ))
       return
     }
+
     setSaving(true)
-    setError('')
-    setHint('')
+    setSaveError(null)
     try {
-      const effectiveType = getEffectiveProviderType(provider, providerType)
-
-      // 从 thinkingConfig 中提取 enable_thinking 值
-      let derivedEnableThinking = false
-      if (effectiveType === 'deepseek') {
-        derivedEnableThinking = thinkingConfig?.thinking?.type === 'enabled'
-      } else if (effectiveType === 'gemini') {
-        derivedEnableThinking = !!thinkingConfig?.thinkingLevel
-      } else if (effectiveType === 'anthropic') {
-        derivedEnableThinking = !!thinkingConfig?.type
-      } else if (effectiveType === 'openai') {
-        derivedEnableThinking = !!thinkingConfig?.reasoning_effort
-      } else {
-        derivedEnableThinking = thinkingConfig?.enable_thinking === true
-      }
-
-      // 从 thinkingConfigSimple 中提取 enable_thinking_simple 值
-      let derivedEnableThinkingSimple = false
-      if (effectiveType === 'deepseek') {
-        derivedEnableThinkingSimple = thinkingConfigSimple?.thinking?.type === 'enabled'
-      } else if (effectiveType === 'gemini') {
-        derivedEnableThinkingSimple = !!thinkingConfigSimple?.thinkingLevel
-      } else if (effectiveType === 'anthropic') {
-        derivedEnableThinkingSimple = !!thinkingConfigSimple?.type
-      } else if (effectiveType === 'openai') {
-        derivedEnableThinkingSimple = !!thinkingConfigSimple?.reasoning_effort
-      } else {
-        derivedEnableThinkingSimple = thinkingConfigSimple?.enable_thinking === true
-      }
-
       const saved = await api.updateAiSettings({
-        provider,
-        provider_type: providerType,
-        api_key: showApiKey ? (apiKey || null) : null,
-        base_url: showBaseUrl ? (baseUrl || null) : null,
-        model: showModel ? (model || null) : null,
-        simple_model: showModel ? (simpleModel || null) : null,
-        enable_thinking: showModel ? derivedEnableThinking : null,
-        enable_thinking_simple: showModel ? derivedEnableThinkingSimple : null,
-        thinking_config: showModel ? thinkingConfig : null,
-        thinking_config_simple: showModel ? thinkingConfigSimple : null,
+        ...buildAiSettingsDraft(draft),
+        verification_token: verification.verification_token,
       })
-      applySettings(saved)
-      onSaved(`AI配置已更新：${PROVIDER_LABELS[saved.provider]} / ${saved.model || '未设置模型'}`)
-    } catch (e) {
-      setError(e instanceof ApiError ? e.body.message : '保存AI配置失败')
+      applySettingsToDraft(saved, true)
+      onSaved(`AI 配置已生效：${providerLabel(saved.provider)} / ${saved.model}`)
+    } catch (error) {
+      const diagnostic = errorFromUnknown(error, '保存并应用 AI 配置失败。')
+      setSaveError(diagnostic)
+      if (['ai_test_required', 'ai_test_expired', 'ai_test_mismatch', 'ai_test_used'].includes(diagnostic.error_code)) {
+        setVerification(null)
+        setTestStatus(diagnostic.error_code === 'ai_test_expired' ? 'expired' : 'idle')
+        setTestDetail('验证凭证已失效，请重新测试当前草稿。')
+      }
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDelete() {
-    if (window.confirm(`真的要删除自定义供应商 ${provider} 吗？`)) {
-      setSaving(true)
-      setError('')
-      try {
-        const resetSettings = await api.deleteAiSettings(provider)
-        applySettings(resetSettings)
-        onSaved(`已删除自定义供应商: ${provider}`)
-      } catch (e) {
-        setError(e instanceof ApiError ? e.body.message : '删除失败')
-      } finally {
-        setSaving(false)
-      }
+    if (!window.confirm(`真的要删除供应商 ${draft.provider} 的配置吗？`)) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const resetSettings = await api.deleteAiSettings(draft.provider)
+      applySettingsToDraft(resetSettings, true)
+      onSaved(`已删除供应商配置：${providerLabel(draft.provider)}`)
+    } catch (error) {
+      setSaveError(errorFromUnknown(error, '删除 AI 配置失败。'))
+    } finally {
+      setSaving(false)
     }
   }
 
   async function handleFetchModels() {
+    if (!canFetchModels || fetchingModels) {
+      setModelError(localError(
+        '当前配置还不能获取模型列表。',
+        '先填写供应商、API Key 与公网 HTTPS Base URL。',
+      ))
+      return
+    }
     setFetchingModels(true)
-    setError('')
+    setModelError(null)
     setHint('')
     try {
       const res = await api.listAiModels({
-        provider,
-        provider_type: providerType,
-        api_key: showApiKey ? (apiKey || null) : null,
-        base_url: showBaseUrl ? (baseUrl || null) : null,
+        provider: draft.provider,
+        provider_type: getEffectiveProviderType(draft.provider, draft.providerType),
+        api_key: draft.apiKey.trim() || null,
+        base_url: draft.baseUrl.trim() || null,
       })
-      setModels(res.models)
+      const nextModels = res.models ?? []
+      setModels(nextModels)
       setModelsSource(res.source)
-      setHint(res.models.length ? `共获取 ${res.models.length} 个模型` : '未返回模型列表')
-    } catch (e) {
-      setError(e instanceof ApiError ? e.body.message : '获取模型列表失败')
+      setHint(nextModels.length
+        ? `共获取 ${nextModels.length} 个模型；列表仅供辅助，仍需真实连接测试。`
+        : '供应商未返回模型列表；这不代表实际生成可用。')
+    } catch (error) {
+      setModelError(errorFromUnknown(error, '获取模型列表失败。'))
     } finally {
       setFetchingModels(false)
     }
   }
 
-  // 08-07-improve-ai-settings-page：真实链路探测（最小 chat completion）
   async function handleTestConnection() {
-    setTestState('testing')
-    setTestDetail('')
-    setError('')
-    try {
-      const res = await api.testAiConnection({
-        provider,
-        provider_type: providerType,
-        api_key: showApiKey ? (apiKey || null) : null,
-        base_url: showBaseUrl ? (baseUrl || null) : null,
-        model: showModel ? (model || null) : null,
-      })
-      if (res.ok) {
-        setTestState('ok')
-        setTestDetail(`连接成功${res.latency_ms ? `（${res.latency_ms}ms）` : ''}`)
-      } else {
-        setTestState('error')
-        const code = res.error_code || 'model_list_failed'
-        setTestDetail(ERROR_DIAGNOSIS[code] || res.message || '连接失败')
+    if (testControllerRef.current || hasFieldErrors(fieldErrors)) {
+      if (hasFieldErrors(fieldErrors)) {
+        setTestError(localError(
+          '当前草稿字段无效，无法测试。',
+          '修正表单中标出的字段后再发起真实测试。',
+        ))
       }
-    } catch (e) {
-      setTestState('error')
-      const code = e instanceof ApiError ? e.body.error_code : null
-      setTestDetail(
-        code && ERROR_DIAGNOSIS[code]
-          ? ERROR_DIAGNOSIS[code]
-          : (e instanceof ApiError ? e.body.message : '测试连接失败，请检查后端服务')
-      )
+      return
+    }
+
+    const requestId = ++testRequestIdRef.current
+    const controller = new AbortController()
+    const snapshot = draft
+    const snapshotIdentity = currentDraftIdentity
+    testControllerRef.current = controller
+    setVerification(null)
+    setTestStatus('testing')
+    setTestDetail('正在发起一次真实最小生成；不会自动重试或切换模型。')
+    setTestError(null)
+    setSaveError(null)
+
+    try {
+      const response = await api.testAiConnection(buildAiSettingsDraft(snapshot), controller.signal)
+      if (
+        requestId !== testRequestIdRef.current
+        || controller.signal.aborted
+        || draftIdentity(draftRef.current) !== snapshotIdentity
+      ) return
+      setVerification(response)
+      setTestStatus('verified')
+      setTestDetail(`${response.message} 耗时 ${response.latency_ms}ms。`)
+    } catch (error) {
+      if (requestId !== testRequestIdRef.current) return
+      setVerification(null)
+      if (isAbortError(error) || controller.signal.aborted) {
+        setTestStatus('cancelled')
+        setTestDetail('测试已取消；若供应商已收到请求，仍可能产生少量费用，但系统不会自动重发。')
+      } else {
+        setTestStatus('error')
+        setTestError(errorFromUnknown(error, '测试连接失败。'))
+      }
+    } finally {
+      if (testControllerRef.current === controller) testControllerRef.current = null
     }
   }
 
+  function cancelTest() {
+    const controller = testControllerRef.current
+    if (!controller) return
+    testRequestIdRef.current += 1
+    controller.abort()
+    if (testControllerRef.current === controller) testControllerRef.current = null
+    setTestStatus('cancelled')
+    setTestDetail('测试已取消；若供应商已收到请求，仍可能产生少量费用，但系统不会自动重发。')
+  }
+
+  async function handleAssessment() {
+    if (assessmentControllerRef.current || !canAssess || !verificationIsCurrent()) return
+
+    const requestId = ++assessmentRequestIdRef.current
+    const controller = new AbortController()
+    const snapshot = draft
+    const snapshotIdentity = currentDraftIdentity
+    assessmentControllerRef.current = controller
+    setAssessmentStatus('running')
+    setAssessmentError(null)
+
+    try {
+      const response: AISettingsAssessmentResponse = await api.assessAiCapability(
+        buildAiSettingsDraft(snapshot),
+        controller.signal,
+      )
+      if (
+        requestId !== assessmentRequestIdRef.current
+        || controller.signal.aborted
+        || draftIdentity(draftRef.current) !== snapshotIdentity
+      ) return
+      setAssessment(response)
+      setAssessmentInvalidated(false)
+      setAssessmentStatus('complete')
+    } catch (error) {
+      if (requestId !== assessmentRequestIdRef.current) return
+      if (isAbortError(error) || controller.signal.aborted) {
+        setAssessmentStatus('cancelled')
+      } else {
+        setAssessmentStatus('error')
+        setAssessmentError(errorFromUnknown(error, '模型能力评估失败。'))
+      }
+    } finally {
+      if (assessmentControllerRef.current === controller) assessmentControllerRef.current = null
+    }
+  }
+
+  function cancelAssessment() {
+    const controller = assessmentControllerRef.current
+    if (!controller) return
+    assessmentRequestIdRef.current += 1
+    controller.abort()
+    if (assessmentControllerRef.current === controller) assessmentControllerRef.current = null
+    setAssessmentStatus('cancelled')
+  }
+
+  function handleClose() {
+    testControllerRef.current?.abort()
+    assessmentControllerRef.current?.abort()
+    onClose()
+  }
+
+  function renderFieldError(field: keyof AiSettingsFieldErrors) {
+    const message = fieldErrors[field]
+    return message
+      ? <span id={FIELD_ERROR_IDS[field]} className="ai-field-error">{message}</span>
+      : null
+  }
+
   function renderThinkingConfig(
-    currentProvider: AIProvider,
-    currentProviderType: string,
     config: ThinkingConfig,
-    setConfig: Dispatch<SetStateAction<ThinkingConfig>>,
+    onChange: (next: ThinkingConfig) => void,
     label: string,
   ) {
-    const effectiveType = getEffectiveProviderType(currentProvider, currentProviderType)
-
+    const effectiveType = getEffectiveProviderType(draft.provider, draft.providerType)
     if (effectiveType === 'deepseek') {
-      const thinkingType = config?.thinking?.type === 'enabled' ? 'enabled' : 'disabled'
+      const thinkingType = config.type === 'enabled' ? 'enabled' : 'disabled'
       return (
         <label className="ai-field">
           <span>{label}思考模式</span>
           <select
             value={thinkingType}
-            onChange={(e) => {
-              const next = e.target.value
-              setConfig(next === 'enabled' ? { thinking: { type: 'enabled' } } : {})
-            }}
-            disabled={saving}
+            onChange={(event) => onChange(event.target.value === 'enabled' ? { type: 'enabled' } : {})}
+            disabled={fieldsDisabled}
           >
             <option value="disabled">禁用</option>
             <option value="enabled">启用</option>
@@ -307,25 +573,17 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       )
     }
 
-    if (effectiveType === 'gemini') {
-      const rawLevel = typeof config?.thinkingLevel === 'string' ? config.thinkingLevel : ''
-      const levelMap: Record<string, string> = {
-        LOW: 'Low',
-        MEDIUM: 'Medium',
-        HIGH: 'High',
-      }
+    if (effectiveType === 'google') {
+      const rawLevel = typeof config.thinkingLevel === 'string' ? config.thinkingLevel : ''
+      const levelMap: Record<string, string> = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High' }
       const thinkingLevel = levelMap[rawLevel.toUpperCase()] || ''
-
       return (
         <label className="ai-field">
           <span>{label}思考等级</span>
           <select
             value={thinkingLevel}
-            onChange={(e) => {
-              const next = e.target.value
-              setConfig(next ? { thinkingLevel: next } : {})
-            }}
-            disabled={saving}
+            onChange={(event) => onChange(event.target.value ? { thinkingLevel: event.target.value } : {})}
+            disabled={fieldsDisabled}
           >
             <option value="">不启用</option>
             <option value="Low">Low</option>
@@ -337,20 +595,16 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     }
 
     if (effectiveType === 'anthropic') {
-      const thinkingType = config?.type === 'enabled'
+      const thinkingType = config.type === 'enabled'
         ? 'enabled'
-        : (config?.type === 'adaptive' ? 'adaptive' : '')
-
+        : (config.type === 'adaptive' ? 'adaptive' : '')
       return (
         <label className="ai-field">
           <span>{label}思考类型</span>
           <select
             value={thinkingType}
-            onChange={(e) => {
-              const next = e.target.value
-              setConfig(next ? { type: next } : {})
-            }}
-            disabled={saving}
+            onChange={(event) => onChange(event.target.value ? { type: event.target.value } : {})}
+            disabled={fieldsDisabled}
           >
             <option value="">不启用</option>
             <option value="adaptive">Adaptive</option>
@@ -360,25 +614,17 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       )
     }
 
-    if (effectiveType === 'openai') {
-      const rawEffort = typeof config?.reasoning_effort === 'string' ? config.reasoning_effort : ''
-      const effortMap: Record<string, string> = {
-        LOW: 'low',
-        MEDIUM: 'medium',
-        HIGH: 'high',
-      }
+    if (effectiveType === 'openai' || effectiveType === 'openai-response') {
+      const rawEffort = typeof config.reasoning_effort === 'string' ? config.reasoning_effort : ''
+      const effortMap: Record<string, string> = { LOW: 'low', MEDIUM: 'medium', HIGH: 'high' }
       const reasoningEffort = effortMap[rawEffort.toUpperCase()] || ''
-
       return (
         <label className="ai-field">
           <span>{label}推理强度</span>
           <select
             value={reasoningEffort}
-            onChange={(e) => {
-              const next = e.target.value
-              setConfig(next ? { reasoning_effort: next } : {})
-            }}
-            disabled={saving}
+            onChange={(event) => onChange(event.target.value ? { reasoning_effort: event.target.value } : {})}
+            disabled={fieldsDisabled}
           >
             <option value="">不启用</option>
             <option value="low">Low</option>
@@ -389,163 +635,196 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
       )
     }
 
-    const enabled = config?.enable_thinking === true
+    const enabled = config.enable_thinking === true
     return (
       <label className="ai-thinking-toggle">
         <input
           type="checkbox"
           checked={enabled}
-          onChange={(e) => {
-            setConfig(e.target.checked ? { enable_thinking: true } : {})
-          }}
-          disabled={saving}
+          onChange={(event) => onChange(event.target.checked ? { enable_thinking: true } : {})}
+          disabled={fieldsDisabled}
         />
         <span>{label}启用思考 (enable_thinking)</span>
       </label>
     )
   }
 
+  const assessmentCalls = assessment?.calls_completed ?? (assessmentRunning ? 1 : 0)
+  const effectiveSources = effectiveSettings?.sources ?? {}
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal ai-settings-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>AI 设置</h3>
+    <div className="modal-overlay" onClick={handleClose}>
+      <div
+        className="modal ai-settings-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ai-settings-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3 id="ai-settings-title">AI 设置</h3>
+
+        {effectiveSettings && (
+          <section className={`ai-runtime-status ${effectiveSettings.effective ? 'effective' : 'required'}`}>
+            <strong>{effectiveSettings.effective ? '当前已生效' : '当前未生效'}</strong>
+            <span>
+              {providerLabel(effectiveSettings.provider)} · {effectiveSettings.model || '未设置模型'} · {endpointHost(effectiveSettings.base_url)}
+            </span>
+            <details>
+              <summary>配置来源</summary>
+              <p>
+                Provider：{SOURCE_LABELS[effectiveSources.provider] ?? effectiveSources.provider ?? '未知'}；
+                API Key：{SOURCE_LABELS[effectiveSources.api_key] ?? effectiveSources.api_key ?? '未知'}；
+                模型：{SOURCE_LABELS[effectiveSources.model] ?? effectiveSources.model ?? '未知'}
+              </p>
+            </details>
+          </section>
+        )}
+
+        {renderDiagnostic('读取配置失败', loadError)}
 
         {loading ? (
-          <p>读取配置中...</p>
+          <p role="status" aria-label="读取 AI 配置中">读取配置中...</p>
         ) : (
           <div className="ai-settings-form">
             <label className="ai-field">
               <span>供应商</span>
               <div className="ai-provider-row">
                 <select
-                  value={providerChoices.includes(provider) ? provider : 'custom'}
-                  onChange={(e) => void handleProviderChange(e.target.value as AIProvider)}
-                  disabled={saving || loading}
+                  value={providerChoices.includes(draft.provider) ? draft.provider : 'custom'}
+                  onChange={(event) => void handleProviderChange(event.target.value as AIProvider)}
+                  disabled={fieldsDisabled}
                 >
                   {providerChoices.map((option) => (
-                    <option key={option} value={option}>{
-                      option === 'custom' ? '自定义 (Custom)...' : (PROVIDER_LABELS[option] ?? option)
-                    }</option>
+                    <option key={option} value={option}>
+                      {option === 'custom' ? '自定义 (Custom)...' : providerLabel(option)}
+                    </option>
                   ))}
                 </select>
-                {provider !== 'custom' && (
+                {draft.provider !== 'custom' && (
                   <button
+                    type="button"
                     className="modal-btn ai-delete-provider-btn"
-                    onClick={handleDelete}
-                    disabled={saving}
-                    title={`删除供应商 ${provider}`}
+                    onClick={() => void handleDelete()}
+                    disabled={saving || testRunning || assessmentRunning}
+                    title={`删除供应商 ${draft.provider}`}
                   >
                     删除
                   </button>
                 )}
               </div>
+              {draft.provider !== 'custom' && renderFieldError('provider')}
             </label>
 
-            {(!providerChoices.includes(provider) || provider === 'custom') && (
+            {(!providerChoices.includes(draft.provider) || draft.provider === 'custom') && (
               <label className="ai-field">
                 <span>自定义标识</span>
                 <input
-                  value={provider === 'custom' ? customProviderInput : provider}
-                  onChange={(e) => {
-                    const val = e.target.value.trim()
-                    setCustomProviderInput(val)
-                    if (val) {
-                      setProvider(val as AIProvider)
-                    } else {
-                      setProvider('custom')
-                    }
-                  }}
+                  value={draft.provider === 'custom' ? '' : draft.provider}
+                  onChange={(event) => updateDraft({
+                    provider: (event.target.value || 'custom') as AIProvider,
+                  })}
                   placeholder="例如: deepseek"
-                  disabled={saving || loading}
+                  disabled={fieldsDisabled}
+                  aria-invalid={!!fieldErrors.provider}
+                  aria-describedby={fieldErrors.provider ? FIELD_ERROR_IDS.provider : undefined}
                 />
+                {renderFieldError('provider')}
               </label>
             )}
 
             <label className="ai-field">
-              <span>提供商类型</span>
+              <span>Provider Type</span>
               <select
-                value={providerType}
-                onChange={(e) => setProviderType(e.target.value)}
-                disabled={saving || loading}
+                value={getEffectiveProviderType(draft.provider, draft.providerType)}
+                onChange={(event) => updateDraft({ providerType: event.target.value })}
+                disabled={fieldsDisabled || providerTypeLocked}
+                aria-invalid={!!fieldErrors.provider_type}
+                aria-describedby={fieldErrors.provider_type ? FIELD_ERROR_IDS.provider_type : undefined}
               >
                 <option value="openai">OpenAI 兼容</option>
                 <option value="openai-response">OpenAI Responses</option>
                 <option value="deepseek">DeepSeek</option>
-                <option value="gemini">Gemini</option>
+                <option value="google">Gemini / Google</option>
                 <option value="anthropic">Anthropic</option>
               </select>
+              {providerTypeLocked && <span className="ai-field-note">内置供应商的协议类型固定。</span>}
+              {renderFieldError('provider_type')}
             </label>
 
-            {showApiKey && (
-              <label className="ai-field">
-                <span>API Key</span>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="输入 API Key"
-                  disabled={saving}
-                />
-              </label>
+            <label className="ai-field">
+              <span>API Key</span>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={draft.apiKey}
+                onChange={(event) => updateDraft({ apiKey: event.target.value })}
+                placeholder="输入 API Key"
+                disabled={fieldsDisabled}
+                aria-invalid={!!fieldErrors.api_key}
+                aria-describedby={fieldErrors.api_key ? FIELD_ERROR_IDS.api_key : undefined}
+              />
+              {renderFieldError('api_key')}
+            </label>
+
+            <label className="ai-field">
+              <span>Base URL</span>
+              <input
+                value={draft.baseUrl}
+                onChange={(event) => updateDraft({ baseUrl: event.target.value })}
+                placeholder="例如 https://api.openai.com/v1"
+                disabled={fieldsDisabled}
+                aria-invalid={!!fieldErrors.base_url}
+                aria-describedby={fieldErrors.base_url ? FIELD_ERROR_IDS.base_url : undefined}
+              />
+              {renderFieldError('base_url')}
+            </label>
+
+            <label className="ai-field">
+              <span>主模型</span>
+              <input
+                value={draft.model}
+                onChange={(event) => updateDraft({ model: event.target.value })}
+                placeholder="例如 gpt-5-mini"
+                disabled={fieldsDisabled}
+                aria-invalid={!!fieldErrors.model}
+                aria-describedby={fieldErrors.model ? FIELD_ERROR_IDS.model : undefined}
+              />
+              {renderFieldError('model')}
+            </label>
+            {renderThinkingConfig(
+              draft.thinkingConfig,
+              (next) => updateDraft({ thinkingConfig: next }),
+              '主模型',
             )}
 
-            {showBaseUrl && (
-              <label className="ai-field">
-                <span>Base URL</span>
-                <input
-                  value={baseUrl}
-                  onChange={(e) => setBaseUrl(e.target.value)}
-                  placeholder="例如 https://api.openai.com/v1"
-                  disabled={saving}
-                />
-              </label>
-            )}
-
-            {showModel && (
-              <>
-                <label className="ai-field">
-                  <span>主模型</span>
-                  <input
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="思考模型 (例如 deepseek-reasoner)"
-                    disabled={saving}
-                  />
-                </label>
-                {renderThinkingConfig(provider, providerType, thinkingConfig, setThinkingConfig, '主模型')}
-                <label className="ai-field">
-                  <span>基础模型</span>
-                  <input
-                    value={simpleModel}
-                    onChange={(e) => setSimpleModel(e.target.value)}
-                    placeholder="选填: 日常非思考模型 (例如 deepseek-chat)"
-                    disabled={saving}
-                  />
-                </label>
-                {renderThinkingConfig(provider, providerType, thinkingConfigSimple, setThinkingConfigSimple, '基础模型')}
-              </>
+            <label className="ai-field">
+              <span>基础模型</span>
+              <input
+                value={draft.simpleModel}
+                onChange={(event) => updateDraft({ simpleModel: event.target.value })}
+                placeholder="选填：日常非思考模型"
+                disabled={fieldsDisabled}
+              />
+            </label>
+            {renderThinkingConfig(
+              draft.thinkingConfigSimple,
+              (next) => updateDraft({ thinkingConfigSimple: next }),
+              '基础模型',
             )}
 
             <div className="ai-model-tools">
               <button
+                type="button"
                 className="modal-btn"
-                onClick={handleFetchModels}
-                disabled={fetchingModels || saving}
+                onClick={() => void handleFetchModels()}
+                disabled={fetchingModels || saving || testRunning || assessmentRunning || !canFetchModels}
               >
-                {fetchingModels ? '拉取中...' : '获取模型列表'}
+                {fetchingModels ? '拉取中...' : '获取模型列表（辅助）'}
               </button>
-              <button
-                className="modal-btn"
-                onClick={handleTestConnection}
-                disabled={testState === 'testing' || saving}
-                title="用当前配置发起一次真实最小请求，验证端到端可用"
-              >
-                {testState === 'testing' ? '测试中...' : '测试连接'}
-              </button>
-              {modelsSource && <span className="ai-model-source">来源: {modelsSource}</span>}
+              {modelsSource && <span className="ai-model-source">来源：{modelsSource}</span>}
             </div>
-            {testState === 'ok' && <p className="ai-hint">✓ {testDetail}</p>}
-            {testState === 'error' && <p className="ai-error">✗ {testDetail}</p>}
+            {hint && <p className="ai-hint">{hint}</p>}
+            {renderDiagnostic('模型列表获取失败', modelError)}
 
             {models.length > 0 && (
               <div className="ai-model-list">
@@ -553,17 +832,19 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                   <div key={name} className="ai-model-item-group">
                     <span className="ai-model-name">{name}</span>
                     <button
-                      className={`ai-model-btn${model === name ? ' active' : ''}`}
-                      onClick={() => setModel(name)}
-                      disabled={saving}
+                      type="button"
+                      className={`ai-model-btn${draft.model === name ? ' active' : ''}`}
+                      onClick={() => updateDraft({ model: name })}
+                      disabled={fieldsDisabled}
                       title="设为主模型"
                     >
                       主
                     </button>
                     <button
-                      className={`ai-model-btn${simpleModel === name ? ' active' : ''}`}
-                      onClick={() => setSimpleModel(name)}
-                      disabled={saving}
+                      type="button"
+                      className={`ai-model-btn${draft.simpleModel === name ? ' active' : ''}`}
+                      onClick={() => updateDraft({ simpleModel: name })}
+                      disabled={fieldsDisabled}
                       title="设为基础模型"
                     >
                       基
@@ -573,15 +854,143 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               </div>
             )}
 
-            {hint && <p className="ai-hint">{hint}</p>}
+            <section className="ai-action-card" aria-labelledby="ai-test-heading">
+              <div className="ai-action-card-header">
+                <div>
+                  <strong id="ai-test-heading">测试连接</strong>
+                  <p>会产生一次极少量 Token 的真实生成；最多一次调用，不自动重试或切换模型。</p>
+                </div>
+                <div className="ai-action-buttons">
+                  <button
+                    type="button"
+                    className="modal-btn"
+                    onClick={() => void handleTestConnection()}
+                    disabled={testRunning || assessmentRunning || saving || hasFieldErrors(fieldErrors)}
+                  >
+                    {testRunning ? '测试中...' : '测试连接（1 次）'}
+                  </button>
+                  {testRunning && (
+                    <button type="button" className="modal-btn ai-cancel-btn" onClick={cancelTest}>
+                      取消测试
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {testStatus === 'testing' && <p className="ai-progress" role="status">{testDetail}</p>}
+              {testStatus === 'verified' && verification && (
+                <div className="ai-verification-status verified">
+                  <strong>草稿已验证</strong>
+                  <span>
+                    {providerLabel(verification.verified_config.provider)} · {verification.verified_config.model} · {endpointHost(verification.verified_config.base_url)}
+                  </span>
+                  <span>有效至 {formatDateTime(verification.expires_at)} · 请求编号 {verification.request_id}</span>
+                  <p>{testDetail}</p>
+                </div>
+              )}
+              {(testStatus === 'idle' || testStatus === 'expired') && !verification && (
+                <p className={testStatus === 'expired' ? 'ai-warning' : 'ai-hint'}>
+                  {testStatus === 'expired' ? testDetail : '草稿未验证；保存并应用保持禁用。'}
+                </p>
+              )}
+              {testStatus === 'cancelled' && <p className="ai-warning">{testDetail}</p>}
+              {renderDiagnostic('连接测试失败', testError)}
+            </section>
+
+            <section className="ai-action-card" aria-labelledby="ai-assessment-heading">
+              <div className="ai-action-card-header">
+                <div>
+                  <strong id="ai-assessment-heading">评估模型能力（可选）</strong>
+                  <p>额外最多 4 次真实生成，检查结构、状态依据、开放因果和短期记忆。</p>
+                </div>
+                <div className="ai-action-buttons">
+                  <button
+                    type="button"
+                    className="modal-btn"
+                    onClick={() => void handleAssessment()}
+                    disabled={!canAssess || assessmentRunning}
+                    title={verificationValid ? '评估当前已验证草稿' : '先完成连接测试'}
+                  >
+                    {assessmentRunning ? '评估中...' : '评估能力（最多 4 次）'}
+                  </button>
+                  {assessmentRunning && (
+                    <button type="button" className="modal-btn ai-cancel-btn" onClick={cancelAssessment}>
+                      取消评估
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {(assessmentRunning || assessmentStatus === 'complete') && (
+                <div className="ai-assessment-progress" role={assessmentRunning ? 'status' : undefined}>
+                  <div className="ai-progress-track" aria-label={`能力评估进度 ${assessmentCalls} / 4`}>
+                    <span style={{ width: `${Math.min(100, assessmentCalls * 25)}%` }} />
+                  </div>
+                  <span>
+                    {assessmentRunning
+                      ? '已启动第 1 / 4 项；服务端正在串行执行，完成后显示实际调用数。'
+                      : `已完成 ${assessmentCalls} / 4 次调用。`}
+                  </span>
+                </div>
+              )}
+
+              {assessmentStatus === 'cancelled' && (
+                <p className="ai-warning">评估已取消；不会自动继续剩余场景或重新发起。</p>
+              )}
+              {assessmentInvalidated && !assessment && (
+                <p className="ai-warning">配置已变化，原能力结果已失效；当前草稿为未评估。</p>
+              )}
+              {!assessment && !assessmentInvalidated && assessmentStatus === 'idle' && (
+                <p className="ai-hint">当前草稿未评估；未评估或高风险都不会阻止保存。</p>
+              )}
+
+              {assessment && (
+                <div className={`ai-assessment-result tier-${assessment.tier}`}>
+                  <div className="ai-assessment-summary">
+                    <strong>评估结果：{ASSESSMENT_TIER_LABELS[assessment.tier]}</strong>
+                    <span>{formatDateTime(assessment.assessed_at)}</span>
+                  </div>
+                  <ul>
+                    {(assessment.results ?? []).map((result) => (
+                      <li key={result.scenario} className={`status-${result.status}`}>
+                        <strong>{ASSESSMENT_SCENARIO_LABELS[result.scenario] ?? result.scenario}</strong>
+                        <span>{ASSESSMENT_STATUS_LABELS[result.status] ?? result.status} · {result.explanation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {assessment.usage && (
+                    <p>用量：输入 {assessment.usage.input_tokens} / 输出 {assessment.usage.output_tokens} Token</p>
+                  )}
+                  {assessment.stopped_by_transport && (
+                    <p className="ai-warning">评估因 transport/鉴权/额度问题提前停止，未执行后续场景。</p>
+                  )}
+                  {assessment.request_id && (
+                    <details className="ai-diagnostic-details">
+                      <summary>排障详情</summary>
+                      <p>请求编号：{assessment.request_id}</p>
+                    </details>
+                  )}
+                </div>
+              )}
+              {renderDiagnostic('能力评估失败', assessmentError)}
+              <p className="ai-assessment-disclaimer">
+                结果仅提示有限合同风险，不能保证所有开放剧情质量，也不评价文风或正史路线。
+              </p>
+            </section>
           </div>
         )}
 
-        {error && <p className="ai-error">{error}</p>}
+        {renderDiagnostic('保存并应用失败', saveError)}
 
         <div className="modal-actions">
-          <button className="modal-btn" onClick={onClose} disabled={saving}>关闭</button>
-          <button className="modal-btn primary" onClick={handleSave} disabled={loading || saving}>
+          <button type="button" className="modal-btn" onClick={handleClose} disabled={saving}>关闭</button>
+          <button
+            type="button"
+            className="modal-btn primary"
+            onClick={() => void handleSave()}
+            disabled={!canSave}
+            title={canSave ? '应用当前已验证草稿' : '先修正字段并测试当前草稿'}
+          >
             {saving ? '保存中...' : '保存并应用'}
           </button>
         </div>

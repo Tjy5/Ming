@@ -14,6 +14,12 @@ import type {
   MemorialStatus,
   MemorialResolveResponse,
   AISettings,
+  AISettingsApplyRequest,
+  AISettingsAssessmentRequest,
+  AISettingsAssessmentResponse,
+  AISettingsTestRequest,
+  AISettingsTestResponse,
+  AIModelListRequest,
   AIModelListResponse,
   AIProvider,
   ChatStreamEvent,
@@ -58,8 +64,20 @@ function normalizeErrorBody(raw: unknown, status: number): ErrorResponse {
   if (isRecord(raw)) {
     const errorCode = typeof raw.error_code === 'string' ? raw.error_code : 'network_error'
     const message = typeof raw.message === 'string' ? raw.message : `HTTP ${status}`
-    const details = isRecord(raw.details) ? raw.details : null
-    return { error_code: errorCode, message, details }
+    const details = (isRecord(raw.details) ? raw.details : null) as ErrorResponse['details']
+    const fixHint = typeof raw.fix_hint === 'string' ? raw.fix_hint : null
+    const requestId = typeof raw.request_id === 'string' ? raw.request_id : null
+    const providerSummary = typeof raw.provider_summary === 'string' ? raw.provider_summary : null
+    const retryable = typeof raw.retryable === 'boolean' ? raw.retryable : null
+    return {
+      error_code: errorCode,
+      message,
+      details,
+      fix_hint: fixHint,
+      request_id: requestId,
+      provider_summary: providerSummary,
+      retryable,
+    }
   }
   return { error_code: 'network_error', message: `HTTP ${status}`, details: null }
 }
@@ -562,18 +580,7 @@ export const api = {
   getAiSettings: (provider?: AIProvider) =>
     request<AISettings>(`/settings/ai${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`),
 
-  updateAiSettings: (payload: {
-    provider: AIProvider
-    provider_type?: string | null
-    api_key?: string | null
-    base_url?: string | null
-    model?: string | null
-    simple_model?: string | null
-    enable_thinking?: boolean | null
-    enable_thinking_simple?: boolean | null
-    thinking_config?: Record<string, string | boolean | number> | null
-    thinking_config_simple?: Record<string, string | boolean | number> | null
-  }) =>
+  updateAiSettings: (payload: AISettingsApplyRequest) =>
     request<AISettings>('/settings/ai', {
       method: 'POST',
       body: JSON.stringify(payload),
@@ -582,27 +589,23 @@ export const api = {
   deleteAiSettings: (provider: AIProvider) =>
     request<AISettings>(`/settings/ai?provider=${encodeURIComponent(provider)}`, { method: 'DELETE' }),
 
-  listAiModels: (payload: {
-    provider?: AIProvider
-    provider_type?: string | null
-    api_key?: string | null
-    base_url?: string | null
-  }) =>
+  listAiModels: (payload: AIModelListRequest) =>
     request<AIModelListResponse>('/settings/ai/models', {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
-  // 08-07-improve-ai-settings-page：真实链路探测（最小 chat completion）
-  testAiConnection: (payload: {
-    provider?: AIProvider
-    provider_type?: string | null
-    api_key?: string | null
-    base_url?: string | null
-    model?: string | null
-  }) =>
-    request<{ ok: boolean; error_code: string | null; message: string; latency_ms: number }>('/settings/ai/test', {
+  testAiConnection: (payload: AISettingsTestRequest, signal?: AbortSignal) =>
+    request<AISettingsTestResponse>('/settings/ai/test', {
       method: 'POST',
+      signal,
+      body: JSON.stringify(payload),
+    }),
+
+  assessAiCapability: (payload: AISettingsAssessmentRequest, signal?: AbortSignal) =>
+    request<AISettingsAssessmentResponse>('/settings/ai/assess', {
+      method: 'POST',
+      signal,
       body: JSON.stringify(payload),
     }),
 

@@ -250,60 +250,47 @@ def test_execute_decree_stream_emits_fallback_narrative_chunk():
     assert "\"chunk\": \"整段叙事\"" in payload
 
 
-def test_update_ai_settings_persists_provider_and_returns_snapshot(tmp_path, monkeypatch):
-    monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
-    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
-    api_state._provider = object()
+def test_update_ai_settings_schema_requires_verification_token():
+    from pydantic import ValidationError
+    from api.schemas import AISettingsApplyRequest
 
-    from api.schemas import AISettingsRequest
-    result = asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
-        provider="openai",
-        api_key="sk-test",
-    )))
-
-    assert result["provider"] == "openai"
-    assert os.getenv("AI_PROVIDER") == "openai"
-    assert api_state._provider is not None
-    assert (tmp_path / ".env").exists()
-    assert "AI_PROVIDER=openai" in (tmp_path / ".env").read_text(encoding="utf-8")
+    with pytest.raises(ValidationError):
+        AISettingsApplyRequest(
+            provider="openai",
+            api_key="sk-test",
+            model="main-model",
+            verification_token="",
+        )
 
 
-def test_update_ai_settings_requires_api_key(tmp_path, monkeypatch):
-    monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
-    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
+def test_ai_config_requires_api_key_before_probe_or_apply():
+    from ai.config import AIConfigurationError, normalize_ai_config
 
-    from api.schemas import AISettingsRequest
-    with pytest.raises(HTTPException) as exc_info:
-        asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
+    with pytest.raises(AIConfigurationError) as exc_info:
+        normalize_ai_config(
             provider="openai",
             api_key="",
-        )))
-    assert exc_info.value.status_code == 422
+            model="main-model",
+            base_url="https://api.example.com/v1",
+        )
+    assert exc_info.value.error_code == "missing_api_key"
 
 
-def test_update_ai_settings_normalizes_openai_chat_completions_base_url(tmp_path, monkeypatch):
-    monkeypatch.setattr(api_state, "_ENV_FILE_PATH", tmp_path / ".env")
-    monkeypatch.setattr(api_state, "get_provider", lambda name: object())
+def test_update_ai_settings_normalizes_openai_chat_completions_base_url():
+    from ai.config import normalize_ai_config
 
-    from api.schemas import AISettingsRequest
-
-    result = asyncio.run(settings_routes.update_ai_settings(AISettingsRequest(
+    result = normalize_ai_config(
         provider="openai",
         provider_type="openai",
         api_key="sk-test",
         base_url="https://example.com/v1/chat/completions",
         model="deepseek-v4-pro",
-    )))
+    )
 
-    env_text = (tmp_path / ".env").read_text(encoding="utf-8")
-    assert result["base_url"] == "https://example.com/v1"
-    assert "OPENAI_BASE_URL=https://example.com/v1" in env_text
-    assert "/chat/completions" not in env_text
+    assert result.base_url == "https://example.com/v1"
 
 
 def test_list_ai_models_openai_compatible(monkeypatch):
-    import httpx as httpx_mod
-
     class _FakeResponse:
         def raise_for_status(self):
             return None
@@ -321,9 +308,22 @@ def test_list_ai_models_openai_compatible(monkeypatch):
         async def get(self, *args, **kwargs):
             return _FakeResponse()
 
-    monkeypatch.setattr(api_state, "_fetch_openai_models", _original_fetch := api_state._fetch_openai_models)
-    # Patch httpx at the module level used by state.py
-    monkeypatch.setattr("api.state.httpx.AsyncClient", lambda **kwargs: _FakeClient())
+    async def resolver(_host, _port):
+        return ["93.184.216.34"]
+
+    from api.ai_settings_service import AISettingsService
+
+    service = AISettingsService(
+        environment={},
+        resolver=resolver,
+        assessment_loader=lambda _fingerprint: None,
+        assessment_saver=lambda _fingerprint, _report: None,
+    )
+    monkeypatch.setattr(settings_routes, "get_ai_settings_service", lambda: service)
+    monkeypatch.setattr(
+        "api.ai_settings_service.create_safe_async_client",
+        lambda *args, **kwargs: _FakeClient(),
+    )
 
     from api.schemas import AIModelListRequest
     req = AIModelListRequest(
@@ -372,8 +372,22 @@ def test_list_ai_models_resolves_masked_api_key(monkeypatch):
             captured_headers = kwargs.get("headers", {})
             return _FakeResponse()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-real")
-    monkeypatch.setattr("api.state.httpx.AsyncClient", lambda **kwargs: _FakeClient())
+    async def resolver(_host, _port):
+        return ["93.184.216.34"]
+
+    from api.ai_settings_service import AISettingsService
+
+    service = AISettingsService(
+        environment={"AI_PROVIDER": "openai", "OPENAI_API_KEY": "sk-real"},
+        resolver=resolver,
+        assessment_loader=lambda _fingerprint: None,
+        assessment_saver=lambda _fingerprint, _report: None,
+    )
+    monkeypatch.setattr(settings_routes, "get_ai_settings_service", lambda: service)
+    monkeypatch.setattr(
+        "api.ai_settings_service.create_safe_async_client",
+        lambda *args, **kwargs: _FakeClient(),
+    )
 
     from api.schemas import AIModelListRequest
     req = AIModelListRequest(

@@ -5,12 +5,18 @@
 """
 
 import json
+import logging
 
 import httpx
 import openai
 import pytest
 
-from ai.errors import _map_provider_error, ERROR_DIAGNOSIS
+from ai.errors import (
+    ERROR_DIAGNOSIS,
+    _map_provider_error,
+    log_safe_provider_exception,
+    public_error_detail,
+)
 
 
 def _resp(status: int = 200) -> httpx.Response:
@@ -25,6 +31,12 @@ class TestMapProviderError:
     def test_auth_error(self):
         assert _map_provider_error(_openai_exc(openai.AuthenticationError, 401))["error_code"] == "invalid_api_key"
 
+    def test_permission_denied_is_a_stable_auth_error(self):
+        mapped = _map_provider_error(_openai_exc(openai.PermissionDeniedError, 403))
+        assert mapped["error_code"] == "invalid_api_key"
+        assert mapped["message"] == ERROR_DIAGNOSIS["invalid_api_key"].message
+        assert mapped["fix_hint"] == ERROR_DIAGNOSIS["invalid_api_key"].fix_hint
+
     def test_rate_limit(self):
         assert _map_provider_error(_openai_exc(openai.RateLimitError, 429))["error_code"] == "quota"
 
@@ -32,7 +44,7 @@ class TestMapProviderError:
         assert _map_provider_error(_openai_exc(openai.NotFoundError, 404))["error_code"] == "model_not_found"
 
     def test_status_error(self):
-        assert _map_provider_error(_openai_exc(openai.APIStatusError, 500))["error_code"] == "model_list_failed"
+        assert _map_provider_error(_openai_exc(openai.APIStatusError, 500))["error_code"] == "provider_unavailable"
 
     def test_timeout(self):
         exc = openai.APITimeoutError(request=httpx.Request("GET", "http://x"))
@@ -52,11 +64,11 @@ class TestMapProviderError:
 
     def test_json_decode(self):
         exc = json.JSONDecodeError("e", "doc", 0)
-        assert _map_provider_error(exc)["error_code"] == "format"
+        assert _map_provider_error(exc)["error_code"] == "invalid_response"
 
     def test_fallback(self):
         exc = RuntimeError("weird")
-        assert _map_provider_error(exc)["error_code"] == "model_list_failed"
+        assert _map_provider_error(exc)["error_code"] == "provider_unavailable"
 
     def test_diagnosis_covers_all_codes(self):
         # 所有映射出的 error_code 都应有前端可读诊断
@@ -74,3 +86,37 @@ class TestMapProviderError:
         for s in samples:
             code = _map_provider_error(s)["error_code"]
             assert code in ERROR_DIAGNOSIS, f"{code} 缺少前端诊断文案"
+
+    def test_public_mapping_never_leaks_exception_or_response_body(self):
+        canary = "sk-super-secret Authorization: Bearer leak-me"
+        request = httpx.Request("POST", "https://api.example.com/v1")
+        response = httpx.Response(500, text=canary, request=request)
+        mapped = _map_provider_error(
+            httpx.HTTPStatusError(canary, request=request, response=response),
+        )
+        serialized = json.dumps(mapped, ensure_ascii=False)
+        assert canary not in serialized
+        assert "leak-me" not in serialized
+        assert "HTTP 500" in (mapped["provider_summary"] or "")
+
+    def test_public_error_contains_stable_fix_fields(self):
+        detail = public_error_detail("invalid_api_key", request_id="ai_test")
+        assert detail["request_id"] == "ai_test"
+        assert detail["fix_hint"]
+        assert detail["retryable"] is False
+
+    def test_safe_provider_log_never_formats_exception_text(self, caplog):
+        canary = "sk-log-secret Authorization: Bearer log-leak"
+        logger = logging.getLogger("test.ai.safe-log")
+
+        with caplog.at_level(logging.ERROR, logger=logger.name):
+            log_safe_provider_exception(
+                logger,
+                stage="probe_generation_once",
+                exc=RuntimeError(canary),
+            )
+
+        assert "probe_generation_once" in caplog.text
+        assert "RuntimeError" in caplog.text
+        assert canary not in caplog.text
+        assert "log-leak" not in caplog.text

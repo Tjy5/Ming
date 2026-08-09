@@ -37,6 +37,11 @@ def init_db() -> None:
                 state_json TEXT NOT NULL
             )
         """)
+    # Keep all local SQLite schema initialization behind the existing startup
+    # hook while the assessment repository remains a separate data owner.
+    from .ai_assessments import init_ai_assessments
+
+    init_ai_assessments()
 
 
 def _era_display(state: GameState) -> str:

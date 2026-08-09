@@ -369,6 +369,40 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/ai/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Ai Connection */
+        post: operations["test_ai_connection_api_settings_ai_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/ai/assess": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assess Ai Capability */
+        post: operations["assess_ai_capability_api_settings_ai_assess_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/assembly/start": {
         parameters: {
             query?: never;
@@ -824,8 +858,17 @@ export type components = {
             /** Base Url */
             base_url?: string | null;
         };
-        /** AISettingsRequest */
-        AISettingsRequest: {
+        /** AIModelListResponse */
+        AIModelListResponse: {
+            /** Provider */
+            provider: string;
+            /** Models */
+            models?: string[];
+            /** Source */
+            source: string;
+        };
+        /** AISettingsApplyRequest */
+        AISettingsApplyRequest: {
             /** Provider */
             provider: string;
             /** Provider Type */
@@ -842,6 +885,246 @@ export type components = {
             enable_thinking?: boolean | null;
             /** Enable Thinking Simple */
             enable_thinking_simple?: boolean | null;
+            /** Thinking Config */
+            thinking_config?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Thinking Config Simple */
+            thinking_config_simple?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Verification Token */
+            verification_token: string;
+        };
+        /** AISettingsAssessmentItem */
+        AISettingsAssessmentItem: {
+            /**
+             * Scenario
+             * @enum {string}
+             */
+            scenario: "structured_schema" | "state_grounding" | "causal_adjudication" | "short_memory";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pass" | "warn" | "fail";
+            /** Explanation */
+            explanation: string;
+        };
+        /** AISettingsAssessmentRequest */
+        AISettingsAssessmentRequest: {
+            /** Provider */
+            provider: string;
+            /** Provider Type */
+            provider_type?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Simple Model */
+            simple_model?: string | null;
+            /** Enable Thinking */
+            enable_thinking?: boolean | null;
+            /** Enable Thinking Simple */
+            enable_thinking_simple?: boolean | null;
+            /** Thinking Config */
+            thinking_config?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Thinking Config Simple */
+            thinking_config_simple?: {
+                [key: string]: string | boolean | number;
+            } | null;
+        };
+        /** AISettingsAssessmentResponse */
+        AISettingsAssessmentResponse: {
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "excellent" | "usable" | "high_risk" | "unassessed";
+            /** Results */
+            results?: components["schemas"]["AISettingsAssessmentItem"][];
+            /**
+             * Calls Completed
+             * @default 0
+             */
+            calls_completed: number;
+            usage?: components["schemas"]["AISettingsTokenUsage"] | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /** Validator Version */
+            validator_version?: string | null;
+            /**
+             * Stopped By Transport
+             * @default false
+             */
+            stopped_by_transport: boolean;
+            /**
+             * Config Matches
+             * @default true
+             */
+            config_matches: boolean;
+            /** Request Id */
+            request_id: string;
+        };
+        /** AISettingsAssessmentSummary */
+        AISettingsAssessmentSummary: {
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "excellent" | "usable" | "high_risk" | "unassessed";
+            /** Results */
+            results?: components["schemas"]["AISettingsAssessmentItem"][];
+            /**
+             * Calls Completed
+             * @default 0
+             */
+            calls_completed: number;
+            usage?: components["schemas"]["AISettingsTokenUsage"] | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /** Validator Version */
+            validator_version?: string | null;
+            /**
+             * Stopped By Transport
+             * @default false
+             */
+            stopped_by_transport: boolean;
+            /**
+             * Config Matches
+             * @default true
+             */
+            config_matches: boolean;
+        };
+        /** AISettingsErrorEnvelope */
+        AISettingsErrorEnvelope: {
+            detail: components["schemas"]["ErrorResponse"];
+        };
+        /** AISettingsResponse */
+        AISettingsResponse: {
+            /** Provider */
+            provider: string;
+            /** Provider Type */
+            provider_type: string;
+            /** Api Key */
+            api_key: string;
+            /** Base Url */
+            base_url: string;
+            /** Model */
+            model: string;
+            /** Simple Model */
+            simple_model?: string | null;
+            /**
+             * Enable Thinking
+             * @default false
+             */
+            enable_thinking: boolean;
+            /**
+             * Enable Thinking Simple
+             * @default false
+             */
+            enable_thinking_simple: boolean;
+            /** Thinking Config */
+            thinking_config?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Thinking Config Simple */
+            thinking_config_simple?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Provider Options */
+            provider_options?: string[];
+            /** Sources */
+            sources?: {
+                [key: string]: string;
+            };
+            /**
+             * Effective
+             * @default false
+             */
+            effective: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "effective" | "configuration_required" | "configuration_invalid";
+            assessment?: components["schemas"]["AISettingsAssessmentSummary"] | null;
+        };
+        /** AISettingsTestRequest */
+        AISettingsTestRequest: {
+            /** Provider */
+            provider: string;
+            /** Provider Type */
+            provider_type?: string | null;
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Simple Model */
+            simple_model?: string | null;
+            /** Enable Thinking */
+            enable_thinking?: boolean | null;
+            /** Enable Thinking Simple */
+            enable_thinking_simple?: boolean | null;
+            /** Thinking Config */
+            thinking_config?: {
+                [key: string]: string | boolean | number;
+            } | null;
+            /** Thinking Config Simple */
+            thinking_config_simple?: {
+                [key: string]: string | boolean | number;
+            } | null;
+        };
+        /** AISettingsTestResponse */
+        AISettingsTestResponse: {
+            /**
+             * Ok
+             * @default true
+             * @constant
+             * @enum {boolean}
+             */
+            ok: true;
+            /** Message */
+            message: string;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Request Id */
+            request_id: string;
+            /** Verification Token */
+            verification_token: string;
+            /** Expires At */
+            expires_at: string;
+            verified_config: components["schemas"]["AISettingsVerifiedConfig"];
+        };
+        /** AISettingsTokenUsage */
+        AISettingsTokenUsage: {
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+        };
+        /** AISettingsVerifiedConfig */
+        AISettingsVerifiedConfig: {
+            /** Provider */
+            provider: string;
+            /** Provider Type */
+            provider_type: string;
+            /** Base Url */
+            base_url: string;
+            /** Model */
+            model: string;
+            /** Simple Model */
+            simple_model?: string | null;
+            /** Enable Thinking */
+            enable_thinking: boolean;
+            /** Enable Thinking Simple */
+            enable_thinking_simple: boolean;
             /** Thinking Config */
             thinking_config?: {
                 [key: string]: string | boolean | number;
@@ -1194,6 +1477,23 @@ export type components = {
             conversation_id: string;
             state: components["schemas"]["GameState"];
         };
+        /** ErrorResponse */
+        ErrorResponse: {
+            /** Error Code */
+            error_code: string;
+            /** Message */
+            message: string;
+            /** Details */
+            details?: Record<string, never> | null;
+            /** Fix Hint */
+            fix_hint?: string | null;
+            /** Request Id */
+            request_id?: string | null;
+            /** Provider Summary */
+            provider_summary?: string | null;
+            /** Retryable */
+            retryable?: boolean | null;
+        };
         /** EventChoice */
         EventChoice: {
             /** Label */
@@ -1412,6 +1712,10 @@ export type components = {
             };
             /** Growth Log */
             growth_log?: components["schemas"]["GrowthEntry"][];
+            /** Execution Rng Seed */
+            execution_rng_seed?: number | null;
+            /** Active Policies */
+            active_policies?: components["schemas"]["PolicyProgress"][];
         };
         /** GameStateResponse */
         GameStateResponse: {
@@ -1530,6 +1834,10 @@ export type components = {
             };
             /** Growth Log */
             growth_log?: components["schemas"]["GrowthEntry"][];
+            /** Execution Rng Seed */
+            execution_rng_seed?: number | null;
+            /** Active Policies */
+            active_policies?: components["schemas"]["PolicyProgress"][];
             /** History Total Count */
             history_total_count?: number | null;
         };
@@ -1713,6 +2021,21 @@ export type components = {
              * @default 50
              */
             loyalty: number;
+            /**
+             * Corruption
+             * @default 10
+             */
+            corruption: number;
+            /**
+             * Ambition
+             * @default 30
+             */
+            ambition: number;
+            /**
+             * Influence
+             * @default 30
+             */
+            influence: number;
             /** Positions */
             positions?: string[];
             /**
@@ -1761,6 +2084,21 @@ export type components = {
              * @default 0
              */
             diplomacy: number;
+            /**
+             * Administration
+             * @default 50
+             */
+            administration: number;
+            /**
+             * Knowledge
+             * @default 50
+             */
+            knowledge: number;
+            /**
+             * Politics
+             * @default 50
+             */
+            politics: number;
         };
         /** MinisterChange */
         MinisterChange: {
@@ -1791,6 +2129,21 @@ export type components = {
              * @default 50
              */
             loyalty: number;
+            /**
+             * Corruption
+             * @default 10
+             */
+            corruption: number;
+            /**
+             * Ambition
+             * @default 30
+             */
+            ambition: number;
+            /**
+             * Influence
+             * @default 30
+             */
+            influence: number;
             /** Positions */
             positions?: string[];
             /**
@@ -1856,6 +2209,21 @@ export type components = {
              * @default 50
              */
             loyalty: number;
+            /**
+             * Corruption
+             * @default 10
+             */
+            corruption: number;
+            /**
+             * Ambition
+             * @default 30
+             */
+            ambition: number;
+            /**
+             * Influence
+             * @default 30
+             */
+            influence: number;
             /** Positions */
             positions?: string[];
             /**
@@ -1913,6 +2281,25 @@ export type components = {
          * @enum {string}
          */
         PersonnelAction: "appoint" | "dismiss" | "execute";
+        /**
+         * PolicyProgress
+         * @description 国家层面的长期在办国策（区别于大臣任务 MissionState），随存档持久化。
+         */
+        PolicyProgress: {
+            /** Name */
+            name: string;
+            /** Started Year */
+            started_year: number;
+            /** Started Month */
+            started_month: number;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /** Effects */
+            effects?: Record<string, never>;
+        };
         /** PolicySuggestion */
         PolicySuggestion: {
             /** Title */
@@ -2691,7 +3078,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AISettingsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2714,7 +3101,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AISettingsRequest"];
+                "application/json": components["schemas"]["AISettingsApplyRequest"];
             };
         };
         responses: {
@@ -2724,16 +3111,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AISettingsResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Verification or settings conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Invalid AI settings */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description AI settings apply failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
                 };
             };
         };
@@ -2755,16 +3178,52 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AISettingsResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Verification or settings conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Invalid AI settings */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description AI settings apply failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
                 };
             };
         };
@@ -2788,16 +3247,190 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AIModelListResponse"];
                 };
             };
-            /** @description Validation Error */
+            /** @description Verification or settings conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Invalid AI settings */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description AI settings apply failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+        };
+    };
+    test_ai_connection_api_settings_ai_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AISettingsTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsTestResponse"];
+                };
+            };
+            /** @description Verification or settings conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Invalid AI settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description AI settings apply failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+        };
+    };
+    assess_ai_capability_api_settings_ai_assess_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AISettingsAssessmentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsAssessmentResponse"];
+                };
+            };
+            /** @description Verification or settings conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Invalid AI settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description AI settings apply failure */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
+                };
+            };
+            /** @description Provider timeout */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsErrorEnvelope"];
                 };
             };
         };

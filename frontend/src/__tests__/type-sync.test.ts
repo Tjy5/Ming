@@ -1,14 +1,25 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import type { paths } from '../types/generated'
 import type {
+  AISettingsApplyRequest,
+  AISettingsAssessmentRequest,
+  AISettingsAssessmentResponse,
+  AISettingsTestRequest,
+  AISettingsTestResponse,
   ApiEventChoice,
   ApiGameState,
   ApiTurnSummary,
+  ErrorResponse,
   EventChoice,
   GameEvent,
   GameState,
   ModalItem,
   TurnSummary,
 } from '../types/game'
+
+type AiTestOperation = paths['/api/settings/ai/test']['post']
+type AiAssessmentOperation = paths['/api/settings/ai/assess']['post']
+type AiApplyOperation = paths['/api/settings/ai']['post']
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled modal item: ${JSON.stringify(value)}`)
@@ -47,6 +58,25 @@ describe('OpenAPI type bridge', () => {
     expectTypeOf<ApiTurnSummary['action_implications']>().toMatchTypeOf<TurnSummary['action_implications']>()
     expectTypeOf<ApiEventChoice['loyalty_effects']>().toMatchTypeOf<EventChoice['loyalty_effects']>()
     expectTypeOf<ApiEventChoice['state_effects']>().toMatchTypeOf<EventChoice['state_effects']>()
+  })
+
+  it('bridges the typed AI test, assessment, apply and safe error contracts', () => {
+    expectTypeOf<AiTestOperation['requestBody']['content']['application/json']>()
+      .toEqualTypeOf<AISettingsTestRequest>()
+    expectTypeOf<AiTestOperation['responses'][200]['content']['application/json']>()
+      .toEqualTypeOf<AISettingsTestResponse>()
+    expectTypeOf<AiAssessmentOperation['requestBody']['content']['application/json']>()
+      .toEqualTypeOf<AISettingsAssessmentRequest>()
+    expectTypeOf<AiAssessmentOperation['responses'][200]['content']['application/json']>()
+      .toEqualTypeOf<AISettingsAssessmentResponse>()
+    expectTypeOf<AiApplyOperation['requestBody']['content']['application/json']>()
+      .toEqualTypeOf<AISettingsApplyRequest>()
+    expectTypeOf<AiTestOperation['responses'][422]['content']['application/json']['detail']>()
+      .toEqualTypeOf<ErrorResponse>()
+    expectTypeOf<ErrorResponse['fix_hint']>().toEqualTypeOf<string | null | undefined>()
+    expectTypeOf<ErrorResponse['request_id']>().toEqualTypeOf<string | null | undefined>()
+    expectTypeOf<ErrorResponse['provider_summary']>().toEqualTypeOf<string | null | undefined>()
+    expectTypeOf<ErrorResponse['retryable']>().toEqualTypeOf<boolean | null | undefined>()
   })
 
   it('narrows ModalItem payloads by type', () => {

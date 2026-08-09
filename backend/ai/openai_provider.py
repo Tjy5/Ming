@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Any, Mapping
 
 import httpx
 import openai
@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 from models.game import GameState, StructuredDecree, Minister, DebateResult, FreeformResult, MinisterReaction, MemorialDraft
 from models.enums import MemorialStatus
 from .fallbacks import template_memorial
+from .base import GenerationResult
+from .errors import log_safe_provider_exception
 from .provider import (
     AIProvider,
     PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -58,6 +60,8 @@ from .prompts import (
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = os.getenv(name)
@@ -94,29 +98,68 @@ class OpenAIProvider(AIProvider):
         base_url: str | None = None,
         model: str | None = None,
         prefix: str = "OPENAI",
+        simple_model: str | None = None,
+        enable_thinking: bool | None = None,
+        enable_thinking_simple: bool | None = None,
+        thinking_config: Mapping[str, Any] | None = None,
+        thinking_config_simple: Mapping[str, Any] | None = None,
+        http_client: httpx.AsyncClient | None = None,
+        sdk_max_retries: int | None = None,
+        default_headers: Mapping[str, str] | None = None,
+        use_environment: bool = True,
     ):
-        trust_env_proxy = _env_bool(f"{prefix}_TRUST_ENV_PROXY", False)
-        if not trust_env_proxy and prefix != "OPENAI":
-            trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
-            
-        http_client = httpx.AsyncClient(trust_env=trust_env_proxy)
-        
-        actual_api_key = api_key or os.getenv(f"{prefix}_API_KEY")
-        actual_base_url = base_url or os.getenv(f"{prefix}_BASE_URL")
-        actual_model = model or os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(f"{prefix}_MODEL", "gemini-3-flash-preview")
+        self._use_environment = use_environment
+        trust_env_proxy = False
+        if use_environment:
+            trust_env_proxy = _env_bool(f"{prefix}_TRUST_ENV_PROXY", False)
+            if not trust_env_proxy and prefix != "OPENAI":
+                trust_env_proxy = _env_bool("OPENAI_TRUST_ENV_PROXY", False)
 
+        self._http_client = http_client or httpx.AsyncClient(trust_env=trust_env_proxy)
+
+        actual_api_key = api_key if api_key is not None else os.getenv(f"{prefix}_API_KEY")
+        actual_base_url = base_url if base_url is not None else os.getenv(f"{prefix}_BASE_URL")
+        actual_model = model
+        if actual_model is None:
+            actual_model = os.getenv(f"{prefix}_MODEL_NAME") or os.getenv(
+                f"{prefix}_MODEL",
+                "gemini-3-flash-preview",
+            )
+
+        client_kwargs: dict[str, Any] = {
+            "api_key": actual_api_key,
+            "base_url": actual_base_url,
+            "http_client": self._http_client,
+        }
+        if sdk_max_retries is not None:
+            client_kwargs["max_retries"] = max(0, sdk_max_retries)
+        if default_headers:
+            client_kwargs["default_headers"] = dict(default_headers)
         self.client = openai.AsyncOpenAI(
-            api_key=actual_api_key,
-            base_url=actual_base_url,
-            http_client=http_client,
+            **client_kwargs,
         )
         self.model = actual_model
         self.parse_model = self.model
         self.freeform_model = self.model
         self.turn_commentary_model = self.model
         self._config_prefix = prefix
-        self._enable_thinking = _env_bool(f"{prefix}_ENABLE_THINKING", False)
-        self._enable_thinking_simple = _env_bool(f"{prefix}_ENABLE_THINKING_SIMPLE", False)
+        self._enable_thinking = (
+            bool(enable_thinking)
+            if enable_thinking is not None
+            else _env_bool(f"{prefix}_ENABLE_THINKING", False)
+        )
+        self._enable_thinking_simple = (
+            bool(enable_thinking_simple)
+            if enable_thinking_simple is not None
+            else _env_bool(f"{prefix}_ENABLE_THINKING_SIMPLE", False)
+        )
+        self._explicit_thinking_config = (
+            dict(thinking_config) if thinking_config is not None else None
+        )
+        self._explicit_thinking_config_simple = (
+            dict(thinking_config_simple) if thinking_config_simple is not None else None
+        )
+        self._explicit_simple_model = simple_model
         self._configure_task_models(prefix)
 
     def _configure_task_models(
@@ -131,7 +174,11 @@ class OpenAIProvider(AIProvider):
         use_simple_for_turn_commentary: bool = True,
     ) -> None:
         self._config_prefix = prefix
-        simple_model = _env_str(f"{prefix}_SIMPLE_MODEL")
+        simple_model = (
+            _env_str(f"{prefix}_SIMPLE_MODEL")
+            if self._use_environment
+            else self._explicit_simple_model
+        )
         parse_simple = simple_model if use_simple_for_parse else None
         freeform_simple = simple_model if use_simple_for_freeform else None
         turn_commentary_simple = simple_model if use_simple_for_turn_commentary else None
@@ -156,13 +203,22 @@ class OpenAIProvider(AIProvider):
         )
 
     def _thinking_config_from_env(self, env_name: str) -> dict[str, Any] | None:
+        if not self._use_environment:
+            if env_name.endswith("_SIMPLE"):
+                return self._explicit_thinking_config_simple
+            return self._explicit_thinking_config
         raw = _env_str(env_name)
         if not raw:
             return None
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError as exc:
-            logging.warning("Ignore invalid %s JSON: %s", env_name, exc)
+            log_safe_provider_exception(
+                logger,
+                stage="load_thinking_config",
+                exc=exc,
+                level=logging.WARNING,
+            )
             return None
         if not isinstance(payload, dict):
             logging.warning("Ignore non-object %s JSON payload", env_name)
@@ -212,6 +268,8 @@ class OpenAIProvider(AIProvider):
         task_name: str,
         key: str,
     ) -> float | None:
+        if not self._use_environment:
+            return None
         task_key = task_name.upper()
         candidates = (
             f"{self._config_prefix}_{task_key}_{key}",
@@ -280,6 +338,44 @@ class OpenAIProvider(AIProvider):
             top_p = default_top_p
 
         return temperature, top_p
+
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        kwargs = self._build_chat_completion_kwargs(
+            task_name="settings_single_attempt",
+            model=self.model,
+            messages=messages,
+            temperature=0.0,
+            response_format={"type": "json_object"} if response_json else None,
+        )
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            max_tokens=max(1, max_output_tokens),
+            **kwargs,
+        )
+        text = (response.choices[0].message.content or "").strip()
+        if not text:
+            raise ValueError("provider returned empty generation content")
+        usage = getattr(response, "usage", None)
+        return GenerationResult(
+            text=text,
+            input_tokens=getattr(usage, "prompt_tokens", None),
+            output_tokens=getattr(usage, "completion_tokens", None),
+            provider_request_id=getattr(response, "_request_id", None),
+        )
+
+    async def aclose(self) -> None:
+        await self.client.close()
 
     def _build_chat_completion_kwargs(
         self,
@@ -377,7 +473,7 @@ class OpenAIProvider(AIProvider):
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            logging.error(f"Error generating narrative: {e}")
+            log_safe_provider_exception(logger, stage="generate_narrative", exc=e)
             return "（AI服务响应异常，但政令已执行）"
 
     @staticmethod
@@ -437,7 +533,7 @@ class OpenAIProvider(AIProvider):
                     yield text
             return
         except Exception as e:
-            logging.error("Error streaming narrative: %s", e)
+            log_safe_provider_exception(logger, stage="stream_narrative", exc=e)
         if emitted_any:
             return
         fallback = await self.generate_narrative(
@@ -467,10 +563,10 @@ class OpenAIProvider(AIProvider):
             return parse_decree_response(data)
 
         except json.JSONDecodeError as e:
-            logging.error(f"Error parsing LLM JSON output: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input_json", exc=e)
             return parse_error("AI返回格式异常，请重试")
         except Exception as e:
-            logging.error(f"Error parsing input: {e}")
+            log_safe_provider_exception(logger, stage="parse_free_input", exc=e)
             return parse_error(
                 "AI解析服务暂时不可用，请使用按钮操作",
                 PARSE_ERROR_TYPE_UNAVAILABLE,
@@ -537,7 +633,7 @@ class OpenAIProvider(AIProvider):
                 draft.suggested_decrees = fallback.suggested_decrees
             return draft
         except Exception as e:
-            logging.error("OpenAIProvider generate_memorial fallback: %s", e)
+            log_safe_provider_exception(logger, stage="generate_memorial", exc=e)
             return template_memorial(trigger_reason, author, game_state)
 
     async def generate_minister_reaction(
@@ -556,7 +652,7 @@ class OpenAIProvider(AIProvider):
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            logging.error(f"generate_minister_reaction error: {e}")
+            log_safe_provider_exception(logger, stage="generate_minister_reaction", exc=e)
             raise
 
     async def generate_assembly_debate(
@@ -590,7 +686,7 @@ class OpenAIProvider(AIProvider):
                 return None
             return json.loads(extract_json_object_text(content))
         except Exception as e:
-            logging.error(f"generate_assembly_debate error: {e}")
+            log_safe_provider_exception(logger, stage="generate_assembly_debate", exc=e)
             raise
 
     async def generate_turn_commentary(
@@ -609,7 +705,7 @@ class OpenAIProvider(AIProvider):
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
-            logging.error(f"generate_turn_commentary error: {e}")
+            log_safe_provider_exception(logger, stage="generate_turn_commentary", exc=e)
             raise
 
     async def classify_script_choice(
@@ -652,7 +748,7 @@ class OpenAIProvider(AIProvider):
                 "reason": parsed.reason,
             }
         except Exception as e:
-            logging.error(f"classify_script_choice error: {e}")
+            log_safe_provider_exception(logger, stage="classify_script_choice", exc=e)
             return parse_error("脚本选项分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def select_script_trigger_decisions(
@@ -688,7 +784,11 @@ class OpenAIProvider(AIProvider):
             )
             return parsed
         except Exception as e:
-            logging.error(f"select_script_trigger_decisions error: {e}")
+            log_safe_provider_exception(
+                logger,
+                stage="select_script_trigger_decisions",
+                exc=e,
+            )
             return parse_error("剧情触发决策服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def process_freeform(
@@ -711,10 +811,10 @@ class OpenAIProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return _parse_freeform_response(data, game_state.time.year, game_state.time.month)
         except json.JSONDecodeError as e:
-            logging.error(f"OpenAI freeform JSON parse error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform_json", exc=e)
             return parse_error("AI返回格式异常", PARSE_ERROR_TYPE_UNAVAILABLE)
         except Exception as e:
-            logging.error(f"OpenAI process_freeform error: {e}")
+            log_safe_provider_exception(logger, stage="process_freeform", exc=e)
             return parse_error("AI服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def classify_chat_intent(
@@ -739,7 +839,7 @@ class OpenAIProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_chat_intent_payload(data)
         except Exception as e:
-            logging.error("OpenAI classify_chat_intent error: %s", e)
+            log_safe_provider_exception(logger, stage="classify_chat_intent", exc=e)
             return parse_error("聊天意图分类服务暂时不可用", PARSE_ERROR_TYPE_UNAVAILABLE)
 
     async def chat_query(
@@ -764,7 +864,7 @@ class OpenAIProvider(AIProvider):
                 raise ValueError("chat query reply is empty")
             return content
         except Exception as e:
-            logging.error("OpenAI chat_query error: %s", e)
+            log_safe_provider_exception(logger, stage="chat_query", exc=e)
             raise
 
     async def generate_minister_dialogue(
@@ -792,5 +892,5 @@ class OpenAIProvider(AIProvider):
             data = json.loads(extract_json_object_text(content))
             return normalize_dialogue_payload(data)
         except Exception as e:
-            logging.error("OpenAI generate_minister_dialogue error: %s", e)
+            log_safe_provider_exception(logger, stage="generate_minister_dialogue", exc=e)
             raise

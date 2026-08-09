@@ -369,11 +369,7 @@ export interface MemorialResolveResponse {
   minister_reactions?: MinisterReaction[]
 }
 
-export interface ErrorResponse {
-  error_code: string
-  message: string
-  details?: Record<string, unknown> | null
-}
+export type ErrorResponse = OpenApiSchemas['ErrorResponse']
 
 export interface DialogueMessage {
   role: 'user' | 'minister'
@@ -458,25 +454,18 @@ export const DEFAULT_CAPABILITIES: Capabilities = { debate_supported: false, ass
 
 export type AIProvider = 'openai' | 'google' | 'h' | 'Z' | (string & {})
 
-export interface AISettings {
-  provider: AIProvider
-  provider_type?: string
-  api_key: string
-  base_url: string
-  model: string
-  simple_model?: string
-  enable_thinking?: boolean
-  enable_thinking_simple?: boolean
-  thinking_config?: Record<string, string | boolean | number>
-  thinking_config_simple?: Record<string, string | boolean | number>
-  provider_options: AIProvider[]
-}
-
-export interface AIModelListResponse {
-  provider: AIProvider
-  models: string[]
-  source: string
-}
+export type AISettings = OpenApiSchemas['AISettingsResponse']
+export type AISettingsApplyRequest = OpenApiSchemas['AISettingsApplyRequest']
+export type AISettingsAssessmentItem = OpenApiSchemas['AISettingsAssessmentItem']
+export type AISettingsAssessmentRequest = OpenApiSchemas['AISettingsAssessmentRequest']
+export type AISettingsAssessmentResponse = OpenApiSchemas['AISettingsAssessmentResponse']
+export type AISettingsAssessmentSummary = OpenApiSchemas['AISettingsAssessmentSummary']
+export type AISettingsTestRequest = OpenApiSchemas['AISettingsTestRequest']
+export type AISettingsTestResponse = OpenApiSchemas['AISettingsTestResponse']
+export type AISettingsTokenUsage = OpenApiSchemas['AISettingsTokenUsage']
+export type AISettingsVerifiedConfig = OpenApiSchemas['AISettingsVerifiedConfig']
+export type AIModelListRequest = OpenApiSchemas['AIModelListRequest']
+export type AIModelListResponse = OpenApiSchemas['AIModelListResponse']
 
 export interface SaveEntry {
   id: number

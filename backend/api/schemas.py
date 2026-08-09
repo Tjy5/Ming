@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
-from models.game import GameState, HistoryEntry, Minister, MinisterReaction, StructuredDecree
+from models.game import (
+    ErrorResponse,
+    GameState,
+    HistoryEntry,
+    Minister,
+    MinisterReaction,
+    StructuredDecree,
+)
 
 MAX_FREE_TEXT_LENGTH = 200
 
@@ -99,7 +108,10 @@ class AssemblyRageRequest(BaseModel):
     target_faction: str
 
 
-class AISettingsRequest(BaseModel):
+ThinkingConfigValue = str | bool | int
+
+
+class AISettingsDraft(BaseModel):
     provider: str
     provider_type: str | None = None
     api_key: str | None = None
@@ -108,8 +120,97 @@ class AISettingsRequest(BaseModel):
     simple_model: str | None = None
     enable_thinking: bool | None = None
     enable_thinking_simple: bool | None = None
-    thinking_config: dict[str, str | bool | int] | None = None
-    thinking_config_simple: dict[str, str | bool | int] | None = None
+    thinking_config: dict[str, ThinkingConfigValue] | None = None
+    thinking_config_simple: dict[str, ThinkingConfigValue] | None = None
+
+
+class AISettingsRequest(AISettingsDraft):
+    """Legacy schema name retained for generated-client compatibility."""
+
+
+class AISettingsTestRequest(AISettingsDraft):
+    pass
+
+
+class AISettingsAssessmentRequest(AISettingsDraft):
+    pass
+
+
+class AISettingsApplyRequest(AISettingsDraft):
+    verification_token: str = Field(min_length=16, max_length=256)
+
+
+class AISettingsVerifiedConfig(BaseModel):
+    provider: str
+    provider_type: str
+    base_url: str
+    model: str
+    simple_model: str | None = None
+    enable_thinking: bool
+    enable_thinking_simple: bool
+    thinking_config: dict[str, ThinkingConfigValue] | None = None
+    thinking_config_simple: dict[str, ThinkingConfigValue] | None = None
+
+
+class AISettingsTestResponse(BaseModel):
+    ok: Literal[True] = True
+    message: str
+    latency_ms: int
+    request_id: str
+    verification_token: str
+    expires_at: str
+    verified_config: AISettingsVerifiedConfig
+
+
+class AISettingsAssessmentItem(BaseModel):
+    scenario: Literal[
+        "structured_schema",
+        "state_grounding",
+        "causal_adjudication",
+        "short_memory",
+    ]
+    status: Literal["pass", "warn", "fail"]
+    explanation: str
+
+
+class AISettingsTokenUsage(BaseModel):
+    input_tokens: int
+    output_tokens: int
+
+
+class AISettingsAssessmentSummary(BaseModel):
+    tier: Literal["excellent", "usable", "high_risk", "unassessed"]
+    results: list[AISettingsAssessmentItem] = Field(default_factory=list)
+    calls_completed: int = 0
+    usage: AISettingsTokenUsage | None = None
+    assessed_at: str | None = None
+    validator_version: str | None = None
+    stopped_by_transport: bool = False
+    config_matches: bool = True
+
+
+class AISettingsAssessmentResponse(AISettingsAssessmentSummary):
+    request_id: str
+
+
+class AISettingsErrorEnvelope(BaseModel):
+    detail: ErrorResponse
+
+
+class AISettingsResponse(AISettingsDraft):
+    provider: str
+    provider_type: str
+    api_key: str
+    base_url: str
+    model: str
+    simple_model: str | None = None
+    enable_thinking: bool = False
+    enable_thinking_simple: bool = False
+    provider_options: list[str] = Field(default_factory=list)
+    sources: dict[str, str] = Field(default_factory=dict)
+    effective: bool = False
+    status: Literal["effective", "configuration_required", "configuration_invalid"]
+    assessment: AISettingsAssessmentSummary | None = None
 
 
 class AIModelListRequest(BaseModel):
@@ -117,6 +218,12 @@ class AIModelListRequest(BaseModel):
     provider_type: str | None = None
     api_key: str | None = None
     base_url: str | None = None
+
+
+class AIModelListResponse(BaseModel):
+    provider: str
+    models: list[str] = Field(default_factory=list)
+    source: str
 
 
 class SettingsRequest(BaseModel):
