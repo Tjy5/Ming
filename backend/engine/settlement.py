@@ -11,6 +11,8 @@ from models.game import GameState, clamp_state
 from models.settlement import (
     ActionIntent,
     AdjudicationProposal,
+    CompatibilityStatePatchDelta,
+    ElapsedStatePatchDelta,
     EntityWorldDelta,
     LifecycleWorldDelta,
     MetricWorldDelta,
@@ -44,6 +46,77 @@ _PROTECTED_ENTITY_FIELDS = frozenset(
         "created_by_settlement_id",
         "origin_version_id",
         "source",
+    },
+)
+ELAPSED_PATCH_FIELDS = frozenset(
+    {
+        "national_treasury",
+        "imperial_treasury",
+        "grain",
+        "population",
+        "military_strength",
+        "civil_morale",
+        "military_morale",
+        "court_prestige",
+        "factions",
+        "regions",
+        "ministers",
+        "active_events",
+        "history_log",
+        "decree_count",
+        "decrees_this_month",
+        "event_cooldowns",
+        "resolved_script_ids",
+        "trigger_decisions",
+        "memorials",
+        "memorial_cooldowns",
+        "loyalty_zero_triggered",
+        "consecutive_waits",
+        "character_sheets",
+        "growth_log",
+        "active_policies",
+    },
+)
+COMPATIBILITY_PATCH_FIELDS = frozenset(
+    {
+        "phase",
+        "chapter",
+        "chapter_turns",
+        "national_treasury",
+        "imperial_treasury",
+        "grain",
+        "population",
+        "military_strength",
+        "civil_morale",
+        "military_morale",
+        "court_prestige",
+        "factions",
+        "regions",
+        "ministers",
+        "active_events",
+        "history_log",
+        "decree_count",
+        "decrees_this_month",
+        "event_cooldowns",
+        "resolved_script_ids",
+        "trigger_decisions",
+        "memorials",
+        "memorial_cooldowns",
+        "last_assembly",
+        "loyalty_zero_triggered",
+        "last_assembly_month",
+        "consecutive_waits",
+        "minister_conversations",
+        "character_sheets",
+        "growth_log",
+        "execution_rng_seed",
+        "active_policies",
+    },
+)
+_UNORDERED_PATCH_FIELDS = frozenset(
+    {
+        "resolved_script_ids",
+        "loyalty_zero_triggered",
     },
 )
 
@@ -169,6 +242,10 @@ def _delta_conflict_key(delta: WorldDelta) -> Hashable:
         return ("player", delta.operation)
     if isinstance(delta, ModifierWorldDelta):
         return ("modifier", delta.modifier_id)
+    if isinstance(delta, ElapsedStatePatchDelta):
+        return ("elapsed_state_patch", tuple(sorted(delta.after_fields)))
+    if isinstance(delta, CompatibilityStatePatchDelta):
+        return ("compatibility_state_patch", tuple(sorted(delta.after_fields)))
     raise TypeError(f"Unsupported world delta: {type(delta).__name__}")
 
 
@@ -191,11 +268,40 @@ def validate_adjudication_proposal(
     for reference, label in (
         (intent.requested_executor_id, "requested_executor_id"),
         (intent.target_region_id, "target_region_id"),
+        (intent.replacement_executor_id, "replacement_executor_id"),
     ):
         if reference is not None:
             _require_entity(reference, known, label=label)
     for entity_id in intent.target_entity_ids:
         _require_entity(entity_id, known, label="target_entity_ids")
+
+    if intent.activity_command == "continue":
+        if proposal.activity_decision is None:
+            _fail(
+                "activity_decision_required",
+                "活动检查点复裁必须返回结构化 activity_decision",
+            )
+        if proposal.activity_candidate is not None or proposal.duration_candidate is not None:
+            _fail(
+                "invalid_activity_checkpoint_proposal",
+                "活动检查点不得创建嵌套 activity 或再次提交已经过时间",
+            )
+    elif intent.activity_command is None:
+        if proposal.activity_decision is not None:
+            _fail(
+                "unexpected_activity_decision",
+                "普通行动不得携带 activity checkpoint decision",
+            )
+        if proposal.duration_candidate is None:
+            _fail(
+                "duration_required",
+                "每个提交的世界行动必须包含结构化正耗时",
+            )
+    elif proposal.activity_candidate is not None or proposal.activity_decision is not None:
+        _fail(
+            "unexpected_activity_adjudication",
+            "暂停、取消、恢复、改道或改派命令不接受新的 activity 裁决",
+        )
 
     if (
         intent.requested_executor_id is not None
@@ -360,6 +466,34 @@ def validate_adjudication_proposal(
                 label="modifier.target_entity_id",
                 delta=delta,
             )
+
+        if isinstance(delta, ElapsedStatePatchDelta):
+            before_keys = set(delta.before_fields)
+            after_keys = set(delta.after_fields)
+            if (
+                not before_keys
+                or before_keys != after_keys
+                or not before_keys.issubset(ELAPSED_PATCH_FIELDS)
+            ):
+                _fail(
+                    "invalid_elapsed_state_patch",
+                    "elapsed handler patch 包含非法或不配对字段",
+                    delta=delta,
+                )
+
+        if isinstance(delta, CompatibilityStatePatchDelta):
+            before_keys = set(delta.before_fields)
+            after_keys = set(delta.after_fields)
+            if (
+                not before_keys
+                or before_keys != after_keys
+                or not before_keys.issubset(COMPATIBILITY_PATCH_FIELDS)
+            ):
+                _fail(
+                    "invalid_compatibility_state_patch",
+                    "legacy action adapter patch 包含非法或不配对字段",
+                    delta=delta,
+                )
 
 
 def _assert_before(actual: object, expected: object, delta: WorldDelta) -> None:
@@ -552,6 +686,100 @@ def _apply_player_delta(state: GameState, delta: PlayerWorldDelta) -> None:
         raise AssertionError("unreachable") from exc
 
 
+def _apply_elapsed_state_patch(
+    state: GameState,
+    delta: ElapsedStatePatchDelta,
+) -> GameState:
+    keys = set(delta.before_fields)
+    if (
+        not keys
+        or keys != set(delta.after_fields)
+        or not keys.issubset(ELAPSED_PATCH_FIELDS)
+    ):
+        _fail(
+            "invalid_elapsed_state_patch",
+            "elapsed handler patch 包含非法或不配对字段",
+            delta=delta,
+        )
+    payload = state.model_dump(mode="json")
+    for field in sorted(keys):
+        if not _patch_field_values_equal(
+            field,
+            payload[field],
+            delta.before_fields[field],
+        ):
+            _fail(
+                "delta_precondition_failed",
+                "elapsed handler patch 的 before_fields 与当前世界不一致",
+                delta=delta,
+            )
+        payload[field] = delta.after_fields[field]
+    try:
+        return GameState.model_validate(payload)
+    except ValidationError as exc:
+        _fail(
+            "invalid_elapsed_state_patch",
+            "elapsed handler patch 产生了非法世界状态",
+            delta=delta,
+        )
+        raise AssertionError("unreachable") from exc
+
+
+def _apply_compatibility_state_patch(
+    state: GameState,
+    delta: CompatibilityStatePatchDelta,
+) -> GameState:
+    keys = set(delta.before_fields)
+    if (
+        not keys
+        or keys != set(delta.after_fields)
+        or not keys.issubset(COMPATIBILITY_PATCH_FIELDS)
+    ):
+        _fail(
+            "invalid_compatibility_state_patch",
+            "legacy action adapter patch 包含非法或不配对字段",
+            delta=delta,
+        )
+    payload = state.model_dump(mode="json")
+    for field in sorted(keys):
+        if not _patch_field_values_equal(
+            field,
+            payload[field],
+            delta.before_fields[field],
+        ):
+            _fail(
+                "delta_precondition_failed",
+                "legacy action adapter patch 的 before_fields 与当前世界不一致",
+                delta=delta,
+            )
+        payload[field] = delta.after_fields[field]
+    try:
+        return GameState.model_validate(payload)
+    except ValidationError as exc:
+        _fail(
+            "invalid_compatibility_state_patch",
+            "legacy action adapter patch 产生了非法世界状态",
+            delta=delta,
+        )
+        raise AssertionError("unreachable") from exc
+
+
+def _patch_field_values_equal(field: str, left: object, right: object) -> bool:
+    """Compare serialized patch values using the field's model semantics."""
+
+    if field in _UNORDERED_PATCH_FIELDS:
+        if not isinstance(left, (list, set, tuple)) or not isinstance(
+            right,
+            (list, set, tuple),
+        ):
+            return False
+        try:
+            return set(left) == set(right)
+        except TypeError:
+            return False
+    return left == right
+
+
 def apply_world_deltas(
     state: GameState,
     deltas: Sequence[WorldDelta],
@@ -568,6 +796,10 @@ def apply_world_deltas(
             _apply_relationship_delta(changed, delta)
         elif isinstance(delta, PlayerWorldDelta):
             _apply_player_delta(changed, delta)
+        elif isinstance(delta, ElapsedStatePatchDelta):
+            changed = _apply_elapsed_state_patch(changed, delta)
+        elif isinstance(delta, CompatibilityStatePatchDelta):
+            changed = _apply_compatibility_state_patch(changed, delta)
         elif isinstance(delta, (LifecycleWorldDelta, ModifierWorldDelta)):
             _fail(
                 "sibling_contract_unavailable",

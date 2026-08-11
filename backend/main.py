@@ -8,6 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ai.errors import new_request_id, public_error_detail
+from api.action_service import ActionAdjudicationError
 from api.routes import router
 from api.save_routes import save_router
 from api.settings_routes import settings_router
@@ -17,6 +18,8 @@ from api.chat_routes import chat_router
 from api.trpg import trpg_router
 from api.action_routes import action_router
 from models.game import ErrorResponse
+from db import worlds
+from engine.settlement import SettlementValidationError
 from api.state import startup as api_startup
 
 
@@ -83,6 +86,60 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="元末纪事", lifespan=lifespan)
+
+
+def _world_action_error_content(code: str, message: str, **details: object) -> dict[str, Any]:
+    return {
+        "detail": ErrorResponse(
+            error_code=code,
+            message=message,
+            details=details or None,
+        ).model_dump(exclude_none=True),
+    }
+
+
+@app.exception_handler(SettlementValidationError)
+async def settlement_validation_exception_handler(
+    _request: Request,
+    exc: SettlementValidationError,
+):
+    details = {"delta_id": exc.delta_id} if exc.delta_id is not None else {}
+    return JSONResponse(
+        status_code=422,
+        content=_world_action_error_content(exc.code, exc.message, **details),
+    )
+
+
+@app.exception_handler(ActionAdjudicationError)
+async def action_adjudication_exception_handler(
+    _request: Request,
+    exc: ActionAdjudicationError,
+):
+    return JSONResponse(
+        status_code=503,
+        content=_world_action_error_content(exc.code, exc.message),
+    )
+
+
+@app.exception_handler(worlds.WorldStoreError)
+async def world_store_exception_handler(_request: Request, exc: worlds.WorldStoreError):
+    if isinstance(exc, worlds.WorldNotFoundError):
+        status_code = 404
+    elif isinstance(
+        exc,
+        (
+            worlds.IdempotencyConflictError,
+            worlds.StaleParentVersionError,
+            worlds.ActionInProgressError,
+        ),
+    ):
+        status_code = 409
+    else:
+        status_code = 500
+    return JSONResponse(
+        status_code=status_code,
+        content=_world_action_error_content(exc.code, exc.message),
+    )
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):

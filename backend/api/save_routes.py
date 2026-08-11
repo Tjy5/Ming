@@ -4,12 +4,13 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from models.game import ErrorResponse
+from db import worlds
 from db.saves import (
     save_game, load_game, list_saves, delete_save,
     SaveNotFoundError, CorruptSaveError, IncompatibleSaveError, StorageError,
 )
 from .schemas import SaveRequest
-from .state import _get_state, _set_state, _lock
+from .state import _get_state, _publish_world_head, _lock
 
 save_router = APIRouter(prefix="/api")
 
@@ -40,7 +41,15 @@ async def get_saves():
 async def load(save_id: int):
     try:
         state, migration_applied, migration_note = load_game(save_id)
-        _set_state(state)
+        root = worlds.create_game_with_root(
+            state,
+            protected=True,
+            source_kind="legacy_save",
+            source_ref=str(save_id),
+        )
+        snapshot = worlds.load_version(root.version_id)
+        _publish_world_head(snapshot.state, snapshot.ref)
+        state = snapshot.state
         return {
             **state.model_dump(),
             "migration_applied": migration_applied,

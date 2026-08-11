@@ -8,13 +8,16 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .world import (
+    ActivityId,
     BranchId,
     ClientActionId,
+    CheckpointId,
     DeltaId,
     Duration,
     ElapsedSegmentPlan,
     EntityId,
     GameId,
+    PendingActivityDecision,
     SettlementId,
     VersionId,
     WorldEntity,
@@ -45,6 +48,44 @@ class ActionIntent(_SettlementContract):
     mode: str | None = None
     topic: str | None = None
     visible_context_version: str | None = None
+    activity_id: ActivityId | None = None
+    checkpoint_id: CheckpointId | None = None
+    checkpoint_sequence: int | None = Field(default=None, strict=True, ge=1)
+    activity_command: Literal[
+        "continue",
+        "pause",
+        "cancel",
+        "redirect",
+        "reassign",
+        "resume",
+    ] | None = None
+    redirect_text: str | None = Field(default=None, min_length=1, max_length=4000)
+    replacement_executor_id: EntityId | None = None
+
+    @model_validator(mode="after")
+    def _validate_activity_command(self) -> ActionIntent:
+        command_fields = (
+            self.activity_id,
+            self.checkpoint_id,
+            self.checkpoint_sequence,
+            self.activity_command,
+        )
+        if any(value is not None for value in command_fields) and any(
+            value is None for value in command_fields
+        ):
+            raise ValueError(
+                "activity commands require activity_id, checkpoint_id, "
+                "checkpoint_sequence, and activity_command",
+            )
+        if self.activity_command == "redirect" and self.redirect_text is None:
+            raise ValueError("redirect activity command requires redirect_text")
+        if self.activity_command != "redirect" and self.redirect_text is not None:
+            raise ValueError("redirect_text requires redirect activity command")
+        if self.activity_command == "reassign" and self.replacement_executor_id is None:
+            raise ValueError("reassign activity command requires replacement_executor_id")
+        if self.activity_command != "reassign" and self.replacement_executor_id is not None:
+            raise ValueError("replacement_executor_id requires reassign activity command")
+        return self
 
     def canonical_payload(self) -> dict[str, object]:
         return self.model_dump(
@@ -142,13 +183,50 @@ class ModifierWorldDelta(_SettlementContract):
     source_proposal: str | None = None
 
 
+class ElapsedStatePatchDelta(_SettlementContract):
+    """Typed compatibility output from an elapsed-time gameplay handler.
+
+    The patch is restricted and validated by ``engine.settlement``. It exists so
+    legacy monthly gameplay math can participate in the pure clock-consumer
+    contract without letting ``engine.clock`` own that math.
+    """
+
+    delta_type: Literal["elapsed_state_patch"] = "elapsed_state_patch"
+    delta_id: DeltaId
+    handler_name: str = Field(min_length=1)
+    handler_version: str = Field(min_length=1)
+    boundary_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    before_fields: dict[str, object]
+    after_fields: dict[str, object]
+    source_proposal: str | None = None
+
+
+class CompatibilityStatePatchDelta(_SettlementContract):
+    """Allowlisted state difference produced by an isolated legacy action adapter.
+
+    This temporary bridge lets mature decree/TRPG rules participate in the
+    versioned settlement protocol without granting them access to the clock,
+    world identity, entity registry, player identity, or activity graph.
+    """
+
+    delta_type: Literal["compatibility_state_patch"] = "compatibility_state_patch"
+    delta_id: DeltaId
+    adapter_name: str = Field(min_length=1)
+    adapter_version: str = Field(min_length=1)
+    before_fields: dict[str, object]
+    after_fields: dict[str, object]
+    source_proposal: str | None = None
+
+
 WorldDelta = Annotated[
     MetricWorldDelta
     | EntityWorldDelta
     | RelationshipWorldDelta
     | LifecycleWorldDelta
     | PlayerWorldDelta
-    | ModifierWorldDelta,
+    | ModifierWorldDelta
+    | ElapsedStatePatchDelta
+    | CompatibilityStatePatchDelta,
     Field(discriminator="delta_type"),
 ]
 
@@ -158,6 +236,39 @@ class ProviderAttribution(_SettlementContract):
     provider_type: str | None = None
     model: str | None = None
     request_id: str | None = None
+
+
+class ActivityCandidate(_SettlementContract):
+    kind: str = Field(min_length=1, max_length=120)
+    target_summary: str | None = Field(default=None, max_length=1000)
+    prerequisites: list[str] = Field(default_factory=list)
+    planned_effects: list[str] = Field(default_factory=list)
+    checkpoint_horizon_hours: int = Field(default=720, strict=True, ge=1, le=2160)
+
+
+class ActivityCheckpointDecision(_SettlementContract):
+    transition: Literal[
+        "continue",
+        "pause",
+        "redirect",
+        "fail",
+        "complete",
+        "await_player",
+    ]
+    reason: str = Field(min_length=1, max_length=1000)
+    remaining_duration: Duration | None = None
+    interruption_facts: list[str] = Field(default_factory=list)
+    pending_decision: PendingActivityDecision | None = None
+
+    @model_validator(mode="after")
+    def _validate_transition(self) -> ActivityCheckpointDecision:
+        if self.transition == "await_player" and self.pending_decision is None:
+            raise ValueError("await_player transition requires a pending decision")
+        if self.transition != "await_player" and self.pending_decision is not None:
+            raise ValueError("pending decision requires await_player transition")
+        if self.transition in {"fail", "complete"} and self.remaining_duration is not None:
+            raise ValueError("terminal checkpoint transition cannot retain duration")
+        return self
 
 
 class AdjudicationProposal(_SettlementContract):
@@ -178,7 +289,8 @@ class AdjudicationProposal(_SettlementContract):
     ] = "not_attempted"
     duration_candidate: Duration | None = None
     duration_reason: str | None = Field(default=None, max_length=1000)
-    activity_candidate: str | None = None
+    activity_candidate: ActivityCandidate | None = None
+    activity_decision: ActivityCheckpointDecision | None = None
     uncertainty: float | None = Field(default=None, ge=0, le=1)
     deltas: list[WorldDelta] = Field(default_factory=list)
     provider: ProviderAttribution = Field(default_factory=ProviderAttribution)
@@ -190,6 +302,8 @@ class AdjudicationProposal(_SettlementContract):
                 raise ValueError("duration_candidate requires a nonblank duration_reason")
         elif self.duration_reason is not None:
             raise ValueError("duration_reason requires duration_candidate")
+        if self.activity_candidate is not None and self.duration_candidate is None:
+            raise ValueError("activity_candidate requires a planned duration")
         return self
 
 
@@ -217,6 +331,12 @@ class SettlementFacts(_SettlementContract):
     deltas: list[WorldDelta] = Field(default_factory=list)
     duration_reason: str | None = None
     time_plan: ElapsedSegmentPlan | None = None
+    activity_id: ActivityId | None = None
+    checkpoint_id: CheckpointId | None = None
+    checkpoint_sequence: int | None = Field(default=None, strict=True, ge=1)
+    activity_status: str | None = None
+    crossed_events: list[str] = Field(default_factory=list)
+    actual_outcome: str | None = None
     attribution: SettlementAttribution
     committed_at: datetime
 

@@ -1,8 +1,8 @@
-"""人生篇章推进：读 timeline.json chapters，驱动章节切换与年份跳转。
+"""人生篇章推进：读 timeline.json chapters，驱动章节与叙事节奏元数据。
 
 篇章制（父 design 第 1.1 节）：
 - 农家子(childhood) → 僧旅飘零(monk_wanderer) → 投军奋起(enlistment) → 割据江东(warlord)。
-- 每章 3-8 个叙事回合；关键事件完成 → 下一章 + 年份跳转 + 过渡摘要。
+- 每章 3-8 个叙事回合；关键事件完成 → 下一章 + 过渡摘要。
 - **phase 切换截断处理**：进入 governance 后冻结篇章推进——warlord 章
   保留为当前章但不再驱动叙事回合（切换与收束逻辑联通归阶段D）。
 - **1360 兜底钩子**：至正二十年仍未完成"攻占应天" → 返回收束抉择钩子
@@ -87,9 +87,10 @@ def _chapter_index(chapter_id: str) -> int | None:
 
 
 def advance_chapter(state: GameState) -> dict | None:
-    """推进到下一章：跳转年份并返回过渡摘要。
+    """推进到下一章并返回过渡摘要。
 
     冻结（governance）/ 已是最后一章 / 未知篇章 → 返回 None。
+    ``timeline.start_year`` 仅是叙事提示；篇章与里程碑不得写世界时钟。
     """
     if is_frozen(state):
         return None
@@ -102,14 +103,6 @@ def advance_chapter(state: GameState) -> dict | None:
     nxt = chapters[idx + 1]
     state.chapter = nxt["id"]
     state.chapter_turns = 0
-    # Compatibility adapter only.  The later activity/checkpoint migration will
-    # replace chapter date anchors with elapsed-time settlements.
-    from engine.calendar import set_game_time_projection
-    set_game_time_projection(
-        state.time,
-        year=int(nxt["start_year"]),
-        month=1,
-    )
 
     start_milestone = next(
         (m for m in get_milestones(nxt["id"])),

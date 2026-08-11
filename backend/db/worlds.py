@@ -19,8 +19,10 @@ from models.settlement import (
     SettlementFacts,
 )
 from models.world import (
+    ActivityId,
     BranchId,
     ClientActionId,
+    CheckpointId,
     EntityId,
     EntitySource,
     ElapsedSegmentPlan,
@@ -475,6 +477,72 @@ def create_game_with_root(
             raise
 
 
+def create_branch_from_version(version_id: VersionId) -> WorldVersionRef:
+    """Atomically fork an immutable version into a new active branch root."""
+    source = load_version(version_id)
+    branch_id = new_branch_id()
+    root_version_id = new_version_id()
+    created_at = _utc_now()
+
+    from engine.activity import rebase_pending_checkpoints
+
+    rebased = rebase_pending_checkpoints(source.state, root_version_id)
+    snapshot = _snapshot_for_version(
+        rebased,
+        game_id=source.ref.game_id,
+        branch_id=branch_id,
+        version_id=root_version_id,
+        source_kind="fork",
+        source_ref=str(source.ref.version_id),
+    )
+    ref = WorldVersionRef(
+        game_id=source.ref.game_id,
+        branch_id=branch_id,
+        version_id=root_version_id,
+        parent_version_id=source.ref.version_id,
+        created_at=created_at,
+    )
+
+    with closing(_connect()) as conn:
+        try:
+            _begin(conn)
+            conn.execute(
+                """
+                INSERT INTO branches (
+                    id, game_id, parent_branch_id, forked_from_version_id,
+                    head_version_id, created_at, status
+                ) VALUES (?, ?, ?, ?, NULL, ?, 'active')
+                """,
+                (
+                    str(branch_id),
+                    str(source.ref.game_id),
+                    str(source.ref.branch_id),
+                    str(source.ref.version_id),
+                    created_at.isoformat(),
+                ),
+            )
+            _insert_version(conn, ref=ref, state=snapshot, source_kind="fork")
+            if not _advance_branch_head(
+                conn,
+                game_id=ref.game_id,
+                branch_id=ref.branch_id,
+                expected_version_id=None,
+                next_version_id=ref.version_id,
+            ):
+                raise WorldCorruptDataError("forked branch rejected its root version")
+            conn.commit()
+            return ref
+        except WorldStoreError:
+            conn.rollback()
+            raise
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise WorldStorageError() from exc
+        except Exception:
+            conn.rollback()
+            raise
+
+
 def _row_to_version_ref(row: sqlite3.Row) -> WorldVersionRef:
     return WorldVersionRef.model_validate(
         {
@@ -806,6 +874,14 @@ def commit_settlement(
     proposal: AdjudicationProposal,
     *,
     time_plan: ElapsedSegmentPlan | None = None,
+    settlement_id: SettlementId | None = None,
+    version_id: VersionId | None = None,
+    activity_id: ActivityId | None = None,
+    checkpoint_id: CheckpointId | None = None,
+    checkpoint_sequence: int | None = None,
+    activity_status: str | None = None,
+    crossed_events: list[str] | None = None,
+    actual_outcome: str | None = None,
 ) -> SettlementCommitResult:
     """Commit one action request, settlement, snapshot, and head advance.
 
@@ -815,8 +891,8 @@ def commit_settlement(
     """
 
     payload_hash = intent.payload_hash()
-    settlement_id = new_settlement_id()
-    version_id = new_version_id()
+    settlement_id = settlement_id or new_settlement_id()
+    version_id = version_id or new_version_id()
     committed_at = _utc_now()
 
     with closing(_connect()) as conn:
@@ -865,6 +941,12 @@ def commit_settlement(
                 deltas=proposal.deltas,
                 duration_reason=proposal.duration_reason,
                 time_plan=time_plan,
+                activity_id=activity_id,
+                checkpoint_id=checkpoint_id,
+                checkpoint_sequence=checkpoint_sequence,
+                activity_status=activity_status,
+                crossed_events=list(crossed_events or ()),
+                actual_outcome=actual_outcome,
                 attribution=attribution,
                 committed_at=committed_at,
             )
@@ -1127,7 +1209,7 @@ def import_legacy_save(save_id: int) -> LegacyWorldImportResult:
     protected root graph, and idempotency ledger are committed together.
     """
 
-    from .saves import _migrate_save
+    from .saves import _incompatible_year, _migrate_save
 
     with closing(_connect()) as conn:
         try:
@@ -1157,6 +1239,8 @@ def import_legacy_save(save_id: int) -> LegacyWorldImportResult:
                 if not isinstance(decoded, dict):
                     raise TypeError("legacy state root must be an object")
                 notes = _migrate_save(decoded)
+                if _incompatible_year(decoded):
+                    raise LegacySaveIncompatibleError(save_id)
                 state = GameState.model_validate(decoded)
             except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
                 raise LegacySaveCorruptError(save_id) from exc
@@ -1285,3 +1369,12 @@ class LegacySaveCorruptError(WorldStoreError):
     def __init__(self, save_id: int):
         self.save_id = save_id
         super().__init__("legacy_save_corrupt", f"Legacy save {save_id} is corrupt")
+
+
+class LegacySaveIncompatibleError(WorldStoreError):
+    def __init__(self, save_id: int):
+        self.save_id = save_id
+        super().__init__(
+            "legacy_save_incompatible",
+            f"Legacy save {save_id} belongs to an incompatible scenario",
+        )

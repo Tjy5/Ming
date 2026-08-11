@@ -6,16 +6,14 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from engine.core import finalize_month_advance, prepare_month_advance
 from models.game import ErrorResponse, GameEvent, GameState
 
-from .routes import _decide_script_triggers_for_state, execute_decree
+from .routes import advance_month_endpoint, execute_decree
 from .schemas import ChatRequest, DecreeRequest
 from .state import (
     _get_provider,
     _get_state,
     _lock,
-    _set_state,
     _split_stream_sentences,
     _sse_event,
     append_chat_conversation,
@@ -233,21 +231,18 @@ async def chat_stream(req: ChatRequest):
                             "detail": _blocking_event_error_detail(blocking_event),
                         })
                         return
-
                     before_state = current_state.model_copy(deep=True)
-                    state = before_state.model_copy(deep=True)
-                    provider_for_month = _get_provider()
 
-                    new_ministers_raw = prepare_month_advance(state)
-                    script_decisions = await _decide_script_triggers_for_state(provider_for_month, state)
-                    triggered_events_raw, game_over = finalize_month_advance(
-                        state,
-                        script_trigger_decisions=script_decisions,
-                    )
-                    new_ministers = [str(name) for name in new_ministers_raw if isinstance(name, str)]
-                    triggered_events = [str(name) for name in triggered_events_raw if isinstance(name, str)]
-                    _set_state(state)
-
+                month_result = await advance_month_endpoint()
+                state = GameState.model_validate(month_result["state"])
+                new_ministers = [
+                    str(item.get("name"))
+                    for item in month_result["new_ministers"]
+                    if isinstance(item, dict) and item.get("name")
+                ]
+                triggered_events = [str(name) for name in month_result["triggered_events"]]
+                game_over = month_result["game_over"]
+                async with _lock:
                     delta = _state_delta(before_state, state)
                     effects_applied = _has_effects(delta)
                     reply = f"主公，已入{state.time.year}年{state.time.month}月。"

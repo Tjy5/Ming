@@ -15,9 +15,10 @@ from models.game import (
 DB_PATH = Path(__file__).parent.parent / "game_saves.db"
 MAX_SAVES = 20
 
-# 元末明初跑团+治理剧本的合法年份区间（阶段B：旧崇祯存档不再兼容）
+# 版本化世界时钟允许开放沙盒越过历史朝代边界。这里只保留历元下限；
+# 旧崇祯剧本通过明确的年号身份识别，而不是把 1368 当作时间上限。
 COMPATIBLE_YEAR_MIN = 1328
-COMPATIBLE_YEAR_MAX = 1368
+INCOMPATIBLE_LEGACY_ERA_NAMES = frozenset({"崇祯"})
 
 
 def _connect() -> sqlite3.Connection:
@@ -341,14 +342,15 @@ def _migrate_save(data: dict) -> list[str]:
 
 
 def _incompatible_year(data: dict) -> bool:
-    """旧崇祯存档（或任何超出元末明初剧本年份区间）检测。"""
+    """检测历元前档案或明确属于旧崇祯剧本的档案。"""
     t = data.get("time")
     if not isinstance(t, dict):
         return False
     year = t.get("year")
-    if not isinstance(year, int):
-        return False
-    return year < COMPATIBLE_YEAR_MIN or year > COMPATIBLE_YEAR_MAX
+    if isinstance(year, int) and year < COMPATIBLE_YEAR_MIN:
+        return True
+    era_name = t.get("era_name")
+    return isinstance(era_name, str) and era_name.strip() in INCOMPATIBLE_LEGACY_ERA_NAMES
 
 
 def load_game(save_id: int) -> tuple[GameState, bool, str]:

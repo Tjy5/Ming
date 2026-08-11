@@ -13,6 +13,13 @@ from models.game import (
     StructuredDecree,
 )
 from models.settlement import SettlementCommitResult
+from models.world import (
+    Activity,
+    BranchId,
+    ClientActionId,
+    GameId,
+    VersionId,
+)
 
 MAX_FREE_TEXT_LENGTH = 200
 
@@ -36,16 +43,37 @@ class GameStateResponse(GameState):
     history_total_count: int | None = None
 
 
+class AdvanceMonthRequest(BaseModel):
+    client_action_id: ClientActionId | None = None
+    expected_parent_version_id: VersionId | None = None
+
+
 class AdvanceMonthResponse(BaseModel):
     state: GameState
     triggered_events: list[str] = Field(default_factory=list)
     game_over: dict | None = None
     new_ministers: list[Minister] = Field(default_factory=list)
+    result: SettlementCommitResult
 
 
 class ActionExecutionResponse(BaseModel):
     state: GameState
     result: SettlementCommitResult
+
+
+class ActivityContinueRequest(BaseModel):
+    game_id: GameId
+    branch_id: BranchId
+    expected_parent_version_id: VersionId
+    max_checkpoints: int = Field(default=4, ge=1, le=16)
+
+
+class ActivityBatchExecutionResponse(BaseModel):
+    state: GameState
+    activity: Activity
+    results: list[SettlementCommitResult] = Field(default_factory=list)
+    processing: bool
+    continuation_cursor: str | None = None
 
 
 class ActionErrorEnvelope(BaseModel):

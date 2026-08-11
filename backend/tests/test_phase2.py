@@ -249,13 +249,14 @@ class TestStartTimeAndEra:
         assert resolve_era(1368) == ("洪武", 1)
 
     def test_phase_switch_point_constants(self):
+        import engine.core as core
         from engine.core import (
             LIFE_STORY_START_YEAR, GOVERNANCE_PHASE_YEAR, GOVERNANCE_PHASE_MONTH,
-            FINAL_JUDGEMENT_YEAR, FINAL_JUDGEMENT_MONTH,
         )
         assert LIFE_STORY_START_YEAR == 1328
         assert (GOVERNANCE_PHASE_YEAR, GOVERNANCE_PHASE_MONTH) == (1356, 3)
-        assert (FINAL_JUDGEMENT_YEAR, FINAL_JUDGEMENT_MONTH) == (1368, 1)
+        assert not hasattr(core, "FINAL_JUDGEMENT_YEAR")
+        assert not hasattr(core, "FINAL_JUDGEMENT_MONTH")
 
     def test_initial_state_phase_reserved(self):
         state = create_initial_state()

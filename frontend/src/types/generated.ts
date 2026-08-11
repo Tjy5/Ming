@@ -777,14 +777,12 @@ export type paths = {
         put?: never;
         /**
          * Complete Milestone
-         * @description 完成关键事件（里程碑）：成长奖励 + 章推进 + 时间对齐里程碑日期。
+         * @description 完成关键事件（里程碑）：成长奖励 + 章推进。
          *
          *     - 已解析里程碑 → 409（milestone_already_resolved，单次史实事件不可重复完成）。
          *     - 未知里程碑 → 404（milestone_not_found）。
-         *     - 时间轴由里程碑日期锚定：完成即把 state.time 对齐到该里程碑 year/month
-         *       并 resolve_era（birth-1328=1328-10 与开局一致；yingtian-founding=1356-03
-         *       与 phase_switch 配置一致）；仅向前对齐——里程碑日期早于当前时间时保持
-         *       当前不回拨（其余切换/叙事/快照逻辑照常）。
+         *     - 里程碑日期仅作历史与显示提示，不改世界时钟；经过时间只能由统一
+         *       action/activity settlement 推进。
          *     - 带 phase_switch 标记的里程碑（yingtian-founding）且 phase 尚未切换时：
          *       翻转 phase → to_phase（governance）、写存档快照（回滚点）、
          *       过渡叙事追加 history_log（decree_type=trpg_act）。
@@ -813,8 +811,8 @@ export type paths = {
          *     - 仅在 check_convergence_hook 激活时可用（life_story + 时间 ≥ fallback_year
          *       + yingtian-founding 未达成）；否则 409 convergence_not_pending。
          *     - 接受：yingtian-founding 写入 resolved_script_ids（409 闸口由此拦截其后的
-         *       重复完成）、phase → governance、时间对齐 fallback_year（保留当前月份 +
-         *       resolve_era）、过渡叙事 history_log、存档快照（回滚点）。
+         *       重复完成）、phase → governance、过渡叙事 history_log、存档快照（回滚点）。
+         *       fallback_year 只用于叙事说明，不能改世界时钟。
          *     - 拒绝：身死结局分支——响应携带 game_over（与治理侧契约同构
          *       {result: "defeat", message}），状态不变；结局不持久化（治理侧同口径，
          *       重载后可重作抉择）。
@@ -837,6 +835,40 @@ export type paths = {
         put?: never;
         /** Execute Action */
         post: operations["execute_action_api_actions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/activities/{game_id}/{branch_id}/{activity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Activity */
+        get: operations["get_activity_api_activities__game_id___branch_id___activity_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/activities/{activity_id}/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Continue Activity */
+        post: operations["continue_activity_api_activities__activity_id__continue_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1223,11 +1255,175 @@ export type components = {
             topic?: string | null;
             /** Visible Context Version */
             visible_context_version?: string | null;
+            /** Activity Id */
+            activity_id?: string | null;
+            /** Checkpoint Id */
+            checkpoint_id?: string | null;
+            /** Checkpoint Sequence */
+            checkpoint_sequence?: number | null;
+            /** Activity Command */
+            activity_command?: ("continue" | "pause" | "cancel" | "redirect" | "reassign" | "resume") | null;
+            /** Redirect Text */
+            redirect_text?: string | null;
+            /** Replacement Executor Id */
+            replacement_executor_id?: string | null;
+        };
+        /** Activity */
+        Activity: {
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Status
+             * @default in_progress
+             * @enum {string}
+             */
+            status: "in_progress" | "awaiting_player_decision" | "paused" | "cancelled" | "failed" | "completed";
+            /** Intent */
+            intent: string;
+            /** Target Summary */
+            target_summary?: string | null;
+            /** Requested Executor Id */
+            requested_executor_id?: string | null;
+            /** Actual Executor Id */
+            actual_executor_id?: string | null;
+            started_at: components["schemas"]["WorldInstant"];
+            planned_duration: components["schemas"]["Duration"];
+            planned_end: components["schemas"]["WorldInstant"];
+            /** Planned Elapsed Hours */
+            planned_elapsed_hours: number;
+            /**
+             * Elapsed Hours
+             * @default 0
+             */
+            elapsed_hours: number;
+            /** Remaining Hours */
+            remaining_hours: number;
+            /**
+             * Checkpoint Horizon Hours
+             * @default 720
+             */
+            checkpoint_horizon_hours: number;
+            /** Next Checkpoint Id */
+            next_checkpoint_id?: string | null;
+            /**
+             * Checkpoint Sequence
+             * @default 1
+             */
+            checkpoint_sequence: number;
+            /** Prerequisites */
+            prerequisites?: string[];
+            /** Planned Effects */
+            planned_effects?: string[];
+            /** Committed Segment Effects */
+            committed_segment_effects?: string[];
+            /** Interruption Facts */
+            interruption_facts?: string[];
+            pending_decision?: components["schemas"]["PendingActivityDecision"] | null;
+            /** Checkpoints */
+            checkpoints?: components["schemas"]["ActivityCheckpoint"][];
+            /**
+             * Created By Action Id
+             * Format: uuid
+             */
+            created_by_action_id: string;
+        };
+        /** ActivityBatchExecutionResponse */
+        ActivityBatchExecutionResponse: {
+            state: components["schemas"]["GameState"];
+            activity: components["schemas"]["Activity"];
+            /** Results */
+            results?: components["schemas"]["SettlementCommitResult"][];
+            /** Processing */
+            processing: boolean;
+            /** Continuation Cursor */
+            continuation_cursor?: string | null;
+        };
+        /** ActivityCheckpoint */
+        ActivityCheckpoint: {
+            /**
+             * Checkpoint Id
+             * Format: uuid
+             */
+            checkpoint_id: string;
+            /**
+             * Activity Id
+             * Format: uuid
+             */
+            activity_id: string;
+            /** Sequence */
+            sequence: number;
+            /**
+             * Client Action Id
+             * Format: uuid
+             */
+            client_action_id: string;
+            /**
+             * Expected Parent Version Id
+             * Format: uuid
+             */
+            expected_parent_version_id: string;
+            planned_start: components["schemas"]["WorldInstant"];
+            planned_end: components["schemas"]["WorldInstant"];
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "completed";
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /** Version Id */
+            version_id?: string | null;
+            /** Crossed Boundary Ids */
+            crossed_boundary_ids?: string[];
+            /** Committed Delta Ids */
+            committed_delta_ids?: string[];
+            /** Interruption Facts */
+            interruption_facts?: string[];
+            /** Roll Key */
+            roll_key?: string | null;
+            /** Roll Value */
+            roll_value?: number | null;
+        };
+        /** ActivityContinueRequest */
+        ActivityContinueRequest: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Expected Parent Version Id
+             * Format: uuid
+             */
+            expected_parent_version_id: string;
+            /**
+             * Max Checkpoints
+             * @default 4
+             */
+            max_checkpoints: number;
         };
         /** AdoptSuggestionRequest */
         AdoptSuggestionRequest: {
             /** Suggestion Index */
             suggestion_index: number;
+        };
+        /** AdvanceMonthRequest */
+        AdvanceMonthRequest: {
+            /** Client Action Id */
+            client_action_id?: string | null;
+            /** Expected Parent Version Id */
+            expected_parent_version_id?: string | null;
         };
         /** AdvanceMonthResponse */
         AdvanceMonthResponse: {
@@ -1238,6 +1434,7 @@ export type components = {
             game_over?: Record<string, never> | null;
             /** New Ministers */
             new_ministers?: components["schemas"]["Minister"][];
+            result: components["schemas"]["SettlementCommitResult"];
         };
         /** AssemblyDebateRequest */
         AssemblyDebateRequest: {
@@ -1425,6 +1622,36 @@ export type components = {
             boundary_kind: "day" | "month" | "year" | "solar_term" | "end";
             /** Ordinal */
             ordinal: number;
+        };
+        /**
+         * CompatibilityStatePatchDelta
+         * @description Allowlisted state difference produced by an isolated legacy action adapter.
+         *
+         *     This temporary bridge lets mature decree/TRPG rules participate in the
+         *     versioned settlement protocol without granting them access to the clock,
+         *     world identity, entity registry, player identity, or activity graph.
+         */
+        CompatibilityStatePatchDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "compatibility_state_patch";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /** Adapter Name */
+            adapter_name: string;
+            /** Adapter Version */
+            adapter_version: string;
+            /** Before Fields */
+            before_fields: Record<string, never>;
+            /** After Fields */
+            after_fields: Record<string, never>;
+            /** Source Proposal */
+            source_proposal?: string | null;
         };
         /** ConveneAssemblyRequest */
         ConveneAssemblyRequest: {
@@ -1646,6 +1873,38 @@ export type components = {
              * @default []
              */
             consumer_invocations: components["schemas"]["ClockConsumerInvocation"][];
+        };
+        /**
+         * ElapsedStatePatchDelta
+         * @description Typed compatibility output from an elapsed-time gameplay handler.
+         *
+         *     The patch is restricted and validated by ``engine.settlement``. It exists so
+         *     legacy monthly gameplay math can participate in the pure clock-consumer
+         *     contract without letting ``engine.clock`` own that math.
+         */
+        ElapsedStatePatchDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "elapsed_state_patch";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /** Handler Name */
+            handler_name: string;
+            /** Handler Version */
+            handler_version: string;
+            /** Boundary Id */
+            boundary_id: string;
+            /** Before Fields */
+            before_fields: Record<string, never>;
+            /** After Fields */
+            after_fields: Record<string, never>;
+            /** Source Proposal */
+            source_proposal?: string | null;
         };
         /** EntitySource */
         EntitySource: {
@@ -1874,6 +2133,8 @@ export type components = {
                 [key: string]: components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"];
             };
             player_world_status?: components["schemas"]["PlayerWorldStatus"];
+            /** Activities */
+            activities?: components["schemas"]["Activity"][];
             /**
              * Phase
              * @default life_story
@@ -2002,6 +2263,8 @@ export type components = {
                 [key: string]: components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"];
             };
             player_world_status?: components["schemas"]["PlayerWorldStatus"];
+            /** Activities */
+            activities?: components["schemas"]["Activity"][];
             /**
              * Phase
              * @default life_story
@@ -2752,6 +3015,20 @@ export type components = {
             /** Text */
             text: string;
         };
+        /** PendingActivityDecision */
+        PendingActivityDecision: {
+            /**
+             * Decision Type
+             * @enum {string}
+             */
+            decision_type: "continue" | "redirect" | "reassign" | "stop";
+            /** Reason */
+            reason: string;
+            /** Options */
+            options?: string[];
+            /** Facts */
+            facts?: string[];
+        };
         /** PermissionReference */
         PermissionReference: {
             /**
@@ -3222,10 +3499,22 @@ export type components = {
             /** New Opportunities */
             new_opportunities?: string[];
             /** Deltas */
-            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"])[];
+            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"] | components["schemas"]["ElapsedStatePatchDelta"] | components["schemas"]["CompatibilityStatePatchDelta"])[];
             /** Duration Reason */
             duration_reason?: string | null;
             time_plan?: components["schemas"]["ElapsedSegmentPlan"] | null;
+            /** Activity Id */
+            activity_id?: string | null;
+            /** Checkpoint Id */
+            checkpoint_id?: string | null;
+            /** Checkpoint Sequence */
+            checkpoint_sequence?: number | null;
+            /** Activity Status */
+            activity_status?: string | null;
+            /** Crossed Events */
+            crossed_events?: string[];
+            /** Actual Outcome */
+            actual_outcome?: string | null;
             attribution: components["schemas"]["SettlementAttribution"];
             /**
              * Committed At
@@ -3455,7 +3744,7 @@ export type components = {
              * @default initial
              * @enum {string}
              */
-            source_kind: "initial" | "legacy_save" | "settlement";
+            source_kind: "initial" | "legacy_save" | "settlement" | "fork";
             /** Source Ref */
             source_ref?: string | null;
             /** Imported At */
@@ -3597,7 +3886,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdvanceMonthRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -3606,6 +3899,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvanceMonthResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
                 };
             };
         };
@@ -5360,6 +5698,128 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionExecutionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_activity_api_activities__game_id___branch_id___activity_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+                branch_id: string;
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Activity"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+        };
+    };
+    continue_activity_api_activities__activity_id__continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                activity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActivityContinueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityBatchExecutionResponse"];
                 };
             };
             /** @description Not Found */

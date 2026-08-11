@@ -80,6 +80,18 @@ def test_openapi_publishes_clock_and_calendar_models_through_game_time():
     properties = schemas["GameTime"]["properties"]
     assert "WorldClock" in str(properties["clock"])
     assert "CalendarProjection" in str(properties["calendar"])
+    for schema_name in (
+        "Duration",
+        "ElapsedSegmentPlan",
+        "Activity",
+        "ActivityCheckpoint",
+        "ActivityContinueRequest",
+        "ActivityBatchExecutionResponse",
+    ):
+        assert schema_name in schemas
+    paths = app.openapi()["paths"]
+    assert "/api/activities/{game_id}/{branch_id}/{activity_id}" in paths
+    assert "/api/activities/{activity_id}/continue" in paths
 
 
 def test_old_game_time_payload_remains_additively_valid():
@@ -101,3 +113,35 @@ def test_production_code_has_no_direct_year_or_month_assignment():
             if direct_write.search(line):
                 offenders.append(f"{path.relative_to(backend_root)}:{line_number}")
     assert offenders == []
+
+
+def test_production_routes_have_no_parallel_time_writer_or_terminal_year_gate():
+    backend_root = Path(__file__).resolve().parents[1]
+    forbidden_by_scope = {
+        backend_root / "api": re.compile(
+            r"\b(?:set_game_time_projection|advance_game_time|prepare_month_advance|"
+            r"finalize_month_advance|advance_month)\s*\(",
+        ),
+        backend_root / "trpg": re.compile(r"\bset_game_time_projection\s*\("),
+    }
+    offenders: list[str] = []
+    for scope, pattern in forbidden_by_scope.items():
+        for path in scope.rglob("*.py"):
+            if path.name == "action_service.py":
+                continue
+            for line_number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(),
+                start=1,
+            ):
+                if pattern.search(line):
+                    offenders.append(f"{path.relative_to(backend_root)}:{line_number}")
+    assert offenders == []
+
+    production_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in backend_root.rglob("*.py")
+        if "tests" not in path.parts
+    )
+    assert "FINAL_JUDGEMENT_YEAR" not in production_text
+    assert "FINAL_JUDGEMENT_MONTH" not in production_text
+    assert "COMPATIBLE_YEAR_MAX" not in production_text

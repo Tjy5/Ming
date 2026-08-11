@@ -2,8 +2,8 @@
 - Region control state machine (COURT→UNSTABLE→FALLEN, recovery paths)
 - apply_region_control_consequences
 - collect_tax_revenue
-- Tiered check_game_end
-- Consecutive wait penalty
+- Player-death-only check_game_end
+- Consecutive wait metadata without action-count penalties
 - Military supply production
 - assign_urgency (uses actual event name)
 - Cooldown consistency
@@ -187,75 +187,40 @@ class TestTaxRevenue:
         assert s.national_treasury == old_t + 7  # 120/12=10, floor(10*0.7)=7
 
 
-# ── Game End (tiered) ────────────────────────────────
+# ── Game End (validated player death only) ───────────
 
 class TestGameEnd:
-    def test_all_fallen_total_defeat(self):
+    def test_all_fallen_remains_recoverable(self):
         s = _make_state()
         for r in s.regions:
             r.control = RegionControl.FALLEN
-        result = check_game_end(s)
-        assert result is not None
-        assert result["result"] == "defeat"
-        assert "霸业" in result["message"]
+        assert check_game_end(s) is None
 
-    def test_six_fallen_critical_defeat(self):
-        s = _make_state()
-        for r in s.regions[:6]:
-            r.control = RegionControl.FALLEN
-        result = check_game_end(s)
-        assert result is not None
-        assert result["result"] == "defeat"
-
-    def test_four_fallen_low_prestige_defeat(self):
-        s = _make_state()
-        for r in s.regions[:4]:
-            r.control = RegionControl.FALLEN
-        s.court_prestige = 39
-        result = check_game_end(s)
-        assert result is not None
-
-    def test_four_fallen_high_prestige_survives(self):
-        s = _make_state()
-        for r in s.regions[:4]:
-            r.control = RegionControl.FALLEN
-        s.court_prestige = 40
-        result = check_game_end(s)
-        assert result is None  # not at 1368 yet, not enough to trigger defeat
-
-    def test_prestige_zero_defeat(self):
+    def test_zero_prestige_remains_recoverable(self):
         s = _make_state()
         s.court_prestige = 0
-        result = check_game_end(s)
-        assert result is not None
-        assert "威严" in result["message"]
+        assert check_game_end(s) is None
 
-    def test_victory_conditions(self):
+    def test_1368_is_display_history_not_terminal(self):
         s = _make_state()
         s.time = GameTime(year=1368, month=1, era_name="洪武", era_year=1)
-        for r in s.regions:
-            r.control = RegionControl.COURT
-        for f in s.factions:
-            f.rebellion_risk = 30
-        s.court_prestige = 75
+        assert check_game_end(s) is None
+
+    def test_clock_can_continue_beyond_1368(self):
+        s = _make_state()
+        s.time = GameTime(year=1400, month=7, era_name="洪武", era_year=33)
+        assert check_game_end(s) is None
+
+    def test_validated_player_death_is_terminal(self):
+        s = _make_state()
+        s.player_world_status.life_status = "dead"
         result = check_game_end(s)
         assert result is not None
-        assert result["result"] == "victory"
-
-    def test_victory_allows_one_unstable(self):
-        s = _make_state()
-        s.time = GameTime(year=1368, month=1, era_name="洪武", era_year=1)
-        for r in s.regions:
-            r.control = RegionControl.COURT
-        s.regions[0].control = RegionControl.UNSTABLE
-        for f in s.factions:
-            f.rebellion_risk = 30
-        s.court_prestige = 75
-        result = check_game_end(s)
-        assert result["result"] == "victory"
+        assert result["result"] == "defeat"
+        assert "主角" in result["message"]
 
 
-# ── Consecutive Wait Penalty ──────────────────────────
+# ── Consecutive Wait Compatibility Metadata ───────────
 
 class TestConsecutiveWaitPenalty:
     def test_no_penalty_first_two_waits(self):
@@ -271,14 +236,17 @@ class TestConsecutiveWaitPenalty:
         process_decree(s2, decree=None)
         assert s2.consecutive_waits == 2
 
-    def test_penalty_starts_at_third_wait(self):
+    def test_third_wait_has_no_action_count_penalty_or_passive_drift(self):
         s = _make_state()
         s.consecutive_waits = 2
-        # third wait should trigger penalty
         old_prestige = s.court_prestige
+        old_treasury = s.national_treasury
+        old_grain = s.grain
         process_decree(s, decree=None)
         assert s.consecutive_waits == 3
-        # prestige should be lower (penalty=1 from 怠政)
+        assert s.court_prestige == old_prestige
+        assert s.national_treasury == old_treasury
+        assert s.grain == old_grain
 
     def test_decree_resets_counter(self):
         from models.game import StructuredDecree

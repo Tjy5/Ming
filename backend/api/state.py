@@ -121,14 +121,194 @@ def _get_state() -> GameState:
     return _world_head_cache.get()
 
 
-def _set_state(s: GameState) -> None:
-    # Existing routes are still wholly on the legacy path. Publishing through
-    # this compatibility function therefore clears any durable head identity.
-    _world_head_cache.publish(s, None)
+async def _set_state(
+    s: GameState,
+    *,
+    action_kind: str = "legacy_action",
+    raw_text: str = "兼容行动",
+) -> GameState:
+    """Atomically settle an isolated legacy action state through the world graph.
+
+    The compatibility patch cannot carry time or protected world identities.
+    Elapsed time and registered boundary consumers are planned and applied by
+    the same services used by ``/api/actions`` before one SQLite commit.
+    """
+    from api.action_service import (
+        AIActionAdjudicator,
+        ActionAdjudicationError,
+        DefaultTimePlanner,
+        DefaultWorldStateApplier,
+    )
+    from db import worlds
+    from engine.elapsed_consumers import default_clock_registry
+    from engine.activity import ActivityContractError, rebase_pending_checkpoints
+    from engine.settlement import (
+        COMPATIBILITY_PATCH_FIELDS,
+        SettlementValidationError,
+        validate_adjudication_proposal,
+        validate_final_state,
+    )
+    from models.settlement import (
+        ActionIntent,
+        AdjudicationProposal,
+        CompatibilityStatePatchDelta,
+    )
+    from models.world import (
+        new_branch_id,
+        new_client_action_id,
+        new_delta_id,
+        new_game_id,
+        new_version_id,
+    )
+
+    ref = _get_world_head_ref()
+    previous = (
+        worlds.load_version(ref.version_id).state
+        if ref is not None
+        else _get_state().model_copy(deep=True)
+    )
+    if s.time != previous.time:
+        raise ValueError(
+            "legacy action attempted to write time directly; use the unified clock settlement",
+        )
+    action_id = new_client_action_id()
+    intent = ActionIntent(
+        game_id=ref.game_id if ref is not None else new_game_id(),
+        branch_id=ref.branch_id if ref is not None else new_branch_id(),
+        expected_parent_version_id=(
+            ref.version_id if ref is not None else new_version_id()
+        ),
+        client_action_id=action_id,
+        raw_text=raw_text.strip() or "兼容行动",
+        action_kind=action_kind,
+        mode=previous.phase,
+    )
+    adjudicated = await AIActionAdjudicator(_get_provider).adjudicate(
+        intent,
+        previous.model_copy(deep=True),
+    )
+    if adjudicated.duration_candidate is None:
+        raise ActionAdjudicationError(
+            "adjudication_duration_required",
+            "AI 裁决未返回行动耗时，世界状态未提交",
+        )
+
+    # Legacy direct-state bootstrapping is itself durable. Delay it until the
+    # strict provider/schema/duration gate succeeds so a failed first action
+    # leaves no root/version behind.
+    if ref is None:
+        _, ref = _ensure_world_head()
+        previous = worlds.load_version(ref.version_id).state
+        if s.time != previous.time:
+            raise ValueError(
+                "legacy action attempted to write time directly; use the unified clock settlement",
+            )
+        intent = ActionIntent(
+            game_id=ref.game_id,
+            branch_id=ref.branch_id,
+            expected_parent_version_id=ref.version_id,
+            client_action_id=action_id,
+            raw_text=raw_text.strip() or "兼容行动",
+            action_kind=action_kind,
+            mode=previous.phase,
+        )
+
+    before_values = previous.model_dump(mode="python")
+    after_values = s.model_dump(mode="python")
+    before_payload = previous.model_dump(mode="json")
+    after_payload = s.model_dump(mode="json")
+    changed_fields = [
+        field
+        for field in sorted(COMPATIBILITY_PATCH_FIELDS)
+        if before_values[field] != after_values[field]
+    ]
+    deltas = []
+    if changed_fields:
+        deltas.append(
+            CompatibilityStatePatchDelta(
+                delta_id=new_delta_id(),
+                adapter_name=action_kind,
+                adapter_version="1",
+                before_fields={field: before_payload[field] for field in changed_fields},
+                after_fields={field: after_payload[field] for field in changed_fields},
+                source_proposal=f"legacy-adapter:{action_kind}",
+            ),
+        )
+
+    proposal = AdjudicationProposal(
+        result_tier="success",
+        key_factors=[
+            *adjudicated.key_factors,
+            "兼容玩法规则已在隔离世界副本中完成",
+        ],
+        immediate_changes=[f"兼容字段：{field}" for field in changed_fields],
+        execution_status="completed",
+        duration_candidate=adjudicated.duration_candidate,
+        duration_reason=adjudicated.duration_reason,
+        deltas=deltas,
+        provider=adjudicated.provider,
+    )
+    validate_adjudication_proposal(intent, previous, proposal)
+
+    registry = default_clock_registry()
+    time_plan = DefaultTimePlanner(registry).plan_segment(intent, previous, proposal)
+    changed, consumer_deltas = DefaultWorldStateApplier(registry).apply_with_facts(
+        previous,
+        proposal.deltas,
+        time_plan,
+    )
+    validate_final_state(previous, changed)
+    proposal_for_commit = proposal.model_copy(
+        update={"deltas": [*proposal.deltas, *consumer_deltas]},
+    )
+    from models.world import new_settlement_id
+
+    settlement_id = new_settlement_id()
+    version_id = new_version_id()
+    try:
+        changed = rebase_pending_checkpoints(changed, version_id)
+    except ActivityContractError as exc:
+        raise SettlementValidationError(exc.code, exc.message) from exc
+    result = worlds.commit_settlement(
+        intent,
+        changed,
+        proposal_for_commit,
+        time_plan=time_plan,
+        settlement_id=settlement_id,
+        version_id=version_id,
+        actual_outcome=action_kind,
+    )
+    committed = worlds.load_version(result.version.version_id)
+    _world_head_cache.publish(committed.state, committed.ref)
+    return committed.state
 
 
 def _get_world_head_ref() -> WorldVersionRef | None:
     return _world_head_cache.ref()
+
+
+def _ensure_world_head() -> tuple[GameState, WorldVersionRef]:
+    """Return the durable authority for the compatibility state slot.
+
+    Legacy tests and older clients may still seed ``_state`` directly. Their
+    first mutating unified action bootstraps exactly one immutable root and
+    publishes the stored snapshot back into the discardable process cache.
+    """
+    state = _get_state()
+    ref = _get_world_head_ref()
+    if ref is not None:
+        return state, ref
+
+    from db import worlds
+
+    root = worlds.create_game_with_root(
+        state.model_copy(deep=True),
+        source_kind="initial",
+        source_ref="legacy-api-bootstrap",
+    )
+    snapshot = worlds.load_version(root.version_id)
+    _world_head_cache.publish(snapshot.state, snapshot.ref)
+    return snapshot.state, snapshot.ref
 
 
 def _publish_world_head(state: GameState, ref: WorldVersionRef) -> None:

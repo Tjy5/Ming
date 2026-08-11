@@ -289,13 +289,26 @@ class ClockConsumerRegistry:
         state: GameState,
         plan: ElapsedSegmentPlan,
     ) -> tuple[WorldDelta, ...]:
-        """Run each persisted invocation once and return typed delta proposals."""
+        """Run persisted invocations in order and return typed delta proposals.
+
+        Each invocation observes the projected result of earlier invocations in
+        the same segment.  This matters when one action crosses several monthly
+        boundaries: the second monthly patch must use the first patch's result
+        as its precondition instead of rebuilding every patch from the segment
+        start state.
+        """
+
+        # Local import keeps the clock planner independent from settlement
+        # validation at module import time while still using the canonical
+        # typed-delta applier for the dispatch projection.
+        from .settlement import apply_world_deltas
 
         boundaries = {
             boundary.boundary_id: boundary for boundary in plan.boundaries
         }
         produced: list[WorldDelta] = []
         delta_ids: set[str] = set()
+        projected_state = state.model_copy(deep=True)
         for invocation in plan.consumer_invocations:
             consumer = self._consumers.get(invocation.consumer_name)
             if (
@@ -313,7 +326,7 @@ class ClockConsumerRegistry:
                 deltas = _WORLD_DELTA_LIST_ADAPTER.validate_python(
                     list(
                         consumer.consume(
-                            state=state.model_copy(deep=True),
+                            state=projected_state.model_copy(deep=True),
                             segment=plan.segment,
                             boundary=boundary,
                             invocation=invocation,
@@ -334,6 +347,8 @@ class ClockConsumerRegistry:
                     )
                 delta_ids.add(delta_id)
                 produced.append(delta)
+            if deltas:
+                projected_state = apply_world_deltas(projected_state, deltas)
         return tuple(produced)
 
 

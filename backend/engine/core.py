@@ -1033,36 +1033,15 @@ LIFE_STORY_START_MONTH = 10
 GOVERNANCE_PHASE_YEAR = 1356
 GOVERNANCE_PHASE_MONTH = 3
 
-# 终局：1368 年正月称帝建明
-FINAL_JUDGEMENT_YEAR = 1368
-FINAL_JUDGEMENT_MONTH = 1
-
-
-def _is_final_judgement_time(state: GameState) -> bool:
-    if state.time.year > FINAL_JUDGEMENT_YEAR:
-        return True
-    return state.time.year == FINAL_JUDGEMENT_YEAR and state.time.month >= FINAL_JUDGEMENT_MONTH
-
-
 def check_game_end(state: GameState) -> dict | None:
-    fallen_count = sum(1 for r in state.regions if r.control == RegionControl.FALLEN)
-    unstable_count = sum(1 for r in state.regions if r.control == RegionControl.UNSTABLE)
+    """Return a terminal result only for an already validated player death.
 
-    if fallen_count == len(state.regions):
-        return {"result": "defeat", "message": "基业尽失，霸业成空"}
-    if fallen_count >= 6:
-        return {"result": "defeat", "message": "山河崩裂，六镇沦丧"}
-    if fallen_count >= 4 and state.court_prestige < 40:
-        return {"result": "defeat", "message": "半壁沦丧，军府不可复支"}
-    if state.court_prestige <= 0:
-        return {"result": "defeat", "message": "主帅威严尽失，众叛亲离"}
-    if _is_final_judgement_time(state):
-        if (fallen_count == 0
-                and unstable_count <= 1
-                and all(f.rebellion_risk <= 35 for f in state.factions)
-                and state.court_prestige >= 70):
-            return {"result": "victory", "message": "扫平群雄，肇建大明"}
-        return {"result": "defeat", "message": "天命靡常，霸业未成"}
+    Territory, prestige, dynastic dates, and historical milestones remain
+    recoverable sandbox states. The terminal transaction owner is responsible
+    for setting ``player_world_status.life_status`` with its causal record.
+    """
+    if state.player_world_status.life_status == "dead":
+        return {"result": "defeat", "message": "主角已死，当前世界线终结"}
     return None
 
 
@@ -1126,13 +1105,31 @@ def _tick_missions(state: GameState) -> None:
             ))
 
 
-def prepare_month_advance(state: GameState) -> list[str]:
-    advance_time(state)
+def apply_elapsed_month_boundary(state: GameState) -> list[str]:
+    """Apply legacy gameplay math exactly once for one crossed month boundary.
+
+    This compatibility handler owns no clock or persistence. ``engine.clock``
+    invokes it through a typed consumer on an isolated copy, and the resulting
+    patch is committed with the action/checkpoint settlement.
+    """
     state.decrees_this_month = {}
     state.decree_count += 1
     new_ministers = _activate_entered_ministers(state)
     _tick_missions(state)
+    if state.phase == "governance":
+        attr: dict = {}
+        apply_passive_drift(state, attr)
+        update_region_control(state)
+        apply_region_control_consequences(state, attr)
+        recalc_tax_collected(state, 1.0)
+        collect_tax_revenue(state, attr)
+        clamp_state(state)
     return new_ministers
+
+
+def prepare_month_advance(state: GameState) -> list[str]:
+    advance_time(state)
+    return apply_elapsed_month_boundary(state)
 
 
 def finalize_month_advance(
@@ -1156,7 +1153,7 @@ def advance_month(
 ) -> tuple[list[str], dict | None, list[str]]:
     """Advance game time by one month and inject script events.
 
-    passive_drift stays in process_decree (per-decree), not month advancement.
+    Elapsed gameplay effects run once at the crossed month boundary.
     Returns (triggered_events, game_over, newly_activated_minister_names).
     """
     new_ministers = prepare_month_advance(state)
@@ -1484,20 +1481,13 @@ def process_decree(
     attr: dict = {}
     reactions: list[MinisterReaction] = []
 
-    # snapshot before passive_drift (for turn summary)
+    # Snapshot before this action. Elapsed drift is owned by clock consumers,
+    # never by the number of times this function is called.
     before_snapshot = state.model_dump()
 
-    # 1. passive drift
-    apply_passive_drift(state, attr)
-
-    # 1.5 consecutive wait penalty
+    # Legacy UI metadata only; it no longer drives elapsed gameplay penalties.
     if decree is None and freeform is None:
         state.consecutive_waits += 1
-        if state.consecutive_waits >= CONSECUTIVE_WAIT_THRESHOLD:
-            state.court_prestige -= WAIT_PRESTIGE_PENALTY
-            state.civil_morale -= WAIT_MORALE_PENALTY
-            _attr_add(attr, "court_prestige", "怠政", -WAIT_PRESTIGE_PENALTY)
-            _attr_add(attr, "civil_morale", "怠政", -WAIT_MORALE_PENALTY)
     else:
         state.consecutive_waits = 0
 
@@ -1579,9 +1569,7 @@ def process_decree(
     # 6.1.1 战败回写（design 第 3.2 节）：本轮新沦陷区域 → 玩家军事 -2 + 状态"挫败"
     if newly_fallen:
         writeback_defeat(state)
-    # 6.2 cascading impact from territorial loss
-    apply_region_control_consequences(state, attr)
-    clamp_state(state)
+    # Territorial maintenance consequences are elapsed-month effects.
     # 6.2.1 民心崩溃回写（design 第 3.2 节）：本轮民心从阈值上方落入崩溃区间
     # （穿越检测，避免低民心期间每回合重复扣属性）→ 玩家政治 -2
     if (
@@ -1591,9 +1579,9 @@ def process_decree(
         writeback_civil_collapse(state)
     # 6.2.2 大臣叛离回写（design 第 3.2 节）：忠诚归零的在朝大臣 → 概率特质"多疑"
     apply_betrayal_check(state)
-    # 6.3 tax recalculation & revenue (uses up-to-date control state)
+    # Tax projection may react immediately to a decree; actual revenue settles
+    # only when the clock crosses a month boundary.
     recalc_tax_collected(state, decree_tax_modifier)
-    collect_tax_revenue(state, attr)
     clamp_state(state)
     if decree and mark_monthly_usage:
         state.decrees_this_month[decree_category_of(decree.type)] = True

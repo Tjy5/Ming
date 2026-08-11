@@ -3,7 +3,7 @@
 - GET  /api/trpg/character  玩家与关键人物角色卡（含成长记录）。
 - POST /api/trpg/act        玩家行动 → D100 检定 → AI主持人叙事 + 分支选项。
 - POST /api/trpg/milestones/{milestone_id}/complete
-                            完成关键事件：成长奖励 + 章推进 + 时间对齐；
+                            完成关键事件：成长奖励 + 章推进；
                             带 phase_switch 标记时翻转 phase（阶段D）。
 
 与治理引擎（engine/）平级、互不侵入；治理阶段仍可调用 /act 作辅助检定。
@@ -15,7 +15,6 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from db import saves as db_saves
-from engine.calendar import set_game_time_projection
 from models.game import ErrorResponse, HistoryEntry
 from models.trpg import ATTR_KEYS, PLAYER_NAME, ActRequest, ConvergeRequest, SKILL_ATTR_MAP
 from trpg import chapter as chapter_mod
@@ -155,7 +154,11 @@ async def act(req: ActRequest):
             narrative=result["narrative"],
         ))
 
-        _set_state(state)
+        state = await _set_state(
+            state,
+            action_kind="trpg_act",
+            raw_text=req.action_text,
+        )
 
         return {
             "roll": roll.model_dump(),
@@ -183,14 +186,12 @@ async def act(req: ActRequest):
 
 @trpg_router.post("/milestones/{milestone_id}/complete")
 async def complete_milestone(milestone_id: str):
-    """完成关键事件（里程碑）：成长奖励 + 章推进 + 时间对齐里程碑日期。
+    """完成关键事件（里程碑）：成长奖励 + 章推进。
 
     - 已解析里程碑 → 409（milestone_already_resolved，单次史实事件不可重复完成）。
     - 未知里程碑 → 404（milestone_not_found）。
-    - 时间轴由里程碑日期锚定：完成即把 state.time 对齐到该里程碑 year/month
-      并 resolve_era（birth-1328=1328-10 与开局一致；yingtian-founding=1356-03
-      与 phase_switch 配置一致）；仅向前对齐——里程碑日期早于当前时间时保持
-      当前不回拨（其余切换/叙事/快照逻辑照常）。
+    - 里程碑日期仅作历史与显示提示，不改世界时钟；经过时间只能由统一
+      action/activity settlement 推进。
     - 带 phase_switch 标记的里程碑（yingtian-founding）且 phase 尚未切换时：
       翻转 phase → to_phase（governance）、写存档快照（回滚点）、
       过渡叙事追加 history_log（decree_type=trpg_act）。
@@ -216,12 +217,6 @@ async def complete_milestone(milestone_id: str):
             (m for m in chapter_mod.get_milestones() if m.get("id") == milestone_id),
             None,
         )
-        if milestone is not None:
-            m_year = int(milestone["year"])
-            m_month = int(milestone.get("month", 1))
-            # 时间回拨守卫：里程碑日期早于当前时间 → 保持当前不回拨（其余逻辑照常）
-            if (m_year, m_month) > (state.time.year, state.time.month):
-                set_game_time_projection(state.time, year=m_year, month=m_month)
 
         # phase 翻转：仅 phase_switch 里程碑且未切换过时执行（幂等，governance 内不重复）
         switched = False
@@ -250,7 +245,14 @@ async def complete_milestone(milestone_id: str):
             narrative=narrative,
         ))
 
-        # 切换瞬间写存档快照（回滚点）；失败仅记日志，不阻断玩法（同 auto_save 惯例）
+        state = await _set_state(
+            state,
+            action_kind="trpg_milestone",
+            raw_text=f"完成关键事件：{result['title']}",
+        )
+
+        # 主 settlement 成功后再写 best-effort 回滚快照，避免 AI duration
+        # 或 commit 失败时留下并不存在于世界图中的幽灵状态。
         if switched:
             try:
                 db_saves.save_game(
@@ -259,8 +261,6 @@ async def complete_milestone(milestone_id: str):
                 )
             except Exception:
                 logger.warning("阶段切换存档快照写入失败: %s", milestone_id, exc_info=True)
-
-        _set_state(state)
 
         return {
             "milestone": result["milestone"],
@@ -287,8 +287,8 @@ async def converge(req: ConvergeRequest):
     - 仅在 check_convergence_hook 激活时可用（life_story + 时间 ≥ fallback_year
       + yingtian-founding 未达成）；否则 409 convergence_not_pending。
     - 接受：yingtian-founding 写入 resolved_script_ids（409 闸口由此拦截其后的
-      重复完成）、phase → governance、时间对齐 fallback_year（保留当前月份 +
-      resolve_era）、过渡叙事 history_log、存档快照（回滚点）。
+      重复完成）、phase → governance、过渡叙事 history_log、存档快照（回滚点）。
+      fallback_year 只用于叙事说明，不能改世界时钟。
     - 拒绝：身死结局分支——响应携带 game_over（与治理侧契约同构
       {result: "defeat", message}），状态不变；结局不持久化（治理侧同口径，
       重载后可重作抉择）。
@@ -311,11 +311,6 @@ async def converge(req: ConvergeRequest):
             state.resolved_script_ids.add(milestone_id)
             state.phase = str(phase_switch.get("to_phase") or "governance")
             fallback_year = int(phase_switch.get("fallback_year", 1360))
-            set_game_time_projection(
-                state.time,
-                year=fallback_year,
-                month=state.time.month,
-            )
             note = phase_switch.get("note") or hook.get("message") or ""
             narrative = (
                 f"【收束·归附】{fallback_year}年，孤军漂泊终有定所——"
@@ -337,7 +332,12 @@ async def converge(req: ConvergeRequest):
             narrative=narrative,
         ))
 
-        # 强制切换瞬间写存档快照（回滚点）；失败仅记日志，不阻断玩法（同 auto_save 惯例）
+        state = await _set_state(
+            state,
+            action_kind="trpg_convergence",
+            raw_text="接受招揽" if req.choice == "accept" else "拒绝归降",
+        )
+
         if req.choice == "accept":
             try:
                 db_saves.save_game(
@@ -346,8 +346,6 @@ async def converge(req: ConvergeRequest):
                 )
             except Exception:
                 logger.warning("收束切换存档快照写入失败: %s", req.choice, exc_info=True)
-
-        _set_state(state)
 
         return {
             "choice": req.choice,

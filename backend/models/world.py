@@ -21,6 +21,8 @@ PermissionId = NewType("PermissionId", UUID)
 DeltaId = NewType("DeltaId", UUID)
 BookmarkId = NewType("BookmarkId", UUID)
 TerminalRecordId = NewType("TerminalRecordId", UUID)
+ActivityId = NewType("ActivityId", UUID)
+CheckpointId = NewType("CheckpointId", UUID)
 
 
 def new_game_id() -> GameId:
@@ -57,6 +59,14 @@ def new_permission_id() -> PermissionId:
 
 def new_delta_id() -> DeltaId:
     return DeltaId(uuid4())
+
+
+def new_activity_id() -> ActivityId:
+    return ActivityId(uuid4())
+
+
+def new_checkpoint_id() -> CheckpointId:
+    return CheckpointId(uuid4())
 
 
 class _WorldContract(BaseModel):
@@ -233,6 +243,124 @@ class ElapsedSegmentPlan(_ImmutableWorldContract):
         return self
 
 
+ActivityStatus = Literal[
+    "in_progress",
+    "awaiting_player_decision",
+    "paused",
+    "cancelled",
+    "failed",
+    "completed",
+]
+CheckpointStatus = Literal["pending", "completed"]
+
+
+class PendingActivityDecision(_WorldContract):
+    decision_type: Literal["continue", "redirect", "reassign", "stop"]
+    reason: str = Field(min_length=1, max_length=1000)
+    options: list[str] = Field(default_factory=list, min_length=1)
+    facts: list[str] = Field(default_factory=list)
+
+
+class ActivityCheckpoint(_WorldContract):
+    checkpoint_id: CheckpointId
+    activity_id: ActivityId
+    sequence: int = Field(strict=True, ge=1)
+    client_action_id: ClientActionId
+    expected_parent_version_id: VersionId
+    planned_start: WorldInstant
+    planned_end: WorldInstant
+    status: CheckpointStatus = "pending"
+    settlement_id: SettlementId | None = None
+    version_id: VersionId | None = None
+    crossed_boundary_ids: list[str] = Field(default_factory=list)
+    committed_delta_ids: list[DeltaId] = Field(default_factory=list)
+    interruption_facts: list[str] = Field(default_factory=list)
+    roll_key: str | None = None
+    roll_value: int | None = Field(default=None, ge=1, le=100)
+
+    @model_validator(mode="after")
+    def _validate_checkpoint(self) -> ActivityCheckpoint:
+        if self.planned_end.absolute_hour <= self.planned_start.absolute_hour:
+            raise ValueError("activity checkpoint end must be after start")
+        if (
+            self.planned_start.calendar_version != self.planned_end.calendar_version
+            or self.planned_start.epoch_id != self.planned_end.epoch_id
+            or self.planned_start.world_timezone != self.planned_end.world_timezone
+        ):
+            raise ValueError("activity checkpoint clock identities do not match")
+        if self.status == "pending" and (
+            self.settlement_id is not None or self.version_id is not None
+        ):
+            raise ValueError("pending activity checkpoint cannot reference a commit")
+        if self.status == "completed" and (
+            self.settlement_id is None or self.version_id is None
+        ):
+            raise ValueError("completed activity checkpoint requires settlement/version")
+        if (self.roll_key is None) != (self.roll_value is None):
+            raise ValueError("activity checkpoint roll key/value must be paired")
+        return self
+
+
+class Activity(_WorldContract):
+    activity_id: ActivityId
+    kind: str = Field(min_length=1, max_length=120)
+    status: ActivityStatus = "in_progress"
+    intent: str = Field(min_length=1, max_length=4000)
+    target_summary: str | None = Field(default=None, max_length=1000)
+    requested_executor_id: EntityId | None = None
+    actual_executor_id: EntityId | None = None
+    started_at: WorldInstant
+    planned_duration: Duration
+    planned_end: WorldInstant
+    planned_elapsed_hours: int = Field(strict=True, gt=0)
+    elapsed_hours: int = Field(default=0, strict=True, ge=0)
+    remaining_hours: int = Field(strict=True, ge=0)
+    checkpoint_horizon_hours: int = Field(default=720, strict=True, ge=1, le=2160)
+    next_checkpoint_id: CheckpointId | None = None
+    checkpoint_sequence: int = Field(default=1, strict=True, ge=1)
+    prerequisites: list[str] = Field(default_factory=list)
+    planned_effects: list[str] = Field(default_factory=list)
+    committed_segment_effects: list[str] = Field(default_factory=list)
+    interruption_facts: list[str] = Field(default_factory=list)
+    pending_decision: PendingActivityDecision | None = None
+    checkpoints: list[ActivityCheckpoint] = Field(default_factory=list)
+    created_by_action_id: ClientActionId
+
+    @model_validator(mode="after")
+    def _validate_activity(self) -> Activity:
+        if self.planned_end.absolute_hour <= self.started_at.absolute_hour:
+            raise ValueError("activity planned end must be after start")
+        if self.planned_elapsed_hours != (
+            self.planned_end.absolute_hour - self.started_at.absolute_hour
+        ):
+            raise ValueError("activity planned elapsed hours mismatch")
+        if self.elapsed_hours + self.remaining_hours > self.planned_elapsed_hours:
+            raise ValueError("activity elapsed/remaining hours exceed its plan")
+        sequences = [checkpoint.sequence for checkpoint in self.checkpoints]
+        if sequences != list(range(1, len(sequences) + 1)):
+            raise ValueError("activity checkpoint sequences must be contiguous")
+        if any(
+            checkpoint.activity_id != self.activity_id
+            for checkpoint in self.checkpoints
+        ):
+            raise ValueError("activity contains a checkpoint owned by another activity")
+        pending = [
+            checkpoint
+            for checkpoint in self.checkpoints
+            if checkpoint.status == "pending"
+        ]
+        if self.status in {"in_progress", "awaiting_player_decision", "paused"}:
+            if len(pending) != 1 or pending[0].checkpoint_id != self.next_checkpoint_id:
+                raise ValueError("active activity requires exactly one next checkpoint")
+        elif pending or self.next_checkpoint_id is not None:
+            raise ValueError("terminal activity cannot retain a pending checkpoint")
+        if self.status == "awaiting_player_decision" and self.pending_decision is None:
+            raise ValueError("awaiting activity requires a pending player decision")
+        if self.status != "awaiting_player_decision" and self.pending_decision is not None:
+            raise ValueError("only awaiting activity may retain a pending player decision")
+        return self
+
+
 class WorldSnapshotMetadata(_WorldContract):
     """Version identity embedded in a recoverable state snapshot.
 
@@ -245,7 +373,7 @@ class WorldSnapshotMetadata(_WorldContract):
     game_id: GameId | None = None
     branch_id: BranchId | None = None
     version_id: VersionId | None = None
-    source_kind: Literal["initial", "legacy_save", "settlement"] = "initial"
+    source_kind: Literal["initial", "legacy_save", "settlement", "fork"] = "initial"
     source_ref: str | None = None
     imported_at: datetime | None = None
     migration_notes: list[str] = Field(default_factory=list)

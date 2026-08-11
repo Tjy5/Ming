@@ -11,8 +11,20 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from db import worlds
+from engine.activity import (
+    ActivityContractError,
+    apply_activity_command,
+    create_activity,
+    finish_checkpoint,
+    find_activity,
+    plan_checkpoint,
+    rebase_pending_checkpoints,
+    require_available_executor,
+    require_pending_checkpoint,
+)
 from engine.calendar import advance_game_time, ensure_game_time_clock
-from engine.clock import ClockPlanningError, plan_elapsed_segment
+from engine.clock import ClockConsumerRegistry, ClockPlanningError, plan_elapsed_segment
+from engine.elapsed_consumers import default_clock_registry
 from engine.settlement import (
     SettlementValidationError,
     apply_world_deltas,
@@ -27,7 +39,16 @@ from models.settlement import (
     SettlementCommitResult,
     WorldDelta,
 )
-from models.world import ElapsedSegmentPlan
+from models.world import (
+    Activity,
+    ActivityId,
+    BranchId,
+    ElapsedSegmentPlan,
+    GameId,
+    VersionId,
+    new_settlement_id,
+    new_version_id,
+)
 
 
 class ActionAdjudicator(Protocol):
@@ -62,6 +83,15 @@ class ActionExecution:
     result: SettlementCommitResult
 
 
+@dataclass(frozen=True)
+class ActivityBatchExecution:
+    state: GameState
+    activity: Activity
+    results: tuple[SettlementCommitResult, ...]
+    processing: bool
+    continuation_cursor: str | None
+
+
 class ActionAdjudicationError(Exception):
     def __init__(self, code: str, message: str):
         self.code = code
@@ -86,6 +116,9 @@ class NoopTimePlanner:
 
 
 class DefaultTimePlanner:
+    def __init__(self, registry: ClockConsumerRegistry | None = None) -> None:
+        self.registry = registry or ClockConsumerRegistry()
+
     def plan_segment(
         self,
         intent: ActionIntent,
@@ -93,10 +126,7 @@ class DefaultTimePlanner:
         proposal: AdjudicationProposal,
     ) -> ElapsedSegmentPlan | None:
         if proposal.activity_candidate is not None:
-            raise SettlementValidationError(
-                "time_contract_unavailable",
-                "裁决提出了 activity，但 durable activity/checkpoint contract 尚未接入",
-            )
+            return None
         if proposal.duration_candidate is None:
             return None
 
@@ -107,21 +137,41 @@ class DefaultTimePlanner:
                 source_action_id=intent.client_action_id,
                 start=start,
                 duration=proposal.duration_candidate,
+                registry=self.registry,
             )
         except ClockPlanningError as exc:
             raise SettlementValidationError(exc.code, exc.message) from exc
 
 
 class DefaultWorldStateApplier:
+    def __init__(self, registry: ClockConsumerRegistry | None = None) -> None:
+        self.registry = registry or ClockConsumerRegistry()
+
     def apply_world_deltas(
         self,
         state: GameState,
         deltas: list[WorldDelta],
         time_plan: ElapsedSegmentPlan | None,
     ) -> GameState:
+        changed, _ = self.apply_with_facts(state, deltas, time_plan)
+        return changed
+
+    def apply_with_facts(
+        self,
+        state: GameState,
+        deltas: list[WorldDelta],
+        time_plan: ElapsedSegmentPlan | None,
+    ) -> tuple[GameState, list[WorldDelta]]:
         changed = apply_world_deltas(state, deltas)
         if time_plan is None:
-            return changed
+            return changed, []
+
+        try:
+            consumer_deltas = list(self.registry.dispatch(changed, time_plan))
+        except ClockPlanningError as exc:
+            raise SettlementValidationError(exc.code, exc.message) from exc
+        if consumer_deltas:
+            changed = apply_world_deltas(changed, consumer_deltas)
 
         current = ensure_game_time_clock(changed.time)
         if current != time_plan.segment.start:
@@ -139,7 +189,7 @@ class DefaultWorldStateApplier:
                 "time plan 与最终世界时钟推进结果不一致",
             )
         try:
-            return GameState.model_validate(changed.model_dump())
+            return GameState.model_validate(changed.model_dump()), consumer_deltas
         except ValidationError as exc:
             raise SettlementValidationError(
                 "invalid_final_state",
@@ -172,11 +222,26 @@ class AIActionAdjudicator:
                 "adjudication_provider_error",
                 "AI 裁决调用失败，世界状态未提交",
             ) from exc
+        if intent.activity_command == "continue":
+            activity_instruction = (
+                "For activity checkpoint continuation, do not return duration_candidate or a nested "
+                "activity_candidate; return activity_decision with transition, reason, interruption facts, "
+                "and pending_decision only when player choice is required. "
+            )
+        elif intent.activity_command is None:
+            activity_instruction = (
+                "This submitted world-changing action must return duration_candidate and duration_reason. "
+                "For a long action, pair duration_candidate with typed activity_candidate metadata. "
+            )
+        else:
+            activity_instruction = (
+                "For an activity lifecycle command, do not return a new duration or activity candidate. "
+            )
         prompt = (
             "Return exactly one JSON object matching AdjudicationProposal schema_version=1. "
-            "If time elapses, duration_candidate must be an object with positive integer value "
-            "and unit hour/day/month/year, paired with a nonblank duration_reason; otherwise both "
-            "fields must be null. "
+            "A duration_candidate must be an object with positive integer value and unit "
+            "hour/day/month/year, paired with a nonblank duration_reason. "
+            f"{activity_instruction}"
             "Judge the player's action only from the supplied current-world snapshot. "
             "Do not use historical canon as a whitelist and do not include prose outside JSON.\n"
             f"ACTION_INTENT={intent.model_dump_json()}\n"
@@ -226,10 +291,14 @@ class ActionService:
         adjudicator: ActionAdjudicator,
         time_planner: ActionTimePlanner | None = None,
         world_state_applier: ActionWorldStateApplier | None = None,
+        clock_registry: ClockConsumerRegistry | None = None,
     ) -> None:
         self._adjudicator = adjudicator
-        self._time_planner = time_planner or DefaultTimePlanner()
-        self._world_state_applier = world_state_applier or DefaultWorldStateApplier()
+        self._clock_registry = clock_registry or default_clock_registry()
+        self._time_planner = time_planner or DefaultTimePlanner(self._clock_registry)
+        self._world_state_applier = world_state_applier or DefaultWorldStateApplier(
+            self._clock_registry,
+        )
         self._action_locks: weakref.WeakValueDictionary[
             tuple[str, str, str], asyncio.Lock
         ] = weakref.WeakValueDictionary()
@@ -269,14 +338,33 @@ class ActionService:
             )
         previous = snapshot.state.model_copy(deep=True)
 
+        if intent.activity_command is not None:
+            if intent.activity_command == "continue":
+                return await self._continue_activity(intent, previous)
+            return self._execute_activity_command(intent, previous)
+
         proposal = await self._adjudicator.adjudicate(intent, previous.model_copy(deep=True))
         validate_adjudication_proposal(intent, previous, proposal)
+        if proposal.activity_candidate is not None:
+            return self._create_activity(intent, previous, proposal)
         time_plan = self._time_planner.plan_segment(intent, previous, proposal)
-        changed = self._world_state_applier.apply_world_deltas(
-            previous,
-            proposal.deltas,
-            time_plan,
-        )
+        proposal_for_commit = proposal
+        if isinstance(self._world_state_applier, DefaultWorldStateApplier):
+            changed, consumer_deltas = self._world_state_applier.apply_with_facts(
+                previous,
+                proposal.deltas,
+                time_plan,
+            )
+            if consumer_deltas:
+                proposal_for_commit = proposal.model_copy(
+                    update={"deltas": [*proposal.deltas, *consumer_deltas]},
+                )
+        else:
+            changed = self._world_state_applier.apply_world_deltas(
+                previous,
+                proposal.deltas,
+                time_plan,
+            )
         validate_final_state(previous, changed)
 
         # The provider call happens outside SQLite. Recheck before entering the
@@ -288,14 +376,284 @@ class ActionService:
                 current.version_id,
             )
 
+        settlement_id = new_settlement_id()
+        version_id = new_version_id()
+        try:
+            changed = rebase_pending_checkpoints(changed, version_id)
+        except ActivityContractError as exc:
+            raise self._activity_error(exc) from exc
+        result = worlds.commit_settlement(
+            intent,
+            changed,
+            proposal_for_commit,
+            time_plan=time_plan,
+            settlement_id=settlement_id,
+            version_id=version_id,
+        )
+        committed = worlds.load_version(result.version.version_id)
+        return ActionExecution(state=committed.state, result=result)
+
+    @staticmethod
+    def _activity_error(exc: ActivityContractError) -> SettlementValidationError:
+        return SettlementValidationError(exc.code, exc.message)
+
+    @staticmethod
+    def _assert_head(intent: ActionIntent) -> None:
+        current = worlds.get_branch_head(intent.game_id, intent.branch_id)
+        if current.version_id != intent.expected_parent_version_id:
+            raise worlds.StaleParentVersionError(
+                intent.expected_parent_version_id,
+                current.version_id,
+            )
+
+    def _create_activity(
+        self,
+        intent: ActionIntent,
+        previous: GameState,
+        proposal: AdjudicationProposal,
+    ) -> ActionExecution:
+        settlement_id = new_settlement_id()
+        version_id = new_version_id()
+        start = ensure_game_time_clock(previous.time)
+        try:
+            activity = create_activity(
+                state=previous,
+                intent=intent,
+                proposal=proposal,
+                start=start,
+                result_version_id=version_id,
+            )
+        except (ActivityContractError, ValueError) as exc:
+            if isinstance(exc, ActivityContractError):
+                raise self._activity_error(exc) from exc
+            raise SettlementValidationError(
+                "invalid_activity_candidate",
+                "活动计划无法按当前历法规范化",
+            ) from exc
+
+        changed = apply_world_deltas(previous, proposal.deltas)
+        changed.activities.append(activity)
+        changed = GameState.model_validate(changed.model_dump())
+        validate_final_state(previous, changed)
+        self._assert_head(intent)
         result = worlds.commit_settlement(
             intent,
             changed,
             proposal,
+            settlement_id=settlement_id,
+            version_id=version_id,
+            activity_id=activity.activity_id,
+            activity_status=activity.status,
+            actual_outcome="activity_created",
+        )
+        committed = worlds.load_version(result.version.version_id)
+        return ActionExecution(state=committed.state, result=result)
+
+    def _execute_activity_command(
+        self,
+        intent: ActionIntent,
+        previous: GameState,
+    ) -> ActionExecution:
+        settlement_id = new_settlement_id()
+        version_id = new_version_id()
+        try:
+            changed, activity = apply_activity_command(
+                previous,
+                intent,
+                result_version_id=version_id,
+            )
+        except ActivityContractError as exc:
+            raise self._activity_error(exc) from exc
+        validate_final_state(previous, changed)
+        self._assert_head(intent)
+        proposal = AdjudicationProposal(
+            result_tier="success",
+            key_factors=["玩家明确提交活动状态变更"],
+            immediate_changes=[f"activity:{intent.activity_command}"],
+            requested_executor_id=activity.requested_executor_id,
+            actual_executor_id=activity.actual_executor_id,
+            execution_status="completed",
+        )
+        result = worlds.commit_settlement(
+            intent,
+            changed,
+            proposal,
+            settlement_id=settlement_id,
+            version_id=version_id,
+            activity_id=activity.activity_id,
+            checkpoint_id=intent.checkpoint_id,
+            checkpoint_sequence=intent.checkpoint_sequence,
+            activity_status=activity.status,
+            actual_outcome=intent.activity_command,
+        )
+        committed = worlds.load_version(result.version.version_id)
+        return ActionExecution(state=committed.state, result=result)
+
+    async def _continue_activity(
+        self,
+        intent: ActionIntent,
+        previous: GameState,
+    ) -> ActionExecution:
+        try:
+            _, activity, checkpoint = require_pending_checkpoint(previous, intent)
+        except ActivityContractError as exc:
+            raise self._activity_error(exc) from exc
+        if activity.status != "in_progress":
+            raise SettlementValidationError(
+                "activity_player_decision_required",
+                "活动已暂停或等待玩家决定，必须先恢复、改道、改派或终止",
+            )
+        try:
+            require_available_executor(previous, activity)
+        except ActivityContractError as exc:
+            raise self._activity_error(exc) from exc
+        if intent.client_action_id != checkpoint.client_action_id:
+            raise SettlementValidationError(
+                "checkpoint_identity_mismatch",
+                "检查点必须复用其持久化 client_action_id",
+            )
+        try:
+            time_plan = plan_checkpoint(checkpoint, registry=self._clock_registry)
+        except (ActivityContractError, ClockPlanningError, ValueError) as exc:
+            code = getattr(exc, "code", "invalid_activity_checkpoint")
+            message = getattr(exc, "message", "活动检查点无法规划")
+            raise SettlementValidationError(code, message) from exc
+
+        if isinstance(self._world_state_applier, DefaultWorldStateApplier):
+            projected, consumer_deltas = self._world_state_applier.apply_with_facts(
+                previous,
+                [],
+                time_plan,
+            )
+        else:
+            projected = self._world_state_applier.apply_world_deltas(
+                previous,
+                [],
+                time_plan,
+            )
+            consumer_deltas = []
+
+        proposal = await self._adjudicator.adjudicate(
+            intent,
+            projected.model_copy(deep=True),
+        )
+        validate_adjudication_proposal(intent, projected, proposal)
+        try:
+            require_available_executor(projected, activity)
+        except ActivityContractError as exc:
+            transition = (
+                proposal.activity_decision.transition
+                if proposal.activity_decision is not None
+                else None
+            )
+            if transition not in {"pause", "await_player", "fail"}:
+                raise self._activity_error(exc) from exc
+        changed = apply_world_deltas(projected, proposal.deltas)
+        settlement_id = new_settlement_id()
+        version_id = new_version_id()
+        combined_deltas = [*consumer_deltas, *proposal.deltas]
+        try:
+            changed, activity = finish_checkpoint(
+                changed,
+                intent=intent,
+                plan=time_plan,
+                proposal=proposal,
+                settlement_id=settlement_id,
+                result_version_id=version_id,
+                committed_delta_ids=[delta.delta_id for delta in combined_deltas],
+            )
+        except ActivityContractError as exc:
+            raise self._activity_error(exc) from exc
+        validate_final_state(previous, changed)
+        self._assert_head(intent)
+        proposal_for_commit = proposal.model_copy(
+            update={
+                "deltas": combined_deltas,
+                "duration_candidate": time_plan.normalized_duration.duration,
+                "duration_reason": "活动检查点实际经过时间",
+            },
+        )
+        result = worlds.commit_settlement(
+            intent,
+            changed,
+            proposal_for_commit,
             time_plan=time_plan,
+            settlement_id=settlement_id,
+            version_id=version_id,
+            activity_id=activity.activity_id,
+            checkpoint_id=checkpoint.checkpoint_id,
+            checkpoint_sequence=checkpoint.sequence,
+            activity_status=activity.status,
+            crossed_events=[boundary.boundary_key for boundary in time_plan.boundaries],
+            actual_outcome=proposal.activity_decision.reason,
         )
         committed = worlds.load_version(result.version.version_id)
         return ActionExecution(state=committed.state, result=result)
 
     def execute_sync(self, intent: ActionIntent) -> ActionExecution:
         return asyncio.run(self.execute(intent))
+
+    async def continue_activity_batch(
+        self,
+        *,
+        game_id: GameId,
+        branch_id: BranchId,
+        expected_parent_version_id: VersionId,
+        activity_id: ActivityId,
+        max_checkpoints: int = 4,
+    ) -> ActivityBatchExecution:
+        if isinstance(max_checkpoints, bool) or not 1 <= max_checkpoints <= 16:
+            raise SettlementValidationError(
+                "invalid_checkpoint_batch_limit",
+                "max_checkpoints 必须是 1 到 16 的整数",
+            )
+        head = worlds.load_branch_head(game_id, branch_id)
+        if head.ref.version_id != expected_parent_version_id:
+            raise worlds.StaleParentVersionError(
+                expected_parent_version_id,
+                head.ref.version_id,
+            )
+
+        state = head.state
+        results: list[SettlementCommitResult] = []
+        for _ in range(max_checkpoints):
+            try:
+                _, activity = find_activity(state, activity_id)
+            except ActivityContractError as exc:
+                raise self._activity_error(exc) from exc
+            if activity.status != "in_progress":
+                break
+            checkpoint = next(
+                item for item in activity.checkpoints if item.status == "pending"
+            )
+            intent = ActionIntent(
+                game_id=game_id,
+                branch_id=branch_id,
+                expected_parent_version_id=checkpoint.expected_parent_version_id,
+                client_action_id=checkpoint.client_action_id,
+                raw_text=f"自动继续活动：{activity.intent}",
+                action_kind="activity_checkpoint",
+                requested_executor_id=activity.requested_executor_id,
+                mode="activity_auto_continue",
+                activity_id=activity.activity_id,
+                checkpoint_id=checkpoint.checkpoint_id,
+                checkpoint_sequence=checkpoint.sequence,
+                activity_command="continue",
+            )
+            execution = await self.execute(intent)
+            state = execution.state
+            results.append(execution.result)
+
+        _, activity = find_activity(state, activity_id)
+        processing = activity.status == "in_progress"
+        cursor = str(activity.next_checkpoint_id) if processing else None
+        return ActivityBatchExecution(
+            state=state,
+            activity=activity,
+            results=tuple(results),
+            processing=processing,
+            continuation_cursor=cursor,
+        )
+
+    def continue_activity_batch_sync(self, **kwargs) -> ActivityBatchExecution:
+        return asyncio.run(self.continue_activity_batch(**kwargs))

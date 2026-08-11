@@ -7,6 +7,7 @@ tests register it under AI_PROVIDER=fake via conftest.
 """
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 
 from models.game import (
@@ -18,7 +19,7 @@ from models.game import (
     StructuredDecree,
 )
 from models.enums import DecreeType
-from ai.base import AIProvider
+from ai.base import AIProvider, GenerationResult
 from ai.fallbacks import (
     rule_chat_query,
     rule_classify_chat_intent,
@@ -40,6 +41,50 @@ from ai.fallbacks import (
 
 
 class FakeProvider(AIProvider):
+    async def generate_text_once(
+        self,
+        prompt: str,
+        *,
+        system_prompt: str | None = None,
+        max_output_tokens: int = 128,
+        response_json: bool = False,
+    ) -> GenerationResult:
+        del system_prompt, max_output_tokens, response_json
+        marker = "ACTION_INTENT="
+        if marker not in prompt:
+            return await super().generate_text_once(prompt)
+        intent_text = prompt.split(marker, 1)[1].split("\nCURRENT_WORLD=", 1)[0]
+        intent = json.loads(intent_text)
+        action_kind = intent.get("action_kind")
+        duration = {
+            "wait": ("month", 1),
+            "trpg_act": 4,
+            "assembly_debate": 2,
+            "assembly_decree": 4,
+            "court_assembly_convene": 2,
+            "court_assembly_adopt": 4,
+            "structured_decree": 4,
+            "freeform_decree": 4,
+            "debate": 2,
+            "memorial_resolution": 2,
+        }.get(action_kind, 1)
+        if isinstance(duration, int):
+            duration_unit, duration_value = "hour", duration
+        else:
+            duration_unit, duration_value = duration
+        proposal = {
+            "schema_version": 1,
+            "result_tier": "success",
+            "execution_status": "completed",
+            "key_factors": ["测试 AI 按当前行动与世界状态裁决耗时"],
+            "duration_candidate": {"unit": duration_unit, "value": duration_value},
+            "duration_reason": "测试 AI 的确定性行动耗时裁决",
+        }
+        return GenerationResult(
+            text=json.dumps(proposal, ensure_ascii=False),
+            provider_request_id="fake-action-adjudication",
+        )
+
     async def generate_narrative(
         self,
         delta_attribution: dict,

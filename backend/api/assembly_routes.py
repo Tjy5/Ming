@@ -38,6 +38,7 @@ from .state import (
     _get_provider,
     _get_state,
     _lock,
+    _set_state,
 )
 
 assembly_router = APIRouter(prefix="/api")
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 @assembly_router.post("/assembly/start")
 async def assembly_start():
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         current_month = _time_to_months(state.time.year, state.time.month)
         if state.last_assembly_month >= current_month:
             raise HTTPException(400, detail=ErrorResponse(
@@ -75,6 +76,11 @@ async def assembly_start():
             ],
         )
         state.last_assembly_month = current_month
+        state = await _set_state(
+            state,
+            action_kind="assembly_start",
+            raw_text="召开朝会",
+        )
         return state.last_assembly.model_dump()
 
 
@@ -83,7 +89,7 @@ async def assembly_start():
 @assembly_router.post("/assembly/petition")
 async def assembly_petition():
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.PETITION})
         ministers = _resolve_assembly_ministers(state, assembly)
         provider = _get_provider()
@@ -112,7 +118,12 @@ async def assembly_petition():
                 urgency="中",
             ))
         assembly.petitions = petitions
-        return assembly.model_dump()
+        state = await _set_state(
+            state,
+            action_kind="assembly_petition",
+            raw_text="听取朝会奏陈",
+        )
+        return state.last_assembly.model_dump()
 
 
 # ── POST /api/assembly/debate ───────────────────────────
@@ -126,7 +137,7 @@ async def assembly_debate(req: AssemblyDebateRequest):
             message="议题不能为空",
         ).model_dump())
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.PETITION, AssemblyPhase.DEBATE})
         ministers = _resolve_assembly_ministers(state, assembly)
         provider = _get_provider()
@@ -187,7 +198,12 @@ async def assembly_debate(req: AssemblyDebateRequest):
         else:
             assembly.consensus = "divided"
         assembly.debate_text = "\n".join(f"{s.minister_name}：{s.content}" for s in speeches)
-        return assembly.model_dump()
+        state = await _set_state(
+            state,
+            action_kind="assembly_debate",
+            raw_text=topic,
+        )
+        return state.last_assembly.model_dump()
 
 
 # ── POST /api/assembly/vote ─────────────────────────────
@@ -231,7 +247,7 @@ def _vote_reason(m, stance: str, decree_type) -> str:
 @assembly_router.post("/assembly/vote")
 async def assembly_vote(req: AssemblyVoteRequest):
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.DEBATE, AssemblyPhase.VOTE})
         ministers = _resolve_assembly_ministers(state, assembly)
         decree_type = assembly.decree_type
@@ -268,8 +284,13 @@ async def assembly_vote(req: AssemblyVoteRequest):
         support_count = sum(1 for v in votes if v.vote == "赞成")
         oppose_count = sum(1 for v in votes if v.vote == "反对")
         abstain_count = sum(1 for v in votes if v.vote == "弃权")
+        state = await _set_state(
+            state,
+            action_kind="assembly_vote",
+            raw_text=assembly.current_topic or assembly.topic or "朝会表决",
+        )
         return {
-            "assembly": assembly.model_dump(),
+            "assembly": state.last_assembly.model_dump(),
             "support_count": support_count,
             "oppose_count": oppose_count,
             "abstain_count": abstain_count,
@@ -287,7 +308,7 @@ async def assembly_decree(req: AssemblyDecreeRequest):
             message="decision 仅支持 adopt/override/dismiss",
         ).model_dump())
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.VOTE})
         vote_counts = {"赞成": 0, "反对": 0, "弃权": 0}
         for v in assembly.votes:
@@ -331,9 +352,14 @@ async def assembly_decree(req: AssemblyDecreeRequest):
         assembly.phase = AssemblyPhase.DECREE
         assembly.final_decision = decision
         clamp_state(state)
+        state = await _set_state(
+            state,
+            action_kind="assembly_decree",
+            raw_text=f"朝会裁断：{decision}",
+        )
         result = {
             "state": state.model_dump(),
-            "assembly": assembly.model_dump(),
+            "assembly": state.last_assembly.model_dump(),
             "majority_vote": majority_vote,
             "vote_counts": vote_counts,
             "faction_changes": faction_changes,
@@ -354,7 +380,7 @@ async def assembly_rage(req: AssemblyRageRequest):
             message="target_faction 不能为空",
         ).model_dump())
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.PETITION, AssemblyPhase.DEBATE, AssemblyPhase.VOTE})
         if assembly.rage_used:
             raise HTTPException(400, detail=ErrorResponse(
@@ -378,9 +404,14 @@ async def assembly_rage(req: AssemblyRageRequest):
             faction.satisfaction += delta
             faction_effects[faction.name] = delta
         clamp_state(state)
+        state = await _set_state(
+            state,
+            action_kind="assembly_rage",
+            raw_text=f"龙颜大怒，喝止{target_faction}",
+        )
         return {
             "state": state.model_dump(),
-            "assembly": assembly.model_dump(),
+            "assembly": state.last_assembly.model_dump(),
             "effects": faction_effects,
         }
 
@@ -398,7 +429,7 @@ async def convene_assembly(req: ConveneAssemblyRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         current_month = _time_to_months(state.time.year, state.time.month)
 
         if state.last_assembly_month >= current_month:
@@ -471,8 +502,13 @@ async def convene_assembly(req: ConveneAssemblyRequest):
 
         state.last_assembly = assembly
         state.last_assembly_month = current_month
+        state = await _set_state(
+            state,
+            action_kind="court_assembly_convene",
+            raw_text=req.topic,
+        )
 
-    return assembly.model_dump()
+    return state.last_assembly.model_dump()
 
 
 # ── Legacy: POST /api/court-assembly/adopt ───────────────
@@ -483,7 +519,7 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
     provider = _get_provider()
 
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         if state.last_assembly is None:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="no_assembly",
@@ -541,6 +577,12 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             decree_type=decree.type.value, decree_desc=decree.target or "",
             delta=delta, narrative=narrative,
         ))
+        await _fill_memorial_content(provider, mem_triggers, state)
+        state = await _set_state(
+            state,
+            action_kind="court_assembly_adopt",
+            raw_text=suggestion.title or decree.type.value,
+        )
         resp = DecreeResponse(
             state=state, delta=delta, attribution=attr,
             narrative=narrative, newly_triggered_events=triggered,
@@ -550,9 +592,9 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
         ).model_dump()
 
     if mem_triggers:
-        await _fill_memorial_content(provider, mem_triggers, state)
         resp["memorial_triggers"] = [m.model_dump() for m in mem_triggers]
-        resp["state"] = state.model_dump()
+    resp["state"] = state.model_dump()
+    resp["game_time"] = state.time.model_dump()
 
     return resp
 
@@ -562,7 +604,7 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
 @assembly_router.post("/court-assembly/silence")
 async def silence_assembly():
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         if state.last_assembly is None:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="no_assembly",
@@ -578,4 +620,9 @@ async def silence_assembly():
         state.last_assembly.silenced = True
         change = min(2, 100 - state.court_prestige)
         state.court_prestige += change
+        state = await _set_state(
+            state,
+            action_kind="court_assembly_silence",
+            raw_text="喝止朝会",
+        )
         return {"state": state.model_dump(), "prestige_change": change}

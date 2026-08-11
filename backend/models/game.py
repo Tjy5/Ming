@@ -17,6 +17,7 @@ from .enums import (
 from .positions import resolve_position
 from .trpg import CharacterSheet, GrowthEntry
 from .world import (
+    Activity,
     CalendarProjection,
     EntityId,
     PlayerWorldStatus,
@@ -428,6 +429,7 @@ class GameState(BaseModel):
     world_metadata: WorldSnapshotMetadata = Field(default_factory=WorldSnapshotMetadata)
     entity_registry: dict[EntityId, WorldEntity] = Field(default_factory=dict)
     player_world_status: PlayerWorldStatus = Field(default_factory=PlayerWorldStatus)
+    activities: list[Activity] = Field(default_factory=list)
     # phase state machine (阶段切换逻辑属阶段D)
     # 阶段B：默认翻转为 life_story（跑团叙事开局）；治理开局档由存档迁移保留 governance
     phase: Literal["life_story", "governance"] = "life_story"

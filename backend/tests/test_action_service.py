@@ -66,6 +66,8 @@ def _proposal(before: int, *, value: int = 1) -> AdjudicationProposal:
         key_factors=["等待让局势继续演化"],
         immediate_changes=["连续等待次数增加"],
         execution_status="completed",
+        duration_candidate=Duration(unit="hour", value=1),
+        duration_reason="等待一小时观察局势",
         deltas=[
             MetricWorldDelta(
                 delta_id=new_delta_id(),
@@ -101,9 +103,19 @@ def test_proposal_validator_rejects_duplicate_ids_conflicts_and_unknown_referenc
         version_id=new_version_id(),
     )
     intent = _intent(root_like)
+    with pytest.raises(SettlementValidationError) as exc_info:
+        validate_adjudication_proposal(
+            intent,
+            state,
+            AdjudicationProposal(result_tier="success"),
+        )
+    assert exc_info.value.code == "duration_required"
+
     repeated_id = new_delta_id()
     duplicate = AdjudicationProposal(
         result_tier="success",
+        duration_candidate=Duration(unit="hour", value=1),
+        duration_reason="测试重复 delta 校验",
         deltas=[
             MetricWorldDelta(
                 delta_id=repeated_id,
@@ -130,6 +142,8 @@ def test_proposal_validator_rejects_duplicate_ids_conflicts_and_unknown_referenc
 
     conflict = AdjudicationProposal(
         result_tier="success",
+        duration_candidate=Duration(unit="hour", value=1),
+        duration_reason="测试冲突 delta 校验",
         deltas=[
             MetricWorldDelta(
                 delta_id=new_delta_id(),
@@ -172,6 +186,8 @@ def test_entity_end_cannot_restore_status_and_create_rejects_dangling_references
     )
     invalid_end = AdjudicationProposal(
         result_tier="success",
+        duration_candidate=Duration(unit="hour", value=1),
+        duration_reason="测试结束主体校验",
         deltas=[
             EntityWorldDelta(
                 delta_id=new_delta_id(),
@@ -190,6 +206,8 @@ def test_entity_end_cannot_restore_status_and_create_rejects_dangling_references
     dangling_id = new_entity_id()
     dangling_create = AdjudicationProposal(
         result_tier="success",
+        duration_candidate=Duration(unit="hour", value=1),
+        duration_reason="测试悬空引用校验",
         deltas=[
             EntityWorldDelta(
                 delta_id=new_delta_id(),
@@ -323,19 +341,13 @@ def test_duration_and_world_delta_commit_atomically(monkeypatch, tmp_path):
     assert execution.state.time.calendar is not None
     assert execution.state.time.calendar.month == 11
     assert execution.result.facts.time_plan is not None
-    assert execution.result.facts.deltas == proposal.deltas
+    assert execution.result.facts.deltas[: len(proposal.deltas)] == proposal.deltas
+    assert execution.result.facts.deltas[-1].delta_type == "elapsed_state_patch"
 
 
 @pytest.mark.parametrize(
     ("proposal", "expected_code"),
     [
-        (
-            AdjudicationProposal(
-                result_tier="success",
-                activity_candidate="远行至大都",
-            ),
-            "time_contract_unavailable",
-        ),
         (
             AdjudicationProposal(
                 result_tier="success",
@@ -346,7 +358,7 @@ def test_duration_and_world_delta_commit_atomically(monkeypatch, tmp_path):
         ),
     ],
 )
-def test_unavailable_or_oversized_time_contract_has_zero_durable_effect(
+def test_oversized_short_time_contract_has_zero_durable_effect(
     monkeypatch,
     tmp_path,
     proposal,

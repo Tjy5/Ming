@@ -1,9 +1,9 @@
-"""阶段D集成测试：时间轴对齐（开局 1328-10）+ 切换端点与 phase 翻转。
+"""阶段D集成测试：统一世界时钟 + 切换端点与 phase 翻转。
 
 覆盖（implement.md 第 1、2 步）：
-- 新档开局时间 1328-10、chapter=childhood、phase=life_story（里程碑日期锚点）；
-- 完成童年章末里程碑（famine-1344）→ 章推进 + 时间对齐里程碑日期 1344-04；
-- 完成 yingtian-founding → phase=governance、时间=1356-03、角色卡/成长日志
+- 新档开局时间 1328-10、chapter=childhood、phase=life_story；
+- 完成童年章末里程碑（famine-1344）→ 章推进，历史日期不写世界时钟；
+- 完成 yingtian-founding → phase=governance、统一行动耗时、角色卡/成长日志
   状态连续、过渡叙事写入 history_log、存档快照写入（回滚点）；
 - 未知里程碑 → 404；
 - governance 后完成里程碑 → 不翻 phase、无异常。
@@ -67,10 +67,10 @@ class TestOpeningTimeline:
         assert state.time.month == int(milestone["month"])
 
 
-# ── 时间轴对齐：完成里程碑 → 时间对齐里程碑日期 ──────────
+# ── 里程碑是历史元数据，不是世界时钟 writer ─────────────
 
 class TestMilestoneTimeAlignment:
-    def test_famine_1344_advances_chapter_and_aligns_time(self):
+    def test_famine_1344_advances_chapter_without_date_jump(self):
         api_state._state = create_initial_state()
         resp = asyncio.run(trpg_routes.complete_milestone("famine-1344"))
 
@@ -82,11 +82,12 @@ class TestMilestoneTimeAlignment:
 
         state = api_state._state
         assert state.chapter == "monk_wanderer"
-        # 章推进（advance_chapter 跳年 1344-01）后，时间对齐到里程碑日期 1344-04
-        assert state.time.year == 1344
-        assert state.time.month == 4
-        assert state.time.era_name == "至正"
-        assert state.time.era_year == 4
+        # 里程碑本身只耗时一小时；timeline 年月不覆盖 canonical clock。
+        assert state.time.year == 1328
+        assert state.time.month == 10
+        assert state.time.era_name == "天历"
+        assert state.time.era_year == 1
+        assert state.time.clock.absolute_hour == 1
         # 关键事件成长奖励写入（源字符串与 character.py 一致）
         assert len(state.growth_log) == 1
         assert state.growth_log[0].source == "关键事件:灾疫丧亲，入皇觉寺"
@@ -124,11 +125,12 @@ class TestPhaseSwitch:
 
         state = api_state._state
         assert state.phase == "governance"
-        # 时间对齐到 phase_switch 配置日期 1356-03
-        assert state.time.year == 1356
-        assert state.time.month == 3
-        assert state.time.era_name == "至正"
-        assert state.time.era_year == 16
+        # phase_switch 的历史日期只是提示；本次里程碑统一结算一小时。
+        assert state.time.year == 1328
+        assert state.time.month == 10
+        assert state.time.era_name == "天历"
+        assert state.time.era_year == 1
+        assert state.time.clock.absolute_hour == 1
 
         # 状态连续：角色卡原样保留（属性不因切换改变，仅成长记录追加关键事件条目）
         assert state.character_sheets[PLAYER_NAME].attrs == attrs_before
@@ -138,7 +140,7 @@ class TestPhaseSwitch:
         # 过渡叙事写入 history_log（decree_type=trpg_act，引用 phase_switch.note）
         entry = state.history_log[-1]
         assert entry.decree_type == "trpg_act"
-        assert entry.year == 1356 and entry.month == 3
+        assert entry.year == 1328 and entry.month == 10
         assert "阶段切换" in entry.narrative
         assert "治理模拟" in entry.narrative
 
@@ -155,7 +157,7 @@ class TestPhaseSwitch:
         for key in ("milestone", "title", "narrative", "transition", "growth",
                     "phase", "chapter", "chapter_title", "time"):
             assert key in resp
-        assert resp["time"]["era_name"] == "至正"
+        assert resp["time"]["era_name"] == "天历"
 
     def test_yingtian_completion_no_time_rewind(self):
         """1360-03 时完成 yingtian-founding（日期 1356-03）→ 200、phase→governance、时间不回拨。"""
@@ -212,13 +214,14 @@ class TestEdgeCases:
         state.chapter = "warlord"
         api_state._state = state
 
-        # 非 phase_switch 里程碑：时间对齐仍生效，phase 保持 governance
+        # 非 phase_switch 里程碑：仅统一结算实际耗时，phase 保持 governance
         resp = asyncio.run(trpg_routes.complete_milestone("zhedong-talents-1360"))
         assert resp["phase"] == "governance"
         state = api_state._state
         assert state.phase == "governance"
-        assert state.time.year == 1360
-        assert state.time.month == 3
+        assert state.time.year == 1328
+        assert state.time.month == 10
+        assert state.time.clock.absolute_hour == 1
         assert "zhedong-talents-1360" in state.resolved_script_ids
 
     def test_completed_yingtian_rejected_409_in_governance(

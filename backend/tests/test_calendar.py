@@ -98,6 +98,48 @@ def test_solar_term_boundaries_are_deterministic():
 
 
 @pytest.mark.parametrize(
+    ("hour", "expected_index", "expected_name"),
+    [
+        (0, 0, "子"),
+        (1, 1, "丑"),
+        (2, 1, "丑"),
+        (3, 2, "寅"),
+        (4, 2, "寅"),
+        (5, 3, "卯"),
+        (6, 3, "卯"),
+        (7, 4, "辰"),
+        (8, 4, "辰"),
+        (9, 5, "巳"),
+        (10, 5, "巳"),
+        (11, 6, "午"),
+        (12, 6, "午"),
+        (13, 7, "未"),
+        (14, 7, "未"),
+        (15, 8, "申"),
+        (16, 8, "申"),
+        (17, 9, "酉"),
+        (18, 9, "酉"),
+        (19, 10, "戌"),
+        (20, 10, "戌"),
+        (21, 11, "亥"),
+        (22, 11, "亥"),
+        (23, 0, "子"),
+    ],
+)
+def test_all_twenty_four_hours_project_to_the_twelve_double_hours(
+    hour,
+    expected_index,
+    expected_name,
+):
+    projection = projection_from_absolute_hour(
+        absolute_hour_from_projection(year=1328, month=10, day=1, hour=hour),
+    )
+
+    assert projection.double_hour_index == expected_index
+    assert projection.double_hour_name == expected_name
+
+
+@pytest.mark.parametrize(
     "date",
     [
         {"year": 1328, "month": 9},

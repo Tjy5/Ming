@@ -10,6 +10,7 @@ from api import state as api_state
 from api import trpg as trpg_routes
 from db import saves as db_saves
 from db.saves import IncompatibleSaveError, _migrate_save, load_game
+from engine.calendar import set_game_time_projection
 from models.game import GameState, create_initial_state
 from models.trpg import (
     ATTR_KEYS,
@@ -284,15 +285,16 @@ class TestChapter:
         assert ids == ["childhood", "monk_wanderer", "enlistment", "warlord"]
         assert chapter.chapter_title("childhood") == "农家子"
 
-    def test_advance_chapter_jumps_year(self):
+    def test_advance_chapter_keeps_world_clock(self):
         state = create_initial_state()
         state.chapter = "childhood"
         state.chapter_turns = 4
         result = chapter.advance_chapter(state)
         assert result["to_chapter"] == "monk_wanderer"
         assert state.chapter == "monk_wanderer"
-        assert state.time.year == 1344
-        assert state.time.month == 1
+        assert state.time.year == 1328
+        assert state.time.month == 10
+        assert state.time.clock.absolute_hour == 0
         assert state.chapter_turns == 0
         assert result["summary"]
 
@@ -321,7 +323,8 @@ class TestChapter:
         result = chapter.complete_key_event(state, "famine-1344")
         assert result["transition"] is not None
         assert state.chapter == "monk_wanderer"
-        assert state.time.year == 1344
+        assert state.time.year == 1328
+        assert state.time.clock.absolute_hour == 0
 
     def test_yingtian_founding_phase_switch_flag(self):
         state = create_initial_state()
@@ -718,3 +721,24 @@ class TestPersistence:
             )
         with pytest.raises(IncompatibleSaveError):
             load_game(1)
+
+    def test_load_game_allows_open_sandbox_beyond_1368(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(db_saves, "DB_PATH", tmp_path / "saves.db")
+        db_saves.init_db()
+        state = create_initial_state()
+        set_game_time_projection(
+            state.time,
+            year=1369,
+            month=2,
+            migration_source="initial_world",
+        )
+        save_id = db_saves.save_game(state, "1369开放沙盒")
+
+        loaded, migrated, note = load_game(save_id)
+
+        assert loaded.time.year == 1369
+        assert loaded.time.month == 2
+        assert loaded.time.clock == state.time.clock
+        assert loaded.time.calendar == state.time.calendar
+        assert migrated is False
+        assert note == ""

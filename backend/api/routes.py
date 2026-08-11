@@ -5,6 +5,7 @@ import asyncio
 import logging
 import os
 import time
+from collections import Counter
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,17 +31,25 @@ from engine.state_consistency import (
 )
 from engine.core import (
     check_preconditions,
-    finalize_month_advance,
+    check_game_end,
     get_undecided_script_trigger_candidates,
     inject_script_events,
-    prepare_month_advance,
     process_decree,
     validate_target,
 )
+from engine.calendar import ensure_game_time_clock
+from engine.clock import ClockPlanningError, plan_elapsed_segment
+from engine.elapsed_consumers import default_clock_registry, project_state_at_boundary
+from api.action_service import AIActionAdjudicator, ActionAdjudicationError, ActionService
+from db import worlds
+from models.settlement import ActionIntent, AdjudicationProposal
+from models.world import new_client_action_id
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
 from .schemas import (
+    ActionErrorEnvelope,
     AdvanceMonthResponse,
+    AdvanceMonthRequest,
     DebateStartRequest,
     DebateSilenceResponse,
     DecreeRequest,
@@ -69,7 +78,10 @@ from .state import (
     _generate_narrative_with_streaming,
     _get_provider,
     _get_state,
+    _ensure_world_head,
     _lock,
+    _publish_world_head,
+    _reload_world_head,
     _set_state,
     _split_stream_sentences,
     _sse_event,
@@ -188,8 +200,10 @@ async def new_game():
     inject_script_events(state, script_trigger_decisions=decisions)
 
     clear_chat_conversation()
-    _set_state(state)
-    return state.model_dump()
+    root = worlds.create_game_with_root(state)
+    snapshot = worlds.load_version(root.version_id)
+    _publish_world_head(snapshot.state, snapshot.ref)
+    return snapshot.state.model_dump()
 
 
 # ── 6.2 POST /api/decree ───────────────────────────────
@@ -493,8 +507,23 @@ async def _execute_decree_core(
             _apply_loyalty_effects(state, req.loyalty_effects)
             clamp_state(state)
 
-        # commit only after all checks/executions pass (atomic multi-decree semantics)
-        _set_state(state)
+        # Memorial text is part of the committed action result. Completing it
+        # after commit would mutate only the process cache and fork it from the
+        # immutable version snapshot.
+        await _fill_memorial_content(provider, _mem_triggers, state)
+
+        # Commit rules output, elapsed time, boundary consumers and the world
+        # version together. Legacy rules never write the canonical clock.
+        raw_text = free_text or "；".join(
+            decree.target or decree.type.value for decree in req.decrees
+        ) or "等待时局演化"
+        state = await _set_state(
+            state,
+            action_kind="freeform_decree" if free_text else "structured_decree",
+            raw_text=raw_text,
+        )
+        last_response["state"] = state.model_dump()
+        last_response["game_time"] = state.time.model_dump()
 
     # ── Fill memorial content outside lock ──
     return last_response, _mem_triggers, provider, state
@@ -503,8 +532,8 @@ async def _execute_decree_core(
 async def _finalize_decree_response(
     last_response: dict, memorials: list[Memorial], provider, state: GameState,
 ) -> dict:
+    del provider
     if memorials:
-        await _fill_memorial_content(provider, memorials, state)
         last_response["memorial_triggers"] = [m.model_dump() for m in memorials]
     last_response["state"] = state.model_dump()
     return last_response
@@ -620,29 +649,124 @@ async def execute_decree_stream(req: DecreeRequest):
 
 # ── 6.3 POST /api/advance-month ───────────────────────
 
-@router.post("/advance-month", response_model=AdvanceMonthResponse)
-async def advance_month_endpoint():
-    async with _lock:
-        state = _get_state().model_copy(deep=True)
-        provider = _get_provider()
 
-        new_ministers = prepare_month_advance(state)
-        script_decisions = await _decide_script_triggers_for_state(provider, state)
-        triggered_events, game_over = finalize_month_advance(
-            state,
-            script_trigger_decisions=script_decisions,
+class _AdvanceMonthAdjudicator:
+    def __init__(self, provider_loader, script_decisions):
+        self._adjudicator = AIActionAdjudicator(provider_loader)
+        self._provider_loader = provider_loader
+        self._script_decisions = script_decisions
+
+    async def adjudicate(self, intent, state) -> AdjudicationProposal:
+        proposal = await self._adjudicator.adjudicate(intent, state)
+        if proposal.duration_candidate is None:
+            raise ActionAdjudicationError(
+                "adjudication_duration_required",
+                "AI 裁决未返回等待耗时，世界状态未提交",
+            )
+        try:
+            preview = plan_elapsed_segment(
+                source_action_id=intent.client_action_id,
+                start=ensure_game_time_clock(state.time.model_copy(deep=True)),
+                duration=proposal.duration_candidate,
+            )
+        except ClockPlanningError as exc:
+            raise ActionAdjudicationError(
+                "adjudication_invalid_duration",
+                "AI 返回的等待耗时无法按当前世界历法结算",
+            ) from exc
+        month_boundaries = [
+            boundary for boundary in preview.boundaries if boundary.kind == "month"
+        ]
+        if len(month_boundaries) != 1:
+            raise ActionAdjudicationError(
+                "advance_month_duration_out_of_range",
+                "推进一月的 AI 耗时必须恰好跨过一个月界",
+            )
+        decision_state = project_state_at_boundary(state, month_boundaries[0])
+        decisions = await _decide_script_triggers_for_state(
+            self._provider_loader(),
+            decision_state,
         )
-        _set_state(state)
+        self._script_decisions.update(decisions)
+        return proposal
 
+@router.post(
+    "/advance-month",
+    response_model=AdvanceMonthResponse,
+    responses={
+        404: {"model": ActionErrorEnvelope},
+        409: {"model": ActionErrorEnvelope},
+        422: {"model": ActionErrorEnvelope},
+        500: {"model": ActionErrorEnvelope},
+        503: {"model": ActionErrorEnvelope},
+    },
+)
+async def advance_month_endpoint(req: AdvanceMonthRequest | None = None):
+    async with _lock:
+        current_state, current_ref = _ensure_world_head()
+        client_action_id = (
+            req.client_action_id
+            if req is not None and req.client_action_id is not None
+            else new_client_action_id()
+        )
+        expected_parent_version_id = (
+            req.expected_parent_version_id
+            if req is not None and req.expected_parent_version_id is not None
+            else current_ref.version_id
+        )
+        intent = ActionIntent(
+            game_id=current_ref.game_id,
+            branch_id=current_ref.branch_id,
+            expected_parent_version_id=expected_parent_version_id,
+            client_action_id=client_action_id,
+            raw_text="等待约一个月，观察世界演化",
+            action_kind="wait",
+            mode=current_state.phase,
+        )
+
+        script_decisions: dict[str, tuple[bool, str]] = {}
+        registry = default_clock_registry(script_decisions)
+        service = ActionService(
+            adjudicator=_AdvanceMonthAdjudicator(_get_provider, script_decisions),
+            clock_registry=registry,
+        )
+        execution = await service.execute(intent)
+        try:
+            _publish_world_head(execution.state, execution.result.version)
+            state = execution.state
+        except Exception:
+            state = _reload_world_head(current_ref.game_id, current_ref.branch_id)
+
+        parent_version_id = execution.result.version.parent_version_id
+        if parent_version_id is None:
+            raise worlds.WorldCorruptDataError("advance-month settlement has no parent version")
+        before = worlds.load_version(parent_version_id).state
+
+    before_events = Counter(event.model_dump_json() for event in before.active_events)
+    triggered_events: list[str] = []
+    for event in state.active_events:
+        identity = event.model_dump_json()
+        if before_events[identity]:
+            before_events[identity] -= 1
+        else:
+            triggered_events.append(event.name)
+    before_status = {minister.name: minister.status for minister in before.ministers}
+    new_minister_names = {
+        minister.name
+        for minister in state.ministers
+        if before_status.get(minister.name) != minister.status
+        and before_status.get(minister.name) == MinisterStatus.NOT_YET_ENTERED
+    }
     activated = [
         m.model_dump() for m in state.ministers
-        if m.name in new_ministers
+        if m.name in new_minister_names
     ]
     return {
         "state": state.model_dump(),
         "triggered_events": triggered_events,
-        "game_over": game_over,
+        "game_over": check_game_end(state),
         "new_ministers": activated,
+        "result": execution.result,
     }
 
 
@@ -728,7 +852,7 @@ async def start_debate(req: DebateStartRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         provider = _get_provider()
 
         selected = select_debate_ministers(state, decree_type)
@@ -745,6 +869,11 @@ async def start_debate(req: DebateStartRequest):
                 error_code="debate_unavailable",
                 message="朝议生成失败，请稍后再试",
             ).model_dump())
+        await _set_state(
+            state,
+            action_kind="debate",
+            raw_text=req.topic,
+        )
         return result.model_dump()
 
 
@@ -752,10 +881,16 @@ async def start_debate(req: DebateStartRequest):
 
 @router.post("/debate/silence", response_model=DebateSilenceResponse)
 async def silence_debate():
-    state = _get_state()
-    change = max(0, min(3, 100 - state.court_prestige))
-    state.court_prestige += change
-    return {"state": state.model_dump(), "prestige_change": change}
+    async with _lock:
+        state = _get_state().model_copy(deep=True)
+        change = max(0, min(3, 100 - state.court_prestige))
+        state.court_prestige += change
+        state = await _set_state(
+            state,
+            action_kind="debate_silence",
+            raw_text="令朝议肃静",
+        )
+        return {"state": state.model_dump(), "prestige_change": change}
 
 
 
@@ -810,7 +945,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         # 08-07-decree-execution-loss：运行时启用可控随机偏差
         state.execution_rng_seed = hash(
             f"{state.time.year}-{state.time.month}-{state.decree_count}"
@@ -887,6 +1022,11 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
             delta=accumulated_delta if accumulated_delta else None,
             minister_reactions=accumulated_reactions if accumulated_reactions else None
         )
+        state = await _set_state(
+            state,
+            action_kind="memorial_resolution",
+            raw_text=f"{req.action}奏折：{memorial.title}",
+        )
 
         return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta, "minister_reactions": [r.model_dump() for r in accumulated_reactions]}
 
@@ -896,7 +1036,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 @router.post("/minister/{minister_name}/dialogue", response_model=DialogueResponse)
 async def minister_dialogue(minister_name: str, req: DialogueRequest):
     async with _lock:
-        state = _get_state()
+        state = _get_state().model_copy(deep=True)
         provider = _get_provider()
 
         minister = next((m for m in state.ministers if m.name == minister_name), None)
@@ -946,6 +1086,12 @@ async def minister_dialogue(minister_name: str, req: DialogueRequest):
 
             raw_mood = str(dialogue_result.get("mood", "neutral")).strip().lower()
             mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
+
+            state = await _set_state(
+                state,
+                action_kind="minister_dialogue",
+                raw_text=f"与{minister_name}交谈：{req.message}",
+            )
 
             return DialogueResponse(
                 reply=reply,

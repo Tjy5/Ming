@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pytest
@@ -97,3 +98,27 @@ def test_legacy_import_failure_rolls_back_new_graph_and_keeps_source(
 
     assert after_row is not None and dict(after_row) == before_row
     assert graph_counts == [0, 0, 0, 0]
+
+
+def test_legacy_import_rejects_explicit_chongzhen_scenario(monkeypatch, tmp_path):
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "legacy-incompatible.db")
+    saves.init_db()
+    raw = json.dumps(
+        {"time": {"year": 1627, "month": 1, "era_name": "崇祯", "era_year": 1}},
+        ensure_ascii=False,
+    )
+    with saves._connect() as conn:
+        conn.execute(
+            "INSERT INTO saves (name, game_time, created_at, state_json) VALUES (?, ?, ?, ?)",
+            ("旧崇祯存档", "崇祯元年1月", "2026-01-01T00:00:00+00:00", raw),
+        )
+
+    with pytest.raises(worlds.LegacySaveIncompatibleError):
+        worlds.import_legacy_save(1)
+
+    with saves._connect() as conn:
+        counts = [
+            conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            for table in ("games", "branches", "versions", "legacy_save_imports")
+        ]
+    assert counts == [0, 0, 0, 0]
