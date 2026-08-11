@@ -31,7 +31,7 @@ from engine.core import (
 from engine.calendar import ensure_game_time_clock
 from engine.clock import ClockPlanningError, plan_elapsed_segment
 from engine.elapsed_consumers import default_clock_registry, project_state_at_boundary
-from engine.entity_views import resolve_dialogue_actor
+from engine.entity_views import resolve_dialogue_actor, resolve_registry_actor
 from api.action_service import AIActionAdjudicator, ActionAdjudicationError, ActionService
 from db import worlds
 from db.narrative_memory import list_visible_memories
@@ -1003,6 +1003,16 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
             delta=accumulated_delta if accumulated_delta else None,
             minister_reactions=accumulated_reactions if accumulated_reactions else None
         )
+        author_entity = (
+            state.entity_registry.get(memorial.author_entity_id)
+            if memorial.author_entity_id is not None
+            else None
+        )
+        author_person_entity_id = (
+            author_entity.entity_id
+            if isinstance(author_entity, PersonEntity)
+            else None
+        )
         action_text = f"{req.action}奏折：{memorial.title}（作者：{memorial.author_name}）"
         try:
             state, settlement_result = await _settle_state(
@@ -1021,6 +1031,7 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
             path_id="memorial",
             topic_id=f"memorial:{memorial.id}",
             action_text=action_text,
+            person_entity_id=author_person_entity_id,
             reuse_current=settlement_result.replayed,
         )
 
@@ -1049,18 +1060,8 @@ async def minister_dialogue(minister_name: str, req: DialogueRequest):
         state = current_state.model_copy(deep=True)
         provider = _get_provider()
 
-        entity = next(
-            (
-                item for item in state.entity_registry.values()
-                if isinstance(item, PersonEntity)
-                and (
-                    str(item.entity_id) == minister_name
-                    or item.display_name == minister_name
-                )
-            ),
-            None,
-        )
-        if entity is None:
+        known_actor = resolve_registry_actor(state, minister_name)
+        if known_actor is None or known_actor.entity_type != "person":
             raise HTTPException(404, detail=ErrorResponse(
                 error_code="entity_not_found",
                 message=f"人物 {minister_name} 不存在",
@@ -1073,6 +1074,12 @@ async def minister_dialogue(minister_name: str, req: DialogueRequest):
                 message=f"人物 {minister_name} 在当前世界版本无对话权限或不可用",
             ).model_dump())
         minister = actor.minister
+        entity = state.entity_registry.get(actor.entity_id)
+        if not isinstance(entity, PersonEntity):
+            raise HTTPException(404, detail=ErrorResponse(
+                error_code="entity_not_found",
+                message=f"人物 {minister_name} 不存在",
+            ).model_dump())
         legacy_minister = next(
             (
                 item for item in state.ministers

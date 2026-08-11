@@ -23,6 +23,8 @@ from models.settlement import (
 from models.world import (
     ASSEMBLY_PARTICIPATE_CAPABILITY,
     ENTITY_DIALOGUE_CAPABILITY,
+    MEMORIAL_SUBMIT_CAPABILITY,
+    OFFICE_APPOINTABLE_CAPABILITY,
     ActivityId,
     BranchId,
     ClientActionId,
@@ -1362,6 +1364,8 @@ def _project_legacy_lists_to_registry(
                 for capability in (
                     ASSEMBLY_PARTICIPATE_CAPABILITY,
                     ENTITY_DIALOGUE_CAPABILITY,
+                    MEMORIAL_SUBMIT_CAPABILITY,
+                    OFFICE_APPOINTABLE_CAPABILITY,
                 )
             ],
             available=status_value in {"active", "idle", "on_mission"},

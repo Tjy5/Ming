@@ -177,6 +177,10 @@ class Memorial(BaseModel):
     id: str
     author_name: str
     author_faction: str
+    author_entity_id: EntityId | None = None
+    author_entity_type: str | None = None
+    author_capabilities: list[str] = Field(default_factory=list)
+    author_capability_sources: list[str] = Field(default_factory=list)
     title: str
     content: str
     suggested_decrees: list[StructuredDecree] = Field(default_factory=list)

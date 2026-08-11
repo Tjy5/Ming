@@ -75,11 +75,20 @@ def build_narrative_prompt(
 
 
 def build_parse_prompt(text: str, state: GameState) -> str:
-    minister_names = [m.name for m in state.ministers if m.status.value != "removed"]
+    from engine.entity_views import appointment_actor_views
+
+    appointment_candidates = [
+        (
+            f"{actor.display_name}[entity_id={actor.entity_id};type={actor.entity_type}]"
+            if actor.entity_id is not None
+            else actor.display_name
+        )
+        for actor in appointment_actor_views(state)
+    ]
     return f"""
         用户输入："{text}"
 
-        当前在朝/赋闲大臣：{', '.join(minister_names)}
+        当前 registry 任免候选：{', '.join(appointment_candidates) or '无'}
 
         请解析为 JSON 格式。
 
@@ -180,12 +189,25 @@ def _minister_line(m: Minister) -> str:
     )
 
 
+def _actor_line(actor) -> str:
+    base = _minister_line(actor.minister)
+    if actor.entity_id is None:
+        return base
+    capabilities = "、".join(actor.capabilities) if actor.capabilities else "无"
+    sources = "、".join(actor.capability_sources) if actor.capability_sources else "无"
+    return (
+        f"主体：{base}｜entity_id={actor.entity_id}｜type={actor.entity_type}"
+        f"｜capabilities={capabilities}｜permission_sources={sources}"
+    )
+
+
 def build_global_situation(state: GameState) -> str:
     """单一全局势上下文序列化，取代 parsers._serialize_game_state / prompts._chat_state_snapshot / narrative 内联 f-string。
 
     08-07-ai-memory-decree-prompts：统一注入，避免三套口径漂移导致串题。
     """
     from models.enums import MinisterStatus
+    from engine.entity_views import registry_actor_views
     from engine.state_consistency import build_prompt_guard
     from engine.numeric_bands import numeric_context, region_numeric_context, threshold_alerts
 
@@ -195,11 +217,14 @@ def build_global_situation(state: GameState) -> str:
     danger = region_numeric_context(state)
     if danger:
         lines.append(danger)
-    # 大臣（跳过 REMOVED，含在办任务）
-    for m in state.ministers:
-        if m.status == MinisterStatus.REMOVED:
+    # Registry actor projection（legacy Minister 仅填充 provider 兼容属性）。
+    for actor in registry_actor_views(state):
+        if state.entity_registry:
+            if actor.status != "active" or not actor.available:
+                continue
+        elif actor.minister.status == MinisterStatus.REMOVED:
             continue
-        lines.append(_minister_line(m))
+        lines.append(_actor_line(actor))
     # 派系
     for f in state.factions:
         lines.append(f"派系：{f.name}（满意{f.satisfaction}，影响{f.influence}，叛乱风险{f.rebellion_risk}）")

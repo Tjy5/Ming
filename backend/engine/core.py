@@ -22,6 +22,11 @@ from models.positions import (
     can_appoint, is_unique_position, is_eunuch_position, resolve_position,
 )
 from models.world import Duration
+from .entity_views import (
+    ActorCompatibilityView,
+    memorial_actor_views,
+    resolve_appointment_actor,
+)
 from .calendar import advance_game_time, resolve_era
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
@@ -126,7 +131,22 @@ def validate_target(decree: StructuredDecree, state: GameState | None = None) ->
         if not decree.target or not decree.sub_action:
             return TARGET_MISSING_MESSAGES[decree.type]
         if state is not None:
-            target = next((m for m in state.ministers if m.name == decree.target), None)
+            appointment_actor = (
+                resolve_appointment_actor(state, decree.target)
+                if decree.sub_action == PersonnelAction.APPOINT
+                else None
+            )
+            if decree.sub_action == PersonnelAction.APPOINT:
+                target = (
+                    appointment_actor.minister
+                    if appointment_actor is not None
+                    else None
+                )
+            else:
+                target = next(
+                    (m for m in state.ministers if m.name == decree.target),
+                    None,
+                )
             if target is None:
                 return "任免目标人物不存在"
             if target.status == MinisterStatus.NOT_YET_ENTERED:
@@ -155,8 +175,14 @@ def apply_minister_transition(state: GameState, decree: StructuredDecree) -> tup
     executed: set[str] = set()
     if decree.type != DecreeType.PERSONNEL or not decree.target or not decree.sub_action:
         return dismissed, executed
+    target_name = decree.target
+    if decree.sub_action == PersonnelAction.APPOINT:
+        appointment_actor = resolve_appointment_actor(state, decree.target)
+        if appointment_actor is None:
+            return dismissed, executed
+        target_name = appointment_actor.minister.name
     for m in state.ministers:
-        if m.name == decree.target:
+        if m.name == target_name:
             if decree.sub_action == PersonnelAction.DISMISS and m.status == MinisterStatus.ACTIVE:
                 m.status = MinisterStatus.IDLE
                 dismissed.add(m.name)
@@ -695,38 +721,40 @@ def _pick_minister_by_loyalty(
     state: GameState,
     faction: str | None = None,
     exclude_faction: str | None = None,
-) -> tuple[int, object] | None:
+) -> tuple[int, ActorCompatibilityView] | None:
     candidates = []
-    for idx, m in enumerate(state.ministers):
-        if m.status != MinisterStatus.ACTIVE:
-            continue
+    for idx, actor in enumerate(memorial_actor_views(state)):
+        m = actor.minister
         if faction is not None and m.faction != faction:
             continue
         if exclude_faction is not None and m.faction == exclude_faction:
             continue
-        candidates.append((idx, m))
+        candidates.append((idx, actor))
     if not candidates:
         return None
-    return max(candidates, key=lambda x: (x[1].loyalty, -x[0]))
+    return max(candidates, key=lambda x: (x[1].minister.loyalty, -x[0]))
 
 
 def _pick_minister_by_ability(
     state: GameState,
     ability: str,
     faction: str | None = None,
-) -> tuple[int, object] | None:
+) -> tuple[int, ActorCompatibilityView] | None:
     candidates = []
-    for idx, m in enumerate(state.ministers):
-        if m.status != MinisterStatus.ACTIVE:
-            continue
+    for idx, actor in enumerate(memorial_actor_views(state)):
+        m = actor.minister
         if faction is not None and m.faction != faction:
             continue
-        candidates.append((idx, m))
+        candidates.append((idx, actor))
     if not candidates:
         return None
     return max(
         candidates,
-        key=lambda x: (getattr(x[1].abilities, ability), x[1].loyalty, -x[0]),
+        key=lambda x: (
+            getattr(x[1].minister.abilities, ability),
+            x[1].minister.loyalty,
+            -x[0],
+        ),
     )
 
 
@@ -739,7 +767,9 @@ def detect_memorial_triggers(state: GameState, attr: dict) -> list[Memorial]:
     candidates: list[dict] = []
 
     def _add(
-        ttype: str, entity: str, author: tuple[int, object] | None,
+        ttype: str,
+        entity: str,
+        author: tuple[int, ActorCompatibilityView] | None,
         title: str, urgency: str, deviation: int,
     ) -> None:
         if author is None:
@@ -749,7 +779,8 @@ def detect_memorial_triggers(state: GameState, attr: dict) -> list[Memorial]:
             return
         if current_months < state.memorial_cooldowns.get(reason, 0):
             return
-        idx, minister = author
+        idx, actor = author
+        minister = actor.minister
         candidates.append({
             "priority": _URGENCY_PRIORITY[urgency],
             "deviation": deviation,
@@ -759,6 +790,10 @@ def detect_memorial_triggers(state: GameState, attr: dict) -> list[Memorial]:
                 id=str(uuid.uuid4()),
                 author_name=minister.name,
                 author_faction=minister.faction,
+                author_entity_id=actor.entity_id,
+                author_entity_type=actor.entity_type,
+                author_capabilities=list(actor.capabilities),
+                author_capability_sources=list(actor.capability_sources),
                 title=title,
                 content="待补充奏疏内容。",
                 suggested_decrees=[],

@@ -14,6 +14,7 @@ from models.world import (
     TemporaryAuthorityEntity,
 )
 from models.world_state import ExecutorCandidateProjection, ExecutorFactor, ExecutorFacts
+from engine.entity_views import actor_candidate_views
 
 
 MIN_EXECUTOR_EFFICIENCY = Decimal("0.05")
@@ -144,9 +145,13 @@ def build_executor_facts(
 
 def executor_candidates(state: GameState, action_kind: str | None = None) -> list[ExecutorCandidateProjection]:
     candidates: list[ExecutorCandidateProjection] = []
-    for entity_id, entity in sorted(state.entity_registry.items(), key=lambda item: str(item[0])):
-        if not isinstance(entity, EXECUTOR_ENTITY_TYPES):
+    if not state.entity_registry:
+        return candidates
+    for actor in actor_candidate_views(state, include_unavailable=True):
+        entity_id = actor.entity_id
+        if entity_id is None:
             continue
+        entity = state.entity_registry[entity_id]
         facts = build_executor_facts(
             state,
             requested_executor_id=None,
@@ -159,8 +164,8 @@ def executor_candidates(state: GameState, action_kind: str | None = None) -> lis
             ExecutorCandidateProjection(
                 version_id=state.world_metadata.version_id,
                 executor=facts,
-                available=entity.available and entity.status == "active",
-                authority=[permission.capability for permission in entity.permissions],
+                available=actor.available and actor.status == "active",
+                authority=list(actor.capabilities),
                 risks=risks,
             ),
         )

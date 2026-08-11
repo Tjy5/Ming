@@ -2921,6 +2921,14 @@ export type components = {
             author_name: string;
             /** Author Faction */
             author_faction: string;
+            /** Author Entity Id */
+            author_entity_id?: string | null;
+            /** Author Entity Type */
+            author_entity_type?: string | null;
+            /** Author Capabilities */
+            author_capabilities?: string[];
+            /** Author Capability Sources */
+            author_capability_sources?: string[];
             /** Title */
             title: string;
             /** Content */

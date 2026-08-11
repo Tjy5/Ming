@@ -12,6 +12,8 @@ WORLD_SCHEMA_VERSION = 1
 DEFAULT_CALENDAR_SCHEMA_VERSION = "yuanming-calendar-v1"
 ASSEMBLY_PARTICIPATE_CAPABILITY = "governance.assembly.participate"
 ENTITY_DIALOGUE_CAPABILITY = "narrative.entity.dialogue"
+MEMORIAL_SUBMIT_CAPABILITY = "governance.memorial.submit"
+OFFICE_APPOINTABLE_CAPABILITY = "governance.office.appointable"
 
 GameId = NewType("GameId", UUID)
 BranchId = NewType("BranchId", UUID)

@@ -16,6 +16,7 @@ import re
 
 from models.enums import MinisterStatus
 from models.game import GameState
+from engine.entity_views import registry_actor_views
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,29 @@ _UNAVAILABLE_REASONS = {
 
 def unavailable_actors(state: GameState) -> dict[str, str]:
     """不可用人物清单 {名字: 原因}（硬状态源，供校验与 prompt 守卫）。"""
+    if state.entity_registry:
+        actors = registry_actor_views(state)
+        active_names = {
+            actor.display_name
+            for actor in actors
+            if actor.status == "active" and actor.available
+        }
+        result: dict[str, str] = {}
+        for actor in actors:
+            if actor.display_name in active_names:
+                continue
+            if actor.status == "active" and actor.available:
+                continue
+            if actor.minister.status in _UNAVAILABLE_REASONS:
+                reason = _UNAVAILABLE_REASONS[actor.minister.status]
+            elif actor.status == "ended":
+                reason = "已终止/出局"
+            elif actor.status == "inactive":
+                reason = "当前失效"
+            else:
+                reason = "当前不可用"
+            result[actor.display_name] = reason
+        return result
     return {
         m.name: _UNAVAILABLE_REASONS[m.status]
         for m in state.ministers
@@ -38,10 +62,18 @@ def unavailable_actors(state: GameState) -> dict[str, str]:
 
 
 def active_actor_names(state: GameState) -> set[str]:
+    if state.entity_registry:
+        return {
+            actor.display_name
+            for actor in registry_actor_views(state)
+            if actor.status == "active" and actor.available
+        }
     return {m.name for m in state.ministers if m.status == MinisterStatus.ACTIVE}
 
 
 def roster_names(state: GameState) -> set[str]:
+    if state.entity_registry:
+        return {actor.display_name for actor in registry_actor_views(state)}
     return {m.name for m in state.ministers}
 
 
@@ -164,11 +196,8 @@ def _check_unavailable_activity(sentence: str, state: GameState) -> list[dict]:
       外部人物背景行事（如韩林儿率军）为合法史实，不误报。
     """
     issues: list[dict] = []
-    reasons = _UNAVAILABLE_REASONS
-    for m in state.ministers:
-        if m.status not in reasons:
-            continue
-        name = m.name
+    reasons = unavailable_actors(state)
+    for name, reason in reasons.items():
         # 发言：名字（后随 0-2 字称谓如"拱手道"）后跟冒号，或名字后直接跟"说道/道"；
         # 名字与谓词间的窗口含过去时标记（"徐达生前说道"）→ 生平叙述，跳过
         speech = re.search(
@@ -179,11 +208,15 @@ def _check_unavailable_activity(sentence: str, state: GameState) -> list[dict]:
             issues.append({
                 "type": "unavailable_actor_activity",
                 "actor": name,
-                "reason": f"{name}{reasons[m.status]}，不得描述其发言",
+                "reason": f"{name}{reason}，不得描述其发言",
             })
             continue
         # 活动谓词：REMOVED 全量，IDLE 仅朝堂子集；窗口含过去时标记同样跳过
-        verbs = _ACTIVITY_VERBS if m.status == MinisterStatus.REMOVED else _COURT_ACTIVITY_VERBS
+        verbs = (
+            _COURT_ACTIVITY_VERBS
+            if reason == _UNAVAILABLE_REASONS[MinisterStatus.IDLE]
+            else _ACTIVITY_VERBS
+        )
         for verb in verbs:
             if verb in sentence:
                 match = re.search(
@@ -193,7 +226,7 @@ def _check_unavailable_activity(sentence: str, state: GameState) -> list[dict]:
                     issues.append({
                         "type": "unavailable_actor_activity",
                         "actor": name,
-                        "reason": f"{name}{reasons[m.status]}，不得描述其行事（{verb}）",
+                        "reason": f"{name}{reason}，不得描述其行事（{verb}）",
                     })
                     break
     return issues
@@ -354,11 +387,34 @@ def build_prompt_guard(state: GameState) -> str:
     IDLE（未出仕/被罢免）不注入——名单庞大且多为合法史实背景人物（韩林儿/陈友谅等），
     其"我方朝堂活动"违规由确定性校验器（规则A IDLE 子集）事后拦截。
     """
-    removed = {
-        name: reason
-        for name, reason in unavailable_actors(state).items()
-        if reason == _UNAVAILABLE_REASONS[MinisterStatus.REMOVED]
-    }
+    if state.entity_registry:
+        actors = registry_actor_views(state)
+        active_names = {
+            actor.display_name
+            for actor in actors
+            if actor.status == "active" and actor.available
+        }
+        removed = {
+            actor.display_name: (
+                _UNAVAILABLE_REASONS[MinisterStatus.REMOVED]
+                if actor.minister.status == MinisterStatus.REMOVED
+                else "已终止/出局"
+            )
+            for actor in actors
+            if (
+                actor.display_name not in active_names
+                and (
+                    actor.status == "ended"
+                    or actor.minister.status == MinisterStatus.REMOVED
+                )
+            )
+        }
+    else:
+        removed = {
+            name: reason
+            for name, reason in unavailable_actors(state).items()
+            if reason == _UNAVAILABLE_REASONS[MinisterStatus.REMOVED]
+        }
     if not removed:
         return ""
     items = "、".join(f"{name}（{reason}）" for name, reason in removed.items())
