@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import GuideModal, { shouldAutoOpenGuide } from '../components/GuideModal'
+import GuideModal from '../components/GuideModal'
+import { shouldAutoOpenGuide } from '../components/guideModalLogic'
 
 describe('GuideModal', () => {
   beforeEach(() => localStorage.clear())

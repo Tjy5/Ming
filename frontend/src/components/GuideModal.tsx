@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { markGuideSeen } from './guideModalLogic'
 
 // 08-07-frontend-ui-polish：界面指引手册（新手引导）
 const GUIDE_SECTIONS: { title: string; body: string }[] = [
@@ -24,28 +25,13 @@ const GUIDE_SECTIONS: { title: string; body: string }[] = [
   },
 ]
 
-const STORAGE_KEY = 'ming_guide_seen'
-
 interface Props {
   open: boolean
   onClose: () => void
 }
 
-export default function GuideModal({ open, onClose }: Props) {
+function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
   const [page, setPage] = useState(0)
-
-  useEffect(() => {
-    if (open) {
-      setPage(0)
-      try {
-        localStorage.setItem(STORAGE_KEY, '1')
-      } catch {
-        /* localStorage 不可用时忽略 */
-      }
-    }
-  }, [open])
-
-  if (!open) return null
   const section = GUIDE_SECTIONS[page]
   const isLast = page === GUIDE_SECTIONS.length - 1
 
@@ -74,10 +60,11 @@ export default function GuideModal({ open, onClose }: Props) {
   )
 }
 
-export function shouldAutoOpenGuide(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) !== '1'
-  } catch {
-    return true
-  }
+export default function GuideModal({ open, onClose }: Props) {
+  useEffect(() => {
+    if (open) markGuideSeen()
+  }, [open])
+
+  if (!open) return null
+  return <GuideModalContent onClose={onClose} />
 }
