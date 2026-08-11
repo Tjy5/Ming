@@ -2,19 +2,24 @@
 from __future__ import annotations
 
 import logging
+from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import APIRouter, HTTPException
 
 from models.game import (
-    GameState, StructuredDecree, DecreeResponse,
+    StructuredDecree, DecreeResponse,
     ErrorResponse, CourtAssembly, AssemblyParticipant,
-    PolicySuggestion, AssemblyPetition, AssemblySpeech, AssemblyVote,
+    PolicySuggestion, SuggestionRationaleFactor,
+    AssemblyPetition, AssemblySpeech, AssemblyVote,
     HistoryEntry, Memorial, clamp_state,
 )
 from models.enums import DecreeType, AssemblyPhase
 from engine.core import process_decree, check_preconditions, validate_target
 from ai.provider import infer_decree_type_from_topic
+from db import worlds
 from engine.tables import FACTION_STANCE
+from .action_service import ActionAdjudicationError
+from .narrative_routes import generate_committed_narrative
 from .schemas import (
     AdoptSuggestionRequest,
     AssemblyDebateRequest,
@@ -22,27 +27,217 @@ from .schemas import (
     AssemblyRageRequest,
     AssemblyVoteRequest,
     ConveneAssemblyRequest,
+    DecreeRequest,
 )
 from .assembly_helpers import (
     MIN_PARTICIPANTS as _ASSEMBLY_MIN_PARTICIPANTS,
-    normalize_petition_urgency as _normalize_petition_urgency,
     normalize_speech_stance as _normalize_speech_stance,
     normalize_vote_choice as _normalize_vote_choice,
     require_assembly as _require_assembly,
     resolve_assembly_ministers as _resolve_assembly_ministers,
-    select_assembly_participants,
+    select_assembly_actor_views,
     time_to_months as _time_to_months,
 )
 from .state import (
-    _fill_memorial_content,
     _get_provider,
     _get_state,
+    _ensure_world_head,
     _lock,
     _set_state,
+    _settle_state,
 )
 
 assembly_router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
+
+
+def _suggestion_id(*, state, topic: str, index: int, decree_type: DecreeType) -> str:
+    metadata = state.world_metadata
+    identity = ":".join((
+        str(metadata.game_id),
+        str(metadata.branch_id),
+        str(metadata.version_id),
+        topic.strip(),
+        str(index),
+        decree_type.value,
+    ))
+    return uuid5(NAMESPACE_URL, f"mingchao-assembly-suggestion:{identity}").hex
+
+
+def _suggestion_rationale(
+    *,
+    state,
+    topic: str,
+    decree_type: DecreeType,
+    supporter_names: list[str],
+) -> list[SuggestionRationaleFactor]:
+    metadata = state.world_metadata
+    factors = [
+        SuggestionRationaleFactor(
+            fact_reference=f"version:{metadata.version_id}",
+            label="来源版本",
+            value=str(metadata.version_id),
+        ),
+        SuggestionRationaleFactor(
+            fact_reference="assembly:topic",
+            label="当前议题",
+            value=topic.strip(),
+        ),
+        SuggestionRationaleFactor(
+            fact_reference=f"decree-type:{decree_type.value}",
+            label="政令类型",
+            value=decree_type.value,
+        ),
+    ]
+    current_requirements = {
+        DecreeType.TAX_INCREASE: [
+            ("state:civil_morale", "当前民心", state.civil_morale),
+        ],
+        DecreeType.TAX_DECREASE: [
+            ("state:national_treasury", "当前国库", state.national_treasury),
+        ],
+        DecreeType.RECRUIT_TROOPS: [
+            ("state:national_treasury", "当前国库", state.national_treasury),
+            ("state:population", "当前人口", state.population),
+        ],
+        DecreeType.DISBAND_TROOPS: [
+            ("state:military_strength", "当前兵力", state.military_strength),
+        ],
+        DecreeType.PERSONNEL: [
+            ("state:court_prestige", "当前威望", state.court_prestige),
+        ],
+        DecreeType.DIPLOMACY: [
+            ("state:national_treasury", "当前国库", state.national_treasury),
+        ],
+        DecreeType.DISASTER_RELIEF: [
+            ("state:national_treasury", "当前国库", state.national_treasury),
+            ("state:grain", "当前粮草", state.grain),
+        ],
+        DecreeType.HARSH_PUNISHMENT: [
+            ("state:court_prestige", "当前威望", state.court_prestige),
+        ],
+    }
+    factors.extend(
+        SuggestionRationaleFactor(
+            fact_reference=fact_reference,
+            label=label,
+            value=str(value),
+        )
+        for fact_reference, label, value in current_requirements[decree_type]
+    )
+    entity_by_name = {
+        entity.display_name: entity
+        for entity in state.entity_registry.values()
+    }
+    for name in supporter_names:
+        entity = entity_by_name.get(name)
+        if entity is None:
+            continue
+        factors.append(SuggestionRationaleFactor(
+            fact_reference=f"entity:{entity.entity_id}:availability",
+            label="当前在朝支持者",
+            value=name,
+        ))
+    return factors
+
+
+def _active_suggestion_supporters(state, supporter_names: list[str]) -> list[str]:
+    """Keep only supporters that are still active, available world entities."""
+
+    entity_by_name = {
+        entity.display_name: entity
+        for entity in state.entity_registry.values()
+    }
+    return [
+        name
+        for name in supporter_names
+        if (
+            (entity := entity_by_name.get(name)) is not None
+            and entity.status == "active"
+            and entity.available
+        )
+    ]
+
+
+def _build_policy_suggestions(
+    *,
+    state,
+    topic: str,
+    default_decree_type: DecreeType,
+    participant_names: set[str],
+    raw_suggestions: list[object],
+) -> list[PolicySuggestion]:
+    """Normalize provider/stance candidates into safe, versioned player options."""
+
+    suggestions: list[PolicySuggestion] = []
+    for index, raw in enumerate(raw_suggestions[:3], start=1):
+        if not isinstance(raw, dict):
+            continue
+        try:
+            decree_type = DecreeType(raw.get("decree_type", default_decree_type.value))
+        except (ValueError, TypeError):
+            decree_type = default_decree_type
+        raw_names = raw.get("supporter_names", [])
+        supporter_names = (
+            [
+                name for name in raw_names
+                if isinstance(name, str) and name in participant_names
+            ]
+            if isinstance(raw_names, list) else []
+        )
+        metadata = state.world_metadata
+        suggestions.append(PolicySuggestion(
+            title=f"朝议方案{index}",
+            description="这是行动建议而非结果承诺；提交后将依据当前世界重新结算。",
+            related_decree=StructuredDecree(type=decree_type),
+            supporter_names=supporter_names,
+            suggestion_id=_suggestion_id(
+                state=state,
+                topic=topic,
+                index=index,
+                decree_type=decree_type,
+            ),
+            source_game_id=metadata.game_id,
+            source_branch_id=metadata.branch_id,
+            source_version_id=metadata.version_id,
+            rationale_factors=_suggestion_rationale(
+                state=state,
+                topic=topic,
+                decree_type=decree_type,
+                supporter_names=supporter_names,
+            ),
+        ))
+    return suggestions
+
+
+def _suggestion_source_is_visible(suggestion: PolicySuggestion, state) -> bool:
+    """Accept only a source version on the current version's ancestry chain."""
+
+    if suggestion.source_version_id is None:
+        return True  # additive compatibility for legacy saves
+    metadata = state.world_metadata
+    if metadata.game_id is None or metadata.version_id is None:
+        return False
+    if suggestion.source_game_id not in {None, metadata.game_id}:
+        return False
+    cursor = metadata.version_id
+    seen = set()
+    while cursor is not None and cursor not in seen:
+        if cursor == suggestion.source_version_id:
+            try:
+                source = worlds.load_version(cursor)
+            except worlds.WorldStoreError:
+                return False
+            return (
+                source.ref.game_id == metadata.game_id
+                and suggestion.source_branch_id in {None, source.ref.branch_id}
+            )
+        seen.add(cursor)
+        try:
+            cursor = worlds.load_version(cursor).ref.parent_version_id
+        except worlds.WorldStoreError:
+            return False
+    return False
 
 
 # ── POST /api/assembly/start ────────────────────────────
@@ -50,15 +245,16 @@ logger = logging.getLogger(__name__)
 @assembly_router.post("/assembly/start")
 async def assembly_start():
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
         current_month = _time_to_months(state.time.year, state.time.month)
         if state.last_assembly_month >= current_month:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="assembly_cooldown",
                 message="本月已召开过朝会",
             ).model_dump())
-        participants = select_assembly_participants(state)
-        if len(participants) < _ASSEMBLY_MIN_PARTICIPANTS:
+        participant_views = select_assembly_actor_views(state)
+        if len(participant_views) < _ASSEMBLY_MIN_PARTICIPANTS:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="insufficient_ministers",
                 message="在朝大臣不足，无法召开朝会",
@@ -67,12 +263,19 @@ async def assembly_start():
             phase=AssemblyPhase.PETITION,
             participants=[
                 AssemblyParticipant(
-                    name=p.name,
-                    faction=p.faction,
-                    position=p.positions[0] if p.positions else "朝臣",
+                    name=actor.minister.name,
+                    faction=actor.minister.faction,
+                    position=(
+                        actor.minister.positions[0]
+                        if actor.minister.positions else "参议主体"
+                    ),
                     argument_text="",
+                    entity_id=actor.entity_id,
+                    entity_type=actor.entity_type,
+                    capabilities=list(actor.capabilities),
+                    capability_sources=list(actor.capability_sources),
                 )
-                for p in participants
+                for actor in participant_views
             ],
         )
         state.last_assembly_month = current_month
@@ -89,29 +292,12 @@ async def assembly_start():
 @assembly_router.post("/assembly/petition")
 async def assembly_petition():
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.PETITION})
         ministers = _resolve_assembly_ministers(state, assembly)
-        provider = _get_provider()
-        raw_petitions = await provider.generate_petitions(ministers, state)
         petitions: list[AssemblyPetition] = []
-        active_names = {m.name for m in ministers}
-        for item in raw_petitions:
-            if not isinstance(item, dict):
-                continue
-            minister_name = str(item.get("minister_name", "")).strip()
-            content = str(item.get("content", "")).strip()
-            if minister_name not in active_names or not content:
-                continue
-            petitions.append(AssemblyPetition(
-                minister_name=minister_name,
-                content=content,
-                urgency=_normalize_petition_urgency(str(item.get("urgency", "中"))),
-            ))
-        existing = {p.minister_name for p in petitions}
         for m in ministers:
-            if m.name in existing:
-                continue
             petitions.append(AssemblyPetition(
                 minister_name=m.name,
                 content=f"臣{m.name}谨奏：{m.faction}所忧政务，望主公裁断。",
@@ -142,6 +328,13 @@ async def assembly_debate(req: AssemblyDebateRequest):
         ministers = _resolve_assembly_ministers(state, assembly)
         provider = _get_provider()
         raw_speeches = await provider.generate_debate_speeches(topic, ministers, state)
+        # Provider output is available and can now be normalized against a
+        # durable parent version. Rebase the local copy because legacy callers
+        # may have seeded only the compatibility state slot.
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
+        assembly = _require_assembly(state, {AssemblyPhase.PETITION, AssemblyPhase.DEBATE})
+        ministers = _resolve_assembly_ministers(state, assembly)
         speeches: list[AssemblySpeech] = []
         by_name = {m.name: m for m in ministers}
         for item in raw_speeches:
@@ -149,15 +342,16 @@ async def assembly_debate(req: AssemblyDebateRequest):
                 continue
             minister_name = str(item.get("minister_name", "")).strip()
             minister = by_name.get(minister_name)
-            content = str(item.get("content", "")).strip()
-            if minister is None or not content:
+            if minister is None:
                 continue
             if minister.faction in assembly.silenced_factions:
                 continue
             speeches.append(AssemblySpeech(
                 minister_name=minister_name,
-                faction=str(item.get("faction") or minister.faction),
-                content=content,
+                # Provider output may select a stance, but it cannot rewrite
+                # the committed identity/faction of a registered participant.
+                faction=minister.faction,
+                content="",
                 stance=_normalize_speech_stance(str(item.get("stance", "中立"))),
             ))
         existing = {s.minister_name for s in speeches}
@@ -167,7 +361,7 @@ async def assembly_debate(req: AssemblyDebateRequest):
             speeches.append(AssemblySpeech(
                 minister_name=m.name,
                 faction=m.faction,
-                content=f"臣{m.name}以为此议当慎行，请主公明断。",
+                content="",
                 stance="中立",
             ))
         if req.decree_type:
@@ -179,12 +373,28 @@ async def assembly_debate(req: AssemblyDebateRequest):
                     message="无效的政令类型",
                 ).model_dump())
         elif assembly.decree_type is None:
-            assembly.decree_type = infer_decree_type_from_topic(topic)
+            assembly.decree_type = infer_decree_type_from_topic(topic) or DecreeType.PERSONNEL
 
         assembly.phase = AssemblyPhase.DEBATE
         assembly.current_topic = topic
         assembly.topic = topic
         assembly.speeches = speeches
+        if assembly.decree_type is not None:
+            supporter_names = [
+                speech.minister_name
+                for speech in speeches
+                if speech.stance == "赞成"
+            ]
+            assembly.suggestions = _build_policy_suggestions(
+                state=state,
+                topic=topic,
+                default_decree_type=assembly.decree_type,
+                participant_names={minister.name for minister in ministers},
+                raw_suggestions=[{
+                    "decree_type": assembly.decree_type.value,
+                    "supporter_names": supporter_names,
+                }],
+            )
         speech_map = {s.minister_name: s.content for s in speeches}
         for p in assembly.participants:
             p.argument_text = speech_map.get(p.name, p.argument_text)
@@ -197,13 +407,43 @@ async def assembly_debate(req: AssemblyDebateRequest):
             assembly.consensus = "oppose"
         else:
             assembly.consensus = "divided"
-        assembly.debate_text = "\n".join(f"{s.minister_name}：{s.content}" for s in speeches)
-        state = await _set_state(
-            state,
-            action_kind="assembly_debate",
-            raw_text=topic,
+        assembly.debate_text = ""
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="assembly_debate",
+                raw_text=topic,
+                key_factors=[
+                    f"赞成{support_count}人",
+                    f"反对{oppose_count}人",
+                    f"共识：{assembly.consensus}",
+                ],
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(error_code=exc.code, message=exc.message).model_dump(),
+            ) from None
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="assembly_debate",
+            topic_id=f"assembly:{topic}",
+            action_text=topic,
+            reuse_current=settlement_result.replayed,
         )
-        return state.last_assembly.model_dump()
+        response = state.last_assembly.model_dump()
+        response.update({
+            "debate_text": narrative_result.text,
+            "narrative_status": narrative_result.narrative_status,
+            "narrative_path_id": narrative_result.path_id,
+            "settlement_id": narrative_result.settlement_id,
+            "context_version_id": narrative_result.context_version_id,
+            "narrative_artifact_id": narrative_result.artifact_id,
+            "narrative_request_id": narrative_result.request_id,
+            "narrative_progress": narrative_result.progress_stages,
+        })
+        return response
 
 
 # ── POST /api/assembly/vote ─────────────────────────────
@@ -438,8 +678,9 @@ async def convene_assembly(req: ConveneAssemblyRequest):
                 message="本月已召开过朝会，每月最多1次",
             ).model_dump())
 
-        participants = select_assembly_participants(state)
-        if len(participants) < 3:
+        participant_views = select_assembly_actor_views(state)
+        participants = [actor.minister for actor in participant_views]
+        if len(participant_views) < 3:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="insufficient_ministers",
                 message="在朝大臣不足，无法召开朝会",
@@ -449,6 +690,12 @@ async def convene_assembly(req: ConveneAssemblyRequest):
         ai_result = await provider.generate_assembly_debate(req.topic, participants, state)
         ai = ai_result if isinstance(ai_result, dict) else {}
 
+        # Provider/schema gating happens before a first durable root is created.
+        # Once the provider result is safely normalized, build candidate evidence
+        # from the committed parent version that the assembly will settle from.
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
+
         assembly = CourtAssembly(
             phase=AssemblyPhase.DEBATE,
             topic=req.topic,
@@ -456,67 +703,108 @@ async def convene_assembly(req: ConveneAssemblyRequest):
             decree_type=decree_type,
             participants=[
                 AssemblyParticipant(
-                    name=p.name, faction=p.faction,
-                    position="", argument_text="",
-                ) for p in participants
+                    name=actor.minister.name,
+                    faction=actor.minister.faction,
+                    position=(
+                        actor.minister.positions[0]
+                        if actor.minister.positions else "参议主体"
+                    ),
+                    argument_text="",
+                    entity_id=actor.entity_id,
+                    entity_type=actor.entity_type,
+                    capabilities=list(actor.capabilities),
+                    capability_sources=list(actor.capability_sources),
+                )
+                for actor in participant_views
             ],
-            debate_text=str(ai.get("debate_text", "")),
-            consensus=str(ai.get("consensus", "")),
+            debate_text="",
+            consensus=(
+                str(ai.get("consensus"))
+                if str(ai.get("consensus")) in {"support", "oppose", "divided"}
+                else "divided"
+            ),
         )
 
-        if isinstance(ai.get("suggestions"), list):
-            for s in ai["suggestions"][:3]:
-                if not isinstance(s, dict):
-                    continue
-                try:
-                    dt = DecreeType(s.get("decree_type", req.decree_type))
-                except (ValueError, TypeError):
-                    dt = decree_type
-                names = s.get("supporter_names", [])
-                assembly.suggestions.append(PolicySuggestion(
-                    title=str(s.get("title", "")),
-                    description=str(s.get("description", "")),
-                    related_decree=StructuredDecree(type=dt),
-                    supporter_names=names if isinstance(names, list) else [],
-                ))
-
-        if isinstance(ai.get("participants"), list):
-            p_map = {p.name: p for p in assembly.participants}
-            for ap in ai["participants"]:
-                if not isinstance(ap, dict):
-                    continue
-                name = ap.get("name")
-                if isinstance(name, str) and name in p_map:
-                    p_map[name].position = str(ap.get("position", ""))
-                    p_map[name].argument_text = str(ap.get("argument_text", ""))
-
-        assembly.speeches = [
-            AssemblySpeech(
-                minister_name=p.name,
-                faction=p.faction,
-                content=p.argument_text,
-                stance="中立",
+        raw_suggestions = ai.get("suggestions")
+        if isinstance(raw_suggestions, list):
+            assembly.suggestions = _build_policy_suggestions(
+                state=state,
+                topic=req.topic,
+                default_decree_type=decree_type,
+                participant_names={participant.name for participant in participants},
+                raw_suggestions=raw_suggestions,
             )
-            for p in assembly.participants if p.argument_text
-        ]
 
         state.last_assembly = assembly
         state.last_assembly_month = current_month
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="court_assembly_convene",
             raw_text=req.topic,
         )
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="assembly_debate",
+            topic_id=f"assembly:{req.topic}",
+            action_text=req.topic,
+            reuse_current=settlement_result.replayed,
+        )
 
-    return state.last_assembly.model_dump()
+    response = state.last_assembly.model_dump()
+    response.update({
+        "debate_text": narrative_result.text,
+        "narrative_status": narrative_result.narrative_status,
+        "narrative_path_id": narrative_result.path_id,
+        "settlement_id": narrative_result.settlement_id,
+        "context_version_id": narrative_result.context_version_id,
+        "narrative_artifact_id": narrative_result.artifact_id,
+        "narrative_request_id": narrative_result.request_id,
+        "narrative_progress": narrative_result.progress_stages,
+    })
+    return response
 
 
 # ── Legacy: POST /api/court-assembly/adopt ───────────────
 
 @assembly_router.post("/court-assembly/adopt")
 async def adopt_suggestion(req: AdoptSuggestionRequest):
+    if req.mode == "free_input":
+        free_text = (req.free_text or "").strip()
+        if not free_text:
+            raise HTTPException(422, detail=ErrorResponse(
+                error_code="free_text_required",
+                message="自由输入不能为空",
+            ).model_dump())
+        # Reuse the canonical freeform adjudication path. Import lazily to avoid
+        # widening the assembly module's import cycle during application startup.
+        from .routes import execute_decree
+
+        response = await execute_decree(DecreeRequest(free_text=free_text))
+        if hasattr(response, "model_dump"):
+            response = response.model_dump()
+        response.update({
+            "suggestion_adoption_mode": "free_input",
+            "suggestion_id": None,
+            "suggestion_source_version_id": None,
+            "suggestion_evaluation_version_id": None,
+            "suggestion_was_stale": False,
+            "suggestion_rationale_factors": [],
+        })
+        return response
+
+    if req.suggestion_index is None:
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="suggestion_index_required",
+            message="原样或编辑采用必须指定候选方案",
+        ).model_dump())
+    if req.mode == "edited" and not (req.edited_text or "").strip():
+        raise HTTPException(422, detail=ErrorResponse(
+            error_code="edited_text_required",
+            message="编辑采用必须提供新的行动意图",
+        ).model_dump())
+
     mem_triggers: list[Memorial] = []
-    provider = _get_provider()
 
     async with _lock:
         state = _get_state().model_copy(deep=True)
@@ -533,7 +821,40 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             ).model_dump())
 
         suggestion = state.last_assembly.suggestions[req.suggestion_index]
+        if req.suggestion_id is not None and req.suggestion_id != suggestion.suggestion_id:
+            raise HTTPException(409, detail=ErrorResponse(
+                error_code="suggestion_provenance_mismatch",
+                message="候选方案标识已变化，请刷新后重试",
+            ).model_dump())
+        if (
+            req.source_version_id is not None
+            and req.source_version_id != suggestion.source_version_id
+        ):
+            raise HTTPException(409, detail=ErrorResponse(
+                error_code="suggestion_provenance_mismatch",
+                message="候选方案来源版本已变化，请刷新后重试",
+            ).model_dump())
+        if not _suggestion_source_is_visible(suggestion, state):
+            raise HTTPException(409, detail=ErrorResponse(
+                error_code="stale_suggestion_source",
+                message="候选方案来源不属于当前世界线，请按当前局势重新召开朝议",
+            ).model_dump())
         decree = suggestion.related_decree
+        current_version_id = state.world_metadata.version_id
+        suggestion_was_stale = (
+            suggestion.source_version_id is not None
+            and suggestion.source_version_id != current_version_id
+        )
+        current_supporter_names = _active_suggestion_supporters(
+            state,
+            suggestion.supporter_names,
+        )
+        current_rationale_factors = _suggestion_rationale(
+            state=state,
+            topic=state.last_assembly.topic,
+            decree_type=decree.type,
+            supporter_names=current_supporter_names,
+        )
 
         reason = check_preconditions(state, decree, enforce_monthly_limit=False)
         if reason:
@@ -555,46 +876,62 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             mark_monthly_usage=False,
         )
         mem_triggers = state.memorials[mem_count_before:]
-        # 状态一致性闭环（惰性导入防 engine 初始化环）：校验→重试→净化
-        from engine.state_consistency import ensure_narrative_consistent, sanitize_ai_text
-        narrative = await ensure_narrative_consistent(
-            provider, state,
-            generate=lambda fix_instruction=None: provider.generate_narrative(
-                attr, state, triggered, decree, fix_instruction=fix_instruction,
-            ),
-        )
-        if summary:
-            ai_implications = await provider.generate_action_implications(
-                {"rule_based_implications": summary.action_implications}, state,
-            )
-            if ai_implications:
-                summary.action_implications = ai_implications
-            summary.commentary = sanitize_ai_text(
-                await provider.generate_turn_commentary(summary.model_dump(), state), state,
-            )
         state.history_log.append(HistoryEntry(
             year=state.time.year, month=state.time.month,
             decree_type=decree.type.value, decree_desc=decree.target or "",
-            delta=delta, narrative=narrative,
+            delta=delta, narrative="",
         ))
-        await _fill_memorial_content(provider, mem_triggers, state)
-        state = await _set_state(
+        action_text = (
+            (req.edited_text or "").strip()
+            if req.mode == "edited"
+            else suggestion.title or decree.type.value
+        )
+        state, settlement_result = await _settle_state(
             state,
             action_kind="court_assembly_adopt",
-            raw_text=suggestion.title or decree.type.value,
+            raw_text=action_text,
         )
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="structured_action",
+            topic_id="assembly-adopt",
+            action_text=action_text,
+            reuse_current=settlement_result.replayed,
+        )
+        if summary:
+            summary.commentary = narrative_result.text
         resp = DecreeResponse(
             state=state, delta=delta, attribution=attr,
-            narrative=narrative, newly_triggered_events=triggered,
+            narrative=narrative_result.text, newly_triggered_events=triggered,
             game_time=state.time, game_over=game_over,
             minister_reactions=reactions, turn_summary=summary,
             memorial_triggers=mem_triggers,
+            narrative_status=narrative_result.narrative_status,
+            narrative_path_id=narrative_result.path_id,
+            settlement_id=narrative_result.settlement_id,
+            context_version_id=narrative_result.context_version_id,
+            narrative_artifact_id=narrative_result.artifact_id,
+            narrative_request_id=narrative_result.request_id,
+            narrative_progress=narrative_result.progress_stages,
         ).model_dump()
 
     if mem_triggers:
         resp["memorial_triggers"] = [m.model_dump() for m in mem_triggers]
     resp["state"] = state.model_dump()
     resp["game_time"] = state.time.model_dump()
+    resp["suggestion_id"] = suggestion.suggestion_id
+    resp["suggestion_source_version_id"] = (
+        str(suggestion.source_version_id) if suggestion.source_version_id else None
+    )
+    resp["suggestion_was_stale"] = suggestion_was_stale
+    resp["suggestion_adoption_mode"] = req.mode
+    resp["suggestion_evaluation_version_id"] = (
+        str(current_version_id) if current_version_id else None
+    )
+    resp["suggestion_rationale_factors"] = [
+        factor.model_dump() for factor in current_rationale_factors
+    ]
 
     return resp
 

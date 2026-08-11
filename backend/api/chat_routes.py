@@ -6,18 +6,19 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
+from ai.narrative_context import build_persisted_narrative_context
 from models.game import ErrorResponse, GameEvent, GameState
 
+from .narrative_routes import generate_contextual_narrative, record_contextual_exchange
 from .routes import advance_month_endpoint, execute_decree
 from .schemas import ChatRequest, DecreeRequest
 from .state import (
     _get_provider,
     _get_state,
+    _ensure_world_head,
     _lock,
     _split_stream_sentences,
     _sse_event,
-    append_chat_conversation,
-    get_chat_conversation,
 )
 
 chat_router = APIRouter(prefix="/api")
@@ -62,7 +63,13 @@ def _normalize_chat_intent(classified: dict) -> tuple[str, float, str]:
         confidence = 0.0
     confidence = max(0.0, min(1.0, confidence))
 
-    reason = str(classified.get("reason", "")).strip() or "AI未给出分类理由"
+    # The classifier reason is provider-authored free text. Keep it out of the
+    # player-visible SSE channel and expose only a deterministic server summary.
+    reason = {
+        "query": "识别为局势查询",
+        "execute": "识别为执行行动",
+        "advance_month": "识别为推进月份",
+    }[intent]
     return intent, confidence, reason
 
 
@@ -165,9 +172,18 @@ async def chat_stream(req: ChatRequest):
         try:
             async with _lock:
                 provider = _get_provider()
-                state_snapshot = _get_state().model_copy(deep=True)
-                append_chat_conversation("user", message)
-                history_for_model = get_chat_conversation()
+                current_state, _current_ref = _ensure_world_head()
+                state_snapshot = current_state.model_copy(deep=True)
+                history_context = build_persisted_narrative_context(
+                    path_id="ordinary_chat",
+                    state=state_snapshot,
+                    topic_id="chat",
+                    action_text=message,
+                )
+                history_for_model = [
+                    {"role": memory.role, "content": memory.content}
+                    for memory in history_context.memories
+                ]
 
             is_explore_message = _is_explore_message(message)
             if is_explore_message:
@@ -211,14 +227,50 @@ async def chat_stream(req: ChatRequest):
             triggered_events: list[str] = []
             new_ministers: list[str] = []
             game_over: dict | None = None
+            narrative_status: str | None = None
+            narrative_context_path_id = history_context.path_id
+            narrative_path_id: str | None = None
+            context_version_id = state_snapshot.world_metadata.version_id
+            settlement_id = None
+            narrative_artifact_id = None
+            narrative_request_id: str | None = None
+            narrative_progress: list[str] = []
 
             if intent == "query":
-                reply = await provider.chat_query(message, state_snapshot, history_for_model)
+                yield _sse_event("progress", {
+                    "stage": "context_ready",
+                    "message": "已锁定当前世界与对话记忆。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "generating",
+                    "message": "正在生成完整回复，模型原文不会直接展示。",
+                })
+                narrative_result = await generate_contextual_narrative(
+                    state=state_snapshot,
+                    path_id="chat_sse",
+                    topic_id="chat",
+                    action_text=message,
+                )
+                reply = narrative_result.text
+                narrative_status = narrative_result.narrative_status
+                narrative_path_id = narrative_result.path_id
+                context_version_id = narrative_result.context_version_id
+                settlement_id = narrative_result.settlement_id
+                narrative_artifact_id = narrative_result.artifact_id
+                narrative_request_id = narrative_result.request_id
+                narrative_progress = list(narrative_result.progress_stages)
+                yield _sse_event("progress", {
+                    "stage": "validating",
+                    "message": "正在核对当前世界与已提交事实。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "validated",
+                    "message": "回复已完成事实校验，正在呈现……",
+                })
                 for chunk in _stream_chunks(reply):
                     yield _sse_event("narrative_chunk", {"chunk": chunk})
                     await asyncio.sleep(0.02)
                 async with _lock:
-                    append_chat_conversation("assistant", reply)
                     state_payload = _get_state().model_dump()
 
             elif intent == "advance_month":
@@ -233,8 +285,19 @@ async def chat_stream(req: ChatRequest):
                         return
                     before_state = current_state.model_copy(deep=True)
 
+                yield _sse_event("progress", {
+                    "stage": "context_ready",
+                    "message": "已锁定当前世界与月份上下文。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "generating",
+                    "message": "正在裁决月份推进并生成完整回复。",
+                })
                 month_result = await advance_month_endpoint()
                 state = GameState.model_validate(month_result["state"])
+                month_narrative = month_result["narrative"]
+                if hasattr(month_narrative, "model_dump"):
+                    month_narrative = month_narrative.model_dump()
                 new_ministers = [
                     str(item.get("name"))
                     for item in month_result["new_ministers"]
@@ -245,14 +308,33 @@ async def chat_stream(req: ChatRequest):
                 async with _lock:
                     delta = _state_delta(before_state, state)
                     effects_applied = _has_effects(delta)
-                    reply = f"主公，已入{state.time.year}年{state.time.month}月。"
-                    if new_ministers:
-                        reply += f" 新入朝臣：{'、'.join(new_ministers)}。"
-                    if triggered_events:
-                        reply += f" 新起之事：{'、'.join(triggered_events[:4])}。"
-                    append_chat_conversation("assistant", reply)
+                    reply = str(month_narrative["text"])
+                    narrative_status = month_narrative["narrative_status"]
+                    narrative_path_id = month_narrative["path_id"]
+                    context_version_id = month_narrative["context_version_id"]
+                    settlement_id = month_narrative["settlement_id"]
+                    narrative_artifact_id = month_narrative["artifact_id"]
+                    narrative_request_id = month_narrative["request_id"]
+                    narrative_progress = list(month_narrative["progress_stages"])
+                    record_contextual_exchange(
+                        state=state,
+                        path_id="chat_sse",
+                        topic_id="chat",
+                        user_text=message,
+                        assistant_text=reply,
+                        request_id=narrative_request_id,
+                        settlement_id=settlement_id,
+                    )
                     state_payload = state.model_dump()
 
+                yield _sse_event("progress", {
+                    "stage": "validating",
+                    "message": "正在核对月份结算与当前事实。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "validated",
+                    "message": "回复已完成事实校验，正在呈现……",
+                })
                 for chunk in _stream_chunks(reply):
                     yield _sse_event("narrative_chunk", {"chunk": chunk})
                     await asyncio.sleep(0.02)
@@ -267,8 +349,26 @@ async def chat_stream(req: ChatRequest):
                     })
                     return
 
+                yield _sse_event("progress", {
+                    "stage": "context_ready",
+                    "message": "已锁定当前世界与行动上下文。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "generating",
+                    "message": "正在结算行动并生成完整回复。",
+                })
                 response = await execute_decree(DecreeRequest(free_text=message))
                 reply = str(response.get("narrative", "")).strip() or "主公，旨意已行。"
+                narrative_status = response.get("narrative_status")
+                narrative_path_id = response.get("narrative_path_id")
+                context_version_id = response.get("state", {}).get("world_metadata", {}).get(
+                    "version_id",
+                    context_version_id,
+                )
+                settlement_id = response.get("settlement_id")
+                narrative_artifact_id = response.get("narrative_artifact_id")
+                narrative_request_id = response.get("narrative_request_id")
+                narrative_progress = list(response.get("narrative_progress") or [])
                 minister_reactions = _normalize_minister_reactions(response.get("minister_reactions"))
                 raw_delta = response.get("delta")
                 if isinstance(raw_delta, dict):
@@ -279,13 +379,31 @@ async def chat_stream(req: ChatRequest):
                             delta[str(key)] = value
                 effects_applied = _has_effects(delta)
 
+                yield _sse_event("progress", {
+                    "stage": "validating",
+                    "message": "正在核对行动结算与当前事实。",
+                })
+                yield _sse_event("progress", {
+                    "stage": "validated",
+                    "message": "回复已完成事实校验，正在呈现……",
+                })
                 for chunk in _stream_chunks(reply):
                     yield _sse_event("narrative_chunk", {"chunk": chunk})
                     await asyncio.sleep(0.02)
 
                 async with _lock:
-                    append_chat_conversation("assistant", reply)
-                    state_payload = _get_state().model_dump()
+                    current_state = _get_state()
+                    state_payload = current_state.model_dump()
+                    if narrative_request_id:
+                        record_contextual_exchange(
+                            state=current_state,
+                            path_id="chat_sse",
+                            topic_id="chat",
+                            user_text=message,
+                            assistant_text=reply,
+                            request_id=narrative_request_id,
+                            settlement_id=settlement_id,
+                        )
 
             if effects_applied:
                 yield _sse_event("effects", {
@@ -310,6 +428,14 @@ async def chat_stream(req: ChatRequest):
                 "triggered_events": triggered_events,
                 "new_ministers": new_ministers,
                 "game_over": game_over,
+                "narrative_status": narrative_status,
+                "narrative_context_path_id": narrative_context_path_id,
+                "narrative_path_id": narrative_path_id,
+                "context_version_id": context_version_id,
+                "settlement_id": settlement_id,
+                "narrative_artifact_id": narrative_artifact_id,
+                "narrative_request_id": narrative_request_id,
+                "narrative_progress": narrative_progress,
             })
         except HTTPException as exc:
             detail = exc.detail if isinstance(exc.detail, dict) else ErrorResponse(
@@ -319,12 +445,12 @@ async def chat_stream(req: ChatRequest):
             yield _sse_event("error", {"status": exc.status_code, "detail": detail})
         except asyncio.CancelledError:
             raise
-        except Exception as exc:
+        except Exception:
             yield _sse_event("error", {
                 "status": 500,
                 "detail": ErrorResponse(
                     error_code="chat_stream_error",
-                    message=f"聊天处理失败：{exc}",
+                    message="聊天处理失败，请稍后重试",
                 ).model_dump(),
             })
 

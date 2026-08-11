@@ -82,6 +82,10 @@ class RollRecord(_WorldStateContract):
     roll_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     protocol_version: str = Field(min_length=1)
     raw_d100: int = Field(strict=True, ge=1, le=100)
+    target_value: int | None = Field(default=None, strict=True, ge=1, le=100)
+    result_tier: Literal[
+        "critical_success", "success", "failure", "critical_failure"
+    ] | None = None
     modifiers: list[VisibleRollModifier] = Field(default_factory=list)
     uncertainty_reasons: list[UncertaintyReason] = Field(min_length=1)
     fact_references: list[str] = Field(min_length=1)
@@ -202,6 +206,10 @@ class RegionProjection(_WorldStateContract):
     controller_entity_id: EntityId | None = None
     local_entity_ids: list[EntityId] = Field(default_factory=list)
     metrics: list[MetricProjection] = Field(default_factory=list)
+    danger: bool = False
+    danger_factors: list[str] = Field(default_factory=list)
+    power_vacuum: bool = False
+    power_vacuum_reasons: list[str] = Field(default_factory=list)
 
 
 class WorldStateProjection(_WorldStateContract):

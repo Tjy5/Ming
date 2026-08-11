@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import time
 from collections import Counter
 
 from fastapi import APIRouter, HTTPException
@@ -21,14 +20,6 @@ from models.positions import (
     PositionCategory, PositionInfo, POSITION_REGISTRY,
     get_positions_by_category, calculate_position_weight,
 )
-# 状态一致性校验层：模块级导入（engine 包此时已完成初始化，无环）。
-# 注意：若改为函数内导入，会因函数级局部作用域导致其他分支 UnboundLocalError。
-from engine.state_consistency import (
-    ensure_narrative_consistent,
-    sanitize_ai_text,
-    sanitize_narrative,
-    validate_narrative_against_dropped,
-)
 from engine.core import (
     check_preconditions,
     check_game_end,
@@ -40,10 +31,12 @@ from engine.core import (
 from engine.calendar import ensure_game_time_clock
 from engine.clock import ClockPlanningError, plan_elapsed_segment
 from engine.elapsed_consumers import default_clock_registry, project_state_at_boundary
+from engine.entity_views import resolve_dialogue_actor
 from api.action_service import AIActionAdjudicator, ActionAdjudicationError, ActionService
 from db import worlds
+from db.narrative_memory import list_visible_memories
 from models.settlement import ActionIntent, AdjudicationProposal
-from models.world import new_client_action_id
+from models.world import PersonEntity, new_client_action_id
 from engine.scripts import SCRIPT_REGISTRY
 from ai.provider import PARSE_ERROR_TYPE_UNAVAILABLE
 from .schemas import (
@@ -73,9 +66,6 @@ from .state import (
     NarrativeChunkCallback,
     _STREAM_PROGRESS_MESSAGES,
     _MAX_DIALOGUE_MESSAGES,
-    clear_chat_conversation,
-    _fill_memorial_content,
-    _generate_narrative_with_streaming,
     _get_provider,
     _get_state,
     _ensure_world_head,
@@ -83,10 +73,12 @@ from .state import (
     _publish_world_head,
     _reload_world_head,
     _set_state,
+    _settle_state,
     _split_stream_sentences,
     _sse_event,
     startup,
 )
+from .narrative_routes import generate_committed_narrative
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -199,7 +191,6 @@ async def new_game():
     decisions = await _decide_script_triggers_for_state(provider, state)
     inject_script_events(state, script_trigger_decisions=decisions)
 
-    clear_chat_conversation()
     root = worlds.create_game_with_root(state)
     snapshot = worlds.load_version(root.version_id)
     _publish_world_head(snapshot.state, snapshot.ref)
@@ -211,6 +202,7 @@ async def new_game():
 async def _execute_decree_core(
     req: DecreeRequest,
     stream_narrative_callback: NarrativeChunkCallback | None = None,
+    narrative_path_id: str | None = None,
 ) -> tuple[dict, list[Memorial], object, GameState]:
     # normalize free_text
     free_text = (req.free_text or "").strip() or None
@@ -311,24 +303,10 @@ async def _execute_decree_core(
                     )
                     _mem_triggers = state.memorials[mem_count_before:]
 
-                    narrative = sanitize_ai_text(freeform.narrative, state)
-                    if dropped_out:
-                        # 丢弃了无效 effects：叙事不得描述未生效目标的变化（文本/数值同源）
-                        narrative = sanitize_narrative(
-                            narrative, validate_narrative_against_dropped(narrative, dropped_out),
-                        )
-
-                    if _summary:
-                        ai_implications = await provider.generate_action_implications(
-                            {"rule_based_implications": _summary.action_implications}, state,
-                        )
-                        if ai_implications:
-                            _summary.action_implications = ai_implications
-                        _summary.commentary = sanitize_ai_text(
-                            await provider.generate_turn_commentary(
-                                _summary.model_dump(), state,
-                            ), state,
-                        )
+                    # The provider's structured freeform narrative is never a
+                    # display result.  The committed SettlementFacts drive the
+                    # canonical post-commit narrative below.
+                    narrative = ""
 
                     state.history_log.append(HistoryEntry(
                         year=state.time.year, month=state.time.month,
@@ -336,9 +314,6 @@ async def _execute_decree_core(
                         decree_desc=free_text_for_history[:50],
                         delta=delta, narrative=narrative,
                     ))
-
-                    if stream_narrative_callback and narrative:
-                        await stream_narrative_callback(narrative)
 
                     last_response = DecreeResponse(
                         state=state, delta=delta, attribution=attribution,
@@ -390,11 +365,9 @@ async def _execute_decree_core(
                     enforce_monthly_limit=enforce_monthly_limit,
                 )
                 if reason:
-                    narrative = await provider.rejection_narrative(decree, reason)
                     raise HTTPException(422, detail=ErrorResponse(
                         error_code="precondition_failed",
                         message=reason,
-                        details={"ai_narrative": narrative},
                     ).model_dump())
 
                 target_err = validate_target(decree, state)
@@ -413,30 +386,7 @@ async def _execute_decree_core(
                 )
                 _mem_triggers = state.memorials[mem_count_before:]
 
-                should_stream_narrative = (
-                    stream_narrative_callback is not None
-                    and (decree_index == decree_count - 1 or game_over is not None)
-                )
-                narrative = await _generate_narrative_with_streaming(
-                    provider=provider,
-                    attribution=attribution,
-                    state=state,
-                    triggered=triggered,
-                    decree=decree,
-                    stream_callback=stream_narrative_callback if should_stream_narrative else None,
-                )
-
-                if _summary:
-                    ai_implications = await provider.generate_action_implications(
-                        {"rule_based_implications": _summary.action_implications}, state,
-                    )
-                    if ai_implications:
-                        _summary.action_implications = ai_implications
-                    _summary.commentary = sanitize_ai_text(
-                        await provider.generate_turn_commentary(
-                            _summary.model_dump(), state,
-                        ), state,
-                    )
+                narrative = ""
 
                 state.history_log.append(HistoryEntry(
                     year=state.time.year, month=state.time.month,
@@ -476,20 +426,7 @@ async def _execute_decree_core(
             mem_count_before = len(state.memorials)
             delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state)
             _mem_triggers = state.memorials[mem_count_before:]
-            narrative = "主公暂且按兵不动，静观时局变化。"
-            if stream_narrative_callback:
-                await stream_narrative_callback(narrative)
-            if _summary:
-                ai_implications = await provider.generate_action_implications(
-                    {"rule_based_implications": _summary.action_implications}, state,
-                )
-                if ai_implications:
-                    _summary.action_implications = ai_implications
-                _summary.commentary = sanitize_ai_text(
-                    await provider.generate_turn_commentary(
-                        _summary.model_dump(), state,
-                    ), state,
-                )
+            narrative = ""
             state.history_log.append(HistoryEntry(
                 year=state.time.year, month=state.time.month,
                 decree_type="wait", decree_desc="",
@@ -509,25 +446,51 @@ async def _execute_decree_core(
             _apply_loyalty_effects(state, req.loyalty_effects)
             clamp_state(state)
 
-        # Memorial text is part of the committed action result. Completing it
-        # after commit would mutate only the process cache and fork it from the
-        # immutable version snapshot.
-        await _fill_memorial_content(provider, _mem_triggers, state)
-
         # Commit rules output, elapsed time, boundary consumers and the world
         # version together. Legacy rules never write the canonical clock.
         raw_text = free_text or "；".join(
             decree.target or decree.type.value for decree in req.decrees
         ) or "等待时局演化"
-        state = await _set_state(
-            state,
-            action_kind="freeform_decree" if free_text else "structured_decree",
-            raw_text=raw_text,
-        )
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="freeform_decree" if free_text else "structured_decree",
+                raw_text=raw_text,
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(
+                    error_code=exc.code,
+                    message=exc.message,
+                ).model_dump(),
+            ) from None
         last_response["state"] = state.model_dump()
         last_response["game_time"] = state.time.model_dump()
 
-    # ── Fill memorial content outside lock ──
+    path_id = narrative_path_id or ("freeform_action" if free_text else "structured_action")
+    narrative_result = await generate_committed_narrative(
+        state=state,
+        facts=settlement_result.facts,
+        path_id=path_id,
+        topic_id="decree",
+        action_text=raw_text,
+        reuse_current=settlement_result.replayed,
+    )
+    last_response["narrative"] = narrative_result.text
+    last_response["narrative_status"] = narrative_result.narrative_status
+    last_response["narrative_path_id"] = narrative_result.path_id
+    last_response["settlement_id"] = narrative_result.settlement_id
+    last_response["context_version_id"] = narrative_result.context_version_id
+    last_response["narrative_artifact_id"] = narrative_result.artifact_id
+    last_response["narrative_request_id"] = narrative_result.request_id
+    last_response["narrative_progress"] = narrative_result.progress_stages
+    if last_response.get("turn_summary"):
+        last_response["turn_summary"]["commentary"] = narrative_result.text
+    if stream_narrative_callback:
+        for chunk in narrative_result.chunks:
+            await stream_narrative_callback(chunk)
+
     return last_response, _mem_triggers, provider, state
 
 
@@ -568,6 +531,7 @@ async def execute_decree_stream(req: DecreeRequest):
                 _execute_decree_core(
                     req,
                     stream_narrative_callback=_on_narrative_chunk,
+                    narrative_path_id="decree_sse",
                 ),
             )
 
@@ -592,7 +556,11 @@ async def execute_decree_stream(req: DecreeRequest):
                 if not narrative_started:
                     narrative_started = True
                     yield _sse_event(
-                        "progress", {"stage": "narrative", "message": "诏令已成，正在宣读……"},
+                        "progress",
+                        {
+                            "stage": "validated",
+                            "message": "叙事已完成事实校验，正在宣读……",
+                        },
                     )
                 yield _sse_event("narrative", {"chunk": chunk})
 
@@ -602,7 +570,6 @@ async def execute_decree_stream(req: DecreeRequest):
                 yield _sse_event(
                     "progress", {"stage": "memorial", "message": "各部奏折正在誊录上呈……"},
                 )
-                await _fill_memorial_content(provider, memorials, state)
                 response["memorial_triggers"] = [m.model_dump() for m in memorials]
 
                 for memorial in memorials:
@@ -763,12 +730,21 @@ async def advance_month_endpoint(req: AdvanceMonthRequest | None = None):
         m.model_dump() for m in state.ministers
         if m.name in new_minister_names
     ]
+    narrative = await generate_committed_narrative(
+        state=state,
+        facts=execution.result.facts,
+        path_id="monthly_review",
+        topic_id="month",
+        action_text=intent.raw_text,
+        reuse_current=execution.result.replayed,
+    )
     return {
         "state": state.model_dump(),
         "triggered_events": triggered_events,
         "game_over": check_game_end(state),
         "new_ministers": activated,
         "result": execution.result,
+        "narrative": narrative,
     }
 
 
@@ -803,13 +779,6 @@ async def parse_decree(req: ParseRequest):
 @router.get("/state", response_model=GameStateResponse)
 async def get_state():
     state = _get_state()
-    placeholder_mems = [
-        m for m in state.memorials
-        if m.content == "待补充奏疏内容。"
-        and m.status in (MemorialStatus.PENDING, MemorialStatus.DEFERRED)
-    ]
-    if placeholder_mems:
-        await _fill_memorial_content(_get_provider(), placeholder_mems, state)
     data = state.model_dump()
     total = len(data["history_log"])
     data["history_log"] = data["history_log"][-20:]
@@ -854,7 +823,8 @@ async def start_debate(req: DebateStartRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
         provider = _get_provider()
 
         selected = select_debate_ministers(state, decree_type)
@@ -871,12 +841,49 @@ async def start_debate(req: DebateStartRequest):
                 error_code="debate_unavailable",
                 message="朝议生成失败，请稍后再试",
             ).model_dump())
-        await _set_state(
-            state,
-            action_kind="debate",
-            raw_text=req.topic,
+        result = result.model_copy(update={
+            "debate_text": "",
+            "minister_a": result.minister_a.model_copy(
+                update={"position_summary": "提出结构化方案甲"},
+            ),
+            "minister_b": result.minister_b.model_copy(
+                update={"position_summary": "提出结构化方案乙"},
+            ),
+            "keywords": [],
+        })
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="debate",
+                raw_text=req.topic,
+                key_factors=[
+                    f"参议者：{minister_a.name}",
+                    f"参议者：{minister_b.name}",
+                ],
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(error_code=exc.code, message=exc.message).model_dump(),
+            ) from None
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="assembly_debate",
+            topic_id=f"assembly:{req.topic}",
+            action_text=req.topic,
+            reuse_current=settlement_result.replayed,
         )
-        return result.model_dump()
+        return result.model_copy(update={
+            "debate_text": narrative_result.text,
+            "narrative_status": narrative_result.narrative_status,
+            "narrative_path_id": narrative_result.path_id,
+            "settlement_id": narrative_result.settlement_id,
+            "context_version_id": narrative_result.context_version_id,
+            "narrative_artifact_id": narrative_result.artifact_id,
+            "narrative_request_id": narrative_result.request_id,
+            "narrative_progress": narrative_result.progress_stages,
+        }).model_dump()
 
 
 # ── 6.11 POST /api/debate/silence ──────────────────────
@@ -963,20 +970,17 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
         memorial.status = MemorialStatus(req.action)
 
-        narrative = ""
         accumulated_delta: dict = {}
         accumulated_reactions: list = []
 
         if req.action == "approved" and memorial.suggested_decrees:
-            provider = _get_provider()
-            last_decree = last_attr = last_triggered = None
             for decree in memorial.suggested_decrees:
                 reason = check_preconditions(state, decree, enforce_monthly_limit=False)
                 if reason:
                     continue
                 if validate_target(decree, state):
                     continue
-                delta, attr, triggered, game_over, _reactions, _summary = process_decree(
+                delta, _attr, _triggered, game_over, _reactions, _summary = process_decree(
                     state,
                     decree,
                     mark_monthly_usage=False,
@@ -984,7 +988,6 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 accumulated_reactions.extend(_reactions)
                 for k, v in delta.items():
                     accumulated_delta[k] = accumulated_delta.get(k, 0) + v
-                last_decree, last_attr, last_triggered = decree, attr, triggered
                 state.history_log.append(HistoryEntry(
                     year=state.time.year, month=state.time.month,
                     decree_type=decree.type.value, decree_desc=decree.target or "",
@@ -992,41 +995,49 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 ))
                 if game_over:
                     break
-            if last_decree is not None:
-                # 状态一致性闭环：校验→重试→净化（模块级导入，见文件头注释）
-                narrative = await ensure_narrative_consistent(
-                    provider, state,
-                    generate=lambda fix_instruction=None: provider.generate_narrative(
-                        last_attr, state, last_triggered, last_decree,
-                        fix_instruction=fix_instruction,
-                    ),
-                )
-                state.history_log[-1].narrative = narrative
-
-        if req.action != "approved" and narrative == "":
-            if req.action == "rejected":
-                narrative = f"主公驳回了{memorial.author_name}的奏折。"
-            elif req.action == "deferred":
-                narrative = f"主公将{memorial.author_name}的奏折留中待议。"
-
-        # 为 approved 但无有效 decree 的情况补充默认叙事
-        if req.action == "approved" and not narrative:
-            narrative = "准奏，着即施行。"
 
         # 写入批复结果到 memorial.resolution_result
         memorial.resolution_result = MemorialResolutionResult(
             action=req.action,
-            narrative=narrative if narrative else None,
+            narrative=None,
             delta=accumulated_delta if accumulated_delta else None,
             minister_reactions=accumulated_reactions if accumulated_reactions else None
         )
-        state = await _set_state(
-            state,
-            action_kind="memorial_resolution",
-            raw_text=f"{req.action}奏折：{memorial.title}",
+        action_text = f"{req.action}奏折：{memorial.title}（作者：{memorial.author_name}）"
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="memorial_resolution",
+                raw_text=action_text,
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(error_code=exc.code, message=exc.message).model_dump(),
+            ) from None
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="memorial",
+            topic_id=f"memorial:{memorial.id}",
+            action_text=action_text,
+            reuse_current=settlement_result.replayed,
         )
 
-        return {"state": state.model_dump(), "action": req.action, "narrative": narrative, "delta": accumulated_delta, "minister_reactions": [r.model_dump() for r in accumulated_reactions]}
+        return {
+            "state": state.model_dump(),
+            "action": req.action,
+            "narrative": narrative_result.text,
+            "delta": accumulated_delta,
+            "minister_reactions": [r.model_dump() for r in accumulated_reactions],
+            "narrative_status": narrative_result.narrative_status,
+            "narrative_path_id": narrative_result.path_id,
+            "settlement_id": narrative_result.settlement_id,
+            "context_version_id": narrative_result.context_version_id,
+            "narrative_artifact_id": narrative_result.artifact_id,
+            "narrative_request_id": narrative_result.request_id,
+            "narrative_progress": narrative_result.progress_stages,
+        }
 
 
 # ── 6.15 POST /api/minister/{name}/dialogue ───────────
@@ -1034,28 +1045,58 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 @router.post("/minister/{minister_name}/dialogue", response_model=DialogueResponse)
 async def minister_dialogue(minister_name: str, req: DialogueRequest):
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
         provider = _get_provider()
 
-        minister = next((m for m in state.ministers if m.name == minister_name), None)
-        if minister is None:
+        entity = next(
+            (
+                item for item in state.entity_registry.values()
+                if isinstance(item, PersonEntity)
+                and (
+                    str(item.entity_id) == minister_name
+                    or item.display_name == minister_name
+                )
+            ),
+            None,
+        )
+        if entity is None:
             raise HTTPException(404, detail=ErrorResponse(
-                error_code="minister_not_found",
-                message=f"大臣 {minister_name} 不存在",
+                error_code="entity_not_found",
+                message=f"人物 {minister_name} 不存在",
             ).model_dump())
 
-        if minister.status != MinisterStatus.ACTIVE:
+        actor = resolve_dialogue_actor(state, minister_name)
+        if actor is None:
             raise HTTPException(400, detail=ErrorResponse(
-                error_code="minister_not_active",
-                message=f"大臣 {minister_name} 当前不在朝",
+                error_code="entity_not_available",
+                message=f"人物 {minister_name} 在当前世界版本无对话权限或不可用",
             ).model_dump())
+        minister = actor.minister
+        legacy_minister = next(
+            (
+                item for item in state.ministers
+                if entity.legacy_name is not None and item.name == entity.legacy_name
+            ),
+            None,
+        )
 
-        conversation_id = req.conversation_id or f"{minister_name}_{int(time.time())}"
-
-        history = state.minister_conversations.setdefault(minister_name, [])
+        conversation_id = req.conversation_id or f"{minister_name}:default"
+        topic_id = f"dialogue:{conversation_id}"
+        history = list_visible_memories(
+            game_id=state.world_metadata.game_id,
+            branch_id=state.world_metadata.branch_id,
+            version_id=state.world_metadata.version_id,
+            mode="dialogue",
+            topic_id=topic_id,
+            person_entity_id=entity.entity_id,
+            current_phase=state.phase,
+            current_chapter=state.chapter,
+            limit=_MAX_DIALOGUE_MESSAGES,
+        )
         history_for_model = [
-            {"role": msg.role, "content": msg.content}
-            for msg in history[-_MAX_DIALOGUE_MESSAGES:]
+            {"role": memory.role, "content": memory.content}
+            for memory in history
         ]
         history_for_model.append({"role": "user", "content": req.message})
 
@@ -1063,44 +1104,66 @@ async def minister_dialogue(minister_name: str, req: DialogueRequest):
             dialogue_result = await provider.generate_minister_dialogue(
                 minister, req.message, state, history_for_model
             )
-
-            reply = str(dialogue_result.get("reply", "")).strip()
-            if not reply:
-                raise ValueError("AI reply is empty")
-
-            state.append_conversation_message(minister_name, "user", req.message)
-            state.append_conversation_message(minister_name, "assistant", reply)
-
-            raw_loyalty_change = dialogue_result.get("loyalty_change", 0)
-            try:
-                loyalty_change = int(raw_loyalty_change)
-            except (TypeError, ValueError):
-                loyalty_change = 0
-            loyalty_change = max(-3, min(3, loyalty_change))
-
-            if loyalty_change != 0:
-                minister.loyalty = max(0, min(100, minister.loyalty + loyalty_change))
-                clamp_state(state)
-
-            raw_mood = str(dialogue_result.get("mood", "neutral")).strip().lower()
-            mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
-
-            state = await _set_state(
-                state,
-                action_kind="minister_dialogue",
-                raw_text=f"与{minister_name}交谈：{req.message}",
-            )
-
-            return DialogueResponse(
-                reply=reply,
-                loyalty_change=loyalty_change,
-                mood=mood,
-                conversation_id=conversation_id,
-                state=state,
-            ).model_dump()
-
-        except Exception as exc:
+            if not isinstance(dialogue_result, dict):
+                raise ValueError("dialogue adjudication must be an object")
+        except Exception:
             raise HTTPException(503, detail=ErrorResponse(
                 error_code="dialogue_generation_failed",
-                message=f"对话生成失败: {exc}",
+                message="对话裁决生成失败，请稍后重试",
             ).model_dump())
+
+        raw_loyalty_change = dialogue_result.get("loyalty_change", 0)
+        try:
+            loyalty_change = int(raw_loyalty_change)
+        except (TypeError, ValueError):
+            loyalty_change = 0
+        loyalty_change = max(-3, min(3, loyalty_change))
+        if legacy_minister is None:
+            # Dynamic relationship updates require their own typed registry delta;
+            # never pretend a legacy loyalty field was committed for this actor.
+            loyalty_change = 0
+        elif loyalty_change != 0:
+            legacy_minister.loyalty = max(
+                0,
+                min(100, legacy_minister.loyalty + loyalty_change),
+            )
+            clamp_state(state)
+
+        raw_mood = str(dialogue_result.get("mood", "neutral")).strip().lower()
+        mood = raw_mood if raw_mood in {"support", "neutral", "oppose"} else "neutral"
+        action_text = f"与{minister_name}交谈：{req.message}"
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="minister_dialogue",
+                raw_text=action_text,
+                key_factors=[f"对话对象：{minister_name}", f"关系变化：{loyalty_change:+d}"],
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(error_code=exc.code, message=exc.message).model_dump(),
+            ) from None
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="entity_dialogue",
+            topic_id=topic_id,
+            person_entity_id=entity.entity_id,
+            action_text=req.message,
+            reuse_current=settlement_result.replayed,
+        )
+        return DialogueResponse(
+            reply=narrative_result.text,
+            loyalty_change=loyalty_change,
+            mood=mood,
+            conversation_id=conversation_id,
+            state=state,
+            narrative_status=narrative_result.narrative_status,
+            narrative_path_id=narrative_result.path_id,
+            settlement_id=narrative_result.settlement_id,
+            context_version_id=narrative_result.context_version_id,
+            narrative_artifact_id=narrative_result.artifact_id,
+            narrative_request_id=narrative_result.request_id,
+            narrative_progress=narrative_result.progress_stages,
+        ).model_dump()

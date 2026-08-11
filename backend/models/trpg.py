@@ -161,7 +161,7 @@ class ActRequest(BaseModel):
 class ConvergeRequest(BaseModel):
     """POST /api/trpg/converge 请求体（1360 收束抉择）。
 
-    choice: accept=接受招揽强制切换治理 / refuse=继续流窜进入身死结局分支。
+    choice: accept=接受招揽强制切换治理 / refuse=拒绝归附并继续流亡世界线。
     """
 
     choice: Literal["accept", "refuse"]

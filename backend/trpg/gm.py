@@ -27,12 +27,19 @@ RECENT_NARRATIVE_WINDOW = 3
 
 MIN_OPTIONS = 3
 MAX_OPTIONS = 4
+MAX_OPTION_ID_LENGTH = 64
+MAX_OPTION_LABEL_LENGTH = 80
+MAX_OPTION_DESCRIPTION_LENGTH = 500
+_FORBIDDEN_OPTION_TERMINAL_CLAIMS = (
+    "主角死亡", "主角身亡", "身死", "殒没", "困毙", "此局已终", "游戏结束",
+)
 
 # ── GM 提示词模板 ────────────────────────────────────────
 
 GM_SYSTEM_PROMPT = (
-    "你是一款元末明初跑团游戏的主持人（GM），主持朱元璋从布衣到崛起的人生篇章。"
-    "请根据玩家行动与检定结果推进剧情，文风凝练、有史意。"
+    "你是一款开放沙盒跑团游戏的主持人（GM）。元末背景与既有人物只是当前世界的"
+    "开局素材；主角身份、路线与结局均以输入上下文和玩家行动为准，不得强制回到正史。"
+    "请根据玩家行动与检定结果提供可编辑、不会承诺固定结果的后续选项，文风凝练、有史意。"
     "只输出一个 JSON 对象，不要输出其他内容。"
 )
 
@@ -210,22 +217,43 @@ def parse_gm_response(raw: object) -> dict | None:
     if not (MIN_OPTIONS <= len(options_raw) <= MAX_OPTIONS):
         return None
     options: list[dict] = []
+    option_ids: set[str] = set()
+    valid_milestone_ids = {
+        str(milestone.get("id"))
+        for milestone in chapter_mod.get_milestones()
+        if milestone.get("id")
+    }
     for idx, item in enumerate(options_raw):
         if not isinstance(item, dict):
             return None
         label = str(item.get("label") or "").strip()
-        if not label:
+        description = str(item.get("description") or "").strip()
+        if (
+            not label
+            or len(label) > MAX_OPTION_LABEL_LENGTH
+            or len(description) > MAX_OPTION_DESCRIPTION_LENGTH
+            or any(
+                claim in f"{label}\n{description}"
+                for claim in _FORBIDDEN_OPTION_TERMINAL_CLAIMS
+            )
+        ):
             return None
         option_id = str(item.get("option_id") or "").strip() or f"opt_ai_{idx + 1}"
+        if len(option_id) > MAX_OPTION_ID_LENGTH or option_id in option_ids:
+            return None
+        option_ids.add(option_id)
         option: dict = {
             "option_id": option_id,
             "label": label,
-            "description": str(item.get("description") or "").strip(),
+            "description": description,
         }
         # 可选里程碑联动：AI 选项可携带 milestone_id（前端据此调 complete 端点而非 /act）
         raw_milestone = item.get("milestone_id")
         if isinstance(raw_milestone, str) and raw_milestone.strip():
-            option["milestone_id"] = raw_milestone.strip()
+            milestone_id = raw_milestone.strip()
+            if milestone_id not in valid_milestone_ids:
+                return None
+            option["milestone_id"] = milestone_id
         options.append(option)
 
     state_changes = payload.get("state_changes")

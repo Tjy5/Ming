@@ -15,15 +15,16 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 
 from models.game import (
-    GameState, Minister, StructuredDecree, Memorial, create_initial_state,
+    GameState, StructuredDecree, create_initial_state,
 )
 from engine.core import LOCK_TIMEOUT_SECONDS
-from ai.fallbacks import template_memorial
 from ai.config import AIConfigurationError
 from ai.errors import new_request_id, public_error_detail
 from ai.provider import get_provider
 from db.saves import init_db
 from models.world import BranchId, GameId, WorldVersionRef
+from models.settlement import ResultTier, SettlementCommitResult
+from models.world_state import RollRecord
 
 
 # ── TimedLock ────────────────────────────────────────────
@@ -64,8 +65,6 @@ _provider = None
 
 _MAX_DIALOGUE_ROUNDS = 10
 _MAX_DIALOGUE_MESSAGES = _MAX_DIALOGUE_ROUNDS * 2
-_MAX_CHAT_CONVERSATION_MESSAGES = 100
-_chat_conversation_buffer: list[dict[str, str]] = []
 
 
 class _WorldHeadCache:
@@ -121,12 +120,15 @@ def _get_state() -> GameState:
     return _world_head_cache.get()
 
 
-async def _set_state(
+async def _settle_state(
     s: GameState,
     *,
     action_kind: str = "legacy_action",
     raw_text: str = "兼容行动",
-) -> GameState:
+    result_tier: ResultTier = "success",
+    key_factors: list[str] | None = None,
+    rolls: list[RollRecord] | None = None,
+) -> tuple[GameState, SettlementCommitResult]:
     """Atomically settle an isolated legacy action state through the world graph.
 
     The compatibility patch cannot carry time or protected world identities.
@@ -236,9 +238,10 @@ async def _set_state(
         )
 
     proposal = AdjudicationProposal(
-        result_tier="success",
+        result_tier=result_tier,
         key_factors=[
             *adjudicated.key_factors,
+            *(key_factors or []),
             "兼容玩法规则已在隔离世界副本中完成",
         ],
         immediate_changes=[f"兼容字段：{field}" for field in changed_fields],
@@ -277,13 +280,30 @@ async def _set_state(
         proposal_for_commit,
         time_plan=time_plan,
         world_state_attribution=world_state_attribution,
+        rolls=list(rolls or []),
         settlement_id=settlement_id,
         version_id=version_id,
         actual_outcome=action_kind,
     )
     committed = worlds.load_version(result.version.version_id)
     _world_head_cache.publish(committed.state, committed.ref)
-    return committed.state
+    return committed.state, result
+
+
+async def _set_state(
+    s: GameState,
+    *,
+    action_kind: str = "legacy_action",
+    raw_text: str = "兼容行动",
+) -> GameState:
+    """Compatibility wrapper for callers that do not consume settlement facts."""
+
+    committed, _result = await _settle_state(
+        s,
+        action_kind=action_kind,
+        raw_text=raw_text,
+    )
+    return committed
 
 
 def _get_world_head_ref() -> WorldVersionRef | None:
@@ -364,72 +384,8 @@ def _set_runtime_provider_slot(provider) -> None:
     _provider = provider
 
 
-def _trim_chat_conversation_buffer() -> None:
-    if len(_chat_conversation_buffer) <= _MAX_CHAT_CONVERSATION_MESSAGES:
-        return
-    del _chat_conversation_buffer[:-_MAX_CHAT_CONVERSATION_MESSAGES]
-
-
-def append_chat_conversation(role: str, content: str) -> None:
-    normalized_role = str(role).strip().lower()
-    if normalized_role not in {"user", "assistant"}:
-        normalized_role = "assistant"
-    normalized_content = str(content).strip()
-    if not normalized_content:
-        return
-    _chat_conversation_buffer.append(
-        {"role": normalized_role, "content": normalized_content},
-    )
-    _trim_chat_conversation_buffer()
-
-
-def get_chat_conversation() -> list[dict[str, str]]:
-    return [dict(item) for item in _chat_conversation_buffer]
-
-
-def clear_chat_conversation() -> None:
-    _chat_conversation_buffer.clear()
-
-
-
-
-
 def startup():
     init_db()
-
-
-# ── Memorial filling ─────────────────────────────────────
-
-async def _fill_memorial_content(
-    provider, memorials: list[Memorial], state: GameState,
-) -> None:
-    if not memorials:
-        return
-
-    async def _fill_one(mem: Memorial):
-        author = next((m for m in state.ministers if m.name == mem.author_name), None)
-        if author is None:
-            author = Minister(name=mem.author_name, faction=mem.author_faction)
-        draft = await provider.generate_memorial(mem.trigger_reason, author, state)
-        # 状态一致性（惰性导入防 engine 初始化环）：奏疏内容过校验/净化
-        from engine.state_consistency import sanitize_ai_text
-        mem.content = sanitize_ai_text(draft.content, state)
-        mem.suggested_decrees = draft.suggested_decrees
-
-    results = await asyncio.gather(
-        *(_fill_one(m) for m in memorials), return_exceptions=True,
-    )
-    for mem, result in zip(memorials, results):
-        if isinstance(result, Exception):
-            try:
-                author = next((m for m in state.ministers if m.name == mem.author_name), None)
-                if author is None:
-                    author = Minister(name=mem.author_name, faction=mem.author_faction)
-                draft = template_memorial(mem.trigger_reason, author, state)
-                mem.content = draft.content
-                mem.suggested_decrees = draft.suggested_decrees
-            except Exception:
-                mem.content = f"臣{mem.author_name}伏惟主公圣鉴，伏乞圣裁。"
 
 
 # ── Streaming helpers ────────────────────────────────────
@@ -476,10 +432,15 @@ async def _generate_narrative_with_streaming(
     decree: StructuredDecree,
     stream_callback: NarrativeChunkCallback | None,
 ) -> str:
-    # 状态一致性闭环（engine.state_consistency，惰性导入防 engine 初始化环）：
-    # 非流式可完整走 校验→重试→净化；流式无法事后重试（文本已推送），
-    # 入库/响应副本一律过校验净化，流式残留由 prompt 守卫（build_prompt_guard）兜底。
-    from engine.state_consistency import ensure_narrative_consistent, sanitize_ai_text
+    # Provider chunks are transport internals.  Buffer the complete candidate,
+    # validate/repair it, then expose sentence chunks from the final safe text.
+    # This keeps streaming and non-streaming first visibility on one contract.
+    from engine.state_consistency import (
+        build_retry_instruction,
+        ensure_narrative_consistent,
+        sanitize_narrative,
+        validate_narrative_text,
+    )
 
     if stream_callback is None:
         return await ensure_narrative_consistent(
@@ -494,12 +455,27 @@ async def _generate_narrative_with_streaming(
         if chunk == "":
             continue
         chunks.append(chunk)
-        await stream_callback(chunk)
 
     narrative = "".join(chunks)
-    if narrative:
-        return sanitize_ai_text(narrative, state)
-    fallback = await provider.generate_narrative(attribution, state, triggered, decree)
-    if fallback and stream_callback is not None:
-        await stream_callback(fallback)
-    return sanitize_ai_text(fallback or "", state)
+    if not narrative:
+        narrative = await provider.generate_narrative(
+            attribution, state, triggered, decree,
+        )
+    issues = validate_narrative_text(narrative or "", state)
+    if issues:
+        repaired = await provider.generate_narrative(
+            attribution,
+            state,
+            triggered,
+            decree,
+            fix_instruction=build_retry_instruction(issues),
+        )
+        repaired_issues = validate_narrative_text(repaired or "", state)
+        narrative = (
+            sanitize_narrative(repaired or "", repaired_issues)
+            if repaired_issues
+            else repaired
+        )
+    for sentence in _split_stream_sentences(narrative or ""):
+        await stream_callback(sentence)
+    return narrative or ""

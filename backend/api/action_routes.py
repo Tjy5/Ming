@@ -23,6 +23,7 @@ from .schemas import (
     ActivityContinueRequest,
 )
 from .state import _get_provider, _publish_world_head, _reload_world_head
+from .narrative_routes import generate_committed_narrative
 
 
 action_router = APIRouter(prefix="/api")
@@ -76,7 +77,11 @@ async def execute_action(intent: ActionIntent) -> ActionExecutionResponse:
         ) from None
     except ActionAdjudicationError as exc:
         raise HTTPException(503, detail=_error_detail(exc.code, exc.message)) from None
-    except (worlds.IdempotencyConflictError, worlds.StaleParentVersionError) as exc:
+    except (
+        worlds.IdempotencyConflictError,
+        worlds.StaleParentVersionError,
+        worlds.WorldTerminalStateError,
+    ) as exc:
         raise HTTPException(409, detail=_error_detail(exc.code, exc.message)) from None
     except worlds.ActionInProgressError as exc:
         raise HTTPException(409, detail=_error_detail(exc.code, exc.message)) from None
@@ -92,7 +97,19 @@ async def execute_action(intent: ActionIntent) -> ActionExecutionResponse:
         # The settlement is already durable. Recover the discardable cache from
         # the committed branch head instead of surfacing a false commit failure.
         state = _reload_world_head(intent.game_id, intent.branch_id)
-    return ActionExecutionResponse(state=state, result=execution.result)
+    narrative = await generate_committed_narrative(
+        state=state,
+        facts=execution.result.facts,
+        path_id="unified_action",
+        topic_id=intent.action_kind,
+        action_text=intent.raw_text,
+        reuse_current=execution.result.replayed,
+    )
+    return ActionExecutionResponse(
+        state=state,
+        result=execution.result,
+        narrative=narrative,
+    )
 
 
 @action_router.get(

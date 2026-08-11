@@ -43,9 +43,11 @@ def init_db() -> None:
     # hook while the assessment repository remains a separate data owner.
     from .ai_assessments import init_ai_assessments
     from .worlds import init_worlds_db
+    from .narrative_memory import init_narrative_memory_db
 
     init_ai_assessments()
     init_worlds_db()
+    init_narrative_memory_db()
 
 
 def _era_display(state: GameState) -> str:

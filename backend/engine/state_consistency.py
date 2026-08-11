@@ -68,6 +68,10 @@ _COMMON_SPEAKERS = {
     "百官", "诸将", "诸臣",
 }
 
+# Deterministic facts-narrative section labels use the same ``label: value``
+# punctuation as dialogue, but they are metadata rather than speaker names.
+_STRUCTURED_FACT_LABELS = {"直接死因", "死亡关键因子", "因果摘要"}
+
 # 排除后缀：以这些字结尾的 2-4 字 token 视为身份词/群体词，不判虚构人物发言。
 _SKIP_SUFFIX = ("军", "士", "役", "卒", "臣", "官", "者", "人", "使", "卫", "仆", "婢", "卿", "民", "将")
 
@@ -201,6 +205,8 @@ def _check_invented_speaker(sentence: str, state: GameState) -> list[dict]:
     known_names = roster_names(state) | EXTERNAL_ENTITIES
 
     def _is_known(token: str) -> bool:
+        if token in _STRUCTURED_FACT_LABELS:
+            return True
         if token in known_names:
             return True
         # 已知名尾缀（察罕帖木儿入朝 → token "帖木儿" 不误报）

@@ -17,6 +17,7 @@ from api.admin_routes import admin_router
 from api.chat_routes import chat_router
 from api.trpg import trpg_router
 from api.action_routes import action_router
+from api.narrative_routes import narrative_router
 from models.game import ErrorResponse
 from db import worlds
 from engine.settlement import SettlementValidationError
@@ -131,6 +132,7 @@ async def world_store_exception_handler(_request: Request, exc: worlds.WorldStor
             worlds.IdempotencyConflictError,
             worlds.StaleParentVersionError,
             worlds.ActionInProgressError,
+            worlds.WorldTerminalStateError,
         ),
     ):
         status_code = 409
@@ -175,6 +177,7 @@ app.include_router(admin_router)
 app.include_router(chat_router)
 app.include_router(trpg_router)
 app.include_router(action_router)
+app.include_router(narrative_router)
 
 
 @app.get("/api/health")

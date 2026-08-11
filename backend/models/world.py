@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 WORLD_SCHEMA_VERSION = 1
 DEFAULT_CALENDAR_SCHEMA_VERSION = "yuanming-calendar-v1"
+ASSEMBLY_PARTICIPATE_CAPABILITY = "governance.assembly.participate"
+ENTITY_DIALOGUE_CAPABILITY = "narrative.entity.dialogue"
 
 GameId = NewType("GameId", UUID)
 BranchId = NewType("BranchId", UUID)
@@ -59,6 +61,10 @@ def new_permission_id() -> PermissionId:
 
 def new_delta_id() -> DeltaId:
     return DeltaId(uuid4())
+
+
+def new_terminal_record_id() -> TerminalRecordId:
+    return TerminalRecordId(uuid4())
 
 
 def new_activity_id() -> ActivityId:
@@ -471,9 +477,33 @@ class PlayerWorldStatus(_WorldContract):
     controlled_faction_id: EntityId | None = None
     location_entity_id: EntityId | None = None
     freedom_status: Literal["free", "detained", "exiled", "hidden"] = "free"
+    regime_status: Literal["governing", "overthrown", "regime_destroyed"] = "governing"
     actionable_goal_ids: list[str] = Field(default_factory=list)
     terminal_settlement_id: SettlementId | None = None
     terminal_version_id: VersionId | None = None
+
+    @model_validator(mode="after")
+    def _validate_terminal_identity(self) -> PlayerWorldStatus:
+        terminal_ids_are_paired = (
+            self.terminal_settlement_id is None
+        ) == (self.terminal_version_id is None)
+        if not terminal_ids_are_paired:
+            raise ValueError("terminal settlement/version ids must be paired")
+        if self.life_status == "dead" and self.terminal_settlement_id is None:
+            raise ValueError("dead player status requires committed terminal ids")
+        if self.life_status == "alive" and self.terminal_settlement_id is not None:
+            raise ValueError("alive player status cannot retain terminal ids")
+        return self
+
+
+class WorldBranchRef(_WorldContract):
+    game_id: GameId
+    branch_id: BranchId
+    parent_branch_id: BranchId | None = None
+    forked_from_version_id: VersionId | None = None
+    head_version_id: VersionId
+    created_at: datetime
+    status: Literal["active", "archived"] = "active"
 
 
 class WorldVersionRef(_WorldContract):

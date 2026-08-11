@@ -6,7 +6,8 @@ from collections.abc import Iterable
 from decimal import Decimal, ROUND_DOWN
 from numbers import Real
 
-from models.game import GameState
+from models.enums import RegionControl, RegionThreat
+from models.game import GameState, Region
 from models.settlement import CommitmentWorldDelta, MetricWorldDelta, ModifierWorldDelta
 from models.world import RegionEntity, WorldInstant
 from models.world_state import (
@@ -42,6 +43,16 @@ WORLD_METRIC_SPECS: dict[str, MetricSpec] = {
     "chapter_turns": MetricSpec(target_scope="world", metric_key="chapter_turns", numeric_kind="integer", minimum=0),
     "decree_count": MetricSpec(target_scope="world", metric_key="decree_count", numeric_kind="integer", minimum=0),
     "consecutive_waits": MetricSpec(target_scope="world", metric_key="consecutive_waits", numeric_kind="integer", minimum=0),
+}
+
+REGION_METRIC_SPECS: dict[str, MetricSpec] = {
+    "stability": MetricSpec(target_scope="region", metric_key="stability", numeric_kind="integer", minimum=0, maximum=100),
+    "garrison": MetricSpec(target_scope="region", metric_key="garrison", numeric_kind="integer", minimum=0),
+    "civil_morale": MetricSpec(target_scope="region", metric_key="civil_morale", numeric_kind="integer", minimum=0, maximum=100),
+    "rebellion_risk": MetricSpec(target_scope="region", metric_key="rebellion_risk", numeric_kind="integer", minimum=0, maximum=100),
+    "tax_rate": MetricSpec(target_scope="region", metric_key="tax_rate", numeric_kind="decimal", precision=2, minimum=0, maximum=1),
+    "tax_collected": MetricSpec(target_scope="region", metric_key="tax_collected", numeric_kind="integer", minimum=0),
+    "disaster_level": MetricSpec(target_scope="region", metric_key="disaster_level", numeric_kind="integer", minimum=0, maximum=100),
 }
 
 
@@ -345,14 +356,34 @@ def metric_projection(
     if spec is None:
         raise WorldStateValidationError("unsupported_metric_field", "metric is not registered")
     target = MetricTarget(target_scope="world", metric_key=metric_key)
-    base = _decimal(getattr(state, metric_key))
+    from engine.tables import GLOBAL_BANDS
+
+    return _metric_projection_for_target(
+        state,
+        target=target,
+        base_value=getattr(state, metric_key),
+        spec=spec,
+        bands=GLOBAL_BANDS.get(metric_key),
+        recent_sources=recent_sources,
+    )
+
+
+def _metric_projection_for_target(
+    state: GameState,
+    *,
+    target: MetricTarget,
+    base_value: int | float,
+    spec: MetricSpec,
+    bands: list | None,
+    recent_sources: Iterable[AppliedMetricAttribution] = (),
+) -> MetricProjection:
+    base = _decimal(base_value)
     modifiers = active_modifiers(state, target)
     effective = _clamp(_quantize(_effective_value(base, modifiers), spec), spec)
     from engine.numeric_bands import band_of
-    from engine.tables import GLOBAL_BANDS
 
-    base_band = band_of(GLOBAL_BANDS.get(metric_key), base)
-    effective_band = band_of(GLOBAL_BANDS.get(metric_key), effective)
+    base_band = band_of(bands, base)
+    effective_band = band_of(bands, effective)
     commitments = [
         commitment
         for commitment in state.world_state.commitments.values()
@@ -376,6 +407,145 @@ def metric_projection(
     )
 
 
+def region_metric_projections(
+    state: GameState,
+    region_id,
+    region: Region,
+    *,
+    recent_sources: Iterable[AppliedMetricAttribution] = (),
+) -> list[MetricProjection]:
+    from engine.tables import REGION_BANDS
+
+    return [
+        _metric_projection_for_target(
+            state,
+            target=MetricTarget(
+                target_scope="region",
+                metric_key=metric_key,
+                target_entity_id=region_id,
+            ),
+            base_value=getattr(region, metric_key),
+            spec=spec,
+            bands=REGION_BANDS.get(metric_key),
+            recent_sources=recent_sources,
+        )
+        for metric_key, spec in REGION_METRIC_SPECS.items()
+    ]
+
+
+def _local_entity_ids(state: GameState, region: RegionEntity) -> list:
+    local_ids = set()
+    if region.controller_entity_id in state.entity_registry:
+        local_ids.add(region.controller_entity_id)
+    player = state.player_world_status
+    if (
+        player.location_entity_id == region.entity_id
+        and player.player_character_id in state.entity_registry
+    ):
+        local_ids.add(player.player_character_id)
+    for entity_id, entity in state.entity_registry.items():
+        if entity_id == region.entity_id:
+            continue
+        if any(
+            permission.scope_entity_id == region.entity_id
+            for permission in entity.permissions
+        ):
+            local_ids.add(entity_id)
+        if any(
+            relationship.status == "active"
+            and region.entity_id in {
+                relationship.from_entity_id,
+                relationship.to_entity_id,
+            }
+            for relationship in entity.relationships
+        ):
+            local_ids.add(entity_id)
+    return sorted(local_ids, key=str)
+
+
+def _region_danger(
+    region: Region | None,
+    metrics: list[MetricProjection],
+) -> tuple[bool, list[str]]:
+    from engine.tables import DANGEROUS_BAND_LABELS
+
+    factors = [
+        f"metric:{metric.target.metric_key}:{metric.effective_band}"
+        for metric in metrics
+        if metric.effective_band in DANGEROUS_BAND_LABELS
+    ]
+    if region is not None and region.threat != RegionThreat.NONE:
+        factors.append(f"threat:{region.threat.value}")
+    if region is not None and region.control in {
+        RegionControl.UNSTABLE,
+        RegionControl.FALLEN,
+    }:
+        factors.append(f"control:{region.control.value}")
+    return bool(factors), sorted(set(factors))
+
+
+def _power_vacuum_reasons(
+    state: GameState,
+    entity: RegionEntity,
+    legacy: Region | None,
+) -> list[str]:
+    controller_id = entity.controller_entity_id
+    if controller_id is not None:
+        controller = state.entity_registry.get(controller_id)
+        if controller is None:
+            return ["controller_missing"]
+        if controller.status == "ended":
+            return ["controller_ended"]
+        if controller.status != "active" or not controller.available:
+            return ["controller_unavailable"]
+        return []
+    if legacy is None:
+        return ["dynamic_region_without_controller"]
+    if legacy.control == RegionControl.UNSTABLE:
+        return ["legacy_control_unstable"]
+    if legacy.control == RegionControl.FALLEN:
+        return ["legacy_control_fallen"]
+    return []
+
+
+def _region_projection(
+    state: GameState,
+    entity: RegionEntity,
+    *,
+    recent_sources: Iterable[AppliedMetricAttribution],
+) -> RegionProjection:
+    legacy = next(
+        (
+            region for region in state.regions
+            if region.name == (entity.legacy_name or entity.display_name)
+        ),
+        None,
+    )
+    metrics = (
+        region_metric_projections(
+            state,
+            entity.entity_id,
+            legacy,
+            recent_sources=recent_sources,
+        )
+        if legacy is not None else []
+    )
+    danger, danger_factors = _region_danger(legacy, metrics)
+    vacuum_reasons = _power_vacuum_reasons(state, entity, legacy)
+    return RegionProjection(
+        version_id=state.world_metadata.version_id,
+        region_id=entity.entity_id,
+        display_name=entity.display_name,
+        controller_entity_id=entity.controller_entity_id,
+        local_entity_ids=_local_entity_ids(state, entity),
+        metrics=metrics,
+        danger=danger,
+        danger_factors=danger_factors,
+        power_vacuum=bool(vacuum_reasons),
+        power_vacuum_reasons=vacuum_reasons,
+    )
+
+
 def project_effective_state(state: GameState) -> GameState:
     projected = state.model_copy(deep=True)
     for metric_key in WORLD_METRIC_SPECS:
@@ -393,13 +563,8 @@ def world_state_projection(
 
     recent_sources = list(recent_sources)
     regions = [
-        RegionProjection(
-            version_id=state.world_metadata.version_id,
-            region_id=entity_id,
-            display_name=entity.display_name,
-            controller_entity_id=entity.controller_entity_id,
-        )
-        for entity_id, entity in sorted(state.entity_registry.items(), key=lambda item: str(item[0]))
+        _region_projection(state, entity, recent_sources=recent_sources)
+        for _entity_id, entity in sorted(state.entity_registry.items(), key=lambda item: str(item[0]))
         if isinstance(entity, RegionEntity)
     ]
     return WorldStateProjection(

@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from ai.narrative_service import NarrativeGenerationResult
 
 from models.game import (
     ErrorResponse,
@@ -19,6 +22,8 @@ from models.world import (
     ClientActionId,
     GameId,
     VersionId,
+    WorldBranchRef,
+    WorldVersionRef,
 )
 
 MAX_FREE_TEXT_LENGTH = 200
@@ -55,11 +60,13 @@ class AdvanceMonthResponse(BaseModel):
     game_over: dict | None = None
     new_ministers: list[Minister] = Field(default_factory=list)
     result: SettlementCommitResult
+    narrative: NarrativeGenerationResult
 
 
 class ActionExecutionResponse(BaseModel):
     state: GameState
     result: SettlementCommitResult
+    narrative: "NarrativeGenerationResult"
 
 
 class ActivityContinueRequest(BaseModel):
@@ -99,6 +106,15 @@ class MemorialResolveResponse(BaseModel):
     narrative: str | None = None
     delta: dict | None = None
     minister_reactions: list[MinisterReaction] = Field(default_factory=list)
+    narrative_status: Literal[
+        "validated", "repaired", "sanitized", "fallback_facts",
+    ]
+    narrative_path_id: str
+    settlement_id: UUID
+    context_version_id: UUID
+    narrative_artifact_id: UUID | None = None
+    narrative_request_id: str
+    narrative_progress: list[str] = Field(default_factory=list)
 
 
 class ChatRequest(BaseModel):
@@ -107,6 +123,31 @@ class ChatRequest(BaseModel):
 
 class SaveRequest(BaseModel):
     name: str | None = None
+
+
+class WorldForkRequest(BaseModel):
+    game_id: GameId
+    branch_id: BranchId
+    version_id: VersionId
+
+
+class WorldSwitchRequest(BaseModel):
+    game_id: GameId
+    branch_id: BranchId
+
+
+class WorldLifecycleResponse(BaseModel):
+    state: GameState
+    branch: WorldBranchRef
+    version: WorldVersionRef
+
+
+class WorldBranchListResponse(BaseModel):
+    branches: list[WorldBranchRef] = Field(default_factory=list)
+
+
+class WorldVersionListResponse(BaseModel):
+    versions: list[WorldVersionRef] = Field(default_factory=list)
 
 
 class DebateStartRequest(BaseModel):
@@ -127,7 +168,12 @@ class ConveneAssemblyRequest(BaseModel):
 
 
 class AdoptSuggestionRequest(BaseModel):
-    suggestion_index: int
+    mode: Literal["original", "edited", "free_input"] = "original"
+    suggestion_index: int | None = Field(default=None, ge=0)
+    suggestion_id: str | None = Field(default=None, min_length=1, max_length=64)
+    source_version_id: UUID | None = None
+    edited_text: str | None = Field(default=None, min_length=1, max_length=MAX_FREE_TEXT_LENGTH)
+    free_text: str | None = Field(default=None, min_length=1, max_length=MAX_FREE_TEXT_LENGTH)
 
 
 class AssemblyDebateRequest(BaseModel):

@@ -19,6 +19,7 @@ from .world import (
     GameId,
     PendingActivityDecision,
     SettlementId,
+    TerminalRecordId,
     VersionId,
     WorldEntity,
     WorldInstant,
@@ -170,7 +171,7 @@ class LifecycleWorldDelta(_SettlementContract):
 class PlayerWorldDelta(_SettlementContract):
     delta_type: Literal["player"] = "player"
     delta_id: DeltaId
-    operation: Literal["identity", "freedom", "location", "death"]
+    operation: Literal["identity", "freedom", "location", "regime", "death"]
     before_value: str | None = None
     value: str
     trigger_action: ClientActionId | None = None
@@ -388,6 +389,22 @@ class SettlementFacts(_SettlementContract):
     attribution: SettlementAttribution
     world_state_attribution: list[AppliedMetricAttribution] = Field(default_factory=list)
     rolls: list[RollRecord] = Field(default_factory=list)
+    committed_at: datetime
+
+
+class TerminalRecordFacts(_SettlementContract):
+    schema_version: Literal[1] = 1
+    terminal_record_id: TerminalRecordId
+    game_id: GameId
+    branch_id: BranchId
+    settlement_id: SettlementId
+    previous_version_id: VersionId
+    version_id: VersionId
+    trigger_action: ClientActionId
+    direct_cause: str = Field(min_length=1, max_length=1000)
+    key_factors: list[str] = Field(min_length=1)
+    causal_summary: str = Field(min_length=1, max_length=2000)
+    final_life_status: Literal["dead"] = "dead"
     committed_at: datetime
 
 

@@ -6,7 +6,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Optional
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -218,6 +218,18 @@ class AssemblyParticipant(BaseModel):
     faction: str
     position: str
     argument_text: str
+    entity_id: EntityId | None = None
+    entity_type: str | None = None
+    capabilities: list[str] = Field(default_factory=list)
+    capability_sources: list[str] = Field(default_factory=list)
+
+
+class SuggestionRationaleFactor(BaseModel):
+    """Safe, current-world evidence for a player-visible policy suggestion."""
+
+    fact_reference: str = Field(min_length=1, max_length=240)
+    label: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=500)
 
 
 class PolicySuggestion(BaseModel):
@@ -225,6 +237,11 @@ class PolicySuggestion(BaseModel):
     description: str
     related_decree: StructuredDecree
     supporter_names: list[str] = Field(default_factory=list)
+    suggestion_id: str | None = Field(default=None, max_length=64)
+    source_game_id: UUID | None = None
+    source_branch_id: UUID | None = None
+    source_version_id: UUID | None = None
+    rationale_factors: list[SuggestionRationaleFactor] = Field(default_factory=list)
 
 
 class CourtAssembly(BaseModel):
@@ -348,6 +365,15 @@ class DebateResult(BaseModel):
     option_a: StructuredDecree
     option_b: StructuredDecree
     keywords: list[str] = Field(default_factory=list, max_length=5)
+    narrative_status: Literal[
+        "validated", "repaired", "sanitized", "fallback_facts",
+    ] | None = None
+    narrative_path_id: str | None = None
+    settlement_id: UUID | None = None
+    context_version_id: UUID | None = None
+    narrative_artifact_id: UUID | None = None
+    narrative_request_id: str | None = None
+    narrative_progress: list[str] = Field(default_factory=list)
 
 
 # ── Event ────────────────────────────────────────────────
@@ -554,6 +580,15 @@ class DecreeResponse(BaseModel):
     minister_reactions: list[MinisterReaction] = Field(default_factory=list)
     turn_summary: TurnSummary | None = None
     memorial_triggers: list[Memorial] = Field(default_factory=list)
+    narrative_status: Literal[
+        "validated", "repaired", "sanitized", "fallback_facts",
+    ] | None = None
+    narrative_path_id: str | None = None
+    settlement_id: UUID | None = None
+    context_version_id: UUID | None = None
+    narrative_artifact_id: UUID | None = None
+    narrative_request_id: str | None = None
+    narrative_progress: list[str] = Field(default_factory=list)
 
 
 # ── Error ────────────────────────────────────────────────
@@ -818,3 +853,12 @@ class DialogueResponse(BaseModel):
     mood: Literal["support", "neutral", "oppose"]
     conversation_id: str
     state: GameState
+    narrative_status: Literal[
+        "validated", "repaired", "sanitized", "fallback_facts",
+    ]
+    narrative_path_id: str
+    settlement_id: UUID
+    context_version_id: UUID
+    narrative_artifact_id: UUID | None = None
+    narrative_request_id: str
+    narrative_progress: list[str] = Field(default_factory=list)

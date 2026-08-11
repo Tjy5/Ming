@@ -22,7 +22,14 @@ from models.settlement import (
     RelationshipWorldDelta,
     WorldDelta,
 )
-from models.world import EntityId, RelationId, RelationshipEdge, WorldEntity
+from models.world import (
+    EntityId,
+    RelationId,
+    RelationshipEdge,
+    SettlementId,
+    VersionId,
+    WorldEntity,
+)
 from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
 
 from .world_state import (
@@ -264,6 +271,8 @@ def validate_adjudication_proposal(
     intent: ActionIntent,
     state: GameState,
     proposal: AdjudicationProposal,
+    *,
+    allow_terminal_death: bool = False,
 ) -> None:
     """Validate sandbox-owned proposal, reference, and batch-conflict rules.
 
@@ -457,17 +466,28 @@ def validate_adjudication_proposal(
                 or not delta.direct_cause
                 or not delta.key_factors
                 or not delta.causal_summary
+                or state.player_world_status.life_status != "alive"
+                or delta.before_value != "alive"
+                or delta.value != "dead"
+                or not set(delta.key_factors).issubset(proposal.key_factors)
             ):
                 _fail(
                     "invalid_player_death",
-                    "死亡 delta 必须引用本次行动并包含死因、关键因子和因果摘要",
+                    "死亡 delta 必须从当前存活状态转为死亡，引用本次行动，并与裁决关键因子一致",
                     delta=delta,
                 )
-            _fail(
-                "terminal_contract_unavailable",
-                "死亡必须等待 terminal transaction contract，不得提前提交",
-                delta=delta,
-            )
+            if proposal.activity_candidate is not None or intent.activity_command is not None:
+                _fail(
+                    "terminal_activity_unsupported",
+                    "终局死亡不得同时创建或继续长期活动",
+                    delta=delta,
+                )
+            if not allow_terminal_death:
+                _fail(
+                    "terminal_contract_unavailable",
+                    "死亡必须由 terminal transaction contract 提交",
+                    delta=delta,
+                )
             continue
 
         if isinstance(delta, ModifierWorldDelta) and delta.target_entity_id is not None:
@@ -655,18 +675,43 @@ def _apply_relationship_delta(state: GameState, delta: RelationshipWorldDelta) -
     _replace_entity(state, delta.from_entity_id, type(source).model_validate(payload))
 
 
-def _apply_player_delta(state: GameState, delta: PlayerWorldDelta) -> None:
+def _apply_player_delta(
+    state: GameState,
+    delta: PlayerWorldDelta,
+    *,
+    terminal_ids: tuple[SettlementId, VersionId] | None = None,
+) -> None:
     player = state.player_world_status
     if delta.operation == "death":
-        _fail(
-            "terminal_contract_unavailable",
-            "死亡必须由 terminal transaction contract 提交，当前批次不接受提前降级",
-            delta=delta,
-        )
+        if terminal_ids is None:
+            _fail(
+                "terminal_contract_unavailable",
+                "死亡必须由 terminal transaction contract 提交，当前批次不接受提前降级",
+                delta=delta,
+            )
+        _assert_before(player.life_status, delta.before_value, delta)
+        if delta.value != "dead":
+            _fail("invalid_player_death", "死亡 delta 的目标状态必须为 dead", delta=delta)
+        settlement_id, version_id = terminal_ids
+        try:
+            state.player_world_status = type(player).model_validate(
+                player.model_copy(
+                    update={
+                        "life_status": "dead",
+                        "terminal_settlement_id": settlement_id,
+                        "terminal_version_id": version_id,
+                    },
+                ).model_dump(),
+            )
+        except (ValidationError, ValueError) as exc:
+            _fail("invalid_player_death", "死亡 delta 产生了非法终局状态", delta=delta)
+            raise AssertionError("unreachable") from exc
+        return
     field = {
         "identity": "identity_summary",
         "freedom": "freedom_status",
         "location": "location_entity_id",
+        "regime": "regime_status",
     }[delta.operation]
     current = getattr(player, field)
     expected = delta.before_value
@@ -782,12 +827,13 @@ def _patch_field_values_equal(field: str, left: object, right: object) -> bool:
     return left == right
 
 
-def apply_world_deltas_with_facts(
+def _apply_world_deltas_with_facts(
     state: GameState,
     deltas: Sequence[WorldDelta],
     *,
     executor_facts: ExecutorFacts | None = None,
     roll: RollRecord | None = None,
+    terminal_ids: tuple[SettlementId, VersionId] | None = None,
 ) -> tuple[GameState, list[AppliedMetricAttribution]]:
     """Apply supported deltas and return the validated snapshot plus attribution."""
 
@@ -808,7 +854,7 @@ def apply_world_deltas_with_facts(
         elif isinstance(delta, RelationshipWorldDelta):
             _apply_relationship_delta(changed, delta)
         elif isinstance(delta, PlayerWorldDelta):
-            _apply_player_delta(changed, delta)
+            _apply_player_delta(changed, delta, terminal_ids=terminal_ids)
         elif isinstance(delta, ElapsedStatePatchDelta):
             changed = _apply_elapsed_state_patch(changed, delta)
         elif isinstance(delta, CompatibilityStatePatchDelta):
@@ -840,6 +886,39 @@ def apply_world_deltas_with_facts(
             "invalid_final_state",
             "delta 应用后的世界状态未通过模型校验",
         ) from exc
+
+
+def apply_world_deltas_with_facts(
+    state: GameState,
+    deltas: Sequence[WorldDelta],
+    *,
+    executor_facts: ExecutorFacts | None = None,
+    roll: RollRecord | None = None,
+) -> tuple[GameState, list[AppliedMetricAttribution]]:
+    return _apply_world_deltas_with_facts(
+        state,
+        deltas,
+        executor_facts=executor_facts,
+        roll=roll,
+    )
+
+
+def apply_terminal_world_deltas_with_facts(
+    state: GameState,
+    deltas: Sequence[WorldDelta],
+    *,
+    settlement_id: SettlementId,
+    version_id: VersionId,
+    executor_facts: ExecutorFacts | None = None,
+    roll: RollRecord | None = None,
+) -> tuple[GameState, list[AppliedMetricAttribution]]:
+    return _apply_world_deltas_with_facts(
+        state,
+        deltas,
+        executor_facts=executor_facts,
+        roll=roll,
+        terminal_ids=(settlement_id, version_id),
+    )
 
 
 def apply_world_deltas(

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from engine.entity_views import assembly_actor_views
 from engine.tables import FACTION_STANCE
-from models.game import GameState, Minister, INITIAL_FACTIONS, INITIAL_MINISTERS
-from models.enums import DecreeType, MinisterStatus
+from models.game import GameState, Minister, INITIAL_FACTIONS
+from models.enums import DecreeType
 
 
 
@@ -29,35 +30,26 @@ def is_ai_provider(provider) -> bool:
     return True
 
 
-def _pick_active_minister(state: GameState, faction_name: str) -> Minister | None:
-    by_name = {m.name: m for m in state.ministers}
-    for tpl in INITIAL_MINISTERS:
-        minister = by_name.get(tpl.name)
-        if minister and minister.faction == faction_name and minister.status == MinisterStatus.ACTIVE:
-            return minister
-    return None
-
-
 def select_debate_ministers(
     state: GameState,
     decree_type: DecreeType,
 ) -> tuple[Minister, Minister] | None:
-    stances = sorted(
-        [(name, stance.get(decree_type, 0)) for name, stance in FACTION_STANCE.items()],
-        key=lambda x: (-x[1], _FACTION_ORDER.get(x[0], 999)),
+    actors = assembly_actor_views(state)
+    ranked = sorted(
+        actors,
+        key=lambda actor: (
+            -FACTION_STANCE.get(actor.minister.faction, {}).get(decree_type, 0),
+            _FACTION_ORDER.get(actor.minister.faction, 999),
+            str(actor.entity_id or actor.display_name),
+        ),
     )
-    if len(stances) < 2:
+    if len(ranked) < 2:
         return None
 
-    for pro_name, _ in stances:
-        minister_a = _pick_active_minister(state, pro_name)
-        if minister_a is None:
-            continue
-        for opp_name, _ in reversed(stances):
-            if opp_name == pro_name:
+    for actor_a in ranked:
+        for actor_b in reversed(ranked):
+            if actor_b.entity_id == actor_a.entity_id:
                 continue
-            minister_b = _pick_active_minister(state, opp_name)
-            if minister_b is not None:
-                return minister_a, minister_b
+            if actor_b.minister.faction != actor_a.minister.faction:
+                return actor_a.minister, actor_b.minister
     return None
-

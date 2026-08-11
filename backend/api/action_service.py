@@ -29,6 +29,7 @@ from engine.execution import build_executor_facts
 from engine.rng import roll_for_action
 from engine.settlement import (
     SettlementValidationError,
+    apply_terminal_world_deltas_with_facts,
     apply_world_deltas,
     apply_world_deltas_with_facts,
     validate_adjudication_proposal,
@@ -39,6 +40,7 @@ from models.settlement import (
     ActionIntent,
     AdjudicationProposal,
     ProviderAttribution,
+    PlayerWorldDelta,
     SettlementCommitResult,
     WorldDelta,
 )
@@ -48,6 +50,7 @@ from models.world import (
     BranchId,
     ElapsedSegmentPlan,
     GameId,
+    SettlementId,
     VersionId,
     new_settlement_id,
     new_version_id,
@@ -168,13 +171,30 @@ class DefaultWorldStateApplier:
         *,
         executor_facts: ExecutorFacts | None = None,
         roll: RollRecord | None = None,
+        terminal_settlement_id: SettlementId | None = None,
+        terminal_version_id: VersionId | None = None,
     ) -> tuple[GameState, list[WorldDelta], list[AppliedMetricAttribution]]:
-        changed, attribution = apply_world_deltas_with_facts(
-            state,
-            deltas,
-            executor_facts=executor_facts,
-            roll=roll,
-        )
+        if (terminal_settlement_id is None) != (terminal_version_id is None):
+            raise SettlementValidationError(
+                "invalid_terminal_identity",
+                "terminal settlement/version ids 必须成对提供",
+            )
+        if terminal_settlement_id is not None and terminal_version_id is not None:
+            changed, attribution = apply_terminal_world_deltas_with_facts(
+                state,
+                deltas,
+                settlement_id=terminal_settlement_id,
+                version_id=terminal_version_id,
+                executor_facts=executor_facts,
+                roll=roll,
+            )
+        else:
+            changed, attribution = apply_world_deltas_with_facts(
+                state,
+                deltas,
+                executor_facts=executor_facts,
+                roll=roll,
+            )
         if time_plan is None:
             return changed, [], attribution
 
@@ -354,6 +374,8 @@ class ActionService:
                 snapshot.ref.version_id,
             )
         previous = snapshot.state.model_copy(deep=True)
+        if previous.player_world_status.life_status == "dead":
+            raise worlds.WorldTerminalStateError()
 
         if intent.activity_command is not None:
             if intent.activity_command == "continue":
@@ -361,11 +383,22 @@ class ActionService:
             return self._execute_activity_command(intent, previous)
 
         proposal = await self._adjudicator.adjudicate(intent, previous.model_copy(deep=True))
-        validate_adjudication_proposal(intent, previous, proposal)
+        terminal_death = any(
+            isinstance(delta, PlayerWorldDelta) and delta.operation == "death"
+            for delta in proposal.deltas
+        )
+        validate_adjudication_proposal(
+            intent,
+            previous,
+            proposal,
+            allow_terminal_death=terminal_death,
+        )
         if proposal.activity_candidate is not None:
             return self._create_activity(intent, previous, proposal)
         time_plan = self._time_planner.plan_segment(intent, previous, proposal)
         roll = roll_for_action(intent, previous)
+        settlement_id = new_settlement_id()
+        version_id = new_version_id()
         try:
             executor_facts = build_executor_facts(
                 previous,
@@ -385,12 +418,19 @@ class ActionService:
                 time_plan,
                 executor_facts=executor_facts,
                 roll=roll,
+                terminal_settlement_id=settlement_id if terminal_death else None,
+                terminal_version_id=version_id if terminal_death else None,
             )
             if consumer_deltas:
                 proposal_for_commit = proposal.model_copy(
                     update={"deltas": [*proposal.deltas, *consumer_deltas]},
                 )
         else:
+            if terminal_death:
+                raise SettlementValidationError(
+                    "terminal_contract_unavailable",
+                    "自定义 world-state applier 未声明 terminal death contract",
+                )
             changed = self._world_state_applier.apply_world_deltas(
                 previous,
                 proposal.deltas,
@@ -407,13 +447,16 @@ class ActionService:
                 current.version_id,
             )
 
-        settlement_id = new_settlement_id()
-        version_id = new_version_id()
         try:
             changed = rebase_pending_checkpoints(changed, version_id)
         except ActivityContractError as exc:
             raise self._activity_error(exc) from exc
-        result = worlds.commit_settlement(
+        commit = (
+            worlds.commit_terminal_settlement
+            if terminal_death
+            else worlds.commit_settlement
+        )
+        result = commit(
             intent,
             changed,
             proposal_for_commit,

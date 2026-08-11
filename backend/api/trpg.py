@@ -10,19 +10,25 @@
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 
 from fastapi import APIRouter, HTTPException
 
+from db import narrative_memory
 from db import saves as db_saves
 from models.game import ErrorResponse, HistoryEntry
+from models.settlement import ResultTier
 from models.trpg import ATTR_KEYS, PLAYER_NAME, ActRequest, ConvergeRequest, SKILL_ATTR_MAP
+from models.world_state import RollRecord, VisibleRollModifier
 from trpg import chapter as chapter_mod
 from trpg import character as character_mod
 from trpg import dice as dice_mod
 from trpg import gm as gm_mod
 from trpg import writeback as writeback_mod
-from .state import _get_provider, _get_state, _lock, _set_state
+from .narrative_routes import generate_committed_narrative
+from .state import _ensure_world_head, _get_provider, _get_state, _lock, _set_state, _settle_state
 
 trpg_router = APIRouter(prefix="/api/trpg")
 logger = logging.getLogger(__name__)
@@ -42,7 +48,7 @@ CONVERGENCE_OPTIONS: list[dict] = [
     {
         "option_id": "opt_converge_refuse",
         "label": "继续流窜，拒不归降",
-        "description": "孤军远遁，誓不回还，宁为玉碎。",
+        "description": "拒绝归附，转入流亡困局，在当前世界中另寻生路。",
         "convergence": "refuse",
     },
 ]
@@ -60,12 +66,72 @@ def _resolve_attr(req: ActRequest) -> str:
 
 
 def _recent_trpg_narratives(state) -> list[str]:
-    narratives = [
-        entry.narrative
-        for entry in state.history_log
-        if entry.decree_type == TRPG_HISTORY_TYPE and entry.narrative
+    metadata = state.world_metadata
+    if metadata.game_id is None or metadata.branch_id is None or metadata.version_id is None:
+        return []
+    records = narrative_memory.list_visible_memories(
+        game_id=metadata.game_id,
+        branch_id=metadata.branch_id,
+        version_id=metadata.version_id,
+        mode="trpg",
+        topic_id="trpg",
+        current_phase=state.phase,
+        current_chapter=state.chapter,
+        limit=gm_mod.RECENT_NARRATIVE_WINDOW * 2,
+    )
+    return [
+        record.content for record in records if record.role == "assistant"
+    ][-gm_mod.RECENT_NARRATIVE_WINDOW:]
+
+
+def _settlement_tier(roll_tier: str) -> ResultTier:
+    return "success" if roll_tier in {"critical_success", "success"} else "failure"
+
+
+def _roll_record(*, state, sheet, action_text: str, roll) -> RollRecord:
+    modifiers = [
+        VisibleRollModifier(
+            name=f"{roll.attr_name or '属性'}半值",
+            value=sheet.attr(roll.attr_name or "") // 2,
+            source_fact=f"character:{sheet.name}:attribute:{roll.attr_name or 'unknown'}",
+        ),
     ]
-    return narratives[-gm_mod.RECENT_NARRATIVE_WINDOW:]
+    skill_value = sheet.skill(roll.skill_name)
+    if skill_value is not None:
+        modifiers.append(VisibleRollModifier(
+            name=f"{roll.skill_name}半值",
+            value=skill_value // 2,
+            source_fact=f"character:{sheet.name}:skill:{roll.skill_name}",
+        ))
+    modifiers.append(VisibleRollModifier(
+        name="难度修正",
+        value=roll.dc,
+        source_fact=f"trpg:difficulty:{roll.dc:+d}",
+    ))
+    identity = json.dumps(
+        {
+            "version_id": str(state.world_metadata.version_id),
+            "action_text": action_text.strip(),
+            "roll": roll.model_dump(mode="json"),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return RollRecord(
+        roll_id=hashlib.sha256(identity.encode("utf-8")).hexdigest(),
+        protocol_version="trpg-d100-v1",
+        raw_d100=roll.roll,
+        target_value=roll.target,
+        result_tier=roll.tier,
+        modifiers=modifiers,
+        uncertainty_reasons=["volatile_environment"],
+        fact_references=[
+            f"version:{state.world_metadata.version_id}",
+            f"trpg:target:{roll.target}",
+        ],
+        checkpoint_slot=f"trpg:{state.chapter}",
+    )
 
 
 # ── GET /api/trpg/character ─────────────────────────────
@@ -96,7 +162,8 @@ async def get_character():
 @trpg_router.post("/act")
 async def act(req: ActRequest):
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        state = current_state.model_copy(deep=True)
         sheets = character_mod.ensure_sheets(state)
         sheet = sheets.get(PLAYER_NAME)
 
@@ -132,7 +199,7 @@ async def act(req: ActRequest):
             action_text=req.action_text,
             roll=roll,
             chapter_title=chapter_mod.chapter_title(state.chapter),
-            recent_narratives=_recent_trpg_narratives(_get_state()),
+            recent_narratives=_recent_trpg_narratives(current_state),
         )
 
         # 4.5 1360 收束抉择：convergence_hook 非空 → 本轮附加收束选项
@@ -151,18 +218,46 @@ async def act(req: ActRequest):
             month=state.time.month,
             decree_type=TRPG_HISTORY_TYPE,
             decree_desc=req.action_text.strip(),
-            narrative=result["narrative"],
+            # The GM candidate may guide structured options/state changes, but
+            # only the post-commit canonical artifact is player-visible.
+            narrative="",
         ))
 
-        state = await _set_state(
+        public_roll = _roll_record(
+            state=current_state,
+            sheet=sheet,
+            action_text=req.action_text,
+            roll=roll,
+        )
+        state, settlement_result = await _settle_state(
             state,
             action_kind="trpg_act",
             raw_text=req.action_text,
+            result_tier=_settlement_tier(roll.tier),
+            key_factors=[
+                f"D100 {roll.roll} / 目标 {roll.target} / {roll.tier}",
+            ],
+            rolls=[public_roll],
+        )
+        narrative_result = await generate_committed_narrative(
+            state=state,
+            facts=settlement_result.facts,
+            path_id="trpg_gm_action",
+            topic_id="trpg",
+            action_text=req.action_text,
+            reuse_current=settlement_result.replayed,
         )
 
         return {
             "roll": roll.model_dump(),
-            "narrative": result["narrative"],
+            "narrative": narrative_result.text,
+            "narrative_status": narrative_result.narrative_status,
+            "narrative_path_id": narrative_result.path_id,
+            "settlement_id": narrative_result.settlement_id,
+            "context_version_id": narrative_result.context_version_id,
+            "narrative_artifact_id": narrative_result.artifact_id,
+            "narrative_request_id": narrative_result.request_id,
+            "narrative_progress": narrative_result.progress_stages,
             "options": options,
             "state_changes": result["state_changes"],
             "state_changes_result": state_changes_result,
@@ -282,16 +377,16 @@ async def complete_milestone(milestone_id: str):
 
 @trpg_router.post("/converge")
 async def converge(req: ConvergeRequest):
-    """1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局分支。
+    """1360 收束抉择：接受招揽切换治理；拒绝归附则继续当前世界线。
 
     - 仅在 check_convergence_hook 激活时可用（life_story + 时间 ≥ fallback_year
       + yingtian-founding 未达成）；否则 409 convergence_not_pending。
     - 接受：yingtian-founding 写入 resolved_script_ids（409 闸口由此拦截其后的
       重复完成）、phase → governance、过渡叙事 history_log、存档快照（回滚点）。
       fallback_year 只用于叙事说明，不能改世界时钟。
-    - 拒绝：身死结局分支——响应携带 game_over（与治理侧契约同构
-      {result: "defeat", message}），状态不变；结局不持久化（治理侧同口径，
-      重载后可重作抉择）。
+    - 拒绝：进入资源匮乏、追兵压迫的流亡困局，但不得在没有已提交死亡
+      settlement facts 时宣告主角死亡或终局；响应保持 game_over=null，玩家
+      可继续自由行动并在后续结算中改变处境。
     """
     async with _lock:
         state = _get_state().model_copy(deep=True)
@@ -318,11 +413,10 @@ async def converge(req: ConvergeRequest):
             )
         else:
             narrative = (
-                f"【收束·身死】{state.time.year}年，{PLAYER_NAME}拒不归降，"
-                "携残部远遁江淮。兵微将寡、粮尽援绝，未及数载，困毙于山野之间。"
-                "霸业未成，身先殒没。"
+                f"【收束·流亡】{state.time.year}年，{PLAYER_NAME}拒不归降，"
+                "携残部转入江淮山野。兵微粮少、追兵未退，旧有道路愈发艰险；"
+                "但当前世界线仍可继续，下一步须先求立足之地与可靠援手。"
             )
-            game_over = {"result": "defeat", "message": "霸业未成，身先殒没"}
 
         state.history_log.append(HistoryEntry(
             year=state.time.year,

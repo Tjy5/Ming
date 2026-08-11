@@ -14,11 +14,15 @@ from models.settlement import (
     ActionIntent,
     ActionRequestRecord,
     AdjudicationProposal,
+    PlayerWorldDelta,
     SettlementAttribution,
     SettlementCommitResult,
     SettlementFacts,
+    TerminalRecordFacts,
 )
 from models.world import (
+    ASSEMBLY_PARTICIPATE_CAPABILITY,
+    ENTITY_DIALOGUE_CAPABILITY,
     ActivityId,
     BranchId,
     ClientActionId,
@@ -29,16 +33,21 @@ from models.world import (
     FactionEntity,
     GameId,
     PersonEntity,
+    PermissionReference,
     RegionEntity,
     SettlementId,
+    TerminalRecordId,
     VersionId,
     WorldSnapshotMetadata,
+    WorldBranchRef,
     WorldEntity,
     WorldVersionRef,
     new_branch_id,
     new_entity_id,
     new_game_id,
+    new_permission_id,
     new_settlement_id,
+    new_terminal_record_id,
     new_version_id,
 )
 from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
@@ -558,6 +567,20 @@ def _row_to_version_ref(row: sqlite3.Row) -> WorldVersionRef:
     )
 
 
+def _row_to_branch_ref(row: sqlite3.Row) -> WorldBranchRef:
+    return WorldBranchRef.model_validate(
+        {
+            "game_id": row["game_id"],
+            "branch_id": row["id"],
+            "parent_branch_id": row["parent_branch_id"],
+            "forked_from_version_id": row["forked_from_version_id"],
+            "head_version_id": row["head_version_id"],
+            "created_at": row["created_at"],
+            "status": row["status"],
+        },
+    )
+
+
 def _load_version(
     conn: sqlite3.Connection,
     version_id: VersionId | str,
@@ -587,6 +610,67 @@ def load_version(version_id: VersionId) -> WorldVersionSnapshot:
             return _load_version(conn, version_id)
     except WorldStoreError:
         raise
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
+def _get_branch(
+    conn: sqlite3.Connection,
+    game_id: GameId | str,
+    branch_id: BranchId | str,
+) -> WorldBranchRef:
+    row = conn.execute(
+        """
+        SELECT id, game_id, parent_branch_id, forked_from_version_id,
+               head_version_id, created_at, status
+        FROM branches
+        WHERE game_id = ? AND id = ?
+        """,
+        (str(game_id), str(branch_id)),
+    ).fetchone()
+    if row is None:
+        raise WorldNotFoundError("branch", str(branch_id))
+    try:
+        return _row_to_branch_ref(row)
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored world branch is invalid") from exc
+
+
+def get_branch(game_id: GameId, branch_id: BranchId) -> WorldBranchRef:
+    try:
+        with closing(_connect()) as conn:
+            return _get_branch(conn, game_id, branch_id)
+    except WorldStoreError:
+        raise
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
+def list_branches(game_id: GameId) -> list[WorldBranchRef]:
+    try:
+        with closing(_connect()) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, game_id, parent_branch_id, forked_from_version_id,
+                       head_version_id, created_at, status
+                FROM branches
+                WHERE game_id = ?
+                ORDER BY created_at, id
+                """,
+                (str(game_id),),
+            ).fetchall()
+            if not rows:
+                game = conn.execute(
+                    "SELECT id FROM games WHERE id = ?",
+                    (str(game_id),),
+                ).fetchone()
+                if game is None:
+                    raise WorldNotFoundError("game", str(game_id))
+        return [_row_to_branch_ref(row) for row in rows]
+    except WorldStoreError:
+        raise
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored world branch is invalid") from exc
     except sqlite3.Error as exc:
         raise WorldStorageError() from exc
 
@@ -668,6 +752,24 @@ def list_settlements(game_id: GameId, branch_id: BranchId) -> list[SettlementFac
         raise WorldStorageError() from exc
 
 
+def get_settlement(settlement_id: SettlementId) -> SettlementFacts:
+    try:
+        with closing(_connect()) as conn:
+            row = conn.execute(
+                "SELECT facts_json FROM settlements WHERE id = ?",
+                (str(settlement_id),),
+            ).fetchone()
+        if row is None:
+            raise WorldNotFoundError("settlement", str(settlement_id))
+        return SettlementFacts.model_validate_json(row["facts_json"])
+    except WorldStoreError:
+        raise
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored settlement is invalid") from exc
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
 def _row_to_action_request(row: sqlite3.Row) -> ActionRequestRecord:
     return ActionRequestRecord.model_validate(
         {
@@ -736,7 +838,9 @@ def replay_action_request(intent: ActionIntent) -> SettlementCommitResult | None
             )
             if row is None:
                 return None
-            return _replay_or_reject(row, intent, intent.payload_hash())
+            result = _replay_or_reject(row, intent, intent.payload_hash())
+            _validate_terminal_replay(conn, result)
+            return result
     except WorldStoreError:
         raise
     except sqlite3.Error as exc:
@@ -828,6 +932,157 @@ def _complete_action_request(
         raise WorldCorruptDataError("action request completion lost its pending row")
 
 
+def _death_deltas(proposal: AdjudicationProposal) -> list[PlayerWorldDelta]:
+    return [
+        delta
+        for delta in proposal.deltas
+        if isinstance(delta, PlayerWorldDelta) and delta.operation == "death"
+    ]
+
+
+def _row_to_terminal_record(row: sqlite3.Row) -> TerminalRecordFacts:
+    record = TerminalRecordFacts.model_validate_json(row["facts_json"])
+    if (
+        str(record.terminal_record_id) != row["id"]
+        or str(record.game_id) != row["game_id"]
+        or str(record.branch_id) != row["branch_id"]
+        or str(record.settlement_id) != row["settlement_id"]
+        or str(record.version_id) != row["version_id"]
+        or str(record.previous_version_id) != row["previous_version_id"]
+    ):
+        raise WorldCorruptDataError("stored terminal record identity is inconsistent")
+    return record
+
+
+def _get_terminal_record(
+    conn: sqlite3.Connection,
+    settlement_id: SettlementId | str,
+) -> TerminalRecordFacts | None:
+    row = conn.execute(
+        """
+        SELECT id, game_id, branch_id, settlement_id, version_id,
+               previous_version_id, facts_json, created_at
+        FROM terminal_records
+        WHERE settlement_id = ?
+        """,
+        (str(settlement_id),),
+    ).fetchone()
+    if row is None:
+        return None
+    try:
+        return _row_to_terminal_record(row)
+    except WorldStoreError:
+        raise
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored terminal record is invalid") from exc
+
+
+def get_terminal_record(settlement_id: SettlementId) -> TerminalRecordFacts:
+    try:
+        with closing(_connect()) as conn:
+            record = _get_terminal_record(conn, settlement_id)
+        if record is None:
+            raise WorldNotFoundError("terminal_record", str(settlement_id))
+        return record
+    except WorldStoreError:
+        raise
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
+def _validate_terminal_replay(
+    conn: sqlite3.Connection,
+    result: SettlementCommitResult,
+) -> None:
+    deaths = _death_deltas(
+        AdjudicationProposal(
+            result_tier=result.facts.result_tier,
+            deltas=result.facts.deltas,
+        ),
+    )
+    record = _get_terminal_record(conn, result.facts.settlement_id)
+    if deaths:
+        if len(deaths) != 1 or record is None:
+            raise WorldCorruptDataError("terminal action replay is missing its terminal record")
+        if (
+            record.version_id != result.version.version_id
+            or record.previous_version_id != result.facts.parent_version_id
+            or record.trigger_action != result.facts.client_action_id
+        ):
+            raise WorldCorruptDataError("terminal action replay identity is inconsistent")
+    elif record is not None:
+        raise WorldCorruptDataError("non-terminal action unexpectedly owns a terminal record")
+
+
+def _validate_terminal_commit(
+    *,
+    intent: ActionIntent,
+    previous_state: GameState,
+    state: GameState,
+    proposal: AdjudicationProposal,
+    settlement_id: SettlementId,
+    version_id: VersionId,
+    terminal: bool,
+) -> PlayerWorldDelta | None:
+    if previous_state.player_world_status.life_status == "dead":
+        raise WorldTerminalStateError()
+    deaths = _death_deltas(proposal)
+    if terminal:
+        if len(deaths) != 1:
+            raise WorldCorruptDataError("terminal commit requires exactly one death delta")
+        death = deaths[0]
+        player = state.player_world_status
+        if (
+            death.trigger_action != intent.client_action_id
+            or death.before_value != "alive"
+            or death.value != "dead"
+            or not death.direct_cause
+            or not death.key_factors
+            or not death.causal_summary
+            or player.life_status != "dead"
+            or player.terminal_settlement_id != settlement_id
+            or player.terminal_version_id != version_id
+        ):
+            raise WorldCorruptDataError("terminal commit state does not match its death delta")
+        return death
+
+    if deaths:
+        raise WorldCorruptDataError("ordinary settlement cannot contain a death delta")
+    before_player = previous_state.player_world_status
+    after_player = state.player_world_status
+    if (
+        after_player.life_status != before_player.life_status
+        or after_player.terminal_settlement_id != before_player.terminal_settlement_id
+        or after_player.terminal_version_id != before_player.terminal_version_id
+    ):
+        raise WorldCorruptDataError("ordinary settlement cannot mutate terminal player state")
+    return None
+
+
+def _insert_terminal_record(
+    conn: sqlite3.Connection,
+    record: TerminalRecordFacts,
+) -> None:
+    conn.execute(
+        """
+        INSERT INTO terminal_records (
+            id, game_id, branch_id, settlement_id, version_id,
+            previous_version_id, facts_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            str(record.terminal_record_id),
+            str(record.game_id),
+            str(record.branch_id),
+            str(record.settlement_id),
+            str(record.version_id),
+            str(record.previous_version_id),
+            record.model_dump_json(),
+            record.committed_at.isoformat(),
+        ),
+    )
+
+
 def _replay_or_reject(
     row: sqlite3.Row,
     intent: ActionIntent,
@@ -886,6 +1141,7 @@ def commit_settlement(
     activity_status: str | None = None,
     crossed_events: list[str] | None = None,
     actual_outcome: str | None = None,
+    terminal: bool = False,
 ) -> SettlementCommitResult:
     """Commit one action request, settlement, snapshot, and head advance.
 
@@ -910,6 +1166,7 @@ def commit_settlement(
             )
             if existing is not None:
                 result = _replay_or_reject(existing, intent, payload_hash)
+                _validate_terminal_replay(conn, result)
                 conn.commit()
                 return result
 
@@ -921,6 +1178,15 @@ def commit_settlement(
                 )
             previous_state = _load_version(conn, head.version_id).state
             _validate_registry_continuity(previous_state, state)
+            death = _validate_terminal_commit(
+                intent=intent,
+                previous_state=previous_state,
+                state=state,
+                proposal=proposal,
+                settlement_id=settlement_id,
+                version_id=version_id,
+                terminal=terminal,
+            )
 
             _insert_action_request(conn, intent, payload_hash, committed_at)
             attribution = SettlementAttribution(
@@ -976,6 +1242,23 @@ def commit_settlement(
 
             _insert_settlement(conn, facts)
             _insert_version(conn, ref=version, state=snapshot, source_kind="settlement")
+            if death is not None:
+                _insert_terminal_record(
+                    conn,
+                    TerminalRecordFacts(
+                        terminal_record_id=new_terminal_record_id(),
+                        game_id=intent.game_id,
+                        branch_id=intent.branch_id,
+                        settlement_id=settlement_id,
+                        previous_version_id=intent.expected_parent_version_id,
+                        version_id=version_id,
+                        trigger_action=intent.client_action_id,
+                        direct_cause=death.direct_cause or "",
+                        key_factors=death.key_factors,
+                        causal_summary=death.causal_summary or "",
+                        committed_at=committed_at,
+                    ),
+                )
             if not _advance_branch_head(
                 conn,
                 game_id=intent.game_id,
@@ -1002,6 +1285,23 @@ def commit_settlement(
         except Exception:
             conn.rollback()
             raise
+
+
+def commit_terminal_settlement(
+    intent: ActionIntent,
+    state: GameState,
+    proposal: AdjudicationProposal,
+    **kwargs,
+) -> SettlementCommitResult:
+    """Commit death facts, terminal record, snapshot, and head in one transaction."""
+
+    return commit_settlement(
+        intent,
+        state,
+        proposal,
+        terminal=True,
+        **kwargs,
+    )
 
 
 def _project_legacy_lists_to_registry(
@@ -1054,6 +1354,16 @@ def _project_legacy_lists_to_registry(
                 else []
             ),
             roles=list(minister.positions),
+            permissions=[
+                PermissionReference(
+                    permission_id=new_permission_id(),
+                    capability=capability,
+                )
+                for capability in (
+                    ASSEMBLY_PARTICIPATE_CAPABILITY,
+                    ENTITY_DIALOGUE_CAPABILITY,
+                )
+            ],
             available=status_value in {"active", "idle", "on_mission"},
         )
 
@@ -1354,6 +1664,11 @@ class IdempotencyConflictError(WorldStoreError):
 class ActionInProgressError(WorldStoreError):
     def __init__(self):
         super().__init__("action_in_progress", "动作仍在处理中，请稍后重试")
+
+
+class WorldTerminalStateError(WorldStoreError):
+    def __init__(self):
+        super().__init__("world_terminal", "主角已死亡，当前世界线不能继续提交行动")
 
 
 class StaleParentVersionError(WorldStoreError):

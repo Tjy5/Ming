@@ -4,12 +4,20 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from models.game import ErrorResponse
+from models.world import BranchId, GameId
 from db import worlds
 from db.saves import (
     save_game, load_game, list_saves, delete_save,
     SaveNotFoundError, CorruptSaveError, IncompatibleSaveError, StorageError,
 )
-from .schemas import SaveRequest
+from .schemas import (
+    SaveRequest,
+    WorldBranchListResponse,
+    WorldForkRequest,
+    WorldLifecycleResponse,
+    WorldSwitchRequest,
+    WorldVersionListResponse,
+)
 from .state import _get_state, _publish_world_head, _lock
 
 save_router = APIRouter(prefix="/api")
@@ -33,6 +41,60 @@ async def save(req: SaveRequest = SaveRequest()):
 @save_router.get("/saves")
 async def get_saves():
     return list_saves()
+
+
+# ── Immutable world branches ─────────────────────────────
+
+@save_router.get(
+    "/worlds/{game_id}/branches",
+    response_model=WorldBranchListResponse,
+)
+async def get_world_branches(game_id: GameId):
+    return WorldBranchListResponse(branches=worlds.list_branches(game_id))
+
+
+@save_router.get(
+    "/worlds/{game_id}/{branch_id}/versions",
+    response_model=WorldVersionListResponse,
+)
+async def get_world_versions(game_id: GameId, branch_id: BranchId):
+    worlds.get_branch(game_id, branch_id)
+    return WorldVersionListResponse(
+        versions=worlds.list_versions(game_id, branch_id),
+    )
+
+
+@save_router.post("/worlds/fork", response_model=WorldLifecycleResponse)
+async def fork_world(req: WorldForkRequest):
+    async with _lock:
+        source = worlds.load_version(req.version_id)
+        if (
+            source.ref.game_id != req.game_id
+            or source.ref.branch_id != req.branch_id
+        ):
+            raise worlds.WorldNotFoundError("version", str(req.version_id))
+        fork_ref = worlds.create_branch_from_version(req.version_id)
+        snapshot = worlds.load_version(fork_ref.version_id)
+        branch = worlds.get_branch(fork_ref.game_id, fork_ref.branch_id)
+        _publish_world_head(snapshot.state, snapshot.ref)
+        return WorldLifecycleResponse(
+            state=snapshot.state,
+            branch=branch,
+            version=snapshot.ref,
+        )
+
+
+@save_router.post("/worlds/switch", response_model=WorldLifecycleResponse)
+async def switch_world(req: WorldSwitchRequest):
+    async with _lock:
+        snapshot = worlds.load_branch_head(req.game_id, req.branch_id)
+        branch = worlds.get_branch(req.game_id, req.branch_id)
+        _publish_world_head(snapshot.state, snapshot.ref)
+        return WorldLifecycleResponse(
+            state=snapshot.state,
+            branch=branch,
+            version=snapshot.ref,
+        )
 
 
 # ── POST /api/load/{save_id} ────────────────────────────

@@ -2,8 +2,13 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 
+from engine.entity_views import (
+    ActorCompatibilityView,
+    assembly_actor_views,
+    resolve_assembly_actor,
+)
 from models.game import CourtAssembly, ErrorResponse, GameState, Minister
-from models.enums import AssemblyPhase, MinisterStatus
+from models.enums import AssemblyPhase
 from models.positions import calculate_position_weight
 
 
@@ -53,12 +58,15 @@ def normalize_vote_choice(value: str) -> str:
 
 
 def resolve_assembly_ministers(state: GameState, assembly: CourtAssembly) -> list[Minister]:
-    active_by_name = {m.name: m for m in state.ministers if m.status == MinisterStatus.ACTIVE}
     result: list[Minister] = []
-    for p in assembly.participants:
-        m = active_by_name.get(p.name)
-        if m is not None:
-            result.append(m)
+    for participant in assembly.participants:
+        actor = resolve_assembly_actor(
+            state,
+            entity_id=participant.entity_id,
+            display_name=participant.name,
+        )
+        if actor is not None:
+            result.append(actor.minister)
     return result
 
 
@@ -86,34 +94,41 @@ def require_assembly(
     return assembly
 
 
-def select_assembly_participants(state: GameState) -> list[Minister]:
-    active = [m for m in state.ministers if m.status == MinisterStatus.ACTIVE]
+def select_assembly_actor_views(state: GameState) -> list[ActorCompatibilityView]:
+    active = assembly_actor_views(state)
     if not active:
         return []
-    order_map = {m.name: idx for idx, m in enumerate(state.ministers)}
+    order_map = {
+        actor.entity_id or actor.display_name: index
+        for index, actor in enumerate(active)
+    }
 
-    def score(m: Minister) -> tuple[int, int, int, int]:
+    def score(actor: ActorCompatibilityView) -> tuple[int, int, int, int]:
+        m = actor.minister
         ability_total = m.abilities.civil + m.abilities.military + m.abilities.diplomacy
         return (
             assembly_position_score(m),
             m.loyalty,
             ability_total,
-            -order_map.get(m.name, 9999),
+            -order_map.get(actor.entity_id or actor.display_name, 9999),
         )
 
-    by_faction: dict[str, list[Minister]] = {}
-    for minister in active:
-        by_faction.setdefault(minister.faction, []).append(minister)
+    by_faction: dict[str, list[ActorCompatibilityView]] = {}
+    for actor in active:
+        by_faction.setdefault(actor.minister.faction, []).append(actor)
 
-    participants: list[Minister] = []
-    selected_names: set[str] = set()
-    for faction_ministers in by_faction.values():
-        rep = max(faction_ministers, key=score)
+    participants: list[ActorCompatibilityView] = []
+    selected_ids: set[object] = set()
+    for faction_actors in by_faction.values():
+        rep = max(faction_actors, key=score)
         participants.append(rep)
-        selected_names.add(rep.name)
+        selected_ids.add(rep.entity_id or rep.display_name)
 
     remaining = sorted(
-        [m for m in active if m.name not in selected_names],
+        [
+            actor for actor in active
+            if (actor.entity_id or actor.display_name) not in selected_ids
+        ],
         key=score,
         reverse=True,
     )
@@ -124,3 +139,8 @@ def select_assembly_participants(state: GameState) -> list[Minister]:
         participants.append(minister)
     return sorted(participants, key=score, reverse=True)[:MAX_PARTICIPANTS]
 
+
+def select_assembly_participants(state: GameState) -> list[Minister]:
+    """Compatibility wrapper for provider and older unit-test callers."""
+
+    return [actor.minister for actor in select_assembly_actor_views(state)]
