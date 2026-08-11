@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Annotated, Literal, NewType
 from uuid import UUID, uuid4
@@ -393,14 +394,14 @@ class EntitySource(_WorldContract):
 
 class PermissionReference(_WorldContract):
     permission_id: PermissionId
-    capability: str
+    capability: str = Field(min_length=1)
     scope_entity_id: EntityId | None = None
     granted_by_entity_id: EntityId | None = None
 
 
 class RelationshipEdge(_WorldContract):
     relationship_id: RelationId
-    relationship_type: str
+    relationship_type: str = Field(min_length=1)
     from_entity_id: EntityId
     to_entity_id: EntityId
     status: Literal["active", "ended"] = "active"
@@ -468,6 +469,108 @@ WorldEntity = Annotated[
     | RegionEntity,
     Field(discriminator="entity_type"),
 ]
+
+
+def validate_entity_registry(
+    registry: Mapping[EntityId, WorldEntity],
+) -> None:
+    """Validate cross-entity references and globally stable registry identities."""
+
+    known_ids = set(registry)
+    relationship_ids: set[RelationId] = set()
+    permission_ids: set[PermissionId] = set()
+    relationship_keys: set[tuple[EntityId, EntityId, str]] = set()
+
+    for registry_id, entity in registry.items():
+        if registry_id != entity.entity_id:
+            raise ValueError("registry key does not match embedded entity_id")
+        if entity.status == "ended" and entity.available:
+            raise ValueError("ended registry entity cannot remain available")
+
+        for permission in entity.permissions:
+            if permission.permission_id in permission_ids:
+                raise ValueError("permission_id must be globally unique")
+            permission_ids.add(permission.permission_id)
+            for reference in (
+                permission.scope_entity_id,
+                permission.granted_by_entity_id,
+            ):
+                if reference is not None and reference not in known_ids:
+                    raise ValueError("permission references an unknown entity")
+            if (
+                entity.status != "ended"
+                and permission.scope_entity_id is not None
+                and registry[permission.scope_entity_id].status == "ended"
+            ):
+                raise ValueError("active permission cannot target an ended scope entity")
+
+        for relationship in entity.relationships:
+            if relationship.relationship_id in relationship_ids:
+                raise ValueError("relationship_id must be globally unique")
+            relationship_ids.add(relationship.relationship_id)
+            relationship_key = (
+                relationship.from_entity_id,
+                relationship.to_entity_id,
+                relationship.relationship_type,
+            )
+            if relationship_key in relationship_keys:
+                raise ValueError("registry contains a duplicate relationship edge")
+            relationship_keys.add(relationship_key)
+            if relationship.from_entity_id != entity.entity_id:
+                raise ValueError("relationship owner does not match from_entity_id")
+            if relationship.to_entity_id not in known_ids:
+                raise ValueError("relationship references an unknown entity")
+            if relationship.from_entity_id == relationship.to_entity_id:
+                raise ValueError("relationship cannot reference the same entity twice")
+            if (
+                entity.status != "ended"
+                and relationship.status == "active"
+                and registry[relationship.to_entity_id].status == "ended"
+            ):
+                raise ValueError("active relationship cannot target an ended entity")
+
+        for field in (
+            "faction_ids",
+            "office_ids",
+            "member_ids",
+            "represented_entity_ids",
+        ):
+            references = list(getattr(entity, field, []))
+            if len(references) != len(set(references)):
+                raise ValueError(f"{field} contains duplicate entity references")
+            if entity.entity_id in references:
+                raise ValueError(f"{field} cannot reference the entity itself")
+            if any(reference not in known_ids for reference in references):
+                raise ValueError(f"{field} references an unknown entity")
+            if entity.status != "ended" and any(
+                registry[reference].status == "ended" for reference in references
+            ):
+                raise ValueError(f"{field} cannot reference an ended entity")
+        for field in ("holder_entity_id", "controller_entity_id"):
+            reference = getattr(entity, field, None)
+            if reference == entity.entity_id:
+                raise ValueError(f"{field} cannot reference the entity itself")
+            if reference is not None and reference not in known_ids:
+                raise ValueError(f"{field} references an unknown entity")
+            if (
+                entity.status != "ended"
+                and reference is not None
+                and registry[reference].status == "ended"
+            ):
+                raise ValueError(f"{field} cannot reference an ended entity")
+
+    for entity in registry.values():
+        if isinstance(entity, PersonEntity):
+            for office_id in entity.office_ids:
+                office = registry[office_id]
+                if not isinstance(office, OfficeEntity):
+                    raise ValueError("person office_ids must reference OfficeEntity records")
+                if office.holder_entity_id != entity.entity_id:
+                    raise ValueError("person office_ids and office holder disagree")
+        if isinstance(entity, OfficeEntity) and entity.holder_entity_id is not None:
+            holder = registry[entity.holder_entity_id]
+            if isinstance(holder, PersonEntity) and entity.entity_id not in holder.office_ids:
+                raise ValueError("office holder and person office_ids disagree")
 
 
 class PlayerWorldStatus(_WorldContract):

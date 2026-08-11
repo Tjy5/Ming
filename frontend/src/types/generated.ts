@@ -2183,6 +2183,45 @@ export type components = {
              */
             summary: string;
         };
+        /** EntityStatusPrecondition */
+        EntityStatusPrecondition: {
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "inactive" | "ended";
+        };
+        /** EntityTransitionWorldDelta */
+        EntityTransitionWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "entity_transition";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "replace" | "split" | "merge";
+            /** Sources */
+            sources: components["schemas"]["EntityStatusPrecondition"][];
+            /** Result Entities */
+            result_entities: (components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"])[];
+            /** Ended At */
+            ended_at?: string | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** EntityWorldDelta */
         EntityWorldDelta: {
             /**
@@ -3493,6 +3532,35 @@ export type components = {
              */
             responsibility: string;
         };
+        /** OfficeWorldDelta */
+        OfficeWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "office";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "assign" | "vacate";
+            /**
+             * Office Entity Id
+             * Format: uuid
+             */
+            office_entity_id: string;
+            /** Before Holder Entity Id */
+            before_holder_entity_id: string | null;
+            /** Holder Entity Id */
+            holder_entity_id?: string | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** ParseRequest */
         ParseRequest: {
             /** Text */
@@ -3525,6 +3593,38 @@ export type components = {
             scope_entity_id?: string | null;
             /** Granted By Entity Id */
             granted_by_entity_id?: string | null;
+        };
+        /** PermissionWorldDelta */
+        PermissionWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "permission";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "grant" | "revoke";
+            /**
+             * Target Entity Id
+             * Format: uuid
+             */
+            target_entity_id: string;
+            /**
+             * Permission Id
+             * Format: uuid
+             */
+            permission_id: string;
+            permission?: components["schemas"]["PermissionReference"] | null;
+            before_permission?: components["schemas"]["PermissionReference"] | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
         };
         /** PersonEntity */
         PersonEntity: {
@@ -3926,6 +4026,8 @@ export type components = {
              * @enum {string}
              */
             operation: "create" | "update" | "end" | "grant" | "revoke" | "assign";
+            /** Relationship Id */
+            relationship_id?: string | null;
             /**
              * From Entity Id
              * Format: uuid
@@ -3939,9 +4041,9 @@ export type components = {
             /** Relationship Type */
             relationship_type: string;
             /** Before Status */
-            before_status?: string | null;
+            before_status?: ("active" | "ended") | null;
             /** Next Status */
-            next_status?: string | null;
+            next_status?: ("active" | "ended") | null;
             /** Source Proposal */
             source_proposal?: string | null;
         };
@@ -4052,7 +4154,7 @@ export type components = {
             /** New Opportunities */
             new_opportunities?: string[];
             /** Deltas */
-            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"] | components["schemas"]["CommitmentWorldDelta"] | components["schemas"]["ElapsedStatePatchDelta"] | components["schemas"]["CompatibilityStatePatchDelta"])[];
+            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["EntityTransitionWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["PermissionWorldDelta"] | components["schemas"]["OfficeWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"] | components["schemas"]["CommitmentWorldDelta"] | components["schemas"]["ElapsedStatePatchDelta"] | components["schemas"]["CompatibilityStatePatchDelta"])[];
             /** Duration Reason */
             duration_reason?: string | null;
             time_plan?: components["schemas"]["ElapsedSegmentPlan"] | null;

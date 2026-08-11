@@ -14,21 +14,29 @@ from models.settlement import (
     CommitmentWorldDelta,
     CompatibilityStatePatchDelta,
     ElapsedStatePatchDelta,
+    EntityTransitionWorldDelta,
     EntityWorldDelta,
     LifecycleWorldDelta,
     MetricWorldDelta,
     ModifierWorldDelta,
+    OfficeWorldDelta,
+    PermissionWorldDelta,
     PlayerWorldDelta,
     RelationshipWorldDelta,
     WorldDelta,
 )
 from models.world import (
     EntityId,
+    OfficeEntity,
+    PermissionId,
+    PermissionReference,
+    PersonEntity,
     RelationId,
     RelationshipEdge,
     SettlementId,
     VersionId,
     WorldEntity,
+    validate_entity_registry,
 )
 from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
 
@@ -62,6 +70,14 @@ _PROTECTED_ENTITY_FIELDS = frozenset(
         "created_by_settlement_id",
         "origin_version_id",
         "source",
+    },
+)
+_DEDICATED_REGISTRY_FIELDS = frozenset(
+    {
+        "permissions",
+        "relationships",
+        "office_ids",
+        "holder_entity_id",
     },
 )
 ELAPSED_PATCH_FIELDS = frozenset(
@@ -180,7 +196,44 @@ def _known_entity_ids(
     for delta in proposal.deltas:
         if isinstance(delta, EntityWorldDelta) and delta.operation == "create":
             known.add(delta.target_entity_id)
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            known.update(entity.entity_id for entity in delta.result_entities)
     return known
+
+
+def _proposal_entities(
+    state: GameState,
+    proposal: AdjudicationProposal,
+) -> dict[EntityId, WorldEntity]:
+    entities = dict(state.entity_registry)
+    for delta in proposal.deltas:
+        if (
+            isinstance(delta, EntityWorldDelta)
+            and delta.operation == "create"
+            and delta.entity is not None
+        ):
+            entities[delta.target_entity_id] = delta.entity
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            entities.update(
+                (entity.entity_id, entity) for entity in delta.result_entities
+            )
+    return entities
+
+
+def _ending_entity_ids(proposal: AdjudicationProposal) -> set[EntityId]:
+    return _ending_entity_ids_from_deltas(proposal.deltas)
+
+
+def _ending_entity_ids_from_deltas(
+    deltas: Sequence[WorldDelta],
+) -> set[EntityId]:
+    ending: set[EntityId] = set()
+    for delta in deltas:
+        if isinstance(delta, EntityWorldDelta) and delta.operation == "end":
+            ending.add(delta.target_entity_id)
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            ending.update(source.entity_id for source in delta.sources)
+    return ending
 
 
 def _require_entity(
@@ -201,7 +254,7 @@ def _require_entity(
 def _validate_entity_payload_references(
     entity: WorldEntity,
     known: set[EntityId],
-    delta: EntityWorldDelta,
+    delta: WorldDelta,
 ) -> None:
     for permission in entity.permissions:
         for reference, label in (
@@ -240,31 +293,258 @@ def _validate_entity_payload_references(
             _require_entity(reference, known, label=field, delta=delta)
 
 
-def _delta_conflict_key(delta: WorldDelta) -> Hashable:
+def _validate_entity_payload_liveness(
+    entity: WorldEntity,
+    ending: set[EntityId],
+    delta: WorldDelta,
+) -> None:
+    for permission in entity.permissions:
+        if permission.scope_entity_id in ending:
+            _fail(
+                "inactive_entity_reference",
+                "active permission 不能以本批次结束的主体为作用域",
+                delta=delta,
+            )
+    for relationship in entity.relationships:
+        if relationship.status == "active" and relationship.to_entity_id in ending:
+            _fail(
+                "inactive_entity_reference",
+                "active relationship 不能指向本批次结束的主体",
+                delta=delta,
+            )
+    for field in (
+        "faction_ids",
+        "office_ids",
+        "member_ids",
+        "represented_entity_ids",
+    ):
+        references = list(getattr(entity, field, []))
+        if entity.entity_id in references:
+            _fail(
+                "invalid_entity_reference",
+                f"{field} 不能引用主体自身",
+                delta=delta,
+            )
+        if any(reference in ending for reference in references):
+            _fail(
+                "inactive_entity_reference",
+                f"{field} 不能引用本批次结束的主体",
+                delta=delta,
+            )
+    for field in ("holder_entity_id", "controller_entity_id"):
+        reference = getattr(entity, field, None)
+        if reference == entity.entity_id:
+            _fail(
+                "invalid_entity_reference",
+                f"{field} 不能引用主体自身",
+                delta=delta,
+            )
+        if reference in ending:
+            _fail(
+                "inactive_entity_reference",
+                f"{field} 不能引用本批次结束的主体",
+                delta=delta,
+            )
+
+
+def _validate_apply_batch(deltas: Sequence[WorldDelta]) -> None:
+    """Defend common batch/liveness rules when the pure applier is called directly."""
+
+    seen_delta_ids: set[object] = set()
+    seen_conflicts: set[Hashable] = set()
+    ending = _ending_entity_ids_from_deltas(deltas)
+    for delta in deltas:
+        if delta.delta_id in seen_delta_ids:
+            _fail(
+                "duplicate_delta_id",
+                "同一应用批次包含重复 delta_id",
+                delta=delta,
+            )
+        seen_delta_ids.add(delta.delta_id)
+        if isinstance(
+            delta,
+            (
+                EntityWorldDelta,
+                EntityTransitionWorldDelta,
+                RelationshipWorldDelta,
+                PermissionWorldDelta,
+                OfficeWorldDelta,
+            ),
+        ):
+            conflict_keys = _delta_conflict_keys(delta)
+            if conflict_keys & seen_conflicts:
+                _fail(
+                    "delta_conflict",
+                    "同一应用批次对同一 registry 目标给出了冲突变化",
+                    delta=delta,
+                )
+            seen_conflicts.update(conflict_keys)
+
+        if isinstance(delta, EntityWorldDelta):
+            if delta.operation == "create":
+                if (
+                    delta.entity is None
+                    or delta.entity.entity_id != delta.target_entity_id
+                    or delta.before_status is not None
+                    or delta.changes
+                ):
+                    _fail(
+                        "invalid_entity_payload",
+                        "create delta 只能携带 ID 一致的完整主体",
+                        delta=delta,
+                    )
+                _validate_entity_payload_liveness(delta.entity, ending, delta)
+            elif delta.entity is not None:
+                _fail(
+                    "invalid_entity_payload",
+                    "update/end delta 不得替换完整主体对象",
+                    delta=delta,
+                )
+            change_fields: set[str] = set()
+            for change in delta.changes:
+                if change.field in change_fields:
+                    _fail(
+                        "delta_conflict",
+                        "同一主体 delta 重复修改相同字段",
+                        delta=delta,
+                    )
+                change_fields.add(change.field)
+                if delta.operation == "end" and change.field in {"status", "available"}:
+                    _fail(
+                        "invalid_entity_end",
+                        "end delta 不得通过 changes 恢复主体状态或可用性",
+                        delta=delta,
+                    )
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            for entity in delta.result_entities:
+                _validate_entity_payload_liveness(entity, ending, delta)
+        elif isinstance(delta, RelationshipWorldDelta):
+            if delta.operation == "create" and (
+                delta.before_status is not None
+                or delta.next_status not in {None, "active"}
+            ):
+                _fail(
+                    "invalid_relationship",
+                    "create relationship 必须从不存在状态创建 active 关系",
+                    delta=delta,
+                )
+            if delta.operation == "update" and delta.next_status is None:
+                _fail(
+                    "invalid_relationship",
+                    "update relationship 必须提供 next_status",
+                    delta=delta,
+                )
+            if delta.operation == "end" and delta.next_status not in {None, "ended"}:
+                _fail(
+                    "invalid_relationship",
+                    "end relationship 的 next_status 只能是 ended",
+                    delta=delta,
+                )
+            if delta.operation == "create" and (
+                delta.from_entity_id in ending or delta.to_entity_id in ending
+            ):
+                _fail(
+                    "inactive_entity_reference",
+                    "不能为本批次结束的主体创建 active 关系",
+                    delta=delta,
+                )
+        elif isinstance(delta, PermissionWorldDelta) and delta.operation == "grant":
+            if delta.target_entity_id in ending:
+                _fail(
+                    "inactive_entity_reference",
+                    "不能向本批次结束的主体授予权限",
+                    delta=delta,
+                )
+            if delta.permission is not None and delta.permission.scope_entity_id in ending:
+                _fail(
+                    "inactive_entity_reference",
+                    "active permission 不能以本批次结束的主体为作用域",
+                    delta=delta,
+                )
+        elif (
+            isinstance(delta, OfficeWorldDelta)
+            and delta.operation == "assign"
+            and delta.holder_entity_id in ending
+        ):
+            _fail(
+                "inactive_entity_reference",
+                "不能任命本批次结束的主体",
+                delta=delta,
+            )
+
+
+def _delta_conflict_keys(delta: WorldDelta) -> set[Hashable]:
     if isinstance(delta, MetricWorldDelta):
-        return ("metric", delta.target_scope, delta.target_id, delta.field)
+        return {("metric", delta.target_scope, delta.target_id, delta.field)}
     if isinstance(delta, EntityWorldDelta):
-        return ("entity", delta.target_entity_id)
+        return {("entity", delta.target_entity_id)}
+    if isinstance(delta, EntityTransitionWorldDelta):
+        return {
+            ("entity", entity_id)
+            for entity_id in (
+                *(source.entity_id for source in delta.sources),
+                *(entity.entity_id for entity in delta.result_entities),
+            )
+        }
     if isinstance(delta, RelationshipWorldDelta):
-        return (
-            "relationship",
-            delta.from_entity_id,
-            delta.to_entity_id,
-            delta.relationship_type,
-        )
+        return {
+            (
+                "relationship",
+                delta.relationship_id,
+                delta.from_entity_id,
+                delta.to_entity_id,
+                delta.relationship_type,
+            ),
+        }
+    if isinstance(delta, PermissionWorldDelta):
+        return {("permission", delta.target_entity_id, delta.permission_id)}
+    if isinstance(delta, OfficeWorldDelta):
+        return {("office", delta.office_entity_id)}
     if isinstance(delta, LifecycleWorldDelta):
-        return ("lifecycle", delta.transition_type, delta.transition_id)
+        return {("lifecycle", delta.transition_type, delta.transition_id)}
     if isinstance(delta, PlayerWorldDelta):
-        return ("player", delta.operation)
+        return {("player", delta.operation)}
     if isinstance(delta, ModifierWorldDelta):
-        return ("modifier", delta.modifier_id)
+        return {("modifier", delta.modifier_id)}
     if isinstance(delta, CommitmentWorldDelta):
-        return ("commitment", delta.commitment_id)
+        return {("commitment", delta.commitment_id)}
     if isinstance(delta, ElapsedStatePatchDelta):
-        return ("elapsed_state_patch", tuple(sorted(delta.after_fields)))
+        return {("elapsed_state_patch", tuple(sorted(delta.after_fields)))}
     if isinstance(delta, CompatibilityStatePatchDelta):
-        return ("compatibility_state_patch", tuple(sorted(delta.after_fields)))
+        return {("compatibility_state_patch", tuple(sorted(delta.after_fields)))}
     raise TypeError(f"Unsupported world delta: {type(delta).__name__}")
+
+
+def _relationship_id(delta: RelationshipWorldDelta) -> RelationId:
+    return delta.relationship_id or RelationId(UUID(str(delta.delta_id)))
+
+
+def _relationship_matches(
+    source: WorldEntity,
+    delta: RelationshipWorldDelta,
+) -> list[tuple[int, RelationshipEdge]]:
+    return [
+        (index, edge)
+        for index, edge in enumerate(source.relationships)
+        if edge.from_entity_id == delta.from_entity_id
+        and edge.to_entity_id == delta.to_entity_id
+        and edge.relationship_type == delta.relationship_type
+        and (
+            delta.relationship_id is None
+            or edge.relationship_id == delta.relationship_id
+        )
+    ]
+
+
+def _permission_matches(
+    entity: WorldEntity,
+    permission_id: PermissionId,
+) -> list[tuple[int, PermissionReference]]:
+    return [
+        (index, permission)
+        for index, permission in enumerate(entity.permissions)
+        if permission.permission_id == permission_id
+    ]
 
 
 def validate_adjudication_proposal(
@@ -284,6 +564,31 @@ def validate_adjudication_proposal(
     seen_delta_ids: set[object] = set()
     seen_conflicts: set[Hashable] = set()
     known = _known_entity_ids(state, proposal)
+    proposed_entities = _proposal_entities(state, proposal)
+    ending_entity_ids = _ending_entity_ids(proposal)
+    relationship_id_values = [
+        relationship.relationship_id
+        for entity in proposed_entities.values()
+        for relationship in entity.relationships
+    ]
+    permission_id_values = [
+        permission.permission_id
+        for entity in proposed_entities.values()
+        for permission in entity.permissions
+    ]
+    if len(relationship_id_values) != len(set(relationship_id_values)):
+        _fail(
+            "duplicate_registry_identity",
+            "同一主体注册表包含重复 relationship_id",
+        )
+    if len(permission_id_values) != len(set(permission_id_values)):
+        _fail(
+            "duplicate_registry_identity",
+            "同一主体注册表包含重复 permission_id",
+        )
+    relationship_ids = set(relationship_id_values)
+    permission_ids = set(permission_id_values)
+    player_entity_id = state.player_world_status.player_character_id
 
     for reference, label in (
         (intent.requested_executor_id, "requested_executor_id"),
@@ -353,14 +658,14 @@ def validate_adjudication_proposal(
             )
         seen_delta_ids.add(delta.delta_id)
 
-        conflict_key = _delta_conflict_key(delta)
-        if conflict_key in seen_conflicts:
+        conflict_keys = _delta_conflict_keys(delta)
+        if conflict_keys & seen_conflicts:
             _fail(
                 "delta_conflict",
                 "同一裁决批次对同一目标给出了冲突变化",
                 delta=delta,
             )
-        seen_conflicts.add(conflict_key)
+        seen_conflicts.update(conflict_keys)
 
         if isinstance(delta, MetricWorldDelta):
             if delta.target_scope == "world":
@@ -402,7 +707,18 @@ def validate_adjudication_proposal(
                         "create delta 必须携带 ID 一致的完整主体",
                         delta=delta,
                     )
+                if delta.before_status is not None or delta.changes:
+                    _fail(
+                        "invalid_entity_payload",
+                        "create delta 只能携带完整主体，不能携带旧状态或字段 patch",
+                        delta=delta,
+                    )
                 _validate_entity_payload_references(delta.entity, known, delta)
+                _validate_entity_payload_liveness(
+                    delta.entity,
+                    ending_entity_ids,
+                    delta,
+                )
             else:
                 _require_entity(
                     delta.target_entity_id,
@@ -414,6 +730,25 @@ def validate_adjudication_proposal(
                     _fail(
                         "invalid_entity_payload",
                         "update/end delta 不得替换完整主体对象",
+                        delta=delta,
+                    )
+                current = state.entity_registry[delta.target_entity_id]
+                if delta.before_status is not None and current.status != delta.before_status:
+                    _fail(
+                        "delta_precondition_failed",
+                        "entity before_status 与当前世界快照不一致",
+                        delta=delta,
+                    )
+                if delta.target_entity_id == player_entity_id and (
+                    delta.operation == "end"
+                    or any(
+                        change.field in {"status", "available"}
+                        for change in delta.changes
+                    )
+                ):
+                    _fail(
+                        "player_identity_regression",
+                        "稳定玩家主体的生命周期只能由 player/terminal contract 改变",
                         delta=delta,
                     )
             change_fields: set[str] = set()
@@ -430,6 +765,12 @@ def validate_adjudication_proposal(
                         "主体身份、类型和来源字段不能由普通 update delta 改写",
                         delta=delta,
                     )
+                if change.field in _DEDICATED_REGISTRY_FIELDS:
+                    _fail(
+                        "dedicated_registry_delta_required",
+                        "关系、权限和官职字段必须使用专用 registry delta",
+                        delta=delta,
+                    )
                 if delta.operation == "end" and change.field in {"status", "available"}:
                     _fail(
                         "invalid_entity_end",
@@ -439,7 +780,71 @@ def validate_adjudication_proposal(
                 change_fields.add(change.field)
             continue
 
+        if isinstance(delta, EntityTransitionWorldDelta):
+            source_entities: list[WorldEntity] = []
+            for source in delta.sources:
+                _require_entity(
+                    source.entity_id,
+                    set(state.entity_registry),
+                    label="entity transition source",
+                    delta=delta,
+                )
+                current = state.entity_registry[source.entity_id]
+                if current.status != source.status:
+                    _fail(
+                        "delta_precondition_failed",
+                        "entity transition source status 与当前世界快照不一致",
+                        delta=delta,
+                    )
+                if current.status == "ended":
+                    _fail(
+                        "invalid_entity_transition",
+                        "replace/split/merge 不能重新消费已结束主体",
+                        delta=delta,
+                    )
+                if source.entity_id == player_entity_id:
+                    _fail(
+                        "player_identity_regression",
+                        "稳定玩家主体不能被 replace/split/merge",
+                        delta=delta,
+                    )
+                source_entities.append(current)
+            for entity in delta.result_entities:
+                if entity.entity_id in state.entity_registry:
+                    _fail(
+                        "entity_already_exists",
+                        "entity transition 的结果主体 ID 已存在",
+                        delta=delta,
+                    )
+                _validate_entity_payload_references(entity, known, delta)
+                _validate_entity_payload_liveness(
+                    entity,
+                    ending_entity_ids,
+                    delta,
+                )
+            if delta.operation in {"split", "merge"}:
+                transition_types = {
+                    entity.entity_type
+                    for entity in [*source_entities, *delta.result_entities]
+                }
+                if (
+                    len(transition_types) != 1
+                    or not transition_types.issubset({"faction", "institution"})
+                ):
+                    _fail(
+                        "invalid_entity_transition",
+                        "split/merge 只能在同类型的势力或机构主体之间进行",
+                        delta=delta,
+                    )
+            continue
+
         if isinstance(delta, RelationshipWorldDelta):
+            if delta.operation not in {"create", "update", "end"}:
+                _fail(
+                    "dedicated_registry_delta_required",
+                    "权限授予、撤销和任命必须使用 permission/office delta",
+                    delta=delta,
+                )
             _require_entity(
                 delta.from_entity_id,
                 known,
@@ -458,6 +863,145 @@ def validate_adjudication_proposal(
                     "关系边不能引用同一主体作为两端",
                     delta=delta,
                 )
+            source = proposed_entities[delta.from_entity_id]
+            matches = _relationship_matches(source, delta)
+            if delta.operation == "create":
+                if delta.before_status is not None or delta.next_status not in {None, "active"}:
+                    _fail(
+                        "invalid_relationship",
+                        "create relationship 必须从不存在状态创建 active 关系",
+                        delta=delta,
+                    )
+                relationship_id = _relationship_id(delta)
+                if relationship_id in relationship_ids or matches:
+                    _fail(
+                        "relationship_already_exists",
+                        "关系 ID 或关系边已存在",
+                        delta=delta,
+                    )
+                relationship_ids.add(relationship_id)
+                if (
+                    delta.from_entity_id in ending_entity_ids
+                    or delta.to_entity_id in ending_entity_ids
+                ):
+                    _fail(
+                        "inactive_entity_reference",
+                        "不能为本批次结束的主体创建 active 关系",
+                        delta=delta,
+                    )
+            else:
+                if len(matches) != 1:
+                    _fail(
+                        "relationship_not_found",
+                        "update/end relationship 必须引用唯一的现有关系边",
+                        delta=delta,
+                    )
+                edge = matches[0][1]
+                if delta.before_status is None or edge.status != delta.before_status:
+                    _fail(
+                        "delta_precondition_failed",
+                        "relationship before_status 与当前世界快照不一致",
+                        delta=delta,
+                    )
+                if delta.operation == "update" and delta.next_status is None:
+                    _fail(
+                        "invalid_relationship",
+                        "update relationship 必须提供 next_status",
+                        delta=delta,
+                    )
+                if delta.operation == "end" and delta.next_status not in {None, "ended"}:
+                    _fail(
+                        "invalid_relationship",
+                        "end relationship 的 next_status 只能是 ended",
+                        delta=delta,
+                    )
+            continue
+
+        if isinstance(delta, PermissionWorldDelta):
+            _require_entity(
+                delta.target_entity_id,
+                known,
+                label="permission target",
+                delta=delta,
+            )
+            target = proposed_entities[delta.target_entity_id]
+            matches = _permission_matches(target, delta.permission_id)
+            if delta.operation == "grant":
+                if delta.target_entity_id in ending_entity_ids:
+                    _fail(
+                        "inactive_entity_reference",
+                        "不能向本批次结束的主体授予权限",
+                        delta=delta,
+                    )
+                if delta.permission is None:
+                    _fail("invalid_permission", "grant delta 缺少权限记录", delta=delta)
+                if delta.permission_id in permission_ids or matches:
+                    _fail(
+                        "permission_already_exists",
+                        "permission_id 已存在",
+                        delta=delta,
+                    )
+                for reference, label in (
+                    (delta.permission.scope_entity_id, "permission.scope_entity_id"),
+                    (delta.permission.granted_by_entity_id, "permission.granted_by_entity_id"),
+                ):
+                    if reference is not None:
+                        _require_entity(reference, known, label=label, delta=delta)
+                permission_ids.add(delta.permission_id)
+            elif len(matches) != 1 or matches[0][1] != delta.before_permission:
+                _fail(
+                    "delta_precondition_failed",
+                    "permission revoke 与当前权限记录不一致",
+                    delta=delta,
+                )
+            continue
+
+        if isinstance(delta, OfficeWorldDelta):
+            _require_entity(
+                delta.office_entity_id,
+                known,
+                label="office entity",
+                delta=delta,
+            )
+            office = proposed_entities[delta.office_entity_id]
+            if not isinstance(office, OfficeEntity):
+                _fail(
+                    "invalid_office_reference",
+                    "office delta 必须引用 OfficeEntity",
+                    delta=delta,
+                )
+            if office.holder_entity_id != delta.before_holder_entity_id:
+                _fail(
+                    "delta_precondition_failed",
+                    "office before_holder_entity_id 与当前世界快照不一致",
+                    delta=delta,
+                )
+            if delta.operation == "assign":
+                _require_entity(
+                    delta.holder_entity_id,
+                    known,
+                    label="office holder",
+                    delta=delta,
+                )
+                if delta.holder_entity_id in ending_entity_ids:
+                    _fail(
+                        "inactive_entity_reference",
+                        "不能任命本批次结束的主体",
+                        delta=delta,
+                    )
+                holder = proposed_entities[delta.holder_entity_id]
+                if holder.entity_type in {"office", "region"}:
+                    _fail(
+                        "invalid_office_holder",
+                        "官职持有者必须是人物、势力、机构或临时代理",
+                        delta=delta,
+                    )
+                if holder.status == "ended" or not holder.available:
+                    _fail(
+                        "inactive_entity_reference",
+                        "不能任命已结束或不可用的主体",
+                        delta=delta,
+                    )
             continue
 
         if isinstance(delta, PlayerWorldDelta) and delta.operation == "death":
@@ -596,8 +1140,14 @@ def _apply_metric_delta(
 
 def _apply_entity_delta(state: GameState, delta: EntityWorldDelta) -> None:
     if delta.operation == "create":
-        if delta.entity is None:
-            _fail("invalid_entity_payload", "create delta 缺少主体", delta=delta)
+        if delta.entity is None or delta.entity.entity_id != delta.target_entity_id:
+            _fail(
+                "invalid_entity_payload",
+                "create delta 缺少 ID 一致的完整主体",
+                delta=delta,
+            )
+        if delta.target_entity_id in state.entity_registry:
+            _fail("entity_already_exists", "create delta 的主体 ID 已存在", delta=delta)
         _replace_entity(state, delta.target_entity_id, delta.entity)
         return
 
@@ -608,6 +1158,18 @@ def _apply_entity_delta(state: GameState, delta: EntityWorldDelta) -> None:
         _assert_before(entity.status, delta.before_status, delta)
     payload = entity.model_dump()
     for change in delta.changes:
+        if change.field in _PROTECTED_ENTITY_FIELDS:
+            _fail(
+                "protected_entity_field",
+                "主体身份、类型和来源字段不能由普通 update delta 改写",
+                delta=delta,
+            )
+        if change.field in _DEDICATED_REGISTRY_FIELDS:
+            _fail(
+                "dedicated_registry_delta_required",
+                "关系、权限和官职字段必须使用专用 registry delta",
+                delta=delta,
+            )
         if change.field not in type(entity).model_fields:
             _fail(
                 "unsupported_entity_field",
@@ -632,6 +1194,69 @@ def _apply_entity_delta(state: GameState, delta: EntityWorldDelta) -> None:
     _replace_entity(state, delta.target_entity_id, updated)
 
 
+def _apply_entity_transition_delta(
+    state: GameState,
+    delta: EntityTransitionWorldDelta,
+) -> None:
+    for source in delta.sources:
+        entity = state.entity_registry.get(source.entity_id)
+        if entity is None:
+            _fail(
+                "unknown_entity_reference",
+                "entity transition 的来源主体不存在",
+                delta=delta,
+            )
+        _assert_before(entity.status, source.status, delta)
+    for entity in delta.result_entities:
+        if state.entity_registry.get(entity.entity_id) != entity:
+            _fail(
+                "invalid_entity_transition",
+                "entity transition 的结果主体未在批次预登记或内容不一致",
+                delta=delta,
+            )
+    for source in delta.sources:
+        entity = state.entity_registry[source.entity_id]
+        payload = entity.model_dump()
+        payload.update(
+            {
+                "status": "ended",
+                "available": False,
+                "ended_at": delta.ended_at or entity.ended_at,
+            },
+        )
+        try:
+            ended = type(entity).model_validate(payload)
+        except ValidationError as exc:
+            _fail(
+                "invalid_entity_transition",
+                "entity transition 产生了非法来源主体状态",
+                delta=delta,
+            )
+            raise AssertionError("unreachable") from exc
+        _replace_entity(state, source.entity_id, ended)
+
+
+def _stage_registry_entity_results(
+    state: GameState,
+    deltas: Sequence[WorldDelta],
+) -> None:
+    """Pre-register same-batch entities without reordering the proposal itself."""
+
+    for delta in deltas:
+        if isinstance(delta, EntityWorldDelta) and delta.operation == "create":
+            _apply_entity_delta(state, delta)
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            for entity in delta.result_entities:
+                if entity.entity_id in state.entity_registry:
+                    _fail(
+                        "entity_already_exists",
+                        "entity transition 的结果主体 ID 已存在",
+                        delta=delta,
+                    )
+            for entity in delta.result_entities:
+                _replace_entity(state, entity.entity_id, entity)
+
+
 def _apply_relationship_delta(state: GameState, delta: RelationshipWorldDelta) -> None:
     if delta.operation not in {"create", "update", "end"}:
         _fail(
@@ -643,18 +1268,13 @@ def _apply_relationship_delta(state: GameState, delta: RelationshipWorldDelta) -
     if source is None or delta.to_entity_id not in state.entity_registry:
         _fail("unknown_entity_reference", "关系边主体不存在", delta=delta)
     relationships = list(source.relationships)
-    matches = [
-        (index, edge)
-        for index, edge in enumerate(relationships)
-        if edge.to_entity_id == delta.to_entity_id
-        and edge.relationship_type == delta.relationship_type
-    ]
+    matches = _relationship_matches(source, delta)
     if delta.operation == "create":
         if matches:
             _fail("relationship_already_exists", "关系边已存在", delta=delta)
         relationships.append(
             RelationshipEdge(
-                relationship_id=RelationId(UUID(str(delta.delta_id))),
+                relationship_id=_relationship_id(delta),
                 relationship_type=delta.relationship_type,
                 from_entity_id=delta.from_entity_id,
                 to_entity_id=delta.to_entity_id,
@@ -673,6 +1293,103 @@ def _apply_relationship_delta(state: GameState, delta: RelationshipWorldDelta) -
     payload = source.model_dump()
     payload["relationships"] = relationships
     _replace_entity(state, delta.from_entity_id, type(source).model_validate(payload))
+
+
+def _apply_permission_delta(state: GameState, delta: PermissionWorldDelta) -> None:
+    entity = state.entity_registry.get(delta.target_entity_id)
+    if entity is None:
+        _fail("unknown_entity_reference", "permission delta 的目标不存在", delta=delta)
+    permissions = list(entity.permissions)
+    matches = _permission_matches(entity, delta.permission_id)
+    if delta.operation == "grant":
+        if delta.permission is None:
+            _fail("invalid_permission", "grant delta 缺少权限记录", delta=delta)
+        if matches:
+            _fail("permission_already_exists", "permission_id 已存在", delta=delta)
+        permissions.append(delta.permission)
+    else:
+        if len(matches) != 1:
+            _fail("permission_not_found", "permission revoke 的目标不存在", delta=delta)
+        index, permission = matches[0]
+        _assert_before(permission, delta.before_permission, delta)
+        permissions.pop(index)
+    payload = entity.model_dump()
+    payload["permissions"] = permissions
+    try:
+        updated = type(entity).model_validate(payload)
+    except ValidationError as exc:
+        _fail("invalid_permission", "permission delta 产生了非法主体状态", delta=delta)
+        raise AssertionError("unreachable") from exc
+    _replace_entity(state, delta.target_entity_id, updated)
+
+
+def _update_person_office(
+    state: GameState,
+    holder_id: EntityId | None,
+    office_id: EntityId,
+    *,
+    assigned: bool,
+    delta: OfficeWorldDelta,
+) -> None:
+    if holder_id is None:
+        return
+    holder = state.entity_registry.get(holder_id)
+    if not isinstance(holder, PersonEntity):
+        return
+    office_ids = list(holder.office_ids)
+    if assigned:
+        if office_id not in office_ids:
+            office_ids.append(office_id)
+    else:
+        office_ids = [candidate for candidate in office_ids if candidate != office_id]
+    payload = holder.model_dump()
+    payload["office_ids"] = office_ids
+    try:
+        updated = type(holder).model_validate(payload)
+    except ValidationError as exc:
+        _fail("invalid_office_assignment", "office delta 产生了非法持有者状态", delta=delta)
+        raise AssertionError("unreachable") from exc
+    _replace_entity(state, holder_id, updated)
+
+
+def _apply_office_delta(state: GameState, delta: OfficeWorldDelta) -> None:
+    office = state.entity_registry.get(delta.office_entity_id)
+    if not isinstance(office, OfficeEntity):
+        _fail(
+            "invalid_office_reference",
+            "office delta 必须引用 OfficeEntity",
+            delta=delta,
+        )
+    _assert_before(
+        office.holder_entity_id,
+        delta.before_holder_entity_id,
+        delta,
+    )
+    if delta.holder_entity_id is not None and delta.holder_entity_id not in state.entity_registry:
+        _fail("unknown_entity_reference", "office holder 不存在", delta=delta)
+
+    _update_person_office(
+        state,
+        office.holder_entity_id,
+        delta.office_entity_id,
+        assigned=False,
+        delta=delta,
+    )
+    payload = office.model_dump()
+    payload["holder_entity_id"] = delta.holder_entity_id
+    try:
+        updated_office = type(office).model_validate(payload)
+    except ValidationError as exc:
+        _fail("invalid_office_assignment", "office delta 产生了非法官职状态", delta=delta)
+        raise AssertionError("unreachable") from exc
+    _replace_entity(state, delta.office_entity_id, updated_office)
+    _update_person_office(
+        state,
+        delta.holder_entity_id,
+        delta.office_entity_id,
+        assigned=True,
+        delta=delta,
+    )
 
 
 def _apply_player_delta(
@@ -837,8 +1554,10 @@ def _apply_world_deltas_with_facts(
 ) -> tuple[GameState, list[AppliedMetricAttribution]]:
     """Apply supported deltas and return the validated snapshot plus attribution."""
 
+    _validate_apply_batch(deltas)
     changed = state.model_copy(deep=True)
     attribution: list[AppliedMetricAttribution] = []
+    _stage_registry_entity_results(changed, deltas)
     for delta in deltas:
         if isinstance(delta, MetricWorldDelta):
             attribution.append(
@@ -850,9 +1569,16 @@ def _apply_world_deltas_with_facts(
                 ),
             )
         elif isinstance(delta, EntityWorldDelta):
-            _apply_entity_delta(changed, delta)
+            if delta.operation != "create":
+                _apply_entity_delta(changed, delta)
+        elif isinstance(delta, EntityTransitionWorldDelta):
+            _apply_entity_transition_delta(changed, delta)
         elif isinstance(delta, RelationshipWorldDelta):
             _apply_relationship_delta(changed, delta)
+        elif isinstance(delta, PermissionWorldDelta):
+            _apply_permission_delta(changed, delta)
+        elif isinstance(delta, OfficeWorldDelta):
+            _apply_office_delta(changed, delta)
         elif isinstance(delta, PlayerWorldDelta):
             _apply_player_delta(changed, delta, terminal_ids=terminal_ids)
         elif isinstance(delta, ElapsedStatePatchDelta):
@@ -878,6 +1604,13 @@ def _apply_world_deltas_with_facts(
         else:
             raise TypeError(f"Unsupported world delta: {type(delta).__name__}")
 
+    try:
+        validate_entity_registry(changed.entity_registry)
+    except ValueError as exc:
+        raise SettlementValidationError(
+            "invalid_entity_registry",
+            "delta 应用后的主体注册表未通过引用与身份校验",
+        ) from exc
     clamp_state(changed)
     try:
         return GameState.model_validate(changed.model_dump()), attribution
@@ -957,6 +1690,13 @@ def validate_final_state(previous: GameState, changed: GameState) -> None:
             "player_identity_regression",
             "delta application 不得替换或清空稳定玩家主体身份",
         )
+    try:
+        validate_entity_registry(changed.entity_registry)
+    except ValueError as exc:
+        raise SettlementValidationError(
+            "invalid_entity_registry",
+            "delta application 产生了非法主体引用、权限、关系或官职状态",
+        ) from exc
     if changed.model_dump(mode="json") == previous.model_dump(mode="json"):
         raise SettlementValidationError(
             "no_state_change",

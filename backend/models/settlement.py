@@ -18,6 +18,9 @@ from .world import (
     EntityId,
     GameId,
     PendingActivityDecision,
+    PermissionId,
+    PermissionReference,
+    RelationId,
     SettlementId,
     TerminalRecordId,
     VersionId,
@@ -146,16 +149,102 @@ class EntityWorldDelta(_SettlementContract):
     source_proposal: str | None = None
 
 
+class EntityStatusPrecondition(_SettlementContract):
+    entity_id: EntityId
+    status: Literal["active", "inactive", "ended"]
+
+
+class EntityTransitionWorldDelta(_SettlementContract):
+    delta_type: Literal["entity_transition"] = "entity_transition"
+    delta_id: DeltaId
+    operation: Literal["replace", "split", "merge"]
+    sources: list[EntityStatusPrecondition] = Field(min_length=1)
+    result_entities: list[WorldEntity] = Field(min_length=1)
+    ended_at: str | None = None
+    source_proposal: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_transition_shape(self) -> EntityTransitionWorldDelta:
+        source_ids = [source.entity_id for source in self.sources]
+        result_ids = [entity.entity_id for entity in self.result_entities]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("entity transition sources must be unique")
+        if len(result_ids) != len(set(result_ids)):
+            raise ValueError("entity transition results must be unique")
+        if set(source_ids) & set(result_ids):
+            raise ValueError("entity transition results require new stable entity IDs")
+        expected_shape = {
+            "replace": (len(source_ids) == 1 and len(result_ids) == 1),
+            "split": (len(source_ids) == 1 and len(result_ids) >= 2),
+            "merge": (len(source_ids) >= 2 and len(result_ids) == 1),
+        }
+        if not expected_shape[self.operation]:
+            raise ValueError(f"invalid {self.operation} entity transition cardinality")
+        if any(entity.status == "ended" for entity in self.result_entities):
+            raise ValueError("entity transition cannot create an already-ended result")
+        return self
+
+
 class RelationshipWorldDelta(_SettlementContract):
     delta_type: Literal["relationship"] = "relationship"
     delta_id: DeltaId
     operation: Literal["create", "update", "end", "grant", "revoke", "assign"]
+    relationship_id: RelationId | None = None
     from_entity_id: EntityId
     to_entity_id: EntityId
-    relationship_type: str
-    before_status: str | None = None
-    next_status: str | None = None
+    relationship_type: str = Field(min_length=1)
+    before_status: Literal["active", "ended"] | None = None
+    next_status: Literal["active", "ended"] | None = None
     source_proposal: str | None = None
+
+
+class PermissionWorldDelta(_SettlementContract):
+    delta_type: Literal["permission"] = "permission"
+    delta_id: DeltaId
+    operation: Literal["grant", "revoke"]
+    target_entity_id: EntityId
+    permission_id: PermissionId
+    permission: PermissionReference | None = None
+    before_permission: PermissionReference | None = None
+    source_proposal: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_permission_shape(self) -> PermissionWorldDelta:
+        if self.operation == "grant":
+            if (
+                self.permission is None
+                or self.permission.permission_id != self.permission_id
+                or self.before_permission is not None
+            ):
+                raise ValueError("permission grant requires one matching typed permission")
+        elif (
+            self.permission is not None
+            or self.before_permission is None
+            or self.before_permission.permission_id != self.permission_id
+        ):
+            raise ValueError("permission revoke requires the matching prior permission")
+        return self
+
+
+class OfficeWorldDelta(_SettlementContract):
+    delta_type: Literal["office"] = "office"
+    delta_id: DeltaId
+    operation: Literal["assign", "vacate"]
+    office_entity_id: EntityId
+    before_holder_entity_id: EntityId | None
+    holder_entity_id: EntityId | None = None
+    source_proposal: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_office_shape(self) -> OfficeWorldDelta:
+        if self.operation == "assign":
+            if self.holder_entity_id is None:
+                raise ValueError("office assignment requires holder_entity_id")
+            if self.holder_entity_id == self.before_holder_entity_id:
+                raise ValueError("office assignment must change its holder")
+        elif self.holder_entity_id is not None or self.before_holder_entity_id is None:
+            raise ValueError("office vacancy requires the prior holder and no next holder")
+        return self
 
 
 class LifecycleWorldDelta(_SettlementContract):
@@ -268,7 +357,10 @@ class CompatibilityStatePatchDelta(_SettlementContract):
 WorldDelta = Annotated[
     MetricWorldDelta
     | EntityWorldDelta
+    | EntityTransitionWorldDelta
     | RelationshipWorldDelta
+    | PermissionWorldDelta
+    | OfficeWorldDelta
     | LifecycleWorldDelta
     | PlayerWorldDelta
     | ModifierWorldDelta
