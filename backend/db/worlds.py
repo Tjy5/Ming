@@ -618,6 +618,31 @@ def get_action_request(
         raise WorldStorageError() from exc
 
 
+def replay_action_request(intent: ActionIntent) -> SettlementCommitResult | None:
+    """Return a completed idempotent result before invoking an AI provider.
+
+    Absence means the caller may adjudicate. A conflicting or pending row keeps
+    the same typed semantics as commit_settlement; the final transaction still
+    rechecks this lookup to arbitrate concurrent requests.
+    """
+
+    try:
+        with closing(_connect()) as conn:
+            row = _find_action_request(
+                conn,
+                intent.game_id,
+                intent.branch_id,
+                intent.client_action_id,
+            )
+            if row is None:
+                return None
+            return _replay_or_reject(row, intent, intent.payload_hash())
+    except WorldStoreError:
+        raise
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
 def _insert_action_request(
     conn: sqlite3.Connection,
     intent: ActionIntent,

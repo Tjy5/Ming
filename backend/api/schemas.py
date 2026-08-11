@@ -12,6 +12,7 @@ from models.game import (
     MinisterReaction,
     StructuredDecree,
 )
+from models.settlement import SettlementCommitResult
 
 MAX_FREE_TEXT_LENGTH = 200
 
@@ -40,6 +41,15 @@ class AdvanceMonthResponse(BaseModel):
     triggered_events: list[str] = Field(default_factory=list)
     game_over: dict | None = None
     new_ministers: list[Minister] = Field(default_factory=list)
+
+
+class ActionExecutionResponse(BaseModel):
+    state: GameState
+    result: SettlementCommitResult
+
+
+class ActionErrorEnvelope(BaseModel):
+    detail: ErrorResponse
 
 
 class HistoryPage(BaseModel):

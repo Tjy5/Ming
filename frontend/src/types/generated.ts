@@ -826,6 +826,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Execute Action */
+        post: operations["execute_action_api_actions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1149,6 +1166,63 @@ export type components = {
             difficulty?: string | null;
             /** Option Id */
             option_id?: string | null;
+        };
+        /** ActionErrorEnvelope */
+        ActionErrorEnvelope: {
+            detail: components["schemas"]["ErrorResponse"];
+        };
+        /** ActionExecutionResponse */
+        ActionExecutionResponse: {
+            state: components["schemas"]["GameState"];
+            result: components["schemas"]["SettlementCommitResult"];
+        };
+        /** ActionIntent */
+        ActionIntent: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             * @enum {integer}
+             */
+            schema_version: 1;
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Expected Parent Version Id
+             * Format: uuid
+             */
+            expected_parent_version_id: string;
+            /**
+             * Client Action Id
+             * Format: uuid
+             */
+            client_action_id: string;
+            /** Raw Text */
+            raw_text: string;
+            /** Action Kind */
+            action_kind?: string | null;
+            /** Suggestion Id */
+            suggestion_id?: string | null;
+            /** Requested Executor Id */
+            requested_executor_id?: string | null;
+            /** Target Region Id */
+            target_region_id?: string | null;
+            /** Target Entity Ids */
+            target_entity_ids?: string[];
+            /** Mode */
+            mode?: string | null;
+            /** Topic */
+            topic?: string | null;
+            /** Visible Context Version */
+            visible_context_version?: string | null;
         };
         /** AdoptSuggestionRequest */
         AdoptSuggestionRequest: {
@@ -1492,6 +1566,37 @@ export type components = {
              */
             summary: string;
         };
+        /** EntityWorldDelta */
+        EntityWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "entity";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "update" | "end";
+            /**
+             * Target Entity Id
+             * Format: uuid
+             */
+            target_entity_id: string;
+            /** Before Status */
+            before_status?: string | null;
+            /** Entity */
+            entity?: (components["schemas"]["PersonEntity"] | components["schemas"]["FactionEntity"] | components["schemas"]["InstitutionEntity"] | components["schemas"]["OfficeEntity"] | components["schemas"]["TemporaryAuthorityEntity"] | components["schemas"]["RegionEntity"]) | null;
+            /** Changes */
+            changes?: components["schemas"]["FieldChange"][];
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** ErrorResponse */
         ErrorResponse: {
             /** Error Code */
@@ -1603,6 +1708,15 @@ export type components = {
             member_ids?: string[];
             /** Influence */
             influence?: number | null;
+        };
+        /** FieldChange */
+        FieldChange: {
+            /** Field */
+            field: string;
+            /** Before Value */
+            before_value?: string | number | boolean | null;
+            /** Value */
+            value: string | number | boolean | null;
         };
         /** GameEvent */
         GameEvent: {
@@ -2058,6 +2172,32 @@ export type components = {
             /** Member Ids */
             member_ids?: string[];
         };
+        /** LifecycleWorldDelta */
+        LifecycleWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "lifecycle";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Transition Type
+             * @enum {string}
+             */
+            transition_type: "goal" | "event" | "activity";
+            /** Transition Id */
+            transition_id: string;
+            /** Before Status */
+            before_status?: string | null;
+            /** Next Status */
+            next_status: string;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** Memorial */
         Memorial: {
             /** Id */
@@ -2122,6 +2262,39 @@ export type components = {
          * @enum {string}
          */
         MemorialStatus: "pending" | "approved" | "rejected" | "deferred";
+        /** MetricWorldDelta */
+        MetricWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "metric";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Target Scope
+             * @enum {string}
+             */
+            target_scope: "world" | "region" | "entity";
+            /** Target Id */
+            target_id?: string | null;
+            /** Field */
+            field: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "increment" | "set";
+            /** Before Value */
+            before_value?: string | number | boolean | null;
+            /** Value */
+            value: string | number | boolean | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** Minister */
         Minister: {
             /** Name */
@@ -2388,6 +2561,34 @@ export type components = {
             /** Effects */
             effects?: Record<string, never>;
         };
+        /** ModifierWorldDelta */
+        ModifierWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "modifier";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "update" | "end";
+            /** Modifier Id */
+            modifier_id: string;
+            /** Target Entity Id */
+            target_entity_id?: string | null;
+            /** Before Value */
+            before_value?: string | number | boolean | null;
+            /** Value */
+            value: string | number | boolean | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** OfficeEntity */
         OfficeEntity: {
             /**
@@ -2509,6 +2710,38 @@ export type components = {
          * @enum {string}
          */
         PersonnelAction: "appoint" | "dismiss" | "execute";
+        /** PlayerWorldDelta */
+        PlayerWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "player";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "identity" | "freedom" | "location" | "death";
+            /** Before Value */
+            before_value?: string | null;
+            /** Value */
+            value: string;
+            /** Trigger Action */
+            trigger_action?: string | null;
+            /** Direct Cause */
+            direct_cause?: string | null;
+            /** Key Factors */
+            key_factors?: string[];
+            /** Causal Summary */
+            causal_summary?: string | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** PlayerWorldStatus */
         PlayerWorldStatus: {
             /** Player Character Id */
@@ -2569,6 +2802,17 @@ export type components = {
             related_decree: components["schemas"]["StructuredDecree"];
             /** Supporter Names */
             supporter_names?: string[];
+        };
+        /** ProviderAttribution */
+        ProviderAttribution: {
+            /** Provider */
+            provider?: string | null;
+            /** Provider Type */
+            provider_type?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Request Id */
+            request_id?: string | null;
         };
         /** Region */
         Region: {
@@ -2747,6 +2991,42 @@ export type components = {
              */
             status: "active" | "ended";
         };
+        /** RelationshipWorldDelta */
+        RelationshipWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "relationship";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "update" | "end" | "grant" | "revoke" | "assign";
+            /**
+             * From Entity Id
+             * Format: uuid
+             */
+            from_entity_id: string;
+            /**
+             * To Entity Id
+             * Format: uuid
+             */
+            to_entity_id: string;
+            /** Relationship Type */
+            relationship_type: string;
+            /** Before Status */
+            before_status?: string | null;
+            /** Next Status */
+            next_status?: string | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /** SaveRequest */
         SaveRequest: {
             /** Name */
@@ -2756,6 +3036,89 @@ export type components = {
         SettingsRequest: {
             /** Rule Parse Fallback */
             rule_parse_fallback: boolean;
+        };
+        /** SettlementAttribution */
+        SettlementAttribution: {
+            /** Requested Executor Id */
+            requested_executor_id?: string | null;
+            /** Actual Executor Id */
+            actual_executor_id?: string | null;
+            /** Execution Status */
+            execution_status: string;
+            provider: components["schemas"]["ProviderAttribution"];
+        };
+        /** SettlementCommitResult */
+        SettlementCommitResult: {
+            /**
+             * Replayed
+             * @default false
+             */
+            replayed: boolean;
+            version: components["schemas"]["WorldVersionRef"];
+            facts: components["schemas"]["SettlementFacts"];
+        };
+        /** SettlementFacts */
+        SettlementFacts: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             * @enum {integer}
+             */
+            schema_version: 1;
+            /**
+             * Settlement Id
+             * Format: uuid
+             */
+            settlement_id: string;
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Client Action Id
+             * Format: uuid
+             */
+            client_action_id: string;
+            /**
+             * Parent Version Id
+             * Format: uuid
+             */
+            parent_version_id: string;
+            /**
+             * Result Version Id
+             * Format: uuid
+             */
+            result_version_id: string;
+            /** Payload Hash */
+            payload_hash: string;
+            /**
+             * Result Tier
+             * @enum {string}
+             */
+            result_tier: "success" | "partial_success" | "failure";
+            /** Key Factors */
+            key_factors?: string[];
+            /** Immediate Changes */
+            immediate_changes?: string[];
+            /** Long Term Risks */
+            long_term_risks?: string[];
+            /** New Opportunities */
+            new_opportunities?: string[];
+            /** Deltas */
+            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"])[];
+            attribution: components["schemas"]["SettlementAttribution"];
+            /**
+             * Committed At
+             * Format: date-time
+             */
+            committed_at: string;
         };
         /** StructuredDecree */
         StructuredDecree: {
@@ -2913,6 +3276,38 @@ export type components = {
             imported_at?: string | null;
             /** Migration Notes */
             migration_notes?: string[];
+        };
+        /** WorldVersionRef */
+        WorldVersionRef: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Version Id
+             * Format: uuid
+             */
+            version_id: string;
+            /** Parent Version Id */
+            parent_version_id?: string | null;
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Protected
+             * @default false
+             */
+            protected: boolean;
         };
     };
     responses: never;
@@ -4755,6 +5150,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_action_api_actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ActionIntent"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionExecutionResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
                 };
             };
         };

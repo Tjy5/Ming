@@ -15,6 +15,8 @@ from api.assembly_routes import assembly_router
 from api.admin_routes import admin_router
 from api.chat_routes import chat_router
 from api.trpg import trpg_router
+from api.action_routes import action_router
+from models.game import ErrorResponse
 from api.state import startup as api_startup
 
 
@@ -57,6 +59,23 @@ def _invalid_ai_settings_detail(exc: RequestValidationError) -> dict[str, Any]:
     )
 
 
+def _invalid_action_detail(exc: RequestValidationError) -> dict[str, Any]:
+    fields = sorted(
+        {
+            str(location[-1])
+            for error in exc.errors()
+            if (location := error.get("loc"))
+            and isinstance(location, (tuple, list))
+            and isinstance(location[-1], (str, int))
+        },
+    )
+    return ErrorResponse(
+        error_code="invalid_action_request",
+        message="行动请求字段校验失败",
+        details={"fields": fields},
+    ).model_dump(exclude_none=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     api_startup()
@@ -75,6 +94,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
     if request.url.path.startswith("/api/settings/ai"):
         content: dict[str, Any] = {"detail": _invalid_ai_settings_detail(exc)}
+    elif request.url.path == "/api/actions":
+        content = {"detail": _invalid_action_detail(exc)}
     else:
         content = {"detail": _safe_validation_errors(exc)}
     return JSONResponse(
@@ -96,6 +117,7 @@ app.include_router(assembly_router)
 app.include_router(admin_router)
 app.include_router(chat_router)
 app.include_router(trpg_router)
+app.include_router(action_router)
 
 
 @app.get("/api/health")
