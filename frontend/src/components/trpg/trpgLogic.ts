@@ -51,14 +51,13 @@ export function rollSummary(roll: RollResult): string {
 /**
  * 分支选项点击 → act 请求体。
  * 契约说明：后端 ActRequest 已支持可选 option_id（阶段D 第 5.1 节，随响应回显、
- * 不校验匹配）；前端仍以选项文案作为行动文本传递（向后兼容），option_id 由调用方
- * 自行记录。
+ * 不校验匹配）；前端同时传选项文案和稳定 ID，供结算/回放诊断精确关联。
  */
 export function buildActFromOption(option: TrpgOption): ActPayload {
   const text = option.description
     ? `${option.label}——${option.description}`
     : option.label
-  return { action_text: text }
+  return { action_text: text, option_id: option.option_id }
 }
 
 /** 自由行动输入 → act 请求体 */

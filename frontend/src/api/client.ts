@@ -27,16 +27,13 @@ import type {
   ChatIntent,
   ChatGameOver,
   MinisterReaction,
+  AdvanceMonthResponse,
+  NarrativeProgressStage,
+  NarrativeStatus,
+  AdoptSuggestionRequest,
 } from '../types/game'
 
 const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
-
-interface AdvanceMonthResponse {
-  state: GameState
-  triggered_events: string[]
-  game_over: { result: 'victory' | 'defeat'; message: string } | null
-  new_ministers: Minister[]
-}
 
 class ApiError extends Error {
   status: number
@@ -125,6 +122,26 @@ function normalizeChatGameOver(raw: unknown): ChatGameOver | null {
   return { result, message }
 }
 
+function normalizeNarrativeStatus(raw: unknown): NarrativeStatus | null {
+  if (
+    raw === 'validated'
+    || raw === 'repaired'
+    || raw === 'sanitized'
+    || raw === 'fallback_facts'
+  ) return raw
+  return null
+}
+
+function normalizeNarrativeProgress(raw: unknown): NarrativeProgressStage[] {
+  return normalizeStringArray(raw).filter((stage): stage is NarrativeProgressStage => (
+    stage === 'context_ready'
+    || stage === 'generating'
+    || stage === 'validating'
+    || stage === 'repairing'
+    || stage === 'validated'
+  ))
+}
+
 function normalizeChatDonePayload(payload: Record<string, unknown>): ChatDonePayload {
   const done: ChatDonePayload = {
     reply: typeof payload.reply === 'string' ? payload.reply : '',
@@ -134,6 +151,16 @@ function normalizeChatDonePayload(payload: Record<string, unknown>): ChatDonePay
     triggered_events: normalizeStringArray(payload.triggered_events),
     new_ministers: normalizeStringArray(payload.new_ministers),
     game_over: normalizeChatGameOver(payload.game_over),
+    narrative_status: normalizeNarrativeStatus(payload.narrative_status),
+    narrative_context_path_id: typeof payload.narrative_context_path_id === 'string'
+      ? payload.narrative_context_path_id
+      : null,
+    narrative_path_id: typeof payload.narrative_path_id === 'string' ? payload.narrative_path_id : null,
+    context_version_id: typeof payload.context_version_id === 'string' ? payload.context_version_id : null,
+    settlement_id: typeof payload.settlement_id === 'string' ? payload.settlement_id : null,
+    narrative_artifact_id: typeof payload.narrative_artifact_id === 'string' ? payload.narrative_artifact_id : null,
+    narrative_request_id: typeof payload.narrative_request_id === 'string' ? payload.narrative_request_id : null,
+    narrative_progress: normalizeNarrativeProgress(payload.narrative_progress),
   }
 
   if (typeof payload.narrative === 'string') {
@@ -559,10 +586,11 @@ export const api = {
       body: JSON.stringify({ topic, decree_type: decreeType }),
     }),
 
-  adoptSuggestion: (suggestionIndex: number) =>
+  adoptSuggestion: (payload: AdoptSuggestionRequest, signal?: AbortSignal) =>
     request<DecreeResponse>('/court-assembly/adopt', {
       method: 'POST',
-      body: JSON.stringify({ suggestion_index: suggestionIndex }),
+      signal,
+      body: JSON.stringify(payload),
     }),
 
   silenceAssembly: () =>

@@ -73,6 +73,13 @@ export function useAdvanceMonth({
           }
         })
       }
+      if (res.narrative.text) {
+        pushModal({
+          type: 'narrative',
+          priority: 95,
+          payload: { narrative: res.narrative.text, delta: {} },
+        })
+      }
       showToast(`进入 ${res.state.time.era_name}${res.state.time.era_year}年${res.state.time.month}月`)
       if (res.game_over) {
         setGameOver(res.game_over)

@@ -450,6 +450,49 @@
   line-height: 1.5;
 }
 
+.ls-narrative-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid rgba(160, 58, 36, 0.45);
+  border-radius: 6px;
+  background: rgba(160, 58, 36, 0.08);
+  color: var(--text-main);
+  font-size: 0.8rem;
+}
+
+.ls-narrative-fallback div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ls-narrative-fallback strong {
+  color: var(--accent-red);
+}
+
+.ls-narrative-fallback span {
+  color: var(--text-dim);
+}
+
+.ls-narrative-fallback button {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-red);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--accent-red);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.ls-narrative-fallback button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .ls-freetext {
   display: flex;
   gap: 8px;

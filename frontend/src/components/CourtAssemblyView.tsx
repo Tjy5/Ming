@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { api, ApiError } from '../api/client'
-import type { GameState, CourtAssembly, AssemblyPetition, AssemblySpeech, Capabilities, DecreeType } from '../types/game'
+import type {
+  AdoptSuggestionRequest,
+  AssemblyPetition,
+  AssemblySpeech,
+  Capabilities,
+  CourtAssembly,
+  DecreeResponse,
+  DecreeType,
+  GameState,
+  PolicySuggestion,
+} from '../types/game'
 import { DECREE_LABELS, DECREE_TYPES } from '../types/game'
 import { isAbortError, showCancelToast } from '../utils/toast'
 
@@ -11,12 +21,14 @@ interface PanelProps {
   capabilities: Capabilities
   loading: boolean
   onStateUpdate: (state: GameState) => void
+  onAdoptionResult?: (response: DecreeResponse) => void
   onShowToast?: (msg: string) => void
 }
 
 interface ModalProps {
   assembly: CourtAssembly
   onStateUpdate: (state: GameState) => void
+  onAdoptionResult?: (response: DecreeResponse) => void
   onClose: () => void
   onShowToast?: (msg: string) => void
   asModal: true
@@ -42,6 +54,7 @@ export default function CourtAssemblyView(props: Props) {
           <AssemblyFlow
             initialAssembly={props.assembly}
             onStateUpdate={props.onStateUpdate}
+            onAdoptionResult={props.onAdoptionResult}
             onClose={props.onClose}
             onShowToast={props.onShowToast}
           />
@@ -54,7 +67,14 @@ export default function CourtAssemblyView(props: Props) {
 }
 
 /* ── Panel mode (right sidebar tab) ── */
-function AssemblyPanel({ state, capabilities, loading, onStateUpdate, onShowToast }: PanelProps) {
+function AssemblyPanel({
+  state,
+  capabilities,
+  loading,
+  onStateUpdate,
+  onAdoptionResult,
+  onShowToast,
+}: PanelProps) {
   const [selectedType, setSelectedType] = useState<DecreeType>(DECREE_TYPES[0])
   const [showFlow, setShowFlow] = useState(false)
   const [assembly, setAssembly] = useState<CourtAssembly | null>(null)
@@ -87,6 +107,7 @@ function AssemblyPanel({ state, capabilities, loading, onStateUpdate, onShowToas
       <AssemblyFlow
         initialAssembly={assembly}
         onStateUpdate={onStateUpdate}
+        onAdoptionResult={onAdoptionResult}
         onClose={() => {
           setShowFlow(false)
           setAssembly(null)
@@ -134,11 +155,18 @@ function AssemblyPanel({ state, capabilities, loading, onStateUpdate, onShowToas
 interface AssemblyFlowProps {
   initialAssembly: CourtAssembly
   onStateUpdate: (state: GameState) => void
+  onAdoptionResult?: (response: DecreeResponse) => void
   onClose: () => void
   onShowToast?: (msg: string) => void
 }
 
-function AssemblyFlow({ initialAssembly, onStateUpdate, onClose, onShowToast }: AssemblyFlowProps) {
+function AssemblyFlow({
+  initialAssembly,
+  onStateUpdate,
+  onAdoptionResult,
+  onClose,
+  onShowToast,
+}: AssemblyFlowProps) {
   const [assembly, setAssembly] = useState<CourtAssembly>(initialAssembly)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -196,6 +224,28 @@ function AssemblyFlow({ initialAssembly, onStateUpdate, onClose, onShowToast }: 
         if (onShowToast) showCancelToast(onShowToast)
       } else {
         setError(e instanceof ApiError ? e.body.message : '廷推失败')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAdoptSuggestion = async (payload: AdoptSuggestionRequest) => {
+    setLoading(true)
+    setError(null)
+    if (abortControllerRef.current) abortControllerRef.current.abort()
+    abortControllerRef.current = new AbortController()
+    try {
+      const data = await api.adoptSuggestion(payload, abortControllerRef.current.signal)
+      onClose()
+      if (onAdoptionResult) onAdoptionResult(data)
+      else onStateUpdate(data.state)
+      onShowToast?.('已依据当前世界重新结算，候选文字未被当作结果承诺')
+    } catch (e) {
+      if (isAbortError(e)) {
+        if (onShowToast) showCancelToast(onShowToast)
+      } else {
+        setError(e instanceof ApiError ? e.body.message : '候选方案采用失败')
       }
     } finally {
       setLoading(false)
@@ -281,6 +331,7 @@ function AssemblyFlow({ initialAssembly, onStateUpdate, onClose, onShowToast }: 
           <DebatePhaseView
             assembly={assembly}
             onRage={handleImperialRage}
+            onAdoptSuggestion={handleAdoptSuggestion}
             onStartVote={handleStartVote}
             loading={loading}
           />
@@ -413,11 +464,13 @@ function PetitionPhaseView({
 function DebatePhaseView({
   assembly,
   onRage,
+  onAdoptSuggestion,
   onStartVote,
   loading,
 }: {
   assembly: CourtAssembly
   onRage: (faction: string) => void
+  onAdoptSuggestion: (payload: AdoptSuggestionRequest) => Promise<void>
   onStartVote: () => void
   loading: boolean
 }) {
@@ -459,6 +512,12 @@ function DebatePhaseView({
         </div>
       )}
 
+      <SuggestionCandidates
+        suggestions={assembly.suggestions || []}
+        onAdopt={onAdoptSuggestion}
+        loading={loading}
+      />
+
       <div className="phase-actions">
         {!assembly.rage_used && (
           <button className="rage-btn" onClick={() => onRage('all')} disabled={loading}>
@@ -470,6 +529,137 @@ function DebatePhaseView({
         </button>
       </div>
     </div>
+  )
+}
+
+function SuggestionCandidates({
+  suggestions,
+  onAdopt,
+  loading,
+}: {
+  suggestions: PolicySuggestion[]
+  onAdopt: (payload: AdoptSuggestionRequest) => Promise<void>
+  loading: boolean
+}) {
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editedText, setEditedText] = useState('')
+  const [freeText, setFreeText] = useState('')
+
+  const startEditing = (suggestion: PolicySuggestion, index: number) => {
+    setEditingIndex(index)
+    setEditedText(`${suggestion.title}：${suggestion.description}`.slice(0, 200))
+  }
+
+  const provenancePayload = (suggestion: PolicySuggestion, index: number) => {
+    if (!suggestion.suggestion_id || !suggestion.source_version_id) return null
+    return {
+      suggestion_index: index,
+      suggestion_id: suggestion.suggestion_id,
+      source_version_id: suggestion.source_version_id,
+    }
+  }
+
+  return (
+    <section className="assembly-suggestions" aria-label="朝议候选方案">
+      <div className="suggestion-section-heading">
+        <h4>候选方案</h4>
+        <span>仅供启发；提交时按当前世界重新结算</span>
+      </div>
+
+      {suggestions.length === 0 && (
+        <div className="suggestion-empty">本轮没有形成候选，仍可自由输入行动。</div>
+      )}
+
+      {suggestions.map((suggestion, index) => {
+        const provenance = provenancePayload(suggestion, index)
+        const isEditing = editingIndex === index
+        return (
+          <article className="suggestion-card" key={suggestion.suggestion_id ?? index}>
+            <div className="sg-head">
+              <span className="sg-title">{suggestion.title}</span>
+              <span className="sg-decree-type">{DECREE_LABELS[suggestion.related_decree.type]}</span>
+            </div>
+            <p className="sg-desc">{suggestion.description}</p>
+            {suggestion.supporter_names.length > 0 && (
+              <div className="sg-supporters">在朝支持：{suggestion.supporter_names.join('、')}</div>
+            )}
+            <details className="sg-rationale">
+              <summary>查看可核验依据</summary>
+              <ul>
+                {(suggestion.rationale_factors || []).map((factor) => (
+                  <li key={`${factor.fact_reference}:${factor.label}`} data-fact-reference={factor.fact_reference}>
+                    <strong>{factor.label}：</strong>{factor.value}
+                  </li>
+                ))}
+              </ul>
+            </details>
+            {!provenance && (
+              <div className="suggestion-provenance-warning">旧存档候选缺少来源版本，请重新召开朝议。</div>
+            )}
+            <div className="suggestion-actions">
+              <button
+                className="sg-adopt-btn"
+                disabled={loading || !provenance}
+                onClick={() => provenance && void onAdopt({ mode: 'original', ...provenance })}
+              >
+                原样采用
+              </button>
+              <button
+                className="sg-edit-btn"
+                disabled={loading || !provenance}
+                onClick={() => startEditing(suggestion, index)}
+              >
+                编辑采用
+              </button>
+            </div>
+            {isEditing && provenance && (
+              <div className="suggestion-editor">
+                <label htmlFor={`suggestion-edit-${index}`}>编辑行动意图（政令类型仍沿用此候选）</label>
+                <textarea
+                  id={`suggestion-edit-${index}`}
+                  value={editedText}
+                  maxLength={200}
+                  onChange={(event) => setEditedText(event.target.value)}
+                />
+                <div className="suggestion-editor-footer">
+                  <span>{editedText.length}/200</span>
+                  <button
+                    disabled={loading || !editedText.trim()}
+                    onClick={() => void onAdopt({
+                      mode: 'edited',
+                      ...provenance,
+                      edited_text: editedText.trim(),
+                    })}
+                  >
+                    确认编辑并采用
+                  </button>
+                </div>
+              </div>
+            )}
+          </article>
+        )
+      })}
+
+      <div className="suggestion-free-input">
+        <label htmlFor="assembly-free-input">不采用候选，自由输入行动</label>
+        <textarea
+          id="assembly-free-input"
+          value={freeText}
+          maxLength={200}
+          placeholder="写下你的行动；候选方案不是允许行动的边界"
+          onChange={(event) => setFreeText(event.target.value)}
+        />
+        <div className="suggestion-editor-footer">
+          <span>{freeText.length}/200</span>
+          <button
+            disabled={loading || !freeText.trim()}
+            onClick={() => void onAdopt({ mode: 'free_input', free_text: freeText.trim() })}
+          >
+            提交自由行动
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }
 

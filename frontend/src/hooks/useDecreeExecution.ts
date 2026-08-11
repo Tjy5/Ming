@@ -9,6 +9,8 @@ type NarrativePayload = {
   delta: Record<string, number>
   ministerReactions?: MinisterReaction[]
   turnSummary?: DecreeResponse['turn_summary']
+  settlementId?: string | null
+  contextVersionId?: string | null
 }
 
 type UseDecreeExecutionParams = {
@@ -46,12 +48,34 @@ export function useDecreeExecution({
         delta: res.delta,
         ministerReactions: res.minister_reactions,
         turnSummary: res.turn_summary ?? undefined,
+        settlementId: res.settlement_id,
+        contextVersionId: res.context_version_id,
       } satisfies NarrativePayload,
     })
     if (res.memorial_triggers?.length) {
       showToast(`新增 ${res.memorial_triggers.length} 份奏折，请在下方“奏折”入口批复`)
     }
   }, [pushModal, showToast])
+
+  const applyDecreeResult = useCallback((
+    res: DecreeResponse,
+    previousState?: GameState | null,
+  ) => {
+    if (previousState) setPrevState(previousState)
+    setState(res.state)
+    if (res.minister_reactions?.length) onReactions(res.minister_reactions)
+    if (res.game_over) {
+      setGameOver(res.game_over)
+    } else {
+      queueTurnResultModals(res)
+    }
+  }, [
+    onReactions,
+    queueTurnResultModals,
+    setGameOver,
+    setPrevState,
+    setState,
+  ])
 
   const executeDecrees = useCallback(async (
     decrees: StructuredDecree[],
@@ -73,13 +97,7 @@ export function useDecreeExecution({
     decreeAbortController.current = new AbortController()
     try {
       const res = await api.decree(decrees, sourceScriptId, freeText, decreeAbortController.current.signal, loyaltyEffects, stateEffects)
-      setState(res.state)
-      if (res.minister_reactions?.length) onReactions(res.minister_reactions)
-      if (res.game_over) {
-        setGameOver(res.game_over)
-      } else {
-        queueTurnResultModals(res)
-      }
+      applyDecreeResult(res)
       return null
     } catch (e) {
       if (isAbortError(e)) {
@@ -108,14 +126,11 @@ export function useDecreeExecution({
     }
   }, [
     decreeInFlight,
-    onReactions,
+    applyDecreeResult,
     pushModal,
-    queueTurnResultModals,
     setError,
-    setGameOver,
     setLoading,
     setPrevState,
-    setState,
     showToast,
     state,
   ])
@@ -139,8 +154,8 @@ export function useDecreeExecution({
 
   return {
     decreeInFlight,
+    applyDecreeResult,
     executeDecrees,
     handleFreeText,
   }
 }
-

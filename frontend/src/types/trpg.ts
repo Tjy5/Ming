@@ -12,6 +12,8 @@ type OpenApiSchemas = OpenApiComponents['schemas']
 export type ApiActRequest = OpenApiSchemas['ActRequest']
 export type ApiCharacterSheet = OpenApiSchemas['CharacterSheet']
 export type ApiGrowthEntry = OpenApiSchemas['GrowthEntry']
+export type NarrativeRegenerationRequest = OpenApiSchemas['NarrativeRegenerationRequest']
+export type NarrativeRegenerationResponse = OpenApiSchemas['NarrativeGenerationResult']
 
 // ── 常量 ─────────────────────────────────────────────────
 
@@ -58,14 +60,14 @@ export interface TrpgOption {
   convergence?: 'accept' | 'refuse'
 }
 
-/** 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局分支 */
+/** 1360 收束抉择：接受招揽切换 governance；拒绝归附则继续流亡世界线 */
 export type ConvergeChoice = 'accept' | 'refuse'
 
 /** POST /api/trpg/converge 响应（与 /act 同构字段子集 + 结局信息） */
 export interface ConvergeResponse {
   choice: ConvergeChoice
   narrative: string
-  /** 仅"继续流窜"携带（result=defeat）；接受招揽为 null */
+  /** 仅未来已提交的终局 settlement 可携带；当前两种收束选择均为 null */
   game_over: { result: 'victory' | 'defeat'; message: string } | null
   /** 接受招揽时为 yingtian-founding（已达成，409 闸口拦截重复完成） */
   converged_milestone: string | null
@@ -112,12 +114,7 @@ export interface CharacterResponse {
 
 // ── POST /api/trpg/act 请求/响应 ────────────────────────
 
-export interface ActPayload {
-  action_text: string
-  skill?: string | null
-  attr?: string | null
-  difficulty?: string
-}
+export type ActPayload = ApiActRequest
 
 export interface PacingStatus {
   turns_taken: number
@@ -137,8 +134,17 @@ export interface ConvergenceHook {
 export interface ActResponse {
   roll: RollResult
   narrative: string
+  narrative_status: NarrativeRegenerationResponse['narrative_status']
+  narrative_path_id: NarrativeRegenerationRequest['path_id']
+  settlement_id: string | null
+  context_version_id: string | null
+  narrative_artifact_id: string | null
+  narrative_request_id: string
+  narrative_progress: NonNullable<NarrativeRegenerationResponse['progress_stages']>
   options: TrpgOption[]
   state_changes: Record<string, unknown>
+  state_changes_result: { applied: string[]; ignored: string[] }
+  option_id: string | null
   /** ai / rule_fallback */
   source: string
   phase: GamePhase

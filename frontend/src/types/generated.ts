@@ -264,6 +264,74 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/worlds/{game_id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get World Branches */
+        get: operations["get_world_branches_api_worlds__game_id__branches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{game_id}/{branch_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get World Versions */
+        get: operations["get_world_versions_api_worlds__game_id___branch_id__versions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/fork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fork World */
+        post: operations["fork_world_api_worlds_fork_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/switch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch World */
+        post: operations["switch_world_api_worlds_switch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/load/{save_id}": {
         parameters: {
             query?: never;
@@ -806,16 +874,16 @@ export type paths = {
         put?: never;
         /**
          * Converge
-         * @description 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局分支。
+         * @description 1360 收束抉择：接受招揽切换治理；拒绝归附则继续当前世界线。
          *
          *     - 仅在 check_convergence_hook 激活时可用（life_story + 时间 ≥ fallback_year
          *       + yingtian-founding 未达成）；否则 409 convergence_not_pending。
          *     - 接受：yingtian-founding 写入 resolved_script_ids（409 闸口由此拦截其后的
          *       重复完成）、phase → governance、过渡叙事 history_log、存档快照（回滚点）。
          *       fallback_year 只用于叙事说明，不能改世界时钟。
-         *     - 拒绝：身死结局分支——响应携带 game_over（与治理侧契约同构
-         *       {result: "defeat", message}），状态不变；结局不持久化（治理侧同口径，
-         *       重载后可重作抉择）。
+         *     - 拒绝：进入资源匮乏、追兵压迫的流亡困局，但不得在没有已提交死亡
+         *       settlement facts 时宣告主角死亡或终局；响应保持 game_over=null，玩家
+         *       可继续自由行动并在后续结算中改变处境。
          */
         post: operations["converge_api_trpg_converge_post"];
         delete?: never;
@@ -889,6 +957,23 @@ export type paths = {
         put?: never;
         /** Continue Activity */
         post: operations["continue_activity_api_activities__activity_id__continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settlements/{settlement_id}/narrative": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate Narrative */
+        post: operations["regenerate_narrative_api_settlements__settlement_id__narrative_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1227,6 +1312,7 @@ export type components = {
         ActionExecutionResponse: {
             state: components["schemas"]["GameState"];
             result: components["schemas"]["SettlementCommitResult"];
+            narrative: components["schemas"]["NarrativeGenerationResult"];
         };
         /** ActionIntent */
         ActionIntent: {
@@ -1435,8 +1521,22 @@ export type components = {
         };
         /** AdoptSuggestionRequest */
         AdoptSuggestionRequest: {
+            /**
+             * Mode
+             * @default original
+             * @enum {string}
+             */
+            mode: "original" | "edited" | "free_input";
             /** Suggestion Index */
-            suggestion_index: number;
+            suggestion_index?: number | null;
+            /** Suggestion Id */
+            suggestion_id?: string | null;
+            /** Source Version Id */
+            source_version_id?: string | null;
+            /** Edited Text */
+            edited_text?: string | null;
+            /** Free Text */
+            free_text?: string | null;
         };
         /** AdvanceMonthRequest */
         AdvanceMonthRequest: {
@@ -1455,6 +1555,7 @@ export type components = {
             /** New Ministers */
             new_ministers?: components["schemas"]["Minister"][];
             result: components["schemas"]["SettlementCommitResult"];
+            narrative: components["schemas"]["NarrativeGenerationResult"];
         };
         /** AppliedMetricAttribution */
         AppliedMetricAttribution: {
@@ -1510,6 +1611,14 @@ export type components = {
             position: string;
             /** Argument Text */
             argument_text: string;
+            /** Entity Id */
+            entity_id?: string | null;
+            /** Entity Type */
+            entity_type?: string | null;
+            /** Capabilities */
+            capabilities?: string[];
+            /** Capability Sources */
+            capability_sources?: string[];
         };
         /** AssemblyPetition */
         AssemblyPetition: {
@@ -1764,7 +1873,7 @@ export type components = {
          * ConvergeRequest
          * @description POST /api/trpg/converge 请求体（1360 收束抉择）。
          *
-         *     choice: accept=接受招揽强制切换治理 / refuse=继续流窜进入身死结局分支。
+         *     choice: accept=接受招揽强制切换治理 / refuse=拒绝归附并继续流亡世界线。
          */
         ConvergeRequest: {
             /**
@@ -1856,6 +1965,20 @@ export type components = {
             option_b: components["schemas"]["StructuredDecree"];
             /** Keywords */
             keywords?: string[];
+            /** Narrative Status */
+            narrative_status?: ("validated" | "repaired" | "sanitized" | "fallback_facts") | null;
+            /** Narrative Path Id */
+            narrative_path_id?: string | null;
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /** Context Version Id */
+            context_version_id?: string | null;
+            /** Narrative Artifact Id */
+            narrative_artifact_id?: string | null;
+            /** Narrative Request Id */
+            narrative_request_id?: string | null;
+            /** Narrative Progress */
+            narrative_progress?: string[];
         };
         /** DebateSilenceResponse */
         DebateSilenceResponse: {
@@ -1912,6 +2035,20 @@ export type components = {
             turn_summary?: components["schemas"]["TurnSummary"] | null;
             /** Memorial Triggers */
             memorial_triggers?: components["schemas"]["Memorial"][];
+            /** Narrative Status */
+            narrative_status?: ("validated" | "repaired" | "sanitized" | "fallback_facts") | null;
+            /** Narrative Path Id */
+            narrative_path_id?: string | null;
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /** Context Version Id */
+            context_version_id?: string | null;
+            /** Narrative Artifact Id */
+            narrative_artifact_id?: string | null;
+            /** Narrative Request Id */
+            narrative_request_id?: string | null;
+            /** Narrative Progress */
+            narrative_progress?: string[];
         };
         /**
          * DecreeType
@@ -1939,6 +2076,29 @@ export type components = {
             /** Conversation Id */
             conversation_id: string;
             state: components["schemas"]["GameState"];
+            /**
+             * Narrative Status
+             * @enum {string}
+             */
+            narrative_status: "validated" | "repaired" | "sanitized" | "fallback_facts";
+            /** Narrative Path Id */
+            narrative_path_id: string;
+            /**
+             * Settlement Id
+             * Format: uuid
+             */
+            settlement_id: string;
+            /**
+             * Context Version Id
+             * Format: uuid
+             */
+            context_version_id: string;
+            /** Narrative Artifact Id */
+            narrative_artifact_id?: string | null;
+            /** Narrative Request Id */
+            narrative_request_id: string;
+            /** Narrative Progress */
+            narrative_progress?: string[];
         };
         /** Duration */
         Duration: {
@@ -2772,6 +2932,29 @@ export type components = {
             delta?: Record<string, never> | null;
             /** Minister Reactions */
             minister_reactions?: components["schemas"]["MinisterReaction"][];
+            /**
+             * Narrative Status
+             * @enum {string}
+             */
+            narrative_status: "validated" | "repaired" | "sanitized" | "fallback_facts";
+            /** Narrative Path Id */
+            narrative_path_id: string;
+            /**
+             * Settlement Id
+             * Format: uuid
+             */
+            settlement_id: string;
+            /**
+             * Context Version Id
+             * Format: uuid
+             */
+            context_version_id: string;
+            /** Narrative Artifact Id */
+            narrative_artifact_id?: string | null;
+            /** Narrative Request Id */
+            narrative_request_id: string;
+            /** Narrative Progress */
+            narrative_progress?: string[];
         };
         /**
          * MemorialStatus
@@ -3191,6 +3374,67 @@ export type components = {
             /** Source Proposal */
             source_proposal?: string | null;
         };
+        /** NarrativeGenerationResult */
+        NarrativeGenerationResult: {
+            /** Path Id */
+            path_id: string;
+            /** Context Version Id */
+            context_version_id?: string | null;
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /**
+             * Narrative Status
+             * @enum {string}
+             */
+            narrative_status: "validated" | "repaired" | "sanitized" | "fallback_facts";
+            /** Text */
+            text: string;
+            /** Chunks */
+            chunks: string[];
+            /** Finding Codes */
+            finding_codes?: string[];
+            /** Attempt Count */
+            attempt_count: number;
+            /** Request Id */
+            request_id: string;
+            /** Artifact Id */
+            artifact_id?: string | null;
+            /** Progress Stages */
+            progress_stages?: ("context_ready" | "generating" | "validating" | "repairing" | "validated")[];
+            /**
+             * Context Schema Version
+             * @default narrative-context-v1
+             */
+            context_schema_version: string;
+            /** Source Versions */
+            source_versions?: {
+                [key: string]: string;
+            };
+            /**
+             * Outcome Stage
+             * @enum {string}
+             */
+            outcome_stage: "validated" | "repaired" | "sanitized" | "fallback_facts";
+            /**
+             * Duration Ms
+             * @default 0
+             */
+            duration_ms: number;
+        };
+        /** NarrativeRegenerationRequest */
+        NarrativeRegenerationRequest: {
+            /**
+             * Path Id
+             * @default unified_action
+             * @enum {string}
+             */
+            path_id: "unified_action" | "trpg_gm_action" | "assembly_debate" | "memorial" | "entity_dialogue" | "freeform_action" | "structured_action" | "monthly_review" | "ordinary_chat" | "decree_sse" | "chat_sse";
+            /**
+             * Topic Id
+             * @default world
+             */
+            topic_id: string;
+        };
         /** NormalizedDuration */
         NormalizedDuration: {
             duration: components["schemas"]["Duration"];
@@ -3352,7 +3596,7 @@ export type components = {
              * Operation
              * @enum {string}
              */
-            operation: "identity" | "freedom" | "location" | "death";
+            operation: "identity" | "freedom" | "location" | "regime" | "death";
             /** Before Value */
             before_value?: string | null;
             /** Value */
@@ -3393,6 +3637,12 @@ export type components = {
              * @enum {string}
              */
             freedom_status: "free" | "detained" | "exiled" | "hidden";
+            /**
+             * Regime Status
+             * @default governing
+             * @enum {string}
+             */
+            regime_status: "governing" | "overthrown" | "regime_destroyed";
             /** Actionable Goal Ids */
             actionable_goal_ids?: string[];
             /** Terminal Settlement Id */
@@ -3428,6 +3678,16 @@ export type components = {
             related_decree: components["schemas"]["StructuredDecree"];
             /** Supporter Names */
             supporter_names?: string[];
+            /** Suggestion Id */
+            suggestion_id?: string | null;
+            /** Source Game Id */
+            source_game_id?: string | null;
+            /** Source Branch Id */
+            source_branch_id?: string | null;
+            /** Source Version Id */
+            source_version_id?: string | null;
+            /** Rationale Factors */
+            rationale_factors?: components["schemas"]["SuggestionRationaleFactor"][];
         };
         /** ProviderAttribution */
         ProviderAttribution: {
@@ -3603,6 +3863,20 @@ export type components = {
             local_entity_ids?: string[];
             /** Metrics */
             metrics?: components["schemas"]["MetricProjection"][];
+            /**
+             * Danger
+             * @default false
+             */
+            danger: boolean;
+            /** Danger Factors */
+            danger_factors?: string[];
+            /**
+             * Power Vacuum
+             * @default false
+             */
+            power_vacuum: boolean;
+            /** Power Vacuum Reasons */
+            power_vacuum_reasons?: string[];
         };
         /**
          * RegionThreat
@@ -3679,6 +3953,10 @@ export type components = {
             protocol_version: string;
             /** Raw D100 */
             raw_d100: number;
+            /** Target Value */
+            target_value?: number | null;
+            /** Result Tier */
+            result_tier?: ("critical_success" | "success" | "failure" | "critical_failure") | null;
             /** Modifiers */
             modifiers?: components["schemas"]["VisibleRollModifier"][];
             /** Uncertainty Reasons */
@@ -3809,6 +4087,18 @@ export type components = {
             sub_action?: components["schemas"]["PersonnelAction"] | null;
             /** Parameters */
             parameters?: Record<string, never> | null;
+        };
+        /**
+         * SuggestionRationaleFactor
+         * @description Safe, current-world evidence for a player-visible policy suggestion.
+         */
+        SuggestionRationaleFactor: {
+            /** Fact Reference */
+            fact_reference: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
         };
         /**
          * TaxContribution
@@ -3958,6 +4248,44 @@ export type components = {
             /** Source Fact */
             source_fact: string;
         };
+        /** WorldBranchListResponse */
+        WorldBranchListResponse: {
+            /** Branches */
+            branches?: components["schemas"]["WorldBranchRef"][];
+        };
+        /** WorldBranchRef */
+        WorldBranchRef: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /** Parent Branch Id */
+            parent_branch_id?: string | null;
+            /** Forked From Version Id */
+            forked_from_version_id?: string | null;
+            /**
+             * Head Version Id
+             * Format: uuid
+             */
+            head_version_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "archived";
+        };
         /**
          * WorldClock
          * @description Canonical persisted world clock; projections are always derived.
@@ -3981,6 +4309,24 @@ export type components = {
              */
             world_timezone: string;
         };
+        /** WorldForkRequest */
+        WorldForkRequest: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Version Id
+             * Format: uuid
+             */
+            version_id: string;
+        };
         /** WorldInstant */
         WorldInstant: {
             /** Absolute Hour */
@@ -4000,6 +4346,12 @@ export type components = {
              * @default UTC+08:00
              */
             world_timezone: string;
+        };
+        /** WorldLifecycleResponse */
+        WorldLifecycleResponse: {
+            state: components["schemas"]["GameState"];
+            branch: components["schemas"]["WorldBranchRef"];
+            version: components["schemas"]["WorldVersionRef"];
         };
         /**
          * WorldSnapshotMetadata
@@ -4061,6 +4413,24 @@ export type components = {
             executors?: components["schemas"]["ExecutorCandidateProjection"][];
             /** Regions */
             regions?: components["schemas"]["RegionProjection"][];
+        };
+        /** WorldSwitchRequest */
+        WorldSwitchRequest: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+        };
+        /** WorldVersionListResponse */
+        WorldVersionListResponse: {
+            /** Versions */
+            versions?: components["schemas"]["WorldVersionRef"][];
         };
         /** WorldVersionRef */
         WorldVersionRef: {
@@ -4566,6 +4936,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_world_branches_api_worlds__game_id__branches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldBranchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_world_versions_api_worlds__game_id___branch_id__versions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldVersionListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fork_world_api_worlds_fork_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldForkRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldLifecycleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    switch_world_api_worlds_switch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldSwitchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldLifecycleResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6226,6 +6725,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+        };
+    };
+    regenerate_narrative_api_settlements__settlement_id__narrative_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                settlement_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NarrativeRegenerationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NarrativeGenerationResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

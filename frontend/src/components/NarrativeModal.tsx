@@ -74,10 +74,20 @@ interface Props {
   delta: Record<string, number>
   ministerReactions?: MinisterReaction[]
   turnSummary?: TurnSummary
+  settlementId?: string | null
+  contextVersionId?: string | null
   onClose: () => void
 }
 
-export default function NarrativeModal({ narrative, delta, ministerReactions = [], turnSummary, onClose }: Props) {
+export default function NarrativeModal({
+  narrative,
+  delta,
+  ministerReactions = [],
+  turnSummary,
+  settlementId,
+  contextVersionId,
+  onClose,
+}: Props) {
   const entries = Object.entries(delta).filter(([, v]) => v !== 0)
   const [deltaOpen, setDeltaOpen] = useState(entries.length > 0)
   const [summaryOpen, setSummaryOpen] = useState(true)
@@ -85,7 +95,12 @@ export default function NarrativeModal({ narrative, delta, ministerReactions = [
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal narrative-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal narrative-modal"
+        data-settlement-id={settlementId ?? undefined}
+        data-context-version-id={contextVersionId ?? undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="narrative-header">令谕已下</h3>
         <p className="narrative-text">{narrative}</p>
 

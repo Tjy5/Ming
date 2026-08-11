@@ -13,6 +13,30 @@ export type DecreeType =
   | 'personnel' | 'diplomacy'
   | 'disaster_relief' | 'harsh_punishment'
 
+export type NarrativeGenerationResult = OpenApiSchemas['NarrativeGenerationResult']
+export type NarrativeStatus = NarrativeGenerationResult['narrative_status']
+export type NarrativeProgressStage = NonNullable<NarrativeGenerationResult['progress_stages']>[number]
+
+export interface NarrativeMetadata {
+  narrative_status?: NarrativeStatus | null
+  narrative_path_id?: string | null
+  settlement_id?: string | null
+  context_version_id?: string | null
+  narrative_artifact_id?: string | null
+  narrative_request_id?: string | null
+  narrative_progress?: NarrativeProgressStage[]
+}
+
+export type AdvanceMonthResponse = Omit<
+  OpenApiSchemas['AdvanceMonthResponse'],
+  'state' | 'triggered_events' | 'game_over' | 'new_ministers'
+> & {
+  state: GameState
+  triggered_events: string[]
+  game_over: { result: 'victory' | 'defeat'; message: string } | null
+  new_ministers: Minister[]
+}
+
 export type RegionControl = '朝廷' | '失控' | '沦陷'
 export type RegionThreat = 'none' | '元军' | '汉军' | '吴军' | '民变' | '土司' | '海盗'
 export type TaxContribution = 'low' | 'medium' | 'high'
@@ -211,7 +235,37 @@ export interface PolicySuggestion {
   description: string
   related_decree: StructuredDecree
   supporter_names: string[]
+  suggestion_id?: string | null
+  source_game_id?: string | null
+  source_branch_id?: string | null
+  source_version_id?: string | null
+  rationale_factors?: Array<{
+    fact_reference: string
+    label: string
+    value: string
+  }>
 }
+
+export type SuggestionAdoptionMode = 'original' | 'edited' | 'free_input'
+
+export type AdoptSuggestionRequest =
+  | {
+      mode: 'original'
+      suggestion_index: number
+      suggestion_id: string
+      source_version_id: string
+    }
+  | {
+      mode: 'edited'
+      suggestion_index: number
+      suggestion_id: string
+      source_version_id: string
+      edited_text: string
+    }
+  | {
+      mode: 'free_input'
+      free_text: string
+    }
 
 export interface AssemblyPetition {
   minister_name: string
@@ -232,7 +286,7 @@ export interface AssemblyVote {
   reason: string
 }
 
-export interface CourtAssembly {
+export interface CourtAssembly extends NarrativeMetadata {
   topic: string
   current_topic?: string
   decree_type: DecreeType | null
@@ -335,7 +389,7 @@ interface BaseModalItem {
 export type ModalItem =
   | (BaseModalItem & { type: 'game_over'; payload: { result: 'victory' | 'defeat'; message: string } })
   | (BaseModalItem & { type: 'script_event_blocking'; payload: GameEvent })
-  | (BaseModalItem & { type: 'narrative'; payload: { narrative: string; delta: Record<string, number>; ministerReactions?: MinisterReaction[]; turnSummary?: TurnSummary } })
+  | (BaseModalItem & { type: 'narrative'; payload: { narrative: string; delta: Record<string, number>; ministerReactions?: MinisterReaction[]; turnSummary?: TurnSummary; settlementId?: string | null; contextVersionId?: string | null } })
   | (BaseModalItem & { type: 'turn_summary'; payload: TurnSummary })
   | (BaseModalItem & { type: 'memorial'; payload: Memorial[] })
   | (BaseModalItem & { type: 'assembly'; payload: CourtAssembly })
@@ -348,7 +402,7 @@ export interface ConversationMessage {
   timestamp: string | number
 }
 
-export interface DecreeResponse {
+export interface DecreeResponse extends NarrativeMetadata {
   state: GameState
   delta: Record<string, number>
   attribution: Record<string, Record<string, number>>
@@ -359,14 +413,20 @@ export interface DecreeResponse {
   minister_reactions: MinisterReaction[]
   turn_summary: TurnSummary | null
   memorial_triggers: Memorial[]
+  suggestion_adoption_mode?: SuggestionAdoptionMode
+  suggestion_id?: string | null
+  suggestion_source_version_id?: string | null
+  suggestion_evaluation_version_id?: string | null
+  suggestion_was_stale?: boolean
+  suggestion_rationale_factors?: NonNullable<PolicySuggestion['rationale_factors']>
 }
 
-export interface MemorialResolveResponse {
+export interface MemorialResolveResponse extends NarrativeMetadata {
   state: GameState
   action: string
-  narrative?: string
-  delta?: Record<string, number>
-  minister_reactions?: MinisterReaction[]
+  narrative: string | null
+  delta: Record<string, number> | null
+  minister_reactions: MinisterReaction[]
 }
 
 export type ErrorResponse = OpenApiSchemas['ErrorResponse']
@@ -377,7 +437,7 @@ export interface DialogueMessage {
   timestamp?: number
 }
 
-export interface DialogueResponse {
+export interface DialogueResponse extends NarrativeMetadata {
   reply: string
   loyalty_change: number
   mood: string
@@ -392,7 +452,8 @@ export interface ChatGameOver {
   message: string
 }
 
-export interface ChatDonePayload {
+export interface ChatDonePayload extends NarrativeMetadata {
+  narrative_context_path_id: string | null
   reply: string
   state: GameState
   effects_applied: boolean
@@ -434,7 +495,7 @@ export interface DebateMinister {
   position_summary: string
 }
 
-export interface DebateResult {
+export interface DebateResult extends NarrativeMetadata {
   debate_text: string
   minister_a: DebateMinister
   minister_b: DebateMinister

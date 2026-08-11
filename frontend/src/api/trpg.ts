@@ -13,6 +13,8 @@ import type {
   ConvergeChoice,
   ConvergeResponse,
   MilestoneCompleteResponse,
+  NarrativeRegenerationRequest,
+  NarrativeRegenerationResponse,
 } from '../types/trpg'
 
 export const trpgApi = {
@@ -29,8 +31,22 @@ export const trpgApi = {
         attr: payload.attr ?? null,
         // 未指定难度时不传 → 后端按当前章默认难度（篇章 DC 曲线，阶段D 4.1）
         ...(payload.difficulty ? { difficulty: payload.difficulty } : {}),
+        ...(payload.option_id ? { option_id: payload.option_id } : {}),
       }),
     }),
+
+  regenerateNarrative: (
+    settlementId: string,
+    payload: NarrativeRegenerationRequest,
+    signal?: AbortSignal,
+  ) => request<NarrativeRegenerationResponse>(
+    `/settlements/${encodeURIComponent(settlementId)}/narrative`,
+    {
+      method: 'POST',
+      signal,
+      body: JSON.stringify(payload),
+    },
+  ),
 
   completeMilestone: (milestoneId: string, signal?: AbortSignal) =>
     request<MilestoneCompleteResponse>(

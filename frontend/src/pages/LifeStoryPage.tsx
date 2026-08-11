@@ -5,7 +5,7 @@
  * 此处仅按后端 state.phase 响应）。
  * 阶段D 扩展：选项路由——收束抉择（convergence 标记 → /converge）、
  * 里程碑联动（milestone_id → milestones/{id}/complete）；convergence_hook
- * 非空时渲染收束横幅；"继续流窜"结局渲染此局已终覆盖层。
+ * 非空时渲染收束横幅；拒绝归附会进入仍可继续行动的流亡困局。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
@@ -19,6 +19,7 @@ import type {
   ApiGrowthEntry,
   ConvergeChoice,
   ConvergenceHook,
+  NarrativeRegenerationRequest,
   RollResult,
   TrpgOption,
 } from '../types/trpg'
@@ -45,6 +46,11 @@ interface TransitionInfo {
   latest: GameState
 }
 
+interface NarrativeFallbackInfo {
+  settlementId: string
+  pathId: NarrativeRegenerationRequest['path_id']
+}
+
 function formatTime(time: GameTime | null): string {
   if (!time) return ''
   const era = time.era_year === 1 ? `${time.era_name}元年` : `${time.era_name}${time.era_year}年`
@@ -65,6 +71,8 @@ export default function LifeStoryPage() {
   const [lastRoll, setLastRoll] = useState<RollResult | null>(null)
   const [latestGrowth, setLatestGrowth] = useState<ApiGrowthEntry | null>(null)
   const [acting, setActing] = useState(false)
+  const [regeneratingNarrative, setRegeneratingNarrative] = useState(false)
+  const [narrativeFallback, setNarrativeFallback] = useState<NarrativeFallbackInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [freeText, setFreeText] = useState('')
   const [transition, setTransition] = useState<TransitionInfo | null>(null)
@@ -117,6 +125,11 @@ export default function LifeStoryPage() {
       setFeed((f) => appendActResult(f, payload.action_text, res))
       setLastRoll(res.roll)
       setOptions(res.options)
+      setNarrativeFallback(
+        res.narrative_status === 'fallback_facts' && res.settlement_id
+          ? { settlementId: res.settlement_id, pathId: res.narrative_path_id }
+          : null,
+      )
       setConvergenceHook(res.convergence_hook)
       setChapterTitle(res.chapter_title)
       setChapterTurns(res.chapter_turns)
@@ -139,7 +152,40 @@ export default function LifeStoryPage() {
     }
   }, [acting])
 
-  // 1360 收束抉择：接受招揽 → 强制切换 governance；继续流窜 → 身死结局覆盖层
+  const regenerateNarrative = useCallback(async () => {
+    if (!narrativeFallback || regeneratingNarrative) return
+    setRegeneratingNarrative(true)
+    setError(null)
+    try {
+      const result = await trpgApi.regenerateNarrative(
+        narrativeFallback.settlementId,
+        { path_id: narrativeFallback.pathId, topic_id: 'trpg' },
+      )
+      setFeed((current) => {
+        const next = [...current]
+        for (let index = next.length - 1; index >= 0; index -= 1) {
+          const item = next[index]
+          if (item.kind !== 'narrative') continue
+          next[index] = { ...item, text: result.text, source: 'regenerated' }
+          break
+        }
+        return next
+      })
+      setNarrativeFallback(
+        result.narrative_status === 'fallback_facts'
+          ? narrativeFallback
+          : null,
+      )
+    } catch (e) {
+      setError(e instanceof ApiError
+        ? e.body.message
+        : '叙事重生成失败；已提交的结算保持不变')
+    } finally {
+      setRegeneratingNarrative(false)
+    }
+  }, [narrativeFallback, regeneratingNarrative])
+
+  // 1360 收束抉择：接受招揽切换 governance；拒绝归附则继续当前世界线
   const performConverge = useCallback(async (choice: ConvergeChoice) => {
     if (acting || transitioned.current || ending) return
     setActing(true)
@@ -225,7 +271,7 @@ export default function LifeStoryPage() {
     void performAct(payload)
   }
 
-  const busy = acting || !!transition || !!ending
+  const busy = acting || regeneratingNarrative || !!transition || !!ending
 
   return (
     <div className="life-story-page">
@@ -259,6 +305,21 @@ export default function LifeStoryPage() {
             disabled={busy}
             onSelect={handleOption}
           />
+          {narrativeFallback && (
+            <div className="ls-narrative-fallback" role="status">
+              <div>
+                <strong>结算已提交，当前显示事实摘要。</strong>
+                <span>重生成只更新叙事，不会重复行动或改判结果。</span>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void regenerateNarrative()}
+              >
+                {regeneratingNarrative ? '正在重生成…' : '仅重生成叙事'}
+              </button>
+            </div>
+          )}
           <form className="ls-freetext" onSubmit={handleFreeSubmit}>
             <input
               value={freeText}

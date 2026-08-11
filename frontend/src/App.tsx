@@ -32,6 +32,8 @@ type NarrativePayload = {
   delta: Record<string, number>
   ministerReactions?: MinisterReaction[]
   turnSummary?: TurnSummary
+  settlementId?: string | null
+  contextVersionId?: string | null
 }
 
 function App() {
@@ -139,7 +141,10 @@ function App() {
       setLoading(true)
       const res = await api.resolveMemorial(id, action)
       setState(res.state)
-      return { narrative: res.narrative, delta: res.delta }
+      return {
+        narrative: res.narrative ?? undefined,
+        delta: res.delta ?? undefined,
+      }
     } catch (e) {
       if (e instanceof ApiError && (e.body.error_code === 'memorial_not_found' || e.body.error_code === 'already_resolved')) {
         try {
@@ -235,6 +240,7 @@ function App() {
   )
   const {
     decreeInFlight,
+    applyDecreeResult,
     executeDecrees,
     handleFreeText,
   } = useDecreeExecution({
@@ -320,6 +326,7 @@ function App() {
                 capabilities={capabilities}
                 loading={false}
                 onStateUpdate={setState}
+                onAdoptionResult={(response) => applyDecreeResult(response, state)}
                 onShowToast={showToast}
               />
             )}
@@ -368,6 +375,8 @@ function App() {
             delta={p.delta}
             ministerReactions={p.ministerReactions}
             turnSummary={p.turnSummary}
+            settlementId={p.settlementId}
+            contextVersionId={p.contextVersionId}
             onClose={popModal}
           />
         )
@@ -386,6 +395,7 @@ function App() {
         <CourtAssemblyView
           assembly={currentModal.payload as CourtAssembly}
           onStateUpdate={setState}
+          onAdoptionResult={(response) => applyDecreeResult(response, state)}
           onClose={popModal}
           onShowToast={showToast}
           asModal
