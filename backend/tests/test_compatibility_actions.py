@@ -185,6 +185,13 @@ def test_advance_month_http_uses_one_replayable_unified_settlement(monkeypatch, 
     assert replayed_payload["result"]["replayed"] is True
     assert replayed_payload["result"]["version"] == first_payload["result"]["version"]
     assert replayed_payload["state"] == first_payload["state"]
+    assert first_payload["narrative"]["path_id"] == "monthly_review"
+    assert first_payload["narrative"]["context_version_id"] == first_payload["result"]["version"]["version_id"]
+    assert first_payload["narrative"]["settlement_id"] == first_payload["result"]["facts"]["settlement_id"]
+    assert first_payload["narrative"]["request_id"]
+    assert first_payload["narrative"]["progress_stages"][0] == "context_ready"
+    assert first_payload["narrative"]["progress_stages"][-1] == "validated"
+    assert replayed_payload["narrative"]["artifact_id"] == first_payload["narrative"]["artifact_id"]
     assert first_payload["result"]["facts"]["time_plan"]["normalized_duration"]["duration"] == {
         "unit": "month",
         "value": 1,

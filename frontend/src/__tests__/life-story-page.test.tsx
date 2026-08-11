@@ -13,6 +13,7 @@ const getCharacterMock = vi.mocked(trpgApi.getCharacter)
 const actMock = vi.mocked(trpgApi.act)
 const convergeMock = vi.mocked(trpgApi.converge)
 const completeMilestoneMock = vi.mocked(trpgApi.completeMilestone)
+const regenerateNarrativeMock = vi.mocked(trpgApi.regenerateNarrative)
 const getStateMock = vi.mocked(api.getState)
 
 let storeState: GameState | null
@@ -24,6 +25,7 @@ vi.mock('../api/trpg', () => ({
     act: vi.fn(),
     converge: vi.fn(),
     completeMilestone: vi.fn(),
+    regenerateNarrative: vi.fn(),
   },
 }))
 
@@ -62,8 +64,17 @@ function actResponse(overrides: Partial<ActResponse> = {}): ActResponse {
   return {
     roll: { roll: 37, target: 55, tier: 'success', dc: 0, attr_name: '胆略', skill_name: null },
     narrative: '**令行禁止**，士卒肃然。',
+    narrative_status: 'validated',
+    narrative_path_id: 'trpg_gm_action',
+    settlement_id: '00000000-0000-0000-0000-000000000001',
+    context_version_id: '00000000-0000-0000-0000-000000000002',
+    narrative_artifact_id: '00000000-0000-0000-0000-000000000003',
+    narrative_request_id: 'test-request',
+    narrative_progress: ['context_ready', 'generating', 'validating', 'validated'],
     options: [{ option_id: 'opt-2', label: '犒赏三军', description: '开仓放粮，提振士气' }],
     state_changes: {},
+    state_changes_result: { applied: [], ignored: [] },
+    option_id: null,
     source: 'ai',
     phase: 'life_story',
     chapter: 'yingtian',
@@ -167,8 +178,51 @@ describe('LifeStoryPage 渲染与选项交互', () => {
     expect(actMock).toHaveBeenCalledTimes(2)
     expect(actMock).toHaveBeenLastCalledWith({
       action_text: '犒赏三军——开仓放粮，提振士气',
+      option_id: 'opt-2',
     })
     expect(await screen.findByText('犒赏既毕', { exact: false })).toBeTruthy()
+  })
+
+  it('facts fallback is labelled and regeneration replaces text without resubmitting the action', async () => {
+    actMock.mockResolvedValue(actResponse({
+      narrative: '【事实摘要】行动已结算。',
+      narrative_status: 'fallback_facts',
+    }))
+    regenerateNarrativeMock.mockResolvedValue({
+      path_id: 'trpg_gm_action',
+      context_version_id: '00000000-0000-0000-0000-000000000002',
+      settlement_id: '00000000-0000-0000-0000-000000000001',
+      narrative_status: 'validated',
+      text: '军令传遍营寨，士卒依次领命。',
+      chunks: ['军令传遍营寨，士卒依次领命。'],
+      finding_codes: [],
+      attempt_count: 1,
+      request_id: 'regenerate-request',
+      artifact_id: '00000000-0000-0000-0000-000000000004',
+      progress_stages: ['context_ready', 'generating', 'validating', 'validated'],
+      context_schema_version: 'narrative-context-v1',
+      source_versions: {},
+      outcome_stage: 'validated',
+      duration_ms: 4,
+    })
+
+    render(<LifeStoryPage />)
+    await submitFreeText('整肃军纪')
+
+    expect(await screen.findByText('结算已提交，当前显示事实摘要。')).toBeTruthy()
+    expect(screen.getByText('【事实摘要】行动已结算。')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '仅重生成叙事' }))
+    })
+
+    expect(regenerateNarrativeMock).toHaveBeenCalledWith(
+      '00000000-0000-0000-0000-000000000001',
+      { path_id: 'trpg_gm_action', topic_id: 'trpg' },
+    )
+    expect(actMock).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('军令传遍营寨，士卒依次领命。')).toBeTruthy()
+    expect(screen.queryByText('【事实摘要】行动已结算。')).toBeNull()
+    expect(screen.queryByText('结算已提交，当前显示事实摘要。')).toBeNull()
   })
 
   it('act 响应 phase 切换（life_story → governance）后展示过渡剧情', async () => {
@@ -261,7 +315,7 @@ describe('LifeStoryPage 收束抉择与里程碑联动', () => {
     expect(screen.getByText('进入治理模拟')).toBeTruthy()
   })
 
-  it('选继续流窜 → 身死结局覆盖层', async () => {
+  it('选继续流窜 → 非终局流亡叙事并可继续行动', async () => {
     actMock.mockResolvedValue(actResponse({
       convergence_hook: convergenceHook(),
       options: [
@@ -270,8 +324,8 @@ describe('LifeStoryPage 收束抉择与里程碑联动', () => {
     }))
     convergeMock.mockResolvedValue(convergeResponse({
       choice: 'refuse',
-      narrative: '【收束·身死】困毙于山野之间。',
-      game_over: { result: 'defeat', message: '霸业未成，身先殒没' },
+      narrative: '【收束·流亡】转入江淮山野，仍须另寻立足之地。',
+      game_over: null,
       converged_milestone: null,
     }))
 
@@ -284,8 +338,9 @@ describe('LifeStoryPage 收束抉择与里程碑联动', () => {
     })
 
     expect(convergeMock).toHaveBeenCalledWith('refuse')
-    expect(await screen.findByText('此局已终')).toBeTruthy()
-    expect(screen.getByText('霸业未成，身先殒没')).toBeTruthy()
+    expect(await screen.findByText('【收束·流亡】转入江淮山野，仍须另寻立足之地。')).toBeTruthy()
+    expect(screen.queryByText('此局已终')).toBeNull()
+    expect(screen.getByPlaceholderText(/自由行动：写下你想做的事/)).toBeTruthy()
   })
 
   it('带 milestone_id 的选项 → 调 completeMilestone 而非 act', async () => {

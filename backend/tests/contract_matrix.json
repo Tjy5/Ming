@@ -25,15 +25,53 @@
       {"case_id": "split_elapsed_month_equivalence", "node_id": "tests/test_time_consumers.py::test_equal_elapsed_time_split_differently_has_identical_monthly_effects"}
     ]},
     {"category": "branch_version_memory_isolation", "cases": [
-      {"case_id": "projection_version_scope", "node_id": "tests/test_state_projections.py::test_projection_carries_one_version_for_metrics_executors_and_regions"}
+      {"case_id": "projection_version_scope", "node_id": "tests/test_state_projections.py::test_projection_carries_one_version_for_metrics_executors_and_regions"},
+      {"case_id": "branch_public_lifecycle_restore", "node_id": "tests/test_world_lifecycle_routes.py::test_public_branch_lifecycle_restores_state_and_ancestry_scoped_memory"},
+      {"case_id": "branch_foreign_identifiers_no_head_switch", "node_id": "tests/test_world_lifecycle_routes.py::test_foreign_world_identifiers_return_404_without_switching_runtime_head"}
     ]},
     {"category": "dynamic_entity_executor_tracking", "cases": [
       {"case_id": "actual_executor_not_roster_average", "node_id": "tests/test_world_state_application.py::test_only_actual_executor_changes_the_deterministic_result"},
-      {"case_id": "executor_settlement_roundtrip", "node_id": "tests/test_world_state_settlement.py::test_settlement_persists_executor_roll_attribution_and_exact_replay"}
+      {"case_id": "executor_settlement_roundtrip", "node_id": "tests/test_world_state_settlement.py::test_settlement_persists_executor_roll_attribution_and_exact_replay"},
+      {"case_id": "dynamic_region_projection_versioned", "node_id": "tests/test_state_projections.py::test_region_projection_exposes_same_version_metrics_local_entities_and_vacuum"},
+      {"case_id": "dynamic_actor_capability_and_ended_guard", "node_id": "tests/test_state_projections.py::test_dynamic_capable_actor_is_selected_while_ended_actor_cannot_reappear"},
+      {"case_id": "dynamic_dialogue_capability_and_ended_guard", "node_id": "tests/test_api_routes.py::test_dynamic_dialogue_actor_uses_registry_capability_and_ended_actor_is_rejected"}
     ]},
     {"category": "state_narrative_consistency", "cases": [
       {"case_id": "effective_band_validator_projection", "node_id": "tests/test_numeric_bands.py::test_narrative_prompt_injects_hard_constraints_when_dangerous"},
-      {"case_id": "benchmark_calls_narrative_validator", "node_id": "tests/test_ai_benchmark.py::test_benchmark_named_cases_all_pass_and_use_narrative_validator"}
+      {"case_id": "benchmark_calls_narrative_validator", "node_id": "tests/test_ai_benchmark.py::test_benchmark_named_cases_all_pass_and_use_narrative_validator"},
+      {"case_id": "region_vacuum_requires_committed_facts", "node_id": "tests/test_state_projections.py::test_region_projection_does_not_invent_vacuum_for_court_controlled_legacy_region"}
+    ]},
+    {"category": "action_consumer_idempotency", "cases": [
+      {"case_id": "action_double_click_exactly_once", "node_id": "tests/test_action_idempotency.py::test_concurrent_double_click_commits_once_and_replays_once"},
+      {"case_id": "action_identity_payload_conflict", "node_id": "tests/test_action_idempotency.py::test_same_identity_with_different_payload_is_conflict"}
+    ]},
+    {"category": "strict_narrative_integrity", "cases": [
+      {"case_id": "narrative_production_registry_discovery", "node_id": "tests/test_narrative_registry.py::test_registered_owners_are_real_fastapi_production_routes"},
+      {"case_id": "narrative_single_version_context", "node_id": "tests/test_narrative_context.py::test_context_uses_one_committed_version_for_all_sibling_facts"},
+      {"case_id": "narrative_ancestor_memory_isolation", "node_id": "tests/test_narrative_memory.py::test_memory_visibility_follows_version_ancestry_not_process_or_name"},
+      {"case_id": "narrative_chapter_phase_retention", "node_id": "tests/test_narrative_memory.py::test_chapter_and_phase_views_exclude_raw_cross_boundary_text"},
+      {"case_id": "narrative_cross_month_scope_isolation", "node_id": "tests/test_narrative_memory.py::test_persisted_chat_context_keeps_same_topic_across_month_and_filters_scope"},
+      {"case_id": "narrative_all_path_safe_diagnostics", "node_id": "tests/test_narrative_service.py::test_every_registered_path_returns_safe_traceable_diagnostics"},
+      {"case_id": "narrative_raw_stream_hidden", "node_id": "tests/test_strict_narrative_stream.py::test_invalid_provider_candidate_and_raw_stream_chunks_are_never_visible"},
+      {"case_id": "narrative_chunk_after_validation", "node_id": "tests/test_strict_narrative_stream.py::test_first_narrative_chunk_follows_validation_complete_stage"},
+      {"case_id": "narrative_chat_sse_raw_hidden", "node_id": "tests/test_chat_routes.py::test_chat_sse_hides_classifier_and_invalid_provider_text_until_repair"},
+      {"case_id": "narrative_regeneration_only", "node_id": "tests/test_narrative_regeneration.py::test_regeneration_only_adds_artifact_and_never_resettles"},
+      {"case_id": "narrative_facts_fallback_preserves_settlement", "node_id": "tests/test_strict_narrative_stream.py::test_postcommit_narrative_failure_returns_facts_with_settlement_id"},
+      {"case_id": "narrative_executor_consistency", "node_id": "tests/test_narrative_validators.py::test_executor_rejection_and_dynamic_actor_follow_committed_attribution"},
+      {"case_id": "narrative_roll_consistency", "node_id": "tests/test_narrative_validators.py::test_roll_raw_target_modifier_and_tier_are_bound_to_one_committed_roll"},
+      {"case_id": "narrative_no_uncommitted_luck_or_reroll", "node_id": "tests/test_narrative_validators.py::test_uncommitted_luck_and_reroll_claims_are_rejected"},
+      {"case_id": "narrative_modifier_band_consistency", "node_id": "tests/test_narrative_validators.py::test_base_and_effective_band_claims_match_current_projection"},
+      {"case_id": "narrative_activity_calendar_consistency", "node_id": "tests/test_narrative_validators.py::test_activity_checkpoint_remaining_time_and_calendar_reject_stale_claims"},
+      {"case_id": "narrative_activity_fallback_facts", "node_id": "tests/test_narrative_validators.py::test_facts_fallback_carries_current_activity_checkpoint_and_interruptions"},
+      {"case_id": "narrative_death_no_resurrection", "node_id": "tests/test_narrative_validators.py::test_dead_player_cannot_be_resurrected_or_continue_without_committed_facts"},
+      {"case_id": "narrative_uncommitted_indirect_death", "node_id": "tests/test_narrative_validators.py::test_alive_player_rejects_indirect_death_and_terminal_wording"},
+      {"case_id": "narrative_non_death_states_actionable", "node_id": "tests/test_narrative_validators.py::test_non_death_player_regime_and_freedom_states_remain_actionable"},
+      {"case_id": "narrative_committed_death_exact_cause", "node_id": "tests/test_narrative_validators.py::test_committed_death_fallback_uses_exact_cause_and_rejects_invented_cause"},
+      {"case_id": "narrative_public_terminal_action", "node_id": "tests/test_action_service.py::test_public_terminal_action_returns_committed_cause_and_blocks_next_action"},
+      {"case_id": "narrative_suggestion_safe_provenance", "node_id": "tests/test_api_routes.py::test_convene_suggestions_persist_only_versioned_safe_factors"},
+      {"case_id": "narrative_suggestion_ancestry_guard", "node_id": "tests/test_api_routes.py::test_adopt_suggestion_rejects_nonancestor_source_before_effects"},
+      {"case_id": "narrative_stale_suggestion_current_settlement", "node_id": "tests/test_api_routes.py::test_adopt_stale_ancestor_re_evaluates_current_world_before_new_settlement"},
+      {"case_id": "narrative_stale_parent_rejected", "node_id": "tests/test_action_idempotency.py::test_stale_parent_is_legal_conflict_and_leaves_head_unchanged"}
     ]}
   ]
 }

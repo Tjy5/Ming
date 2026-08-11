@@ -129,6 +129,12 @@ def test_script_free_text_maps_to_choice_and_executes():
     assert yang["status"] == "idle"
     assert active_script in result["state"]["resolved_script_ids"]
     assert result["state"]["decrees_this_month"] == {}
+    assert result["narrative_path_id"] == "freeform_action"
+    assert result["context_version_id"] is not None
+    assert result["settlement_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"][0] == "context_ready"
+    assert result["narrative_progress"][-1] == "validated"
 
 
 def test_script_free_text_low_confidence_returns_freeform_empty_and_preserves_state():

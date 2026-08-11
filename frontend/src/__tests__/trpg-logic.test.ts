@@ -82,12 +82,14 @@ describe('buildActFromOption / buildActFromFreeText（选项 → act 请求）',
   it('combines label and description into action text', () => {
     expect(buildActFromOption(option())).toEqual({
       action_text: '整肃军纪——立即着手整饬军纪，安抚民心',
+      option_id: 'opt-1',
     })
   })
 
   it('uses label alone when description is empty', () => {
     expect(buildActFromOption(option({ description: '' }))).toEqual({
       action_text: '整肃军纪',
+      option_id: 'opt-1',
     })
   })
 
@@ -205,8 +207,17 @@ describe('appendActResult（act 响应 → 追加行动卡与叙事卡）', () =
     const res: ActResponse = {
       roll: roll(),
       narrative: '**夜袭得手**，粮仓火光映红了半边天。',
+      narrative_status: 'validated',
+      narrative_path_id: 'trpg_gm_action',
+      settlement_id: '00000000-0000-0000-0000-000000000001',
+      context_version_id: '00000000-0000-0000-0000-000000000002',
+      narrative_artifact_id: '00000000-0000-0000-0000-000000000003',
+      narrative_request_id: 'test-request',
+      narrative_progress: ['context_ready', 'generating', 'validating', 'validated'],
       options: [],
       state_changes: {},
+      state_changes_result: { applied: [], ignored: [] },
+      option_id: null,
       source: 'ai',
       phase: 'life_story',
       chapter: 'yingtian',

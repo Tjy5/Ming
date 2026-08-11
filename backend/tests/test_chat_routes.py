@@ -3,26 +3,32 @@ import json
 
 import pytest
 
+from ai.base import GenerationResult
 from ai.provider import ResilientProvider
 from fakes import FakeProvider
 from api import chat_routes, routes
 from api import state as api_state
 from api.schemas import ChatRequest
+from db import narrative_memory, saves, worlds
 from engine.core import inject_script_events
 from models.enums import MinisterStatus
 from models.game import GameTime, create_initial_state
 
 
 @pytest.fixture(autouse=True)
-def _restore_globals():
+def _restore_globals(monkeypatch, tmp_path):
     old_state = api_state._state
     old_provider = api_state._provider
+    old_ref = api_state._get_world_head_ref()
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "chat-routes.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
     try:
         yield
     finally:
         api_state._state = old_state
         api_state._provider = old_provider
-        api_state.clear_chat_conversation()
+        api_state._world_head_cache.restore_ref(old_ref)
 
 
 def _fake_provider():
@@ -83,6 +89,7 @@ def _parse_sse_events(payload: str) -> list[tuple[str, dict]]:
 def test_chat_query_intent_does_not_modify_state():
     api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
+    api_state._ensure_world_head()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="国库还有多少银两")))
@@ -108,6 +115,7 @@ def test_chat_query_intent_does_not_modify_state():
 def test_chat_explore_prefix_forces_query_intent():
     api_state._provider = _fake_provider()
     api_state._state = create_initial_state()
+    api_state._ensure_world_head()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(
@@ -133,6 +141,7 @@ def test_chat_explore_prefix_forces_query_intent():
 def test_chat_execute_intent_blocked_by_pending_blocking_event():
     api_state._provider = _fake_provider()
     api_state._state = _governance_opening_state()
+    api_state._ensure_world_head()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="加税")))
@@ -172,6 +181,13 @@ def test_chat_execute_intent_applies_effects_and_updates_state():
     done_event = next(data for name, data in events if name == "done")
     assert intent_event["intent"] == "execute"
     assert done_event["effects_applied"] is True
+    assert done_event["narrative_context_path_id"] == "ordinary_chat"
+    assert done_event["narrative_path_id"] == "freeform_action"
+    assert done_event["settlement_id"] is not None
+    assert done_event["context_version_id"] is not None
+    assert done_event["narrative_status"] in {
+        "validated", "repaired", "sanitized", "fallback_facts",
+    }
     assert api_state._state.national_treasury != before_treasury
 
 
@@ -235,6 +251,13 @@ def test_chat_advance_month_intent_advances_game_time():
     intent_event = next(data for name, data in events if name == "intent")
     done_event = next(data for name, data in events if name == "done")
     assert intent_event["intent"] == "advance_month"
+    assert done_event["narrative_context_path_id"] == "ordinary_chat"
+    assert done_event["narrative_path_id"] == "monthly_review"
+    assert done_event["settlement_id"] is not None
+    assert done_event["context_version_id"] is not None
+    assert done_event["narrative_status"] in {
+        "validated", "repaired", "sanitized", "fallback_facts",
+    }
     assert isinstance(done_event["triggered_events"], list)
     assert isinstance(done_event["new_ministers"], list)
     assert done_event["minister_reactions"] == []
@@ -253,6 +276,7 @@ def test_chat_advance_month_intent_advances_game_time():
 def test_chat_advance_month_blocked_by_pending_blocking_event():
     api_state._provider = _fake_provider()
     api_state._state = _governance_opening_state()
+    api_state._ensure_world_head()
     before = api_state._state.model_dump()
 
     stream_response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="进入下月")))
@@ -273,23 +297,141 @@ def test_chat_advance_month_blocked_by_pending_blocking_event():
     assert api_state._state.model_dump() == before
 
 
-def test_chat_conversation_buffer_trimmed_to_100_messages():
-    api_state.clear_chat_conversation()
-    for idx in range(105):
-        api_state.append_chat_conversation("user", f"m{idx}")
+def test_chat_query_uses_strict_pipeline_and_durable_scoped_memory():
+    class _CapturedProvider(FakeProvider):
+        def __init__(self):
+            self.histories: list[list[dict[str, str]]] = []
+            self.legacy_query_calls = 0
 
-    history = api_state.get_chat_conversation()
-    assert len(history) == 100
-    assert history[0]["content"] == "m5"
-    assert history[-1]["content"] == "m104"
+        async def classify_chat_intent(self, message, state, history):
+            self.histories.append([dict(item) for item in history])
+            return await super().classify_chat_intent(message, state, history)
 
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="国库数额以当前已提交世界状态为准。")
 
-def test_new_game_clears_chat_conversation_buffer():
-    api_state._provider = _fake_provider()
+        async def chat_query(self, *args, **kwargs):
+            self.legacy_query_calls += 1
+            return "RAW_LEGACY_QUERY"
+
+    inner = _CapturedProvider()
+    api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
     api_state._state = create_initial_state()
-    api_state.append_chat_conversation("user", "test")
-    api_state.append_chat_conversation("assistant", "ok")
-    assert len(api_state.get_chat_conversation()) == 2
 
-    asyncio.run(routes.new_game())
-    assert api_state.get_chat_conversation() == []
+    response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="国库还有多少银两")))
+    payload = asyncio.run(_collect_stream_payload(response))
+    events = _parse_sse_events(payload)
+    names = [name for name, _ in events]
+    first_chunk = names.index("narrative_chunk")
+    done = next(data for name, data in events if name == "done")
+
+    assert inner.histories == [[]]
+    assert inner.legacy_query_calls == 0
+    assert "RAW_LEGACY_QUERY" not in payload
+    assert any(
+        name == "progress" and data["stage"] == "validated"
+        for name, data in events[:first_chunk]
+    )
+    assert done["narrative_status"] == "validated"
+    assert done["narrative_context_path_id"] == "ordinary_chat"
+    assert done["narrative_path_id"] == "chat_sse"
+    assert done["context_version_id"] is not None
+    assert done["narrative_request_id"]
+    assert done["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+
+    ref = api_state._get_world_head_ref()
+    memories = narrative_memory.list_visible_memories(
+        game_id=ref.game_id,
+        branch_id=ref.branch_id,
+        version_id=ref.version_id,
+        mode="chat",
+        topic_id="chat",
+        current_phase=api_state._state.phase,
+        current_chapter=api_state._state.chapter,
+    )
+    assert [(item.role, item.content) for item in memories] == [
+        ("user", "国库还有多少银两"),
+        ("assistant", "国库数额以当前已提交世界状态为准。"),
+    ]
+
+
+def test_chat_sse_hides_classifier_and_invalid_provider_text_until_repair():
+    class _AdversarialProvider(FakeProvider):
+        async def classify_chat_intent(self, message, state, history):
+            del message, state, history
+            return {
+                "intent": "query",
+                "confidence": 1.0,
+                "reason": "RAW_CLASSIFIER_REASON_CANARY",
+            }
+
+        async def generate_text_once(self, prompt, **kwargs):
+            del kwargs
+            if "REPAIR_REQUIREMENTS=" in prompt:
+                return GenerationResult(text="当前世界仍按已提交事实继续，可再选择下一步行动。")
+            return GenerationResult(
+                text="RAW_CHAT_CANDIDATE_CANARY：主角身死，此局已终。",
+            )
+
+    api_state._provider = ResilientProvider(
+        _AdversarialProvider(), timeout=1, retries=1,
+    )
+    api_state._state = create_initial_state()
+
+    response = asyncio.run(chat_routes.chat_stream(ChatRequest(message="当前局势如何")))
+    payload = asyncio.run(_collect_stream_payload(response))
+    events = _parse_sse_events(payload)
+    names = [name for name, _ in events]
+    first_chunk = names.index("narrative_chunk")
+    visible_progress = [
+        data["stage"] for name, data in events[:first_chunk] if name == "progress"
+    ]
+    intent = next(data for name, data in events if name == "intent")
+    done = next(data for name, data in events if name == "done")
+
+    assert intent["reason"] == "识别为局势查询"
+    assert visible_progress == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+    assert done["narrative_status"] == "repaired"
+    assert done["narrative_context_path_id"] == "ordinary_chat"
+    assert done["narrative_path_id"] == "chat_sse"
+    assert done["context_version_id"] is not None
+    assert done["narrative_request_id"]
+    assert "repairing" in done["narrative_progress"]
+    assert "RAW_CLASSIFIER_REASON_CANARY" not in payload
+    assert "RAW_CHAT_CANDIDATE_CANARY" not in payload
+    assert "身死" not in payload
+    assert "此局已终" not in payload
+
+
+def test_chat_memory_does_not_cross_into_a_different_game():
+    class _CapturedProvider(FakeProvider):
+        def __init__(self):
+            self.histories: list[list[dict[str, str]]] = []
+
+        async def classify_chat_intent(self, message, state, history):
+            self.histories.append([dict(item) for item in history])
+            return {"intent": "query", "confidence": 1.0, "reason": "test"}
+
+        async def generate_text_once(self, prompt, **kwargs):
+            del prompt, kwargs
+            return GenerationResult(text="仅依据当前世界作答。")
+
+    inner = _CapturedProvider()
+    api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
+    api_state._state = create_initial_state()
+    first = asyncio.run(chat_routes.chat_stream(ChatRequest(message="第一局的秘密")))
+    asyncio.run(_collect_stream_payload(first))
+
+    second_root = worlds.create_game_with_root(create_initial_state())
+    second_snapshot = worlds.load_version(second_root.version_id)
+    api_state._publish_world_head(second_snapshot.state, second_snapshot.ref)
+    second = asyncio.run(chat_routes.chat_stream(ChatRequest(message="第二局现在如何")))
+    asyncio.run(_collect_stream_payload(second))
+
+    assert inner.histories == [[], []]

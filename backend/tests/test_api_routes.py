@@ -5,18 +5,30 @@ import pytest
 from fastapi import HTTPException
 
 from ai.provider import ResilientProvider
+from ai.base import GenerationResult
 from fakes import FakeProvider
 from api import routes
 from api import state as api_state
 from api import settings_routes
 from api import assembly_routes
+from db import narrative_memory, saves, worlds
 from engine.core import inject_script_events
-from models.enums import DecreeType, MinisterStatus, PersonnelAction
+from models.enums import (
+    AssemblyPhase,
+    DecreeType,
+    MemorialStatus,
+    MinisterStatus,
+    PersonnelAction,
+)
 from models.game import (
+    AssemblyParticipant,
     CourtAssembly,
+    DebateMinister,
+    DebateResult,
     FreeformResult,
     GameTime,
     HistoryEntry,
+    Memorial,
     PolicySuggestion,
     StructuredDecree,
     create_initial_state,
@@ -126,8 +138,15 @@ def test_execute_decree_summary_includes_action_implications_for_commentary():
     assert summary is not None
     assert summary["action_implications"]
     assert any("严刑峻法" in item for item in summary["action_implications"])
-    if not summary["major_events"]:
-        assert "朝政有变" in summary["commentary"]
+    assert summary["commentary"] == result["narrative"]
+    assert result["narrative_status"] in {
+        "validated", "repaired", "sanitized", "fallback_facts",
+    }
+    assert result["narrative_path_id"] == "structured_action"
+    assert result["context_version_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"][0] == "context_ready"
+    assert result["narrative_progress"][-1] == "validated"
 
 
 def test_execute_decree_wait_turn_includes_memorial_triggers():
@@ -146,6 +165,87 @@ def test_execute_decree_wait_turn_includes_memorial_triggers():
 
     assert "memorial_triggers" in result
     assert len(result["memorial_triggers"]) >= 1
+
+
+def test_get_state_does_not_generate_or_mutate_placeholder_memorials():
+    class _NoMemorialGenerationProvider(FakeProvider):
+        def __init__(self):
+            self.calls = 0
+
+        async def generate_memorial(self, *args, **kwargs):
+            self.calls += 1
+            raise AssertionError("GET /state must not invoke the provider")
+
+    inner = _NoMemorialGenerationProvider()
+    api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
+    state = create_initial_state()
+    state.memorials.append(Memorial(
+        id="mem-read-only",
+        author_name="无名吏员",
+        author_faction="地方",
+        title="待议奏折",
+        content="待补充奏疏内容。",
+        trigger_reason="测试",
+        urgency="中",
+        created_year=state.time.year,
+        created_month=state.time.month,
+    ))
+    api_state._state = state
+    before = state.model_dump()
+
+    result = asyncio.run(routes.get_state())
+
+    assert inner.calls == 0
+    assert result["memorials"][0]["content"] == "待补充奏疏内容。"
+    assert api_state._state.model_dump() == before
+
+
+def test_resolve_memorial_generates_only_after_committed_settlement(monkeypatch, tmp_path):
+    class _MemorialNarrativeProvider(FakeProvider):
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="奏折批复已按当前世界事实提交。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "memorial-resolution.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    state = create_initial_state()
+    state.memorials.append(Memorial(
+        id="mem-resolve",
+        author_name="无名吏员",
+        author_faction="地方",
+        title="请议赈济",
+        content="待补充奏疏内容。",
+        trigger_reason="灾情",
+        urgency="高",
+        created_year=state.time.year,
+        created_month=state.time.month,
+    ))
+    api_state._state = state
+    api_state._provider = ResilientProvider(
+        _MemorialNarrativeProvider(), timeout=1, retries=1,
+    )
+
+    result = asyncio.run(routes.resolve_memorial(
+        "mem-resolve",
+        routes.MemorialResolveRequest(action="rejected"),
+    ))
+
+    assert result["narrative"] == "奏折批复已按当前世界事实提交。"
+    assert result["narrative_status"] == "validated"
+    assert result["narrative_path_id"] == "memorial"
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] is not None
+    assert result["narrative_artifact_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+    resolved = next(item for item in api_state._state.memorials if item.id == "mem-resolve")
+    assert resolved.status == MemorialStatus.REJECTED
+    assert resolved.resolution_result is not None
+    assert resolved.resolution_result.narrative is None
 
 
 def test_adopt_suggestion_includes_memorial_triggers():
@@ -170,6 +270,343 @@ def test_adopt_suggestion_includes_memorial_triggers():
 
     assert "memorial_triggers" in result
     assert len(result["memorial_triggers"]) >= 1
+    assert result["narrative_path_id"] == "structured_action"
+    assert result["context_version_id"] is not None
+    assert result["settlement_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"][-1] == "validated"
+
+
+def test_convene_suggestions_persist_only_versioned_safe_factors(monkeypatch, tmp_path):
+    class _SuggestionProvider(FakeProvider):
+        async def generate_assembly_debate(self, topic, participants, state):
+            del topic, state
+            return {
+                "consensus": "divided",
+                "chain_of_thought": "RAW_PRIVATE_REASONING",
+                "suggestions": [{
+                    "title": "RAW_PROVIDER_TITLE",
+                    "description": "RAW_PROVIDER_DESCRIPTION",
+                    "decree_type": "disaster_relief",
+                    "supporter_names": [participants[0].name, "RAW_UNKNOWN_SUPPORTER"],
+                }],
+            }
+
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="朝议已按当前版本事实形成候选方案。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "assembly-suggestion.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    api_state._state = _governance_opening_state()
+    api_state._provider = ResilientProvider(_SuggestionProvider(), timeout=1, retries=1)
+
+    result = asyncio.run(assembly_routes.convene_assembly(
+        assembly_routes.ConveneAssemblyRequest(
+            topic="是否赈济灾区",
+            decree_type=DecreeType.DISASTER_RELIEF.value,
+        ),
+    ))
+
+    suggestion = result["suggestions"][0]
+    assert result["narrative_path_id"] == "assembly_debate"
+    assert result["context_version_id"] is not None
+    assert result["settlement_id"] is not None
+    assert result["narrative_artifact_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+    assert suggestion["suggestion_id"]
+    assert suggestion["source_game_id"] == api_state._state.world_metadata.game_id
+    assert suggestion["source_branch_id"] == api_state._state.world_metadata.branch_id
+    assert suggestion["source_version_id"] is not None
+    assert suggestion["source_version_id"] != api_state._state.world_metadata.version_id
+    assert suggestion["supporter_names"] == [result["participants"][0]["name"]]
+    assert {factor["label"] for factor in suggestion["rationale_factors"]} >= {
+        "来源版本", "当前议题", "政令类型", "当前在朝支持者",
+    }
+    serialized = str(result)
+    assert "RAW_PRIVATE_REASONING" not in serialized
+    assert "RAW_PROVIDER_TITLE" not in serialized
+    assert "RAW_PROVIDER_DESCRIPTION" not in serialized
+    assert "RAW_UNKNOWN_SUPPORTER" not in serialized
+
+
+def test_adopt_suggestion_rejects_nonancestor_source_before_effects(monkeypatch, tmp_path):
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "stale-suggestion.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    current_root = worlds.create_game_with_root(_governance_opening_state())
+    foreign_root = worlds.create_game_with_root(_governance_opening_state())
+    current = worlds.load_version(current_root.version_id)
+    state = current.state.model_copy(deep=True)
+    state.last_assembly = CourtAssembly(
+        topic="跨世界候选",
+        decree_type=DecreeType.DISASTER_RELIEF,
+        suggestions=[PolicySuggestion(
+            title="错误来源候选",
+            description="不得采用",
+            related_decree=StructuredDecree(type=DecreeType.DISASTER_RELIEF),
+            suggestion_id="foreign-suggestion",
+            source_game_id=foreign_root.game_id,
+            source_branch_id=foreign_root.branch_id,
+            source_version_id=foreign_root.version_id,
+        )],
+    )
+    api_state._publish_world_head(state, current.ref)
+    api_state._provider = _fake_provider()
+    before = api_state._state.model_dump()
+
+    from api.schemas import AdoptSuggestionRequest
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(assembly_routes.adopt_suggestion(
+            AdoptSuggestionRequest(suggestion_index=0),
+        ))
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["error_code"] == "stale_suggestion_source"
+    assert api_state._state.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    ("mode", "edited_text", "expected_intent"),
+    [
+        ("original", None, "朝议方案1"),
+        ("edited", "暂缓急征，先清查民户后分区加征", "暂缓急征，先清查民户后分区加征"),
+    ],
+)
+def test_adopt_stale_ancestor_re_evaluates_current_world_before_new_settlement(
+    monkeypatch,
+    tmp_path,
+    mode,
+    edited_text,
+    expected_intent,
+):
+    class _CurrentSettlementProvider(FakeProvider):
+        def __init__(self):
+            super().__init__()
+            self.prompts: list[str] = []
+
+        async def generate_text_once(self, prompt, **kwargs):
+            self.prompts.append(prompt)
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="政令已依据当前世界结算执行，旧候选并未预定结果。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / f"suggestion-{mode}.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    provider = _CurrentSettlementProvider()
+    api_state._provider = ResilientProvider(provider, timeout=1, retries=1)
+
+    root = worlds.create_game_with_root(_governance_opening_state())
+    snapshot = worlds.load_version(root.version_id)
+    state = snapshot.state.model_copy(deep=True)
+    supporter = next(
+        entity
+        for entity in state.entity_registry.values()
+        if entity.entity_type == "person" and entity.status == "active" and entity.available
+    )
+    suggestion = PolicySuggestion(
+        title="朝议方案1",
+        description="这是行动建议而非结果承诺；提交后将依据当前世界重新结算。",
+        related_decree=StructuredDecree(type=DecreeType.TAX_DECREASE),
+        supporter_names=[supporter.display_name],
+        suggestion_id="versioned-suggestion",
+        source_game_id=snapshot.ref.game_id,
+        source_branch_id=snapshot.ref.branch_id,
+        source_version_id=snapshot.ref.version_id,
+        rationale_factors=assembly_routes._suggestion_rationale(
+            state=state,
+            topic="是否加征赋税",
+            decree_type=DecreeType.TAX_DECREASE,
+            supporter_names=[supporter.display_name],
+        ),
+    )
+    state.last_assembly = CourtAssembly(
+        topic="是否加征赋税",
+        decree_type=DecreeType.TAX_DECREASE,
+        suggestions=[suggestion],
+    )
+    api_state._publish_world_head(state, snapshot.ref)
+
+    changed = state.model_copy(deep=True)
+    old_treasury = changed.national_treasury
+    changed.national_treasury += 7
+    changed = asyncio.run(api_state._set_state(
+        changed,
+        action_kind="test_world_change",
+        raw_text="候选生成后世界发生变化",
+    ))
+    evaluation_version_id = changed.world_metadata.version_id
+    assert evaluation_version_id != suggestion.source_version_id
+
+    from api.schemas import AdoptSuggestionRequest
+    result = asyncio.run(assembly_routes.adopt_suggestion(AdoptSuggestionRequest(
+        mode=mode,
+        suggestion_index=0,
+        suggestion_id=suggestion.suggestion_id,
+        source_version_id=suggestion.source_version_id,
+        edited_text=edited_text,
+    )))
+
+    assert result["suggestion_adoption_mode"] == mode
+    assert result["suggestion_was_stale"] is True
+    assert result["suggestion_source_version_id"] == str(suggestion.source_version_id)
+    assert result["suggestion_evaluation_version_id"] == str(evaluation_version_id)
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] != str(suggestion.source_version_id)
+    assert result["narrative"] == "政令已依据当前世界结算执行，旧候选并未预定结果。"
+    assert expected_intent in "\n".join(provider.prompts)
+    current_factors = result["suggestion_rationale_factors"]
+    assert next(f for f in current_factors if f["label"] == "来源版本")["value"] == str(evaluation_version_id)
+    assert next(f for f in current_factors if f["label"] == "当前国库")["value"] == str(old_treasury + 7)
+
+
+def test_adopt_free_input_uses_canonical_freeform_settlement(monkeypatch, tmp_path):
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "suggestion-free-input.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    api_state._state = _governance_opening_state()
+    api_state._provider = _fake_provider()
+
+    from api.schemas import AdoptSuggestionRequest
+    result = asyncio.run(assembly_routes.adopt_suggestion(AdoptSuggestionRequest(
+        mode="free_input",
+        free_text="加征商税，先补充军饷",
+    )))
+
+    assert result["suggestion_adoption_mode"] == "free_input"
+    assert result["suggestion_id"] is None
+    assert result["narrative_path_id"] == "freeform_action"
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] is not None
+    assert result["suggestion_rationale_factors"] == []
+
+
+def test_assembly_debate_discards_raw_speeches_and_returns_postcommit_artifact(
+    monkeypatch,
+    tmp_path,
+):
+    class _AssemblyProvider(FakeProvider):
+        async def generate_debate_speeches(self, topic, ministers, state):
+            del topic, state
+            return [
+                {
+                    "minister_name": minister.name,
+                    "faction": "RAW_FACTION_OVERRIDE",
+                    "content": f"RAW_ASSEMBLY_{index}",
+                    "stance": "赞成" if index == 0 else "反对",
+                }
+                for index, minister in enumerate(ministers)
+            ]
+
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="朝臣立场已按当前在朝名单汇总，裁断仍归主公。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "assembly-debate.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    state = _governance_opening_state()
+    active = [item for item in state.ministers if item.status == MinisterStatus.ACTIVE][:3]
+    assert len(active) >= 3
+    state.last_assembly = CourtAssembly(
+        phase=AssemblyPhase.PETITION,
+        participants=[
+            AssemblyParticipant(
+                name=item.name,
+                faction=item.faction,
+                position=item.positions[0] if item.positions else "朝臣",
+                argument_text="",
+            )
+            for item in active
+        ],
+    )
+    api_state._state = state
+    api_state._provider = ResilientProvider(_AssemblyProvider(), timeout=1, retries=1)
+
+    result = asyncio.run(assembly_routes.assembly_debate(
+        assembly_routes.AssemblyDebateRequest(topic="是否整饬军纪"),
+    ))
+
+    assert result["debate_text"] == "朝臣立场已按当前在朝名单汇总，裁断仍归主公。"
+    assert "RAW_ASSEMBLY" not in str(result)
+    assert result["narrative_status"] == "validated"
+    assert result["narrative_path_id"] == "assembly_debate"
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] is not None
+    assert result["narrative_artifact_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+    assert len(result["suggestions"]) == 1
+    assert result["suggestions"][0]["suggestion_id"]
+    assert result["suggestions"][0]["source_version_id"] is not None
+    assert "结果承诺" in result["suggestions"][0]["description"]
+    assert api_state._state.last_assembly.debate_text == ""
+    assert all(speech.content == "" for speech in api_state._state.last_assembly.speeches)
+    assert [speech.faction for speech in api_state._state.last_assembly.speeches] == [
+        item.faction for item in active
+    ]
+
+
+def test_legacy_debate_start_returns_canonical_text_only(monkeypatch, tmp_path):
+    class _LegacyDebateProvider(FakeProvider):
+        async def generate_debate_narrative(self, topic, minister_a, minister_b, state):
+            del topic, state
+            return DebateResult(
+                debate_text="RAW_LEGACY_DEBATE",
+                minister_a=DebateMinister(
+                    name=minister_a.name,
+                    faction=minister_a.faction,
+                    position_summary="RAW_POSITION_A",
+                ),
+                minister_b=DebateMinister(
+                    name=minister_b.name,
+                    faction=minister_b.faction,
+                    position_summary="RAW_POSITION_B",
+                ),
+                option_a=StructuredDecree(type=DecreeType.TAX_INCREASE),
+                option_b=StructuredDecree(type=DecreeType.TAX_DECREASE),
+                keywords=["RAW_KEYWORD"],
+            )
+
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="两位参议者的结构化方案已提交，仍待主公裁断。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "legacy-debate.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    api_state._state = _governance_opening_state()
+    api_state._provider = ResilientProvider(_LegacyDebateProvider(), timeout=1, retries=1)
+    category = DecreeType.TAX_INCREASE.value
+    topic = routes.DEBATE_TOPICS[category][0]["topic"]
+
+    result = asyncio.run(routes.start_debate(
+        routes.DebateStartRequest(category=category, topic=topic),
+    ))
+
+    assert result["debate_text"] == "两位参议者的结构化方案已提交，仍待主公裁断。"
+    assert "RAW_" not in str(result)
+    assert result["minister_a"]["position_summary"] == "提出结构化方案甲"
+    assert result["minister_b"]["position_summary"] == "提出结构化方案乙"
+    assert result["narrative_status"] == "validated"
+    assert result["narrative_path_id"] == "assembly_debate"
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] is not None
+    assert result["narrative_artifact_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
 
 
 def test_split_stream_sentences_preserves_sentence_boundaries():
@@ -197,14 +634,15 @@ def test_execute_decree_stream_emits_final_event():
     assert "event: narrative" in payload
 
 
-def test_execute_decree_stream_emits_provider_token_chunks():
+def test_execute_decree_stream_buffers_provider_tokens_until_validation():
     class _TokenStreamFakeProvider(FakeProvider):
-        async def generate_narrative(self, *a, **kw) -> str:
-            return "甲乙"
+        async def generate_text_once(self, prompt, **kw):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kw)
+            return GenerationResult(text="甲乙")
 
         async def stream_narrative(self, *a, **kw):
-            yield "甲"
-            yield "乙"
+            raise AssertionError("legacy provider stream must not be called")
 
     api_state._provider = ResilientProvider(_TokenStreamFakeProvider(), timeout=1, retries=1)
     api_state._state = create_initial_state()
@@ -219,19 +657,59 @@ def test_execute_decree_stream_emits_provider_token_chunks():
         return "".join(parts)
 
     payload = asyncio.run(_collect_stream())
-    assert payload.count("event: narrative") >= 2
-    assert "\"chunk\": \"甲\"" in payload
-    assert "\"chunk\": \"乙\"" in payload
+    assert payload.count("event: narrative") == 1
+    assert "\"stage\": \"validated\"" in payload
+    assert "\"chunk\": \"甲乙\"" in payload
+
+
+def test_execute_decree_stream_never_exposes_invalid_candidate_before_repair():
+    class _InvalidThenRepairProvider(FakeProvider):
+        async def generate_text_once(self, prompt, **kw):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kw)
+            text = (
+                "朝廷已按当前状态执行政令。"
+                if "REPAIR_REQUIREMENTS=" in prompt
+                else "徐达：臣仍在主持军务。"
+            )
+            return GenerationResult(text=text)
+
+        async def stream_narrative(self, *a, **kw):
+            raise AssertionError("legacy provider stream must not be called")
+
+    api_state._provider = ResilientProvider(_InvalidThenRepairProvider(), timeout=1, retries=1)
+    state = create_initial_state()
+    minister = next(item for item in state.ministers if item.name == "徐达")
+    minister.status = MinisterStatus.REMOVED
+    api_state._state = state
+
+    req = routes.DecreeRequest(
+        decrees=[StructuredDecree(type=DecreeType.HARSH_PUNISHMENT)],
+    )
+    stream_response = asyncio.run(routes.execute_decree_stream(req))
+
+    async def _collect_stream():
+        parts: list[str] = []
+        async for chunk in stream_response.body_iterator:
+            parts.append(chunk.decode() if isinstance(chunk, bytes) else str(chunk))
+        return "".join(parts)
+
+    payload = asyncio.run(_collect_stream())
+    assert "臣仍在主持军务" not in payload
+    assert "\"chunk\": \"徐达" not in payload
+    assert "朝廷已按当前状态执行政令。" in payload
+    assert payload.index("\"stage\": \"validated\"") < payload.index("event: narrative")
 
 
 def test_execute_decree_stream_emits_fallback_narrative_chunk():
     class _EmptyStreamFakeProvider(FakeProvider):
-        async def generate_narrative(self, *a, **kw) -> str:
-            return "整段叙事"
+        async def generate_text_once(self, prompt, **kw):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kw)
+            return GenerationResult(text="整段叙事")
 
         async def stream_narrative(self, *a, **kw):
-            if False:
-                yield ""
+            raise AssertionError("legacy provider stream must not be called")
 
     api_state._provider = ResilientProvider(_EmptyStreamFakeProvider(), timeout=1, retries=1)
     api_state._state = create_initial_state()
@@ -469,6 +947,157 @@ def test_minister_dialogue_returns_503_when_ai_fails(monkeypatch):
 
     assert exc_info.value.status_code == 503
     assert exc_info.value.detail["error_code"] == "dialogue_generation_failed"
+
+
+def test_minister_dialogue_uses_person_scoped_postcommit_narrative(monkeypatch, tmp_path):
+    class _DialogueProvider(FakeProvider):
+        async def generate_minister_dialogue(self, *args, **kwargs):
+            return {
+                "reply": "RAW_DIALOGUE_CANDIDATE",
+                "loyalty_change": 2,
+                "mood": "support",
+            }
+
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="臣已依当前事实回应，后续仍待主公裁断。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "dialogue.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    api_state._provider = ResilientProvider(_DialogueProvider(), timeout=1, retries=1)
+    api_state._state = _governance_opening_state()
+    minister = next(item for item in api_state._state.ministers if item.status == MinisterStatus.ACTIVE)
+    loyalty_before = minister.loyalty
+
+    result = asyncio.run(routes.minister_dialogue(
+        minister.name,
+        routes.DialogueRequest(message="可愿继续辅政？"),
+    ))
+
+    assert result["reply"] == "臣已依当前事实回应，后续仍待主公裁断。"
+    assert "RAW_DIALOGUE_CANDIDATE" not in str(result)
+    assert result["loyalty_change"] == 2
+    assert result["narrative_status"] == "validated"
+    assert result["narrative_path_id"] == "entity_dialogue"
+    assert result["settlement_id"] is not None
+    assert result["context_version_id"] is not None
+    assert result["narrative_artifact_id"] is not None
+    assert result["narrative_request_id"]
+    assert result["narrative_progress"] == [
+        "context_ready", "generating", "validating", "validated",
+    ]
+    committed_minister = next(
+        item for item in api_state._state.ministers if item.name == minister.name
+    )
+    assert committed_minister.loyalty == loyalty_before + 2
+    assert api_state._state.minister_conversations.get(minister.name, []) == []
+
+    person = next(
+        item for item in api_state._state.entity_registry.values()
+        if item.entity_type == "person" and item.display_name == minister.name
+    )
+    ref = api_state._get_world_head_ref()
+    memories = narrative_memory.list_visible_memories(
+        game_id=ref.game_id,
+        branch_id=ref.branch_id,
+        version_id=ref.version_id,
+        mode="dialogue",
+        topic_id=f"dialogue:{minister.name}:default",
+        person_entity_id=person.entity_id,
+        current_phase=api_state._state.phase,
+        current_chapter=api_state._state.chapter,
+    )
+    assert [(item.role, item.content) for item in memories] == [
+        ("user", "可愿继续辅政？"),
+        ("assistant", "臣已依当前事实回应，后续仍待主公裁断。"),
+    ]
+
+
+def test_dynamic_dialogue_actor_uses_registry_capability_and_ended_actor_is_rejected(
+    monkeypatch,
+    tmp_path,
+):
+    from models.world import (
+        ENTITY_DIALOGUE_CAPABILITY,
+        EntitySource,
+        PermissionReference,
+        PersonEntity,
+        new_entity_id,
+        new_permission_id,
+    )
+
+    class _DynamicDialogueProvider(FakeProvider):
+        seen_actor = None
+
+        async def generate_minister_dialogue(self, minister, *args, **kwargs):
+            self.seen_actor = minister.name
+            return {
+                "reply": "RAW_DYNAMIC_DIALOGUE",
+                "loyalty_change": 3,
+                "mood": "support",
+            }
+
+        async def generate_text_once(self, prompt, **kwargs):
+            if "ACTION_INTENT=" in prompt:
+                return await super().generate_text_once(prompt, **kwargs)
+            return GenerationResult(text="新任参议依当前世界事实作答，仍可继续共商后路。")
+
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "dynamic-dialogue.db")
+    saves.init_db()
+    api_state._world_head_cache.clear()
+    state = _governance_opening_state()
+    source = EntitySource(kind="adjudication", summary="当前分支推举的新人物")
+    active_id = new_entity_id()
+    ended_id = new_entity_id()
+    state.entity_registry = {
+        active_id: PersonEntity(
+            entity_id=active_id,
+            display_name="新任参议",
+            roles=["参议"],
+            source=source,
+            permissions=[PermissionReference(
+                permission_id=new_permission_id(),
+                capability=ENTITY_DIALOGUE_CAPABILITY,
+            )],
+        ),
+        ended_id: PersonEntity(
+            entity_id=ended_id,
+            display_name="已故旧臣",
+            status="ended",
+            available=False,
+            source=source,
+            permissions=[PermissionReference(
+                permission_id=new_permission_id(),
+                capability=ENTITY_DIALOGUE_CAPABILITY,
+            )],
+        ),
+    }
+    provider = _DynamicDialogueProvider()
+    api_state._provider = ResilientProvider(provider, timeout=1, retries=1)
+    api_state._state = state
+
+    result = asyncio.run(routes.minister_dialogue(
+        str(active_id),
+        routes.DialogueRequest(message="请陈述当前方略。"),
+    ))
+
+    assert provider.seen_actor == "新任参议"
+    assert result["reply"] == "新任参议依当前世界事实作答，仍可继续共商后路。"
+    assert result["loyalty_change"] == 0
+    assert result["narrative_path_id"] == "entity_dialogue"
+    assert str(active_id) in {
+        str(entity_id) for entity_id in result["state"]["entity_registry"]
+    }
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(routes.minister_dialogue(
+            str(ended_id),
+            routes.DialogueRequest(message="旧臣可还在？"),
+        ))
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["error_code"] == "entity_not_available"
 
 
 # ── 10.10 200-char limit boundary test ──

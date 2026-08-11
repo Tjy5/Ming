@@ -8,10 +8,11 @@ from ai.provider import ResilientProvider
 from fakes import FakeProvider
 from api import state as api_state
 from api import trpg as trpg_routes
+from db import narrative_memory, worlds
 from db import saves as db_saves
 from db.saves import IncompatibleSaveError, _migrate_save, load_game
 from engine.calendar import set_game_time_projection
-from models.game import GameState, create_initial_state
+from models.game import GameState, HistoryEntry, create_initial_state
 from models.trpg import (
     ATTR_KEYS,
     PLAYER_NAME,
@@ -26,14 +27,19 @@ from trpg import chapter, character, dice, gm, modifiers
 
 
 @pytest.fixture(autouse=True)
-def _restore_globals():
+def _restore_globals(monkeypatch, tmp_path):
     old_state = api_state._state
     old_provider = api_state._provider
+    old_ref = api_state._get_world_head_ref()
+    monkeypatch.setattr(db_saves, "DB_PATH", tmp_path / "trpg-tests.db")
+    db_saves.init_db()
+    api_state._world_head_cache.clear()
     try:
         yield
     finally:
         api_state._state = old_state
         api_state._provider = old_provider
+        api_state._world_head_cache.restore_ref(old_ref)
         dice.set_seed(None)
 
 
@@ -449,6 +455,32 @@ class TestGM:
         })
         assert gm.parse_gm_response(too_few) is None
 
+    def test_parse_rejects_unsafe_or_unbound_player_visible_options(self):
+        base = {
+            "narrative": "当前行动已完成检定。",
+            "options": [
+                {"option_id": "a", "label": "甲"},
+                {"option_id": "b", "label": "乙"},
+                {"option_id": "c", "label": "丙"},
+            ],
+        }
+
+        unknown_milestone = json.loads(json.dumps(base, ensure_ascii=False))
+        unknown_milestone["options"][0]["milestone_id"] = "not-a-real-milestone"
+        assert gm.parse_gm_response(json.dumps(unknown_milestone, ensure_ascii=False)) is None
+
+        duplicate_id = json.loads(json.dumps(base, ensure_ascii=False))
+        duplicate_id["options"][1]["option_id"] = "a"
+        assert gm.parse_gm_response(json.dumps(duplicate_id, ensure_ascii=False)) is None
+
+        terminal_promise = json.loads(json.dumps(base, ensure_ascii=False))
+        terminal_promise["options"][0]["description"] = "选择后主角身亡，此局已终。"
+        assert gm.parse_gm_response(json.dumps(terminal_promise, ensure_ascii=False)) is None
+
+        oversized = json.loads(json.dumps(base, ensure_ascii=False))
+        oversized["options"][0]["label"] = "甲" * (gm.MAX_OPTION_LABEL_LENGTH + 1)
+        assert gm.parse_gm_response(json.dumps(oversized, ensure_ascii=False)) is None
+
     def test_parse_keeps_optional_milestone_id(self):
         """AI 选项可携带 milestone_id（前端据此调 complete 端点而非 /act）。"""
         raw = json.dumps({
@@ -548,7 +580,22 @@ class TestApi:
         state = api_state._state
         assert state.chapter_turns == 1
         assert state.history_log[-1].decree_type == "trpg_act"
+        assert state.history_log[-1].narrative == ""
         assert len(state.growth_log) == 1
+        assert resp["settlement_id"] is not None
+        assert resp["context_version_id"] is not None
+        assert resp["narrative_path_id"] == "trpg_gm_action"
+        assert resp["narrative_request_id"]
+        assert resp["narrative_progress"][0] == "context_ready"
+        assert resp["narrative_progress"][-1] == "validated"
+        assert resp["narrative_status"] in {
+            "validated", "repaired", "sanitized", "fallback_facts",
+        }
+        facts = worlds.get_settlement(resp["settlement_id"])
+        assert len(facts.rolls) == 1
+        assert facts.rolls[0].raw_d100 == resp["roll"]["roll"]
+        assert facts.rolls[0].target_value == resp["roll"]["target"]
+        assert facts.rolls[0].result_tier == resp["roll"]["tier"]
 
     def test_act_deterministic_with_same_seed(self):
         api_state._provider = _fake_provider()
@@ -562,7 +609,65 @@ class TestApi:
         dice.set_seed(2026)
         second = asyncio.run(trpg_routes.act(req))
 
-        assert first == second  # 同输入同输出（骰子+规则回退全确定性）
+        deterministic_fields = {
+            "roll", "options", "state_changes", "state_changes_result", "source",
+            "option_id", "phase", "chapter", "chapter_title", "chapter_turns",
+            "pacing", "frozen", "growth", "convergence_hook", "time",
+            "narrative_status", "narrative_progress",
+        }
+        assert {
+            key: first[key] for key in deterministic_fields
+        } == {
+            key: second[key] for key in deterministic_fields
+        }
+
+    def test_act_uses_durable_trpg_memory_instead_of_history_log(self):
+        class _CapturedProvider(FakeProvider):
+            def __init__(self):
+                self.prompts: list[str] = []
+
+            async def chat_query(self, text, game_state, history):
+                del game_state, history
+                self.prompts.append(text)
+                return "not-json"
+
+            async def generate_text_once(self, prompt, **kwargs):
+                if "ACTION_INTENT=" in prompt:
+                    return await super().generate_text_once(prompt, **kwargs)
+                from ai.base import GenerationResult
+                return GenerationResult(text="行动已按公开检定与已提交事实推进。")
+
+        inner = _CapturedProvider()
+        api_state._provider = ResilientProvider(inner, timeout=1, retries=1)
+        state = create_initial_state()
+        state.history_log.append(HistoryEntry(
+            year=state.time.year,
+            month=state.time.month,
+            decree_type="trpg_act",
+            narrative="LEGACY_HISTORY_LEAK",
+        ))
+        api_state._state = state
+
+        first = asyncio.run(trpg_routes.act(ActRequest(action_text="查看村外动静")))
+        second = asyncio.run(trpg_routes.act(ActRequest(action_text="继续沿山路探查")))
+
+        assert "最近剧情摘要" not in inner.prompts[0]
+        assert first["narrative"] in inner.prompts[1]
+        assert "LEGACY_HISTORY_LEAK" not in "\n".join(inner.prompts)
+        ref = api_state._get_world_head_ref()
+        memories = narrative_memory.list_visible_memories(
+            game_id=ref.game_id,
+            branch_id=ref.branch_id,
+            version_id=ref.version_id,
+            mode="trpg",
+            topic_id="trpg",
+            current_phase=api_state._state.phase,
+            current_chapter=api_state._state.chapter,
+        )
+        assert [item.role for item in memories] == [
+            "user", "assistant", "user", "assistant",
+        ]
+        assert str(second["context_version_id"]) == str(ref.version_id)
 
     def test_act_explicit_attr_and_default(self):
         api_state._provider = _fake_provider()

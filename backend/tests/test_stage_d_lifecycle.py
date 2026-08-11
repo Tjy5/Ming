@@ -336,13 +336,12 @@ class TestConvergence:
         assert len(saves) == 1
         assert "收束切换快照" in saves[0]["name"]
 
-    def test_converge_refuse_defeat_branch(self):
+    def test_converge_refuse_remains_nonterminal_without_committed_death(self):
         api_state._state = self._warlord_at_1360()
         resp = asyncio.run(trpg_routes.converge(ConvergeRequest(choice="refuse")))
 
         assert resp["choice"] == "refuse"
-        assert resp["game_over"] is not None
-        assert resp["game_over"]["result"] == "defeat"
+        assert resp["game_over"] is None
         assert resp["phase"] == "life_story"
         assert resp["converged_milestone"] is None
 
@@ -352,8 +351,9 @@ class TestConvergence:
         assert state.time.year == 1360
         entry = state.history_log[-1]
         assert entry.decree_type == "trpg_act"
-        assert "身死" in entry.narrative
-        # 结局不持久化（同治理侧口径）：重载后收束钩子仍可再触发
+        assert "流亡" in entry.narrative
+        assert all(word not in entry.narrative for word in ("身死", "殒没", "困毙"))
+        # 拒绝不会伪造终局；收束钩子仍可在后续行动中再次提供当前选择。
         assert chapter_mod.check_convergence_hook(state) is not None
 
     def test_converge_without_pending_hook_409(self):

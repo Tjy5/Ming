@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, request } from '../api/client'
+import { api, ApiError, request } from '../api/client'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -44,5 +44,37 @@ describe('API client safe error normalization', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new DOMException('aborted', 'AbortError'))
 
     await expect(request('/settings/ai/test')).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('retains canonical context and generation path metadata from chat SSE', async () => {
+    const payload = {
+      reply: '当前世界仍按已提交事实继续。',
+      state: {},
+      effects_applied: false,
+      narrative_context_path_id: 'ordinary_chat',
+      narrative_path_id: 'chat_sse',
+      narrative_status: 'validated',
+      context_version_id: '00000000-0000-0000-0000-000000000001',
+      settlement_id: null,
+      narrative_artifact_id: '00000000-0000-0000-0000-000000000002',
+      narrative_request_id: 'chat-request-1',
+      narrative_progress: ['context_ready', 'generating', 'validating', 'validated'],
+    }
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      `event: done\ndata: ${JSON.stringify(payload)}\n\n`,
+      { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
+    ))
+
+    const events: unknown[] = []
+    const done = await api.chatStream('当前局势如何', event => events.push(event))
+
+    expect(done).toMatchObject({
+      narrative_context_path_id: 'ordinary_chat',
+      narrative_path_id: 'chat_sse',
+      narrative_status: 'validated',
+      narrative_request_id: 'chat-request-1',
+      narrative_progress: ['context_ready', 'generating', 'validating', 'validated'],
+    })
+    expect(events).toHaveLength(1)
   })
 })

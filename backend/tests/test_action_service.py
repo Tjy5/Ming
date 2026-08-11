@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+import sqlite3
 from types import SimpleNamespace
 
 import pytest
@@ -29,6 +30,7 @@ from models.settlement import (
     EntityWorldDelta,
     FieldChange,
     MetricWorldDelta,
+    PlayerWorldDelta,
 )
 from models.world import (
     Duration,
@@ -76,6 +78,35 @@ def _proposal(before: int, *, value: int = 1) -> AdjudicationProposal:
                 operation="increment",
                 before_value=before,
                 value=value,
+            ),
+        ],
+    )
+
+
+def _death_proposal(
+    intent: ActionIntent,
+    *,
+    direct_cause: str = "亲临前线时遭敌军伏击重创",
+    key_factors: list[str] | None = None,
+) -> AdjudicationProposal:
+    factors = list(key_factors or ["主角亲自进入高危战场", "护卫已被敌军切断"])
+    return AdjudicationProposal(
+        result_tier="failure",
+        key_factors=factors,
+        immediate_changes=["主角死亡，当前世界线终止"],
+        execution_status="failed",
+        duration_candidate=Duration(unit="hour", value=3),
+        duration_reason="伏击与突围持续三小时",
+        deltas=[
+            PlayerWorldDelta(
+                delta_id=new_delta_id(),
+                operation="death",
+                before_value="alive",
+                value="dead",
+                trigger_action=intent.client_action_id,
+                direct_cause=direct_cause,
+                key_factors=factors,
+                causal_summary=f"本次行动直接导致：{direct_cause}",
             ),
         ],
     )
@@ -345,6 +376,123 @@ def test_duration_and_world_delta_commit_atomically(monkeypatch, tmp_path):
     assert execution.result.facts.deltas[-1].delta_type == "elapsed_state_patch"
 
 
+def test_ordinary_validation_and_application_cannot_bypass_terminal_contract():
+    state = create_initial_state()
+    from models.world import new_branch_id, new_game_id, new_version_id
+
+    root_like = SimpleNamespace(
+        game_id=new_game_id(),
+        branch_id=new_branch_id(),
+        version_id=new_version_id(),
+    )
+    intent = _intent(root_like, text="孤身冲入敌阵")
+    proposal = _death_proposal(intent)
+
+    with pytest.raises(SettlementValidationError) as validation_error:
+        validate_adjudication_proposal(intent, state, proposal)
+    assert validation_error.value.code == "terminal_contract_unavailable"
+
+    with pytest.raises(SettlementValidationError) as application_error:
+        apply_world_deltas(state, proposal.deltas)
+    assert application_error.value.code == "terminal_contract_unavailable"
+
+
+@pytest.mark.parametrize(
+    ("action_text", "direct_cause", "factors"),
+    [
+        (
+            "亲率轻骑冲击敌军中军",
+            "突击敌军中军时被乱箭贯穿胸腹",
+            ["主角亲自进入箭阵", "护卫阵形已经溃散"],
+        ),
+        (
+            "被俘后拒绝交出城防密令",
+            "被俘后因拒绝投降而遭敌军处决",
+            ["主角已被敌军拘押", "交涉彻底破裂"],
+        ),
+        (
+            "染疫仍连续巡视隔离营",
+            "重疫恶化并在缺医少药的隔离营中死亡",
+            ["主角持续暴露于疫区", "当前药材储备不足"],
+        ),
+    ],
+)
+def test_terminal_action_commits_death_record_and_replays_once(
+    monkeypatch,
+    tmp_path,
+    action_text,
+    direct_cause,
+    factors,
+):
+    _initial, root = _store(monkeypatch, tmp_path)
+    intent = _intent(root, text=action_text)
+    adjudicator = _StaticAdjudicator(
+        _death_proposal(intent, direct_cause=direct_cause, key_factors=factors),
+    )
+    service = ActionService(adjudicator=adjudicator)
+
+    committed = service.execute_sync(intent)
+    replayed = service.execute_sync(intent)
+
+    status = committed.state.player_world_status
+    assert status.life_status == "dead"
+    assert status.terminal_settlement_id == committed.result.facts.settlement_id
+    assert status.terminal_version_id == committed.result.version.version_id
+    terminal = worlds.get_terminal_record(committed.result.facts.settlement_id)
+    assert terminal.trigger_action == intent.client_action_id
+    assert terminal.direct_cause == direct_cause
+    assert terminal.key_factors == factors
+    assert terminal.version_id == committed.result.version.version_id
+    assert replayed.result.replayed is True
+    assert replayed.state == committed.state
+    assert adjudicator.calls == 1
+    assert len(worlds.list_settlements(root.game_id, root.branch_id)) == 1
+    assert len(worlds.list_versions(root.game_id, root.branch_id)) == 2
+
+    next_intent = _intent(
+        committed.result.version,
+        action_id=new_client_action_id(),
+        text="死亡后继续下一回合",
+    )
+    with pytest.raises(worlds.WorldTerminalStateError):
+        service.execute_sync(next_intent)
+    assert len(worlds.list_settlements(root.game_id, root.branch_id)) == 1
+
+
+def test_terminal_record_insert_failure_rolls_back_all_rows_and_allows_retry(
+    monkeypatch,
+    tmp_path,
+):
+    initial, root = _store(monkeypatch, tmp_path)
+    intent = _intent(root, text="孤身断后")
+    service = ActionService(adjudicator=_StaticAdjudicator(_death_proposal(intent)))
+
+    def _fail_terminal_insert(*_args, **_kwargs):
+        raise sqlite3.OperationalError("injected terminal insert failure")
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(worlds, "_insert_terminal_record", _fail_terminal_insert)
+        with pytest.raises(worlds.WorldStorageError):
+            service.execute_sync(intent)
+
+    assert worlds.get_branch_head(root.game_id, root.branch_id) == root
+    assert worlds.load_branch_head(root.game_id, root.branch_id).state == initial
+    assert worlds.list_settlements(root.game_id, root.branch_id) == []
+    assert len(worlds.list_versions(root.game_id, root.branch_id)) == 1
+    assert worlds.get_action_request(
+        root.game_id,
+        root.branch_id,
+        intent.client_action_id,
+    ) is None
+    with saves._connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM terminal_records").fetchone()[0] == 0
+
+    retried = service.execute_sync(intent)
+    assert retried.state.player_world_status.life_status == "dead"
+    with saves._connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM terminal_records").fetchone()[0] == 1
+
+
 @pytest.mark.parametrize(
     ("proposal", "expected_code"),
     [
@@ -449,14 +597,70 @@ def test_public_action_http_path_runs_ai_db_reload_and_replay(monkeypatch, tmp_p
     assert first.status_code == 200, first.text
     assert replay.status_code == 200, replay.text
     assert conflict.status_code == 409, conflict.text
-    assert first.json()["result"]["replayed"] is False
-    assert replay.json()["result"]["replayed"] is True
-    assert first.json()["state"]["consecutive_waits"] == 1
+    first_payload = first.json()
+    replay_payload = replay.json()
+    assert first_payload["result"]["replayed"] is False
+    assert replay_payload["result"]["replayed"] is True
+    assert first_payload["state"]["consecutive_waits"] == 1
+    assert first_payload["narrative"]["path_id"] == "unified_action"
+    assert first_payload["narrative"]["context_version_id"] == first_payload["result"]["version"]["version_id"]
+    assert first_payload["narrative"]["request_id"]
+    assert first_payload["narrative"]["progress_stages"][0] == "context_ready"
+    assert first_payload["narrative"]["progress_stages"][-1] == "validated"
     assert adjudicator.calls == 1
     assert conflict.json()["detail"]["error_code"] == "idempotency_conflict"
     reloaded = worlds.load_branch_head(root.game_id, root.branch_id)
-    assert str(reloaded.ref.version_id) == first.json()["result"]["version"]["version_id"]
+    assert str(reloaded.ref.version_id) == first_payload["result"]["version"]["version_id"]
     assert reloaded.state.consecutive_waits == 1
+
+
+def test_public_terminal_action_returns_committed_cause_and_blocks_next_action(
+    monkeypatch,
+    tmp_path,
+):
+    _initial, root = _store(monkeypatch, tmp_path)
+    intent = _intent(root, text="孤军突围并亲自断后")
+    cause = "断后时被追兵长矛刺中要害"
+    service = ActionService(
+        adjudicator=_StaticAdjudicator(
+            _death_proposal(
+                intent,
+                direct_cause=cause,
+                key_factors=["主角独自留在狭窄谷口", "援军尚未抵达"],
+            ),
+        ),
+    )
+    set_action_service_for_testing(service)
+    try:
+        with TestClient(app) as client:
+            terminal = client.post(
+                "/api/actions",
+                json=intent.model_dump(mode="json"),
+            )
+            assert terminal.status_code == 200, terminal.text
+            terminal_payload = terminal.json()
+            next_intent = _intent(
+                SimpleNamespace(
+                    game_id=root.game_id,
+                    branch_id=root.branch_id,
+                    version_id=terminal_payload["result"]["version"]["version_id"],
+                ),
+                text="死亡后继续行动",
+            )
+            blocked = client.post(
+                "/api/actions",
+                json=next_intent.model_dump(mode="json"),
+            )
+    finally:
+        set_action_service_for_testing(None)
+
+    assert terminal_payload["state"]["player_world_status"]["life_status"] == "dead"
+    assert cause in terminal_payload["narrative"]["text"]
+    assert "继承" not in terminal_payload["narrative"]["text"]
+    assert "换视角" not in terminal_payload["narrative"]["text"]
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["error_code"] == "world_terminal"
+    assert len(worlds.list_settlements(root.game_id, root.branch_id)) == 1
 
 
 def test_public_action_failure_is_typed_and_has_zero_durable_effect(monkeypatch, tmp_path):
