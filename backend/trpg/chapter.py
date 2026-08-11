@@ -102,10 +102,14 @@ def advance_chapter(state: GameState) -> dict | None:
     nxt = chapters[idx + 1]
     state.chapter = nxt["id"]
     state.chapter_turns = 0
-    state.time.year = int(nxt["start_year"])
-    state.time.month = 1
-    from engine.core import resolve_era
-    state.time.era_name, state.time.era_year = resolve_era(state.time.year)
+    # Compatibility adapter only.  The later activity/checkpoint migration will
+    # replace chapter date anchors with elapsed-time settlements.
+    from engine.calendar import set_game_time_projection
+    set_game_time_projection(
+        state.time,
+        year=int(nxt["start_year"]),
+        month=1,
+    )
 
     start_milestone = next(
         (m for m in get_milestones(nxt["id"])),

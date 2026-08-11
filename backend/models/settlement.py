@@ -5,12 +5,14 @@ import json
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .world import (
     BranchId,
     ClientActionId,
     DeltaId,
+    Duration,
+    ElapsedSegmentPlan,
     EntityId,
     GameId,
     SettlementId,
@@ -174,11 +176,21 @@ class AdjudicationProposal(_SettlementContract):
         "blocked",
         "failed",
     ] = "not_attempted"
-    duration_candidate: str | None = None
+    duration_candidate: Duration | None = None
+    duration_reason: str | None = Field(default=None, max_length=1000)
     activity_candidate: str | None = None
     uncertainty: float | None = Field(default=None, ge=0, le=1)
     deltas: list[WorldDelta] = Field(default_factory=list)
     provider: ProviderAttribution = Field(default_factory=ProviderAttribution)
+
+    @model_validator(mode="after")
+    def _validate_duration_reason_pair(self) -> AdjudicationProposal:
+        if self.duration_candidate is not None:
+            if self.duration_reason is None or not self.duration_reason.strip():
+                raise ValueError("duration_candidate requires a nonblank duration_reason")
+        elif self.duration_reason is not None:
+            raise ValueError("duration_reason requires duration_candidate")
+        return self
 
 
 class SettlementAttribution(_SettlementContract):
@@ -203,6 +215,8 @@ class SettlementFacts(_SettlementContract):
     long_term_risks: list[str] = Field(default_factory=list)
     new_opportunities: list[str] = Field(default_factory=list)
     deltas: list[WorldDelta] = Field(default_factory=list)
+    duration_reason: str | None = None
+    time_plan: ElapsedSegmentPlan | None = None
     attribution: SettlementAttribution
     committed_at: datetime
 

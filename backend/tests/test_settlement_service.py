@@ -12,6 +12,7 @@ from models.settlement import (
     MetricWorldDelta,
 )
 from models.world import (
+    Duration,
     new_branch_id,
     new_client_action_id,
     new_delta_id,
@@ -78,6 +79,31 @@ def test_adjudication_contract_accepts_legal_failure_and_rejects_unknown_fields(
     with pytest.raises(ValidationError):
         AdjudicationProposal.model_validate(
             {**proposal.model_dump(mode="json"), "unexpected": "must-not-be-ignored"},
+        )
+
+
+def test_adjudication_duration_is_structured_and_requires_a_paired_reason():
+    proposal = AdjudicationProposal(
+        result_tier="success",
+        duration_candidate=Duration(unit="day", value=2),
+        duration_reason="整修河道需要连续施工",
+    )
+
+    restored = AdjudicationProposal.model_validate(proposal.model_dump(mode="json"))
+    assert restored.duration_candidate == Duration(unit="day", value=2)
+    assert restored.duration_reason == "整修河道需要连续施工"
+
+    with pytest.raises(ValidationError):
+        AdjudicationProposal(result_tier="success", duration_candidate="两天")
+    with pytest.raises(ValidationError):
+        AdjudicationProposal(
+            result_tier="success",
+            duration_candidate=Duration(unit="day", value=2),
+        )
+    with pytest.raises(ValidationError):
+        AdjudicationProposal(
+            result_tier="success",
+            duration_reason="不能脱离 duration 单独存在",
         )
 
 

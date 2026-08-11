@@ -669,7 +669,7 @@ class TestPersistence:
         assert restored.chapter == state.chapter == "childhood"
         assert restored.phase == "life_story"
 
-    def test_migrate_backfills_trpg_fields_silently(self):
+    def test_migrate_backfills_trpg_fields_silently_alongside_clock_migration(self):
         from models.game import INITIAL_MINISTERS
         data = {
             "time": {"year": 1360, "month": 6, "era_name": "至正", "era_year": 20},
@@ -683,7 +683,7 @@ class TestPersistence:
             "resolved_script_ids": [],
         }
         notes = _migrate_save(data)
-        assert notes == []                        # 静默回填，不产生迁移提示
+        assert notes == ["补充了版本化世界时钟"]  # TRPG 默认字段本身仍保持静默
         assert data["chapter"] == "childhood"
         assert data["chapter_turns"] == 0
         assert data["character_sheets"] == {}

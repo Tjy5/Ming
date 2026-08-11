@@ -15,7 +15,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 
 from db import saves as db_saves
-from engine.core import resolve_era
+from engine.calendar import set_game_time_projection
 from models.game import ErrorResponse, HistoryEntry
 from models.trpg import ATTR_KEYS, PLAYER_NAME, ActRequest, ConvergeRequest, SKILL_ATTR_MAP
 from trpg import chapter as chapter_mod
@@ -175,12 +175,7 @@ async def act(req: ActRequest):
             "frozen": frozen,
             "growth": growth.model_dump() if growth else None,
             "convergence_hook": convergence,
-            "time": {
-                "year": state.time.year,
-                "month": state.time.month,
-                "era_name": state.time.era_name,
-                "era_year": state.time.era_year,
-            },
+            "time": state.time.model_dump(mode="json"),
         }
 
 
@@ -226,9 +221,7 @@ async def complete_milestone(milestone_id: str):
             m_month = int(milestone.get("month", 1))
             # 时间回拨守卫：里程碑日期早于当前时间 → 保持当前不回拨（其余逻辑照常）
             if (m_year, m_month) > (state.time.year, state.time.month):
-                state.time.year = m_year
-                state.time.month = m_month
-                state.time.era_name, state.time.era_year = resolve_era(state.time.year)
+                set_game_time_projection(state.time, year=m_year, month=m_month)
 
         # phase 翻转：仅 phase_switch 里程碑且未切换过时执行（幂等，governance 内不重复）
         switched = False
@@ -281,12 +274,7 @@ async def complete_milestone(milestone_id: str):
             "chapter_turns": state.chapter_turns,
             "pacing": chapter_mod.pacing_status(state.chapter_turns),
             "frozen": chapter_mod.is_frozen(state),
-            "time": {
-                "year": state.time.year,
-                "month": state.time.month,
-                "era_name": state.time.era_name,
-                "era_year": state.time.era_year,
-            },
+            "time": state.time.model_dump(mode="json"),
         }
 
 
@@ -323,8 +311,11 @@ async def converge(req: ConvergeRequest):
             state.resolved_script_ids.add(milestone_id)
             state.phase = str(phase_switch.get("to_phase") or "governance")
             fallback_year = int(phase_switch.get("fallback_year", 1360))
-            state.time.year = fallback_year
-            state.time.era_name, state.time.era_year = resolve_era(fallback_year)
+            set_game_time_projection(
+                state.time,
+                year=fallback_year,
+                month=state.time.month,
+            )
             note = phase_switch.get("note") or hook.get("message") or ""
             narrative = (
                 f"【收束·归附】{fallback_year}年，孤军漂泊终有定所——"
@@ -369,10 +360,5 @@ async def converge(req: ConvergeRequest):
             "chapter_turns": state.chapter_turns,
             "pacing": chapter_mod.pacing_status(state.chapter_turns),
             "frozen": chapter_mod.is_frozen(state),
-            "time": {
-                "year": state.time.year,
-                "month": state.time.month,
-                "era_name": state.time.era_name,
-                "era_year": state.time.era_year,
-            },
+            "time": state.time.model_dump(mode="json"),
         }

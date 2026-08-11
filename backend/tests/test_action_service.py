@@ -31,6 +31,7 @@ from models.settlement import (
     MetricWorldDelta,
 )
 from models.world import (
+    Duration,
     EntitySource,
     PersonEntity,
     new_client_action_id,
@@ -270,6 +271,100 @@ def test_action_service_commits_once_and_replay_skips_ai(monkeypatch, tmp_path):
     assert len(worlds.list_settlements(root.game_id, root.branch_id)) == 1
 
 
+def test_time_only_action_commits_one_version_and_replay_preserves_time_facts(
+    monkeypatch,
+    tmp_path,
+):
+    initial, root = _store(monkeypatch, tmp_path)
+    intent = _intent(root, text="静候一日一时")
+    proposal = AdjudicationProposal(
+        result_tier="success",
+        execution_status="completed",
+        duration_candidate=Duration(unit="hour", value=25),
+        duration_reason="等待局势自然演化",
+    )
+    adjudicator = _StaticAdjudicator(proposal)
+    service = ActionService(adjudicator=adjudicator)
+
+    first = service.execute_sync(intent)
+    replay = service.execute_sync(intent)
+
+    assert first.state.time.clock is not None
+    assert initial.time.clock is not None
+    assert first.state.time.clock.absolute_hour == initial.time.clock.absolute_hour + 25
+    assert first.result.facts.time_plan is not None
+    assert first.result.facts.time_plan.normalized_duration.elapsed_hours == 25
+    assert first.result.facts.duration_reason == "等待局势自然演化"
+    assert replay.result.replayed is True
+    assert replay.result.facts.time_plan == first.result.facts.time_plan
+    assert replay.state == first.state
+    assert adjudicator.calls == 1
+    assert len(worlds.list_versions(root.game_id, root.branch_id)) == 2
+    assert worlds.list_settlements(root.game_id, root.branch_id)[0].time_plan == (
+        first.result.facts.time_plan
+    )
+    assert (
+        worlds.list_settlements(root.game_id, root.branch_id)[0].duration_reason
+        == "等待局势自然演化"
+    )
+
+
+def test_duration_and_world_delta_commit_atomically(monkeypatch, tmp_path):
+    initial, root = _store(monkeypatch, tmp_path)
+    proposal = _proposal(initial.consecutive_waits)
+    proposal.duration_candidate = Duration(unit="month", value=1)
+    proposal.duration_reason = "等待一个历法月后再观察结果"
+
+    execution = ActionService(
+        adjudicator=_StaticAdjudicator(proposal),
+    ).execute_sync(_intent(root, text="等待一月并记录局势"))
+
+    assert execution.state.consecutive_waits == 1
+    assert execution.state.time.calendar is not None
+    assert execution.state.time.calendar.month == 11
+    assert execution.result.facts.time_plan is not None
+    assert execution.result.facts.deltas == proposal.deltas
+
+
+@pytest.mark.parametrize(
+    ("proposal", "expected_code"),
+    [
+        (
+            AdjudicationProposal(
+                result_tier="success",
+                activity_candidate="远行至大都",
+            ),
+            "time_contract_unavailable",
+        ),
+        (
+            AdjudicationProposal(
+                result_tier="success",
+                duration_candidate=Duration(unit="year", value=2),
+                duration_reason="超长行动必须切分 checkpoint",
+            ),
+            "activity_contract_required",
+        ),
+    ],
+)
+def test_unavailable_or_oversized_time_contract_has_zero_durable_effect(
+    monkeypatch,
+    tmp_path,
+    proposal,
+    expected_code,
+):
+    initial, root = _store(monkeypatch, tmp_path)
+    service = ActionService(adjudicator=_StaticAdjudicator(proposal))
+
+    with pytest.raises(SettlementValidationError) as exc_info:
+        service.execute_sync(_intent(root, text="尝试尚不可用的长行动"))
+
+    assert exc_info.value.code == expected_code
+    assert worlds.get_branch_head(root.game_id, root.branch_id) == root
+    assert worlds.load_branch_head(root.game_id, root.branch_id).state == initial
+    assert worlds.list_settlements(root.game_id, root.branch_id) == []
+    assert len(worlds.list_versions(root.game_id, root.branch_id)) == 1
+
+
 def test_concurrent_service_double_click_calls_ai_once(monkeypatch, tmp_path):
     initial, root = _store(monkeypatch, tmp_path)
     intent = _intent(root)
@@ -457,6 +552,29 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
     proposal = adjudicator.adjudicate_sync(_intent(root_like), state)
     assert proposal.provider.request_id == "provider-request"
     assert valid_provider.calls == 1
+
+    duration_payload = _proposal(0).model_dump(mode="json")
+    duration_payload.update(
+        {
+            "duration_candidate": {"unit": "day", "value": 2},
+            "duration_reason": "行动需要两日",
+        },
+    )
+    duration_provider = _Provider(json.dumps(duration_payload))
+    adjudicator = AIActionAdjudicator(lambda: duration_provider)
+    parsed = adjudicator.adjudicate_sync(_intent(root_like), state)
+    assert parsed.duration_candidate == Duration(unit="day", value=2)
+    assert parsed.duration_reason == "行动需要两日"
+
+    invalid_duration_payload = _proposal(0).model_dump(mode="json")
+    invalid_duration_payload["duration_candidate"] = {"unit": "day", "value": 0}
+    invalid_duration_payload["duration_reason"] = "非法零时长"
+    invalid_duration_provider = _Provider(json.dumps(invalid_duration_payload))
+    adjudicator = AIActionAdjudicator(lambda: invalid_duration_provider)
+    with pytest.raises(ActionAdjudicationError) as exc_info:
+        adjudicator.adjudicate_sync(_intent(root_like), state)
+    assert exc_info.value.code == "adjudication_invalid_response"
+    assert invalid_duration_provider.calls == 1
 
     invalid_provider = _Provider("not json")
     adjudicator = AIActionAdjudicator(lambda: invalid_provider)

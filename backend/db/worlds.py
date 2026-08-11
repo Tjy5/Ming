@@ -23,6 +23,7 @@ from models.world import (
     ClientActionId,
     EntityId,
     EntitySource,
+    ElapsedSegmentPlan,
     FactionEntity,
     GameId,
     PersonEntity,
@@ -803,6 +804,8 @@ def commit_settlement(
     intent: ActionIntent,
     state: GameState,
     proposal: AdjudicationProposal,
+    *,
+    time_plan: ElapsedSegmentPlan | None = None,
 ) -> SettlementCommitResult:
     """Commit one action request, settlement, snapshot, and head advance.
 
@@ -860,6 +863,8 @@ def commit_settlement(
                 long_term_risks=proposal.long_term_risks,
                 new_opportunities=proposal.new_opportunities,
                 deltas=proposal.deltas,
+                duration_reason=proposal.duration_reason,
+                time_plan=time_plan,
                 attribution=attribution,
                 committed_at=committed_at,
             )

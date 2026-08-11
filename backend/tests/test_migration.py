@@ -1,5 +1,7 @@
+import json
+
 from db.saves import _migrate_save
-from models.game import INITIAL_MINISTERS
+from models.game import GameState, INITIAL_MINISTERS
 
 
 def _old_save_data(year: int, regions=None, include_ministers=False) -> dict:
@@ -64,14 +66,47 @@ class TestYearMigration:
         notes = _migrate_save(data)
         assert len(notes) > 0
 
-    def test_no_migration_for_absolute_with_era(self):
+    def test_absolute_with_era_receives_only_the_new_clock_migration(self):
         data = _old_save_data(1360, include_ministers=True)
         data["time"]["era_name"] = "至正"
         data["time"]["era_year"] = 20
         data["phase"] = "governance"
         data["resolved_script_ids"] = []
         notes = _migrate_save(data)
-        assert len(notes) == 0
+        assert notes == ["补充了版本化世界时钟"]
+
+    def test_legacy_year_month_maps_to_first_day_zishi(self):
+        data = _old_save_data(1360, include_ministers=True)
+        _migrate_save(data)
+        time = data["time"]
+        assert time["time_migration_source"] == "legacy_year_month"
+        assert time["clock"]["calendar_version"] == "yuanming-calendar-v1"
+        assert time["calendar"]["year"] == 1360
+        assert time["calendar"]["month"] == 6
+        assert time["calendar"]["day"] == 1
+        assert time["calendar"]["hour"] == 0
+        assert time["calendar"]["double_hour_name"] == "子"
+        GameState.model_validate(data)
+
+    def test_clock_migration_is_idempotent_and_does_not_drift(self):
+        data = _old_save_data(1360, include_ministers=True)
+        data["time"].update({"era_name": "至正", "era_year": 20})
+        data["phase"] = "governance"
+        data["resolved_script_ids"] = []
+        first_notes = _migrate_save(data)
+        first_payload = json.dumps(data, ensure_ascii=False, sort_keys=True)
+        second_notes = _migrate_save(data)
+        second_payload = json.dumps(data, ensure_ascii=False, sort_keys=True)
+        assert first_notes == ["补充了版本化世界时钟"]
+        assert second_notes == []
+        assert second_payload == first_payload
+
+    def test_legacy_date_before_epoch_is_explicitly_clamped(self):
+        data = _old_save_data(1328, include_ministers=True)
+        _migrate_save(data)
+        assert data["time"]["month"] == 10
+        assert data["time"]["clock"]["absolute_hour"] == 0
+        assert data["time"]["calendar"]["month"] == 10
 
 
 class TestEraMigration:

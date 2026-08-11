@@ -1321,6 +1321,44 @@ export type components = {
             /** Decree Type */
             decree_type?: string | null;
         };
+        /** CalendarProjection */
+        CalendarProjection: {
+            /** Absolute Hour */
+            absolute_hour: number;
+            /**
+             * Calendar Version
+             * @default yuanming-calendar-v1
+             */
+            calendar_version: string;
+            /** Year */
+            year: number;
+            /** Month */
+            month: number;
+            /**
+             * Is Leap Month
+             * @default false
+             */
+            is_leap_month: boolean;
+            /**
+             * Month Length
+             * @enum {integer}
+             */
+            month_length: 29 | 30;
+            /** Day */
+            day: number;
+            /** Hour */
+            hour: number;
+            /** Double Hour Index */
+            double_hour_index: number;
+            /** Double Hour Name */
+            double_hour_name: string;
+            /** Solar Term */
+            solar_term: string;
+            /** Era Name */
+            era_name: string;
+            /** Era Year */
+            era_year: number;
+        };
         /**
          * CharacterSheet
          * @description 角色卡：玩家（朱元璋）与关键人物共用。
@@ -1365,6 +1403,28 @@ export type components = {
         ChatRequest: {
             /** Message */
             message: string;
+        };
+        /** ClockConsumerInvocation */
+        ClockConsumerInvocation: {
+            /** Invocation Id */
+            invocation_id: string;
+            /** Consumer Name */
+            consumer_name: string;
+            /** Consumer Version */
+            consumer_version: string;
+            /** Consumer Order */
+            consumer_order: number;
+            /** Segment Id */
+            segment_id: string;
+            /** Boundary Id */
+            boundary_id: string;
+            /**
+             * Boundary Kind
+             * @enum {string}
+             */
+            boundary_kind: "day" | "month" | "year" | "solar_term" | "end";
+            /** Ordinal */
+            ordinal: number;
         };
         /** ConveneAssemblyRequest */
         ConveneAssemblyRequest: {
@@ -1550,6 +1610,42 @@ export type components = {
             /** Conversation Id */
             conversation_id: string;
             state: components["schemas"]["GameState"];
+        };
+        /** Duration */
+        Duration: {
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "hour" | "day" | "month" | "year";
+            /** Value */
+            value: number;
+        };
+        /** ElapsedSegment */
+        ElapsedSegment: {
+            /** Segment Id */
+            segment_id: string;
+            /**
+             * Source Action Id
+             * Format: uuid
+             */
+            source_action_id: string;
+            start: components["schemas"]["WorldInstant"];
+            end: components["schemas"]["WorldInstant"];
+            /** Elapsed Hours */
+            elapsed_hours: number;
+        };
+        /** ElapsedSegmentPlan */
+        ElapsedSegmentPlan: {
+            normalized_duration: components["schemas"]["NormalizedDuration"];
+            segment: components["schemas"]["ElapsedSegment"];
+            /** Boundaries */
+            boundaries: components["schemas"]["TimeBoundary"][];
+            /**
+             * Consumer Invocations
+             * @default []
+             */
+            consumer_invocations: components["schemas"]["ClockConsumerInvocation"][];
         };
         /** EntitySource */
         EntitySource: {
@@ -2049,6 +2145,10 @@ export type components = {
              * @default 16
              */
             era_year: number;
+            clock?: components["schemas"]["WorldClock"] | null;
+            calendar?: components["schemas"]["CalendarProjection"] | null;
+            /** Time Migration Source */
+            time_migration_source?: ("initial_world" | "legacy_year_month") | null;
         };
         /**
          * GrowthEntry
@@ -2589,6 +2689,16 @@ export type components = {
             /** Source Proposal */
             source_proposal?: string | null;
         };
+        /** NormalizedDuration */
+        NormalizedDuration: {
+            duration: components["schemas"]["Duration"];
+            start: components["schemas"]["WorldInstant"];
+            end: components["schemas"]["WorldInstant"];
+            /** Elapsed Hours */
+            elapsed_hours: number;
+            start_calendar: components["schemas"]["CalendarProjection"];
+            end_calendar: components["schemas"]["CalendarProjection"];
+        };
         /** OfficeEntity */
         OfficeEntity: {
             /**
@@ -3113,6 +3223,9 @@ export type components = {
             new_opportunities?: string[];
             /** Deltas */
             deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"])[];
+            /** Duration Reason */
+            duration_reason?: string | null;
+            time_plan?: components["schemas"]["ElapsedSegmentPlan"] | null;
             attribution: components["schemas"]["SettlementAttribution"];
             /**
              * Committed At
@@ -3179,6 +3292,36 @@ export type components = {
             /** Expires On */
             expires_on?: string | null;
         };
+        /** TimeBoundary */
+        TimeBoundary: {
+            /** Boundary Id */
+            boundary_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "day" | "month" | "year" | "solar_term" | "end";
+            /** Boundary Key */
+            boundary_key: string;
+            /** Absolute Hour */
+            absolute_hour: number;
+            /**
+             * Calendar Version
+             * @default yuanming-calendar-v1
+             */
+            calendar_version: string;
+            /**
+             * Epoch Id
+             * @default yuanming-1328-10-01-zishi
+             */
+            epoch_id: string;
+            /**
+             * World Timezone
+             * @default UTC+08:00
+             */
+            world_timezone: string;
+            projection: components["schemas"]["CalendarProjection"];
+        };
         /** TriggerDecision */
         TriggerDecision: {
             /** Should Trigger */
@@ -3237,6 +3380,49 @@ export type components = {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * WorldClock
+         * @description Canonical persisted world clock; projections are always derived.
+         */
+        WorldClock: {
+            /** Absolute Hour */
+            absolute_hour: number;
+            /**
+             * Calendar Version
+             * @default yuanming-calendar-v1
+             */
+            calendar_version: string;
+            /**
+             * Epoch Id
+             * @default yuanming-1328-10-01-zishi
+             */
+            epoch_id: string;
+            /**
+             * World Timezone
+             * @default UTC+08:00
+             */
+            world_timezone: string;
+        };
+        /** WorldInstant */
+        WorldInstant: {
+            /** Absolute Hour */
+            absolute_hour: number;
+            /**
+             * Calendar Version
+             * @default yuanming-calendar-v1
+             */
+            calendar_version: string;
+            /**
+             * Epoch Id
+             * @default yuanming-1328-10-01-zishi
+             */
+            epoch_id: string;
+            /**
+             * World Timezone
+             * @default UTC+08:00
+             */
+            world_timezone: string;
         };
         /**
          * WorldSnapshotMetadata

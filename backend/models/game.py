@@ -16,7 +16,14 @@ from .enums import (
 )
 from .positions import resolve_position
 from .trpg import CharacterSheet, GrowthEntry
-from .world import EntityId, PlayerWorldStatus, WorldEntity, WorldSnapshotMetadata
+from .world import (
+    CalendarProjection,
+    EntityId,
+    PlayerWorldStatus,
+    WorldClock,
+    WorldEntity,
+    WorldSnapshotMetadata,
+)
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
@@ -393,6 +400,9 @@ class GameTime(BaseModel):
     month: int = 3
     era_name: str = "至正"
     era_year: int = 16
+    clock: WorldClock | None = None
+    calendar: CalendarProjection | None = None
+    time_migration_source: Literal["initial_world", "legacy_year_month"] | None = None
 
 
 # ── ConversationMessage ──────────────────────────────────
@@ -698,9 +708,9 @@ def _time_key(year: int, month: int) -> int:
 
 def create_initial_state() -> GameState:
     # 跑团开局时间锚点：1328-10（出生月，与 birth-1328 里程碑一致；阶段D 时间轴对齐）
-    from engine.core import LIFE_STORY_START_MONTH, LIFE_STORY_START_YEAR, resolve_era
+    from engine.calendar import set_game_time_projection
+    from engine.core import LIFE_STORY_START_MONTH, LIFE_STORY_START_YEAR
     start_key = _time_key(LIFE_STORY_START_YEAR, LIFE_STORY_START_MONTH)
-    era_name, era_year = resolve_era(LIFE_STORY_START_YEAR)
     ministers: list[Minister] = []
     for tpl in get_initial_ministers():
         m = tpl.model_copy()
@@ -710,13 +720,15 @@ def create_initial_state() -> GameState:
             m.status = MinisterStatus.ACTIVE if m.positions else MinisterStatus.IDLE
         ministers.append(m)
 
+    initial_time = GameTime(year=LIFE_STORY_START_YEAR, month=LIFE_STORY_START_MONTH)
+    set_game_time_projection(
+        initial_time,
+        year=LIFE_STORY_START_YEAR,
+        month=LIFE_STORY_START_MONTH,
+        migration_source="initial_world",
+    )
     state = GameState(
-        time=GameTime(
-            year=LIFE_STORY_START_YEAR,
-            month=LIFE_STORY_START_MONTH,
-            era_name=era_name,
-            era_year=era_year,
-        ),
+        time=initial_time,
         national_treasury=15, imperial_treasury=8, grain=420,
         population=1600, military_strength=18,
         civil_morale=62, military_morale=68, court_prestige=62,

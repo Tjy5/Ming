@@ -11,6 +11,8 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from db import worlds
+from engine.calendar import advance_game_time, ensure_game_time_clock
+from engine.clock import ClockPlanningError, plan_elapsed_segment
 from engine.settlement import (
     SettlementValidationError,
     apply_world_deltas,
@@ -25,6 +27,7 @@ from models.settlement import (
     SettlementCommitResult,
     WorldDelta,
 )
+from models.world import ElapsedSegmentPlan
 
 
 class ActionAdjudicator(Protocol):
@@ -41,7 +44,7 @@ class ActionTimePlanner(Protocol):
         intent: ActionIntent,
         state: GameState,
         proposal: AdjudicationProposal,
-    ) -> object | None: ...
+    ) -> ElapsedSegmentPlan | None: ...
 
 
 class ActionWorldStateApplier(Protocol):
@@ -49,7 +52,7 @@ class ActionWorldStateApplier(Protocol):
         self,
         state: GameState,
         deltas: list[WorldDelta],
-        time_plan: object | None,
+        time_plan: ElapsedSegmentPlan | None,
     ) -> GameState: ...
 
 
@@ -82,19 +85,66 @@ class NoopTimePlanner:
         return None
 
 
+class DefaultTimePlanner:
+    def plan_segment(
+        self,
+        intent: ActionIntent,
+        state: GameState,
+        proposal: AdjudicationProposal,
+    ) -> ElapsedSegmentPlan | None:
+        if proposal.activity_candidate is not None:
+            raise SettlementValidationError(
+                "time_contract_unavailable",
+                "裁决提出了 activity，但 durable activity/checkpoint contract 尚未接入",
+            )
+        if proposal.duration_candidate is None:
+            return None
+
+        game_time = state.time.model_copy(deep=True)
+        start = ensure_game_time_clock(game_time)
+        try:
+            return plan_elapsed_segment(
+                source_action_id=intent.client_action_id,
+                start=start,
+                duration=proposal.duration_candidate,
+            )
+        except ClockPlanningError as exc:
+            raise SettlementValidationError(exc.code, exc.message) from exc
+
+
 class DefaultWorldStateApplier:
     def apply_world_deltas(
         self,
         state: GameState,
         deltas: list[WorldDelta],
-        time_plan: object | None,
+        time_plan: ElapsedSegmentPlan | None,
     ) -> GameState:
-        if time_plan is not None:
+        changed = apply_world_deltas(state, deltas)
+        if time_plan is None:
+            return changed
+
+        current = ensure_game_time_clock(changed.time)
+        if current != time_plan.segment.start:
             raise SettlementValidationError(
-                "time_contract_unavailable",
-                "默认 world-state applier 不接受未消费的 time plan",
+                "time_plan_stale",
+                "time plan 的起点与当前世界时钟不一致",
             )
-        return apply_world_deltas(state, deltas)
+        applied = advance_game_time(
+            changed.time,
+            time_plan.normalized_duration.duration,
+        )
+        if applied != time_plan.normalized_duration:
+            raise SettlementValidationError(
+                "time_plan_mismatch",
+                "time plan 与最终世界时钟推进结果不一致",
+            )
+        try:
+            return GameState.model_validate(changed.model_dump())
+        except ValidationError as exc:
+            raise SettlementValidationError(
+                "invalid_final_state",
+                "time plan 应用后的世界状态未通过模型校验",
+            ) from exc
 
 
 class AIActionAdjudicator:
@@ -124,6 +174,9 @@ class AIActionAdjudicator:
             ) from exc
         prompt = (
             "Return exactly one JSON object matching AdjudicationProposal schema_version=1. "
+            "If time elapses, duration_candidate must be an object with positive integer value "
+            "and unit hour/day/month/year, paired with a nonblank duration_reason; otherwise both "
+            "fields must be null. "
             "Judge the player's action only from the supplied current-world snapshot. "
             "Do not use historical canon as a whitelist and do not include prose outside JSON.\n"
             f"ACTION_INTENT={intent.model_dump_json()}\n"
@@ -175,7 +228,7 @@ class ActionService:
         world_state_applier: ActionWorldStateApplier | None = None,
     ) -> None:
         self._adjudicator = adjudicator
-        self._time_planner = time_planner or NoopTimePlanner()
+        self._time_planner = time_planner or DefaultTimePlanner()
         self._world_state_applier = world_state_applier or DefaultWorldStateApplier()
         self._action_locks: weakref.WeakValueDictionary[
             tuple[str, str, str], asyncio.Lock
@@ -235,7 +288,12 @@ class ActionService:
                 current.version_id,
             )
 
-        result = worlds.commit_settlement(intent, changed, proposal)
+        result = worlds.commit_settlement(
+            intent,
+            changed,
+            proposal,
+            time_plan=time_plan,
+        )
         committed = worlds.load_version(result.version.version_id)
         return ActionExecution(state=committed.state, result=result)
 

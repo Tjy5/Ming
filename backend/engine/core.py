@@ -21,6 +21,8 @@ from models.enums import (
 from models.positions import (
     can_appoint, is_unique_position, is_eunuch_position, resolve_position,
 )
+from models.world import Duration
+from .calendar import advance_game_time, resolve_era
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
     DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
@@ -69,29 +71,6 @@ def _parse_lock_timeout_seconds(raw: str | None) -> int:
 LOCK_TIMEOUT_SECONDS = _parse_lock_timeout_seconds(
     os.getenv("LOCK_TIMEOUT_SECONDS"),
 )
-
-
-# ── Era Config ──────────────────────────────────────────
-
-# 元末（元顺帝）年号表，覆盖朱元璋全生命周期 1328–1368
-ERA_CONFIG = [
-    {"name": "天历", "start_year": 1328},
-    {"name": "至顺", "start_year": 1330},
-    {"name": "元统", "start_year": 1333},
-    {"name": "至元", "start_year": 1335},
-    {"name": "至正", "start_year": 1341},
-    {"name": "洪武", "start_year": 1368},
-]
-
-
-def resolve_era(year: int) -> tuple[str, int]:
-    era = ERA_CONFIG[0]
-    for e in ERA_CONFIG:
-        if e["start_year"] <= year:
-            era = e
-        else:
-            break
-    return era["name"], year - era["start_year"] + 1
 
 
 # ── Attribution helper ───────────────────────────────────
@@ -1043,11 +1022,7 @@ def inject_script_events(
 # ── Time Progression ─────────────────────────────────────
 
 def advance_time(state: GameState) -> None:
-    state.time.month += 1
-    if state.time.month > 12:
-        state.time.year += 1
-        state.time.month = 1
-    state.time.era_name, state.time.era_year = resolve_era(state.time.year)
+    advance_game_time(state.time, Duration(unit="month", value=1))
 
 
 # ── Game End Check ───────────────────────────────────────

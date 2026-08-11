@@ -71,15 +71,6 @@ def save_game(state: GameState, name: str | None = None) -> int:
         raise StorageError("storage_error", "存档失败，存储异常")
 
 
-_ERA_CONFIG = [
-    {"name": "天历", "start_year": 1328},
-    {"name": "至顺", "start_year": 1330},
-    {"name": "元统", "start_year": 1333},
-    {"name": "至元", "start_year": 1335},
-    {"name": "至正", "start_year": 1341},
-    {"name": "洪武", "start_year": 1368},
-]
-
 _DISASTER_BY_THREAT = {"none": 0, "元军": 40, "汉军": 45, "吴军": 40, "民变": 60, "土司": 30, "海盗": 20}
 _TAX_RATE_BY_CONTRIB = {"low": 0.3, "medium": 0.5, "high": 0.8}
 
@@ -99,6 +90,12 @@ def _valid_ministers(raw: object) -> bool:
 def _migrate_save(data: dict) -> list[str]:
     notes: list[str] = []
     initial_ministers = get_initial_ministers()
+    from engine.calendar import (
+        clock_and_projection_from_calendar,
+        projection_from_absolute_hour,
+        resolve_era,
+    )
+    from models.world import WorldClock
 
     # ── time migration ──
     t = data.setdefault("time", {})
@@ -111,15 +108,44 @@ def _migrate_save(data: dict) -> list[str]:
         y = year if isinstance(year, int) else 1356
         if "year" not in t:
             t["year"] = y
-        era = _ERA_CONFIG[0]
-        for e in _ERA_CONFIG:
-            if e["start_year"] <= y:
-                era = e
-            else:
-                break
-        t.setdefault("era_name", era["name"])
-        t.setdefault("era_year", y - era["start_year"] + 1)
+        era_name, era_year = resolve_era(y)
+        t.setdefault("era_name", era_name)
+        t.setdefault("era_year", era_year)
         notes.append("补充了年号信息")
+
+    # The source row remains untouched; this decoded copy receives the stable
+    # V1 clock identity and a deterministic first-day/first-hour legacy anchor.
+    clock_raw = t.get("clock")
+    calendar_raw = t.get("calendar")
+    if not isinstance(clock_raw, dict):
+        month = t.get("month", 1)
+        if (
+            year == 1328
+            and isinstance(month, int)
+            and month < 10
+        ):
+            month = 10
+            t["month"] = month
+            notes.append("将早于世界历元的旧时间钳制到历元")
+        if (
+            isinstance(year, int)
+            and year >= 1328
+            and isinstance(month, int)
+            and 1 <= month <= 12
+        ):
+            clock, calendar = clock_and_projection_from_calendar(year=year, month=month)
+            t["clock"] = clock.model_dump(mode="json")
+            t["calendar"] = calendar.model_dump(mode="json")
+            t["time_migration_source"] = "legacy_year_month"
+            notes.append("补充了版本化世界时钟")
+    elif not isinstance(calendar_raw, dict):
+        clock = WorldClock.model_validate(clock_raw)
+        calendar = projection_from_absolute_hour(
+            clock.absolute_hour,
+            calendar_version=clock.calendar_version,
+        )
+        t["calendar"] = calendar.model_dump(mode="json")
+        notes.append("补充了历法投影视图")
 
     # ── resource migration ──
     treasury_raw = data.pop("treasury", None)

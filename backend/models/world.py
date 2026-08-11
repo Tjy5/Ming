@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Annotated, Literal, NewType
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 WORLD_SCHEMA_VERSION = 1
@@ -61,6 +61,176 @@ def new_delta_id() -> DeltaId:
 
 class _WorldContract(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class _ImmutableWorldContract(_WorldContract):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class WorldInstant(_WorldContract):
+    absolute_hour: int = Field(strict=True, ge=0)
+    calendar_version: str = DEFAULT_CALENDAR_SCHEMA_VERSION
+    epoch_id: str = "yuanming-1328-10-01-zishi"
+    world_timezone: str = "UTC+08:00"
+
+
+class WorldClock(WorldInstant):
+    """Canonical persisted world clock; projections are always derived."""
+
+
+class CalendarProjection(_WorldContract):
+    absolute_hour: int = Field(strict=True, ge=0)
+    calendar_version: str = DEFAULT_CALENDAR_SCHEMA_VERSION
+    year: int = Field(strict=True)
+    month: int = Field(strict=True, ge=1, le=12)
+    is_leap_month: bool = False
+    month_length: Literal[29, 30]
+    day: int = Field(strict=True, ge=1, le=30)
+    hour: int = Field(strict=True, ge=0, le=23)
+    double_hour_index: int = Field(strict=True, ge=0, le=11)
+    double_hour_name: str
+    solar_term: str
+    era_name: str
+    era_year: int = Field(strict=True)
+
+    @model_validator(mode="after")
+    def _validate_day_in_month(self) -> CalendarProjection:
+        if self.day > self.month_length:
+            raise ValueError("day exceeds month length")
+        return self
+
+
+class Duration(_WorldContract):
+    unit: Literal["hour", "day", "month", "year"]
+    value: int = Field(strict=True, gt=0)
+
+
+class NormalizedDuration(_WorldContract):
+    duration: Duration
+    start: WorldInstant
+    end: WorldInstant
+    elapsed_hours: int = Field(strict=True, gt=0)
+    start_calendar: CalendarProjection
+    end_calendar: CalendarProjection
+
+
+BoundaryKind = Literal["day", "month", "year", "solar_term", "end"]
+
+
+class TimeBoundary(_ImmutableWorldContract):
+    boundary_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    kind: BoundaryKind
+    boundary_key: str = Field(min_length=1)
+    absolute_hour: int = Field(strict=True, ge=0)
+    calendar_version: str = DEFAULT_CALENDAR_SCHEMA_VERSION
+    epoch_id: str = "yuanming-1328-10-01-zishi"
+    world_timezone: str = "UTC+08:00"
+    projection: CalendarProjection
+
+    @model_validator(mode="after")
+    def _validate_projection_identity(self) -> TimeBoundary:
+        if self.projection.absolute_hour != self.absolute_hour:
+            raise ValueError("boundary projection absolute_hour mismatch")
+        if self.projection.calendar_version != self.calendar_version:
+            raise ValueError("boundary projection calendar_version mismatch")
+        return self
+
+
+class ElapsedSegment(_ImmutableWorldContract):
+    segment_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    source_action_id: ClientActionId
+    start: WorldInstant
+    end: WorldInstant
+    elapsed_hours: int = Field(strict=True, gt=0)
+
+    @model_validator(mode="after")
+    def _validate_interval(self) -> ElapsedSegment:
+        if (
+            self.start.calendar_version != self.end.calendar_version
+            or self.start.epoch_id != self.end.epoch_id
+            or self.start.world_timezone != self.end.world_timezone
+        ):
+            raise ValueError("elapsed segment clock identities do not match")
+        if self.end.absolute_hour <= self.start.absolute_hour:
+            raise ValueError("elapsed segment end must be after start")
+        if self.elapsed_hours != self.end.absolute_hour - self.start.absolute_hour:
+            raise ValueError("elapsed segment elapsed_hours mismatch")
+        return self
+
+
+class ClockConsumerInvocation(_ImmutableWorldContract):
+    invocation_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    consumer_name: str = Field(min_length=1)
+    consumer_version: str = Field(min_length=1)
+    consumer_order: int = Field(strict=True)
+    segment_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    boundary_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    boundary_kind: BoundaryKind
+    ordinal: int = Field(strict=True, ge=0)
+
+
+class ElapsedSegmentPlan(_ImmutableWorldContract):
+    normalized_duration: NormalizedDuration
+    segment: ElapsedSegment
+    boundaries: tuple[TimeBoundary, ...]
+    consumer_invocations: tuple[ClockConsumerInvocation, ...] = ()
+
+    @model_validator(mode="after")
+    def _validate_plan_links(self) -> ElapsedSegmentPlan:
+        normalized = self.normalized_duration
+        if (
+            normalized.start != self.segment.start
+            or normalized.end != self.segment.end
+            or normalized.elapsed_hours != self.segment.elapsed_hours
+        ):
+            raise ValueError("normalized duration does not match elapsed segment")
+
+        boundary_by_id = {
+            boundary.boundary_id: boundary for boundary in self.boundaries
+        }
+        boundary_ids = set(boundary_by_id)
+        if len(boundary_ids) != len(self.boundaries):
+            raise ValueError("elapsed segment plan contains duplicate boundary ids")
+        if not any(
+            boundary.kind == "end"
+            and boundary.absolute_hour == self.segment.end.absolute_hour
+            for boundary in self.boundaries
+        ):
+            raise ValueError("elapsed segment plan requires its terminal end boundary")
+        for boundary in self.boundaries:
+            if (
+                boundary.calendar_version != self.segment.start.calendar_version
+                or boundary.epoch_id != self.segment.start.epoch_id
+                or boundary.world_timezone != self.segment.start.world_timezone
+            ):
+                raise ValueError("boundary clock identity does not match its segment")
+            if not (
+                self.segment.start.absolute_hour
+                < boundary.absolute_hour
+                <= self.segment.end.absolute_hour
+            ):
+                raise ValueError("boundary lies outside the elapsed segment")
+
+        invocation_ids = {
+            invocation.invocation_id for invocation in self.consumer_invocations
+        }
+        if len(invocation_ids) != len(self.consumer_invocations):
+            raise ValueError("elapsed segment plan contains duplicate invocation ids")
+        if [
+            invocation.ordinal for invocation in self.consumer_invocations
+        ] != list(range(len(self.consumer_invocations))):
+            raise ValueError("consumer invocation ordinals must be contiguous and ordered")
+        for invocation in self.consumer_invocations:
+            if invocation.segment_id != self.segment.segment_id:
+                raise ValueError("consumer invocation references another segment")
+            if invocation.boundary_id not in boundary_ids:
+                raise ValueError("consumer invocation references an unknown boundary")
+            if (
+                invocation.boundary_kind
+                != boundary_by_id[invocation.boundary_id].kind
+            ):
+                raise ValueError("consumer invocation boundary kind mismatch")
+        return self
 
 
 class WorldSnapshotMetadata(_WorldContract):
