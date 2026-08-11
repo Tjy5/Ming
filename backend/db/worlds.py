@@ -26,7 +26,6 @@ from models.world import (
     FactionEntity,
     GameId,
     PersonEntity,
-    PlayerWorldStatus,
     RegionEntity,
     SettlementId,
     VersionId,
@@ -39,6 +38,9 @@ from models.world import (
     new_settlement_id,
     new_version_id,
 )
+
+
+_INITIAL_ENTITY_SOURCE_REF = "yuanming-initial-v1"
 
 
 @dataclass(frozen=True)
@@ -416,13 +418,41 @@ def create_game_with_root(
     branch_id = new_branch_id()
     version_id = new_version_id()
     created_at = _utc_now()
+    root_state = state.model_copy(deep=True)
+    if source_kind == "legacy_save":
+        entity_source = EntitySource(
+            kind="legacy_save",
+            reference=source_ref,
+            summary="Projected from an immutable legacy save snapshot",
+        )
+        player_identity_summary = "Imported player character"
+    elif source_kind == "initial":
+        entity_source = EntitySource(
+            kind="initial_data",
+            reference=source_ref or _INITIAL_ENTITY_SOURCE_REF,
+            summary="Projected from the Yuan-Ming initial world data",
+        )
+        player_identity_summary = "Initial player character"
+    else:
+        entity_source = EntitySource(
+            kind="system",
+            reference=source_ref,
+            summary="Projected while creating a system world root",
+        )
+        player_identity_summary = "System player character"
+    _bootstrap_entity_registry(
+        root_state,
+        version_id=version_id,
+        source=entity_source,
+        player_identity_summary=player_identity_summary,
+    )
 
     with closing(_connect()) as conn:
         try:
             _begin(conn)
             ref, _ = _create_root_in_transaction(
                 conn,
-                state,
+                root_state,
                 game_id=game_id,
                 branch_id=branch_id,
                 version_id=version_id,
@@ -747,6 +777,28 @@ def _replay_or_reject(
     return stored.model_copy(update={"replayed": True})
 
 
+def _validate_registry_continuity(previous: GameState, changed: GameState) -> None:
+    missing_entity_ids = set(previous.entity_registry).difference(changed.entity_registry)
+    if missing_entity_ids:
+        raise WorldCorruptDataError(
+            "committed state cannot remove identities from the entity registry",
+        )
+
+    previous_player_id = previous.player_world_status.player_character_id
+    changed_player_id = changed.player_world_status.player_character_id
+    if previous_player_id is not None and changed_player_id != previous_player_id:
+        raise WorldCorruptDataError(
+            "committed state cannot replace or clear the player-character identity",
+        )
+    if changed_player_id is not None and not isinstance(
+        changed.entity_registry.get(changed_player_id),
+        PersonEntity,
+    ):
+        raise WorldCorruptDataError(
+            "committed player_character_id must reference a person entity",
+        )
+
+
 def commit_settlement(
     intent: ActionIntent,
     state: GameState,
@@ -784,6 +836,8 @@ def commit_settlement(
                     intent.expected_parent_version_id,
                     head.version_id,
                 )
+            previous_state = _load_version(conn, head.version_id).state
+            _validate_registry_continuity(previous_state, state)
 
             _insert_action_request(conn, intent, payload_hash, committed_at)
             attribution = SettlementAttribution(
@@ -856,21 +910,20 @@ def commit_settlement(
             raise
 
 
-def _legacy_entity_registry(
+def _project_legacy_lists_to_registry(
     state: GameState,
     *,
-    save_id: int,
     version_id: VersionId,
-) -> tuple[dict[EntityId, WorldEntity], EntityId]:
-    source = EntitySource(
-        kind="legacy_save",
-        reference=str(save_id),
-        summary="Imported from an immutable legacy save snapshot",
-    )
+    source: EntitySource,
+) -> dict[EntityId, WorldEntity]:
     registry: dict[EntityId, WorldEntity] = {}
     faction_ids: dict[str, EntityId] = {}
 
     for faction in state.factions:
+        if faction.name in faction_ids:
+            raise WorldCorruptDataError(
+                "legacy faction names must be unique before registry projection",
+            )
         entity_id = new_entity_id()
         faction_ids[faction.name] = entity_id
         registry[entity_id] = FactionEntity(
@@ -881,7 +934,13 @@ def _legacy_entity_registry(
             influence=faction.influence,
         )
 
+    minister_names: set[str] = set()
     for minister in state.ministers:
+        if minister.name in minister_names:
+            raise WorldCorruptDataError(
+                "legacy minister names must be unique before registry projection",
+            )
+        minister_names.add(minister.name)
         entity_id = new_entity_id()
         status_value = getattr(minister.status, "value", str(minister.status))
         registry[entity_id] = PersonEntity(
@@ -901,10 +960,16 @@ def _legacy_entity_registry(
                 else []
             ),
             roles=list(minister.positions),
-            available=status_value not in {"dead", "retired"},
+            available=status_value in {"active", "idle", "on_mission"},
         )
 
+    region_names: set[str] = set()
     for region in state.regions:
+        if region.name in region_names:
+            raise WorldCorruptDataError(
+                "legacy region names must be unique before registry projection",
+            )
+        region_names.add(region.name)
         entity_id = new_entity_id()
         registry[entity_id] = RegionEntity(
             entity_id=entity_id,
@@ -914,17 +979,74 @@ def _legacy_entity_registry(
             source=source,
         )
 
-    player_id = new_entity_id()
-    player_name = next(iter(state.character_sheets), "主角")
-    registry[player_id] = PersonEntity(
-        entity_id=player_id,
-        display_name=player_name,
-        legacy_name=player_name,
-        origin_version_id=version_id,
-        source=source,
-        roles=["player_character"],
+    return registry
+
+
+def _bootstrap_entity_registry(
+    state: GameState,
+    *,
+    version_id: VersionId,
+    source: EntitySource,
+    player_identity_summary: str,
+) -> None:
+    """Project unmigrated legacy lists once without replacing runtime entities."""
+
+    if not state.entity_registry:
+        state.entity_registry = _project_legacy_lists_to_registry(
+            state,
+            version_id=version_id,
+            source=source,
+        )
+
+    for entity_id, entity in list(state.entity_registry.items()):
+        if entity.entity_id != entity_id:
+            raise WorldCorruptDataError(
+                "entity registry key must match the embedded entity_id",
+            )
+        if entity.origin_version_id is None:
+            state.entity_registry[entity_id] = entity.model_copy(
+                update={"origin_version_id": version_id},
+            )
+
+    player_id = state.player_world_status.player_character_id
+    if player_id is not None:
+        player = state.entity_registry.get(player_id)
+        if not isinstance(player, PersonEntity):
+            raise WorldCorruptDataError(
+                "player_character_id must reference a person in the entity registry",
+            )
+        return
+
+    player_candidates = [
+        entity.entity_id
+        for entity in state.entity_registry.values()
+        if isinstance(entity, PersonEntity) and "player_character" in entity.roles
+    ]
+    if len(player_candidates) > 1:
+        raise WorldCorruptDataError(
+            "entity registry contains multiple player-character candidates",
+        )
+    if player_candidates:
+        player_id = player_candidates[0]
+    else:
+        player_id = new_entity_id()
+        player_name = next(iter(state.character_sheets), "主角")
+        state.entity_registry[player_id] = PersonEntity(
+            entity_id=player_id,
+            display_name=player_name,
+            legacy_name=player_name,
+            origin_version_id=version_id,
+            source=source,
+            roles=["player_character"],
+        )
+
+    identity_summary = state.player_world_status.identity_summary or player_identity_summary
+    state.player_world_status = state.player_world_status.model_copy(
+        update={
+            "player_character_id": player_id,
+            "identity_summary": identity_summary,
+        },
     )
-    return registry, player_id
 
 
 def _insert_legacy_import(
@@ -1038,15 +1160,15 @@ def import_legacy_save(save_id: int) -> LegacyWorldImportResult:
             game_id = new_game_id()
             branch_id = new_branch_id()
             version_id = new_version_id()
-            registry, player_id = _legacy_entity_registry(
+            _bootstrap_entity_registry(
                 state,
-                save_id=save_id,
                 version_id=version_id,
-            )
-            state.entity_registry = registry
-            state.player_world_status = PlayerWorldStatus(
-                player_character_id=player_id,
-                identity_summary="Imported player character",
+                source=EntitySource(
+                    kind="legacy_save",
+                    reference=str(save_id),
+                    summary="Imported from an immutable legacy save snapshot",
+                ),
+                player_identity_summary="Imported player character",
             )
             ref, snapshot = _create_root_in_transaction(
                 conn,

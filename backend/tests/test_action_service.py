@@ -19,6 +19,7 @@ from engine.settlement import (
     SettlementValidationError,
     apply_world_deltas,
     validate_adjudication_proposal,
+    validate_final_state,
 )
 from main import app
 from models.game import create_initial_state
@@ -43,7 +44,7 @@ def _store(monkeypatch, tmp_path):
     saves.init_db()
     initial = create_initial_state()
     root = worlds.create_game_with_root(initial)
-    return initial, root
+    return worlds.load_version(root.version_id).state, root
 
 
 def _intent(root, *, action_id=None, text="按兵不动") -> ActionIntent:
@@ -221,6 +222,34 @@ def test_apply_world_deltas_is_pure_and_checks_before_value():
     with pytest.raises(SettlementValidationError) as exc_info:
         apply_world_deltas(state, stale.deltas)
     assert exc_info.value.code == "delta_precondition_failed"
+
+
+def test_final_state_validation_rejects_registry_and_player_identity_regressions():
+    state = create_initial_state()
+    player_id = new_entity_id()
+    state.entity_registry[player_id] = PersonEntity(
+        entity_id=player_id,
+        display_name="稳定主角",
+        source=EntitySource(kind="system"),
+        roles=["player_character"],
+    )
+    state.player_world_status = state.player_world_status.model_copy(
+        update={"player_character_id": player_id},
+    )
+
+    missing_entity = state.model_copy(deep=True)
+    missing_entity.entity_registry.clear()
+    with pytest.raises(SettlementValidationError) as exc_info:
+        validate_final_state(state, missing_entity)
+    assert exc_info.value.code == "entity_registry_regression"
+
+    missing_player = state.model_copy(deep=True)
+    missing_player.player_world_status = missing_player.player_world_status.model_copy(
+        update={"player_character_id": None},
+    )
+    with pytest.raises(SettlementValidationError) as exc_info:
+        validate_final_state(state, missing_player)
+    assert exc_info.value.code == "player_identity_regression"
 
 
 def test_action_service_commits_once_and_replay_skips_ai(monkeypatch, tmp_path):

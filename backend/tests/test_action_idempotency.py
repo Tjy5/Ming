@@ -15,7 +15,7 @@ def _store(monkeypatch, tmp_path):
     saves.init_db()
     initial = create_initial_state()
     root = worlds.create_game_with_root(initial)
-    return initial, root
+    return worlds.load_version(root.version_id).state, root
 
 
 def _intent(root, action_id, text="兴修水利"):

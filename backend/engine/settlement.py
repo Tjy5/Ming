@@ -593,6 +593,20 @@ def validate_final_state(previous: GameState, changed: GameState) -> None:
             "world_identity_mutation",
             "delta application 不得改写当前世界版本身份",
         )
+    if not set(previous.entity_registry).issubset(changed.entity_registry):
+        raise SettlementValidationError(
+            "entity_registry_regression",
+            "delta application 不得删除已登记主体；结束主体必须保留身份与历史",
+        )
+    previous_player_id = previous.player_world_status.player_character_id
+    if (
+        previous_player_id is not None
+        and changed.player_world_status.player_character_id != previous_player_id
+    ):
+        raise SettlementValidationError(
+            "player_identity_regression",
+            "delta application 不得替换或清空稳定玩家主体身份",
+        )
     if changed.model_dump(mode="json") == previous.model_dump(mode="json"):
         raise SettlementValidationError(
             "no_state_change",
