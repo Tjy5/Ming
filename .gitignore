@@ -29,3 +29,8 @@ backend/game_saves.db
 
 # Local scripts and results
 test_result.txt
+backend/_backend_out.txt
+backend/_frontend_out.txt
+backend/_launch.py
+backend/_launch_out.txt
+backend/benchmark_report.md
