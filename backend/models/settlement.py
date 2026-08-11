@@ -21,7 +21,15 @@ from .world import (
     SettlementId,
     VersionId,
     WorldEntity,
+    WorldInstant,
     WorldVersionRef,
+)
+from .world_state import (
+    AppliedMetricAttribution,
+    CommitmentRecord,
+    ExecutorFacts,
+    ModifierRecord,
+    RollRecord,
 )
 
 
@@ -178,9 +186,47 @@ class ModifierWorldDelta(_SettlementContract):
     operation: Literal["create", "update", "end"]
     modifier_id: str
     target_entity_id: EntityId | None = None
-    before_value: JsonScalar = None
-    value: JsonScalar
+    before_status: Literal["active", "ended"] | None = None
+    record: ModifierRecord | None = None
+    ended_at: WorldInstant | None = None
     source_proposal: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_record(self) -> ModifierWorldDelta:
+        if self.operation in {"create", "update"}:
+            if (
+                self.record is None
+                or self.record.modifier_id != self.modifier_id
+                or self.ended_at is not None
+            ):
+                raise ValueError("create/update modifier delta requires a matching typed record")
+        elif self.record is not None or self.ended_at is None:
+            raise ValueError("end modifier delta requires ended_at and cannot replace its record")
+        return self
+
+
+class CommitmentWorldDelta(_SettlementContract):
+    delta_type: Literal["commitment"] = "commitment"
+    delta_id: DeltaId
+    operation: Literal["create", "update", "apply", "cancel", "fail"]
+    commitment_id: str
+    before_status: Literal["pending", "applied", "cancelled", "failed"] | None = None
+    record: CommitmentRecord | None = None
+    transitioned_at: WorldInstant | None = None
+    source_proposal: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_record(self) -> "CommitmentWorldDelta":
+        if self.operation in {"create", "update"}:
+            if (
+                self.record is None
+                or self.record.commitment_id != self.commitment_id
+                or self.transitioned_at is not None
+            ):
+                raise ValueError("create/update commitment delta requires a matching typed record")
+        elif self.record is not None or self.transitioned_at is None:
+            raise ValueError("commitment transition requires transitioned_at and cannot replace its record")
+        return self
 
 
 class ElapsedStatePatchDelta(_SettlementContract):
@@ -225,6 +271,7 @@ WorldDelta = Annotated[
     | LifecycleWorldDelta
     | PlayerWorldDelta
     | ModifierWorldDelta
+    | CommitmentWorldDelta
     | ElapsedStatePatchDelta
     | CompatibilityStatePatchDelta,
     Field(discriminator="delta_type"),
@@ -312,6 +359,7 @@ class SettlementAttribution(_SettlementContract):
     actual_executor_id: EntityId | None = None
     execution_status: str
     provider: ProviderAttribution
+    executor_facts: ExecutorFacts | None = None
 
 
 class SettlementFacts(_SettlementContract):
@@ -338,6 +386,8 @@ class SettlementFacts(_SettlementContract):
     crossed_events: list[str] = Field(default_factory=list)
     actual_outcome: str | None = None
     attribution: SettlementAttribution
+    world_state_attribution: list[AppliedMetricAttribution] = Field(default_factory=list)
+    rolls: list[RollRecord] = Field(default_factory=list)
     committed_at: datetime
 
 

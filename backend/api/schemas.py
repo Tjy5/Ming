@@ -27,6 +27,7 @@ MAX_FREE_TEXT_LENGTH = 200
 class DecreeRequest(BaseModel):
     decrees: list[StructuredDecree] = Field(default_factory=list)
     free_text: str | None = None
+    executor_name: str | None = Field(default=None, min_length=1, max_length=80)
     source_script_id: str | None = None
     loyalty_effects: list[tuple[str, int]] | None = None
     # int = 数值增量；str = 枚举字段直设（region.*.threat/control，史实威胁清除）。

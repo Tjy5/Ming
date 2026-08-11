@@ -1,8 +1,8 @@
 """08-07-decree-execution-loss 测试。
 
 覆盖：
-- 损耗系数：满腐败 → 系数显著 < 0.3；廉洁忠诚 → ≈1.0
-- 可控偏差：固定 seed → 同输入同偏差；无 seed → 偏差=0（确定性，PBT 兼容）
+- 损耗系数：只消费具名实际执行者，并可由其当前因子复算
+- stable seed 派生跨调用一致；普通行动入口不消费偏差
 - 三路径统一：structured / freeform / trpg writeback 均经损耗
 """
 
@@ -23,6 +23,7 @@ def _minister(corruption: int, loyalty: int = 100, civil: int = 100, status=Mini
         loyalty=loyalty,
         corruption=corruption,
         status=status,
+        positions=["测试官职"],
     )
 
 
@@ -42,16 +43,20 @@ def _state(ministers, seed=None) -> GameState:
 class TestLossFactor:
     def test_clean_officials_no_loss(self):
         s = _state([_minister(0, loyalty=100, civil=100)])
-        assert math.isclose(el.execution_loss_factor(s), 1.0, abs_tol=1e-6)
+        assert math.isclose(el.execution_loss_factor(s, "m0"), 1.0, abs_tol=1e-6)
 
     def test_high_corruption_strong_loss(self):
-        s = _state([_minister(90, loyalty=100, civil=100)])
-        factor = el.execution_loss_factor(s)
-        assert factor < 0.3, f"贪腐90应到手不足三成，实际系数={factor}"
+        s = _state([
+            _minister(0, loyalty=100, civil=100),
+            _minister(90, loyalty=100, civil=100),
+        ])
+        clean_factor = el.execution_loss_factor(s, "m0")
+        corrupt_factor = el.execution_loss_factor(s, "m90")
+        assert 0 < corrupt_factor < clean_factor <= 1
 
     def test_extreme_corruption_floored(self):
         s = _state([_minister(100, loyalty=0, civil=0)])
-        factor = el.execution_loss_factor(s)
+        factor = el.execution_loss_factor(s, "m100")
         assert factor >= el.MIN_LOSS_FACTOR
 
     def test_no_ministers_no_loss(self):
@@ -64,6 +69,7 @@ class TestLossFactor:
             _minister(0, loyalty=100, civil=100),
         ])
         assert math.isclose(el.execution_loss_factor(s), 1.0, abs_tol=1e-6)
+        assert el.execution_loss_factor(s, "m100") == 0
 
 
 # ── 可控偏差 ─────────────────────────────────────────────
@@ -93,8 +99,10 @@ class TestSeededDeviation:
 class TestApplyExecutionLoss:
     def test_scales_down_with_corruption(self):
         s = _state([_minister(90, loyalty=100, civil=100)])
-        out = el.apply_execution_loss(s, {"national_treasury": 100})
-        assert out["national_treasury"] < 30
+        out = el.apply_execution_loss(s, {"national_treasury": 100}, executor_name="m90")
+        factor = el.execution_loss_factor(s, "m90")
+        assert out["national_treasury"] == math.floor(100 * factor)
+        assert 0 < out["national_treasury"] < 100
 
     def test_no_sign_flip_positive(self):
         s = _state([_minister(90)])
@@ -117,7 +125,7 @@ class TestPaths:
         decree = StructuredDecree(type=DecreeType.RECRUIT_TROOPS)
         before = s.military_strength
         attr: dict = {}
-        apply_base_effects(s, decree, attr)
+        apply_base_effects(s, decree, attr, executor_name="m90")
         gained = s.military_strength - before
         assert gained < 8, f"满腐败应损耗，实际增益={gained}"
         # 至少一个受影响字段有 execution_loss 归因
@@ -127,15 +135,33 @@ class TestPaths:
         from models.game import FreeformResult
         from engine.core import process_decree
         s = _state([_minister(90, loyalty=100, civil=100)])
+        before = s.national_treasury
+        expected_delta = el.apply_execution_loss(
+            s,
+            {"national_treasury": 100},
+            executor_name="m90",
+            action_kind="governance",
+        )["national_treasury"]
         freeform = FreeformResult(effects={"global.national_treasury": 100})
-        process_decree(s, freeform=freeform)
-        assert s.national_treasury < 30, "freeform 全局增量应经损耗"
+        process_decree(s, freeform=freeform, executor_name="m90")
+        assert s.national_treasury == before + expected_delta
 
     def test_trpg_writeback_global_loss(self):
         s = _state([_minister(90, loyalty=100, civil=100)])
-        res = apply_state_changes(s, {"global.national_treasury": 100})
+        before = s.national_treasury
+        expected_delta = el.apply_execution_loss(
+            s,
+            {"national_treasury": 100},
+            executor_name="m90",
+            action_kind="governance",
+        )["national_treasury"]
+        res = apply_state_changes(
+            s,
+            {"global.national_treasury": 100},
+            executor_name="m90",
+        )
         assert "global.national_treasury" in res["applied"]
-        assert s.national_treasury < 30, "trpg 全局写入应经损耗"
+        assert s.national_treasury == before + expected_delta
 
 
 # ── clamp 约束 ───────────────────────────────────────────

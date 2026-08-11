@@ -41,6 +41,7 @@ from models.world import (
     new_settlement_id,
     new_version_id,
 )
+from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
 
 
 _INITIAL_ENTITY_SOURCE_REF = "yuanming-initial-v1"
@@ -874,6 +875,9 @@ def commit_settlement(
     proposal: AdjudicationProposal,
     *,
     time_plan: ElapsedSegmentPlan | None = None,
+    executor_facts: ExecutorFacts | None = None,
+    world_state_attribution: list[AppliedMetricAttribution] | None = None,
+    rolls: list[RollRecord] | None = None,
     settlement_id: SettlementId | None = None,
     version_id: VersionId | None = None,
     activity_id: ActivityId | None = None,
@@ -924,6 +928,7 @@ def commit_settlement(
                 actual_executor_id=proposal.actual_executor_id,
                 execution_status=proposal.execution_status,
                 provider=proposal.provider,
+                executor_facts=executor_facts,
             )
             facts = SettlementFacts(
                 settlement_id=settlement_id,
@@ -948,6 +953,8 @@ def commit_settlement(
                 crossed_events=list(crossed_events or ()),
                 actual_outcome=actual_outcome,
                 attribution=attribution,
+                world_state_attribution=list(world_state_attribution or ()),
+                rolls=list(rolls or ()),
                 committed_at=committed_at,
             )
             version = WorldVersionRef(

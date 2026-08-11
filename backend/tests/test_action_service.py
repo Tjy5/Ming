@@ -546,9 +546,11 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
         def __init__(self, text: str):
             self.text = text
             self.calls = 0
+            self.prompts = []
 
         async def generate_text_once(self, *args, **kwargs):
             self.calls += 1
+            self.prompts.append(args[0])
             return GenerationResult(text=self.text, provider_request_id="provider-request")
 
     valid_provider = _Provider(json.dumps(_proposal(0).model_dump(mode="json")))
@@ -564,6 +566,8 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
     proposal = adjudicator.adjudicate_sync(_intent(root_like), state)
     assert proposal.provider.request_id == "provider-request"
     assert valid_provider.calls == 1
+    assert '"suggestion_id"' not in valid_provider.prompts[0]
+    assert '"visible_context_version"' not in valid_provider.prompts[0]
 
     duration_payload = _proposal(0).model_dump(mode="json")
     duration_payload.update(

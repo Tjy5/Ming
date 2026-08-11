@@ -67,6 +67,13 @@ def _gameplay_projection(state):
     }
 
 
+def _monthly_invocation_count(execution) -> int:
+    return sum(
+        invocation.consumer_name == "legacy-world-state-monthly"
+        for invocation in execution.result.facts.time_plan.consumer_invocations
+    )
+
+
 def test_short_actions_inside_month_do_not_repeat_monthly_drift(monkeypatch, tmp_path):
     root = _root(monkeypatch, tmp_path, "short-actions.db")
     initial = worlds.load_version(root.version_id).state
@@ -78,7 +85,7 @@ def test_short_actions_inside_month_do_not_repeat_monthly_drift(monkeypatch, tmp
     assert final.decree_count == initial.decree_count
     assert final.national_treasury == initial.national_treasury
     assert final.grain == initial.grain
-    assert all(not item.result.facts.time_plan.consumer_invocations for item in executions)
+    assert all(_monthly_invocation_count(item) == 0 for item in executions)
     assert all(
         not any(isinstance(delta, ElapsedStatePatchDelta) for delta in item.result.facts.deltas)
         for item in executions
@@ -98,9 +105,8 @@ def test_equal_elapsed_time_split_differently_has_identical_monthly_effects(
     split = _run(split_root, [Duration(unit="day", value=1) for _ in range(30)])
 
     assert _gameplay_projection(one.state) == _gameplay_projection(split[-1].state)
-    assert sum(
-        len(item.result.facts.time_plan.consumer_invocations) for item in split
-    ) == len(one.result.facts.time_plan.consumer_invocations) == 1
+    assert sum(_monthly_invocation_count(item) for item in split) == 1
+    assert _monthly_invocation_count(one) == 1
     assert sum(
         isinstance(delta, ElapsedStatePatchDelta)
         for item in split
@@ -127,7 +133,7 @@ def test_multiple_month_boundaries_chain_consumer_patch_preconditions(
     )[-1]
 
     assert _gameplay_projection(one.state) == _gameplay_projection(split.state)
-    assert len(one.result.facts.time_plan.consumer_invocations) == 2
+    assert _monthly_invocation_count(one) == 2
     assert sum(
         isinstance(delta, ElapsedStatePatchDelta)
         for delta in one.result.facts.deltas
@@ -154,7 +160,7 @@ def test_month_consumer_facts_replay_without_reapplying_effects(monkeypatch, tmp
     assert replayed.result.replayed is True
     assert replayed.state == committed.state
     assert adjudicator.calls == 1
-    assert len(committed.result.facts.time_plan.consumer_invocations) == 1
+    assert _monthly_invocation_count(committed) == 1
     patch = [
         delta
         for delta in committed.result.facts.deltas

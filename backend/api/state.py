@@ -252,7 +252,9 @@ async def _set_state(
 
     registry = default_clock_registry()
     time_plan = DefaultTimePlanner(registry).plan_segment(intent, previous, proposal)
-    changed, consumer_deltas = DefaultWorldStateApplier(registry).apply_with_facts(
+    changed, consumer_deltas, world_state_attribution = DefaultWorldStateApplier(
+        registry,
+    ).apply_with_facts(
         previous,
         proposal.deltas,
         time_plan,
@@ -274,6 +276,7 @@ async def _set_state(
         changed,
         proposal_for_commit,
         time_plan=time_plan,
+        world_state_attribution=world_state_attribution,
         settlement_id=settlement_id,
         version_id=version_id,
         actual_outcome=action_kind,

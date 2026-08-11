@@ -268,7 +268,13 @@ def apply_passive_drift(state: GameState, attr: dict) -> None:
 
 # ── Base Effects ─────────────────────────────────────────
 
-def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -> None:
+def apply_base_effects(
+    state: GameState,
+    decree: StructuredDecree,
+    attr: dict,
+    *,
+    executor_name: str | None = None,
+) -> None:
     """Apply direct decree effect table deltas to global state fields.
 
     阶段D（design 第 3.1 节，跑团→治理数据互通）：政令效果幅度按玩家角色卡
@@ -277,7 +283,7 @@ def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -
     安全跳过；other 类政令不修正。
 
     08-07-decree-execution-loss：在玩家修正后的"目标效果"上叠加官僚执行损耗
-    （execution_loss_factor）与可控随机偏差（seed 派生），归因拆分为
+    （execution_loss_factor，无实际执行者时不虚构平均官员），归因拆分为
     base_effect（目标）与 execution_loss（净损耗）。
     """
     from engine.execution_loss import apply_execution_loss
@@ -299,9 +305,13 @@ def apply_base_effects(state: GameState, decree: StructuredDecree, attr: dict) -
             if delta == 0:
                 continue
         target_deltas[field] = delta
-    # 统一施加执行损耗 + 偏差
-    seed_keys = {f: f"{decree.type}:{f}" for f in target_deltas}
-    net_deltas = apply_execution_loss(state, target_deltas, seed_keys)
+    # 统一施加实际执行者的确定性损耗；普通行动不生成隐藏偏差。
+    net_deltas = apply_execution_loss(
+        state,
+        target_deltas,
+        executor_name=executor_name,
+        action_kind=decree_category_of(decree.type),
+    )
     for field, target in target_deltas.items():
         net = net_deltas[field]
         if net == 0:
@@ -1464,6 +1474,7 @@ def process_decree(
     *,
     mark_monthly_usage: bool = True,
     dropped_out: list | None = None,
+    executor_name: str | None = None,
 ) -> tuple[dict, dict, list[str], dict | None, list[MinisterReaction], TurnSummary]:
     """Execute one policy resolution pipeline and return its full outcome.
 
@@ -1508,8 +1519,12 @@ def process_decree(
             if k.startswith("global.") and isinstance(v, (int, float))
         }
         if global_deltas:
-            loss_keys = {f: f"freeform:{f}" for f in global_deltas}
-            net = apply_execution_loss(state, global_deltas, loss_keys)
+            net = apply_execution_loss(
+                state,
+                global_deltas,
+                executor_name=executor_name,
+                action_kind="governance",
+            )
             for f, scaled in net.items():
                 path = f"global.{f}"
                 if scaled == 0:
@@ -1537,7 +1552,7 @@ def process_decree(
     elif decree:
         # ── Structured branch (unchanged) ──
         # 2. base effects
-        apply_base_effects(state, decree, attr)
+        apply_base_effects(state, decree, attr, executor_name=executor_name)
         # 3. faction reactions
         apply_faction_reactions(state, decree, attr)
         # 3.5 minister status transition

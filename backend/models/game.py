@@ -25,6 +25,7 @@ from .world import (
     WorldEntity,
     WorldSnapshotMetadata,
 )
+from .world_state import WorldStateLedger
 
 MAX_MINISTER_CONVERSATION_MESSAGES = 50
 
@@ -430,6 +431,7 @@ class GameState(BaseModel):
     entity_registry: dict[EntityId, WorldEntity] = Field(default_factory=dict)
     player_world_status: PlayerWorldStatus = Field(default_factory=PlayerWorldStatus)
     activities: list[Activity] = Field(default_factory=list)
+    world_state: WorldStateLedger = Field(default_factory=WorldStateLedger)
     # phase state machine (阶段切换逻辑属阶段D)
     # 阶段B：默认翻转为 life_story（跑团叙事开局）；治理开局档由存档迁移保留 governance
     phase: Literal["life_story", "governance"] = "life_story"
@@ -468,7 +470,7 @@ class GameState(BaseModel):
     # ── TRPG（阶段B）：角色卡与成长记录，随存档持久化 ──
     character_sheets: dict[str, CharacterSheet] = Field(default_factory=dict)
     growth_log: list[GrowthEntry] = Field(default_factory=list)
-    # 执行损耗随机偏差 seed；None 表示确定性（无偏差），兼容 PBT/测试
+    # Legacy-compatible deterministic seed; ordinary actions never use hidden deviation.
     execution_rng_seed: int | None = None
     # 在办国策（国家层面长期政令，区别于大臣任务），随存档持久化
     active_policies: list[PolicyProgress] = Field(default_factory=list)

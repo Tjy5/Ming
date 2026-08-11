@@ -5,13 +5,12 @@
   设置并校验取值），合法应用、非法丢弃并记日志（不抛错、不阻断）。
 - 治理 → 跑团回写钩子（engine 内部结算点调用，直接写玩家角色卡，**不经 AI
   白名单**——SYSTEM_FIELDS 禁的是治理 AI 改 character_sheets，与此路径无关）：
-  战败 → 军事 -2 + 状态"挫败"；民心崩溃 → 政治 -2；大臣叛离 → 概率特质"多疑"。
+  战败 → 军事 -2 + 状态"挫败"；民心崩溃 → 政治 -2；大臣叛离 → 特质"多疑"。
   角色卡缺失（新档未生成）时安全跳过。
 """
 from __future__ import annotations
 
 import logging
-import random
 
 from models.enums import MinisterStatus, RegionControl, RegionThreat
 from models.game import GameState
@@ -20,8 +19,6 @@ from trpg import character as character_mod
 
 logger = logging.getLogger(__name__)
 
-# 大臣叛离 → 玩家获得"多疑"特质的概率
-BETRAYAL_DISTRUST_PROBABILITY = 0.3
 # 民心崩溃阈值：结算后 civil_morale 不高于该值视为崩溃（政治 -2）
 CIVIL_COLLAPSE_THRESHOLD = 10
 
@@ -36,7 +33,12 @@ _STR_FIELD_ENUMS: dict[str, object] = {
 
 # ── /act GM state_changes 应用层 ─────────────────────────
 
-def apply_state_changes(state: GameState, changes: dict) -> dict:
+def apply_state_changes(
+    state: GameState,
+    changes: dict,
+    *,
+    executor_name: str | None = None,
+) -> dict:
     """按 WRITABLE_FIELDS 白名单应用 GM state_changes。
 
     返回 {"applied": [...], "ignored": [...]}（键清单，供 /act 响应透出）。
@@ -50,7 +52,7 @@ def apply_state_changes(state: GameState, changes: dict) -> dict:
         if not isinstance(key, str) or not key.strip():
             ignored.append(str(key))
             continue
-        if _apply_one(state, key.strip(), raw_value):
+        if _apply_one(state, key.strip(), raw_value, executor_name=executor_name):
             applied.append(key.strip())
         else:
             ignored.append(key.strip())
@@ -98,7 +100,13 @@ def _resolve_target(state: GameState, key: str):
     return None
 
 
-def _apply_one(state: GameState, key: str, raw_value) -> bool:
+def _apply_one(
+    state: GameState,
+    key: str,
+    raw_value,
+    *,
+    executor_name: str | None = None,
+) -> bool:
     spec = _match_whitelist(key)
     if spec is None:
         logger.info("state_changes 忽略（不在白名单）: %s", key)
@@ -125,7 +133,12 @@ def _apply_one(state: GameState, key: str, raw_value) -> bool:
             # 08-07-decree-execution-loss：全局数值增量经执行损耗，防止跑团 GM 绕过
             if parts[0] == "global":
                 from engine.execution_loss import apply_execution_loss
-                net = apply_execution_loss(state, {field: delta}, {field: f"trpg:{key}"})
+                net = apply_execution_loss(
+                    state,
+                    {field: delta},
+                    executor_name=executor_name,
+                    action_kind="governance",
+                )
                 delta = net.get(field, delta)
             setattr(target, field, getattr(target, field) + delta)
             return True
@@ -134,7 +147,12 @@ def _apply_one(state: GameState, key: str, raw_value) -> bool:
             # 同上：全局 float 增量（如税收比例）经损耗
             if parts[0] == "global":
                 from engine.execution_loss import apply_execution_loss
-                net = apply_execution_loss(state, {field: delta}, {field: f"trpg:{key}"})
+                net = apply_execution_loss(
+                    state,
+                    {field: delta},
+                    executor_name=executor_name,
+                    action_kind="governance",
+                )
                 delta = net.get(field, delta)
             setattr(target, field, round(getattr(target, field) + delta, 2))
             return True
@@ -169,12 +187,10 @@ def writeback_civil_collapse(state: GameState) -> bool:
 
 
 def writeback_minister_betrayal(state: GameState, minister_name: str) -> bool:
-    """大臣叛离回写：玩家概率获得特质"多疑"（概率见 BETRAYAL_DISTRUST_PROBABILITY）。
+    """大臣叛离回写：确定性记录玩家获得的"多疑"后果。
 
     叛离登记（loyalty_zero_triggered）由 apply_betrayal_check 负责，此处只处理特质。
     """
-    if random.random() >= BETRAYAL_DISTRUST_PROBABILITY:
-        return False
     player = character_mod.get_sheet(state, PLAYER_NAME)
     if player is None:
         return False

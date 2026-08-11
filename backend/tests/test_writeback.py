@@ -117,24 +117,27 @@ class TestWritebackHooks:
         assert wb.writeback_civil_collapse(state) is True
         assert _player_sheet(state).attrs["政治"] == before - 2
 
-    def test_betrayal_trait_granted_effectively(self, monkeypatch):
+    def test_betrayal_trait_granted_effectively(self):
         """叛离回写实际授予"多疑"（初始特质已不含，钩子为唯一来源）。"""
         state = _state_with_sheets()
         sheet = _player_sheet(state)
         assert "多疑" not in sheet.traits          # 阶段D 校准：初始特质不含
-        monkeypatch.setattr(random, "random", lambda: 0.0)   # 必得
         assert wb.writeback_minister_betrayal(state, "杨宪") is True
         assert "多疑" in sheet.traits
         # 幂等：已有多疑不重复添加
         assert wb.writeback_minister_betrayal(state, "杨宪") is True
         assert sheet.traits.count("多疑") == 1
 
-    def test_betrayal_trait_not_granted_on_unlucky(self, monkeypatch):
+    def test_betrayal_trait_does_not_consume_global_random(self, monkeypatch):
         state = _state_with_sheets()
         sheet = _player_sheet(state)
-        monkeypatch.setattr(random, "random", lambda: 0.99)  # 必不得
-        assert wb.writeback_minister_betrayal(state, "杨宪") is False
-        assert "多疑" not in sheet.traits
+        monkeypatch.setattr(
+            random,
+            "random",
+            lambda: (_ for _ in ()).throw(AssertionError("global RNG consumed")),
+        )
+        assert wb.writeback_minister_betrayal(state, "杨宪") is True
+        assert "多疑" in sheet.traits
 
     def test_hooks_skip_without_player_sheet(self):
         """角色卡缺失（新档未生成）时安全跳过，不抛错。"""
@@ -144,9 +147,8 @@ class TestWritebackHooks:
         assert wb.writeback_minister_betrayal(state, "杨宪") is False
         assert wb.apply_betrayal_check(state) == []
 
-    def test_betrayal_check_registers_zero_loyalty_once(self, monkeypatch):
+    def test_betrayal_check_registers_zero_loyalty_once(self):
         state = _state_with_sheets()
-        monkeypatch.setattr(random, "random", lambda: 0.0)
         # 新档开局 1328-10 大臣均未入仕，显式激活一名
         minister = next(m for m in state.ministers if m.status == MinisterStatus.NOT_YET_ENTERED)
         minister.status = MinisterStatus.ACTIVE

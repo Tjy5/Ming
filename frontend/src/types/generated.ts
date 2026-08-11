@@ -858,6 +858,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/world-state/{game_id}/{branch_id}/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get World State Projection
+         * @description Return one immutable version-addressed projection for UI/narrative consumers.
+         */
+        get: operations["get_world_state_projection_api_world_state__game_id___branch_id___version_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/activities/{activity_id}/continue": {
         parameters: {
             query?: never;
@@ -1436,6 +1456,38 @@ export type components = {
             new_ministers?: components["schemas"]["Minister"][];
             result: components["schemas"]["SettlementCommitResult"];
         };
+        /** AppliedMetricAttribution */
+        AppliedMetricAttribution: {
+            /** Delta Id */
+            delta_id: string;
+            target: components["schemas"]["MetricTarget"];
+            /** Before Value */
+            before_value: number;
+            /** Proposed Value */
+            proposed_value: number;
+            /**
+             * Executor Adjustment
+             * @default 0
+             */
+            executor_adjustment: number;
+            /**
+             * Precision Adjustment
+             * @default 0
+             */
+            precision_adjustment: number;
+            /**
+             * Clamp Adjustment
+             * @default 0
+             */
+            clamp_adjustment: number;
+            /** Actual Delta */
+            actual_delta: number;
+            /** After Value */
+            after_value: number;
+            executor_facts?: components["schemas"]["ExecutorFacts"] | null;
+            /** Roll Id */
+            roll_id?: string | null;
+        };
         /** AssemblyDebateRequest */
         AssemblyDebateRequest: {
             /** Topic */
@@ -1623,6 +1675,54 @@ export type components = {
             /** Ordinal */
             ordinal: number;
         };
+        /** CommitmentRecord */
+        CommitmentRecord: {
+            /** Commitment Id */
+            commitment_id: string;
+            target: components["schemas"]["MetricTarget"];
+            /** Amount */
+            amount: string;
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "policy" | "mission" | "activity" | "event";
+            /** Source Ref */
+            source_ref: string;
+            due_at: components["schemas"]["WorldInstant"];
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "applied" | "cancelled" | "failed";
+        };
+        /** CommitmentWorldDelta */
+        CommitmentWorldDelta: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            delta_type: "commitment";
+            /**
+             * Delta Id
+             * Format: uuid
+             */
+            delta_id: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "update" | "apply" | "cancel" | "fail";
+            /** Commitment Id */
+            commitment_id: string;
+            /** Before Status */
+            before_status?: ("pending" | "applied" | "cancelled" | "failed") | null;
+            record?: components["schemas"]["CommitmentRecord"] | null;
+            transitioned_at?: components["schemas"]["WorldInstant"] | null;
+            /** Source Proposal */
+            source_proposal?: string | null;
+        };
         /**
          * CompatibilityStatePatchDelta
          * @description Allowlisted state difference produced by an isolated legacy action adapter.
@@ -1776,6 +1876,8 @@ export type components = {
             decrees?: components["schemas"]["StructuredDecree"][];
             /** Free Text */
             free_text?: string | null;
+            /** Executor Name */
+            executor_name?: string | null;
             /** Source Script Id */
             source_script_id?: string | null;
             /** Loyalty Effects */
@@ -1995,6 +2097,55 @@ export type components = {
          * @enum {string}
          */
         EventUrgency: "高" | "中" | "低";
+        /** ExecutorCandidateProjection */
+        ExecutorCandidateProjection: {
+            /** Version Id */
+            version_id?: string | null;
+            executor: components["schemas"]["ExecutorFacts"];
+            /** Available */
+            available: boolean;
+            /** Authority */
+            authority?: string[];
+            /** Risks */
+            risks?: string[];
+        };
+        /** ExecutorFactor */
+        ExecutorFactor: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+            /** Source */
+            source: string;
+        };
+        /** ExecutorFacts */
+        ExecutorFacts: {
+            /** Requested Executor Id */
+            requested_executor_id?: string | null;
+            /** Actual Executor Id */
+            actual_executor_id?: string | null;
+            /**
+             * Selection Source
+             * @default none
+             * @enum {string}
+             */
+            selection_source: "player" | "ai" | "none";
+            /** Execution Status */
+            execution_status: string;
+            /** Entity Type */
+            entity_type?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Version Id */
+            version_id?: string | null;
+            /** Factors */
+            factors?: components["schemas"]["ExecutorFactor"][];
+            /**
+             * Efficiency
+             * @default 1
+             */
+            efficiency: string;
+        };
         /** Faction */
         Faction: {
             /** Name */
@@ -2135,6 +2286,7 @@ export type components = {
             player_world_status?: components["schemas"]["PlayerWorldStatus"];
             /** Activities */
             activities?: components["schemas"]["Activity"][];
+            world_state?: components["schemas"]["WorldStateLedger"];
             /**
              * Phase
              * @default life_story
@@ -2265,6 +2417,7 @@ export type components = {
             player_world_status?: components["schemas"]["PlayerWorldStatus"];
             /** Activities */
             activities?: components["schemas"]["Activity"][];
+            world_state?: components["schemas"]["WorldStateLedger"];
             /**
              * Phase
              * @default life_story
@@ -2625,6 +2778,38 @@ export type components = {
          * @enum {string}
          */
         MemorialStatus: "pending" | "approved" | "rejected" | "deferred";
+        /** MetricProjection */
+        MetricProjection: {
+            /** Version Id */
+            version_id?: string | null;
+            target: components["schemas"]["MetricTarget"];
+            /** Base Value */
+            base_value: number;
+            /** Base Band */
+            base_band?: string | null;
+            /** Active Modifiers */
+            active_modifiers?: components["schemas"]["ModifierRecord"][];
+            /** Effective Value */
+            effective_value: number;
+            /** Effective Band */
+            effective_band?: string | null;
+            /** Recent Sources */
+            recent_sources?: components["schemas"]["AppliedMetricAttribution"][];
+            /** Commitments */
+            commitments?: components["schemas"]["CommitmentRecord"][];
+        };
+        /** MetricTarget */
+        MetricTarget: {
+            /**
+             * Target Scope
+             * @enum {string}
+             */
+            target_scope: "world" | "region" | "entity";
+            /** Metric Key */
+            metric_key: string;
+            /** Target Entity Id */
+            target_entity_id?: string | null;
+        };
         /** MetricWorldDelta */
         MetricWorldDelta: {
             /**
@@ -2924,6 +3109,60 @@ export type components = {
             /** Effects */
             effects?: Record<string, never>;
         };
+        /** ModifierRecord */
+        ModifierRecord: {
+            /** Modifier Id */
+            modifier_id: string;
+            /** Name */
+            name: string;
+            target: components["schemas"]["MetricTarget"];
+            /**
+             * Source Kind
+             * @enum {string}
+             */
+            source_kind: "settlement" | "event" | "policy" | "activity" | "system";
+            /** Source Ref */
+            source_ref: string;
+            transform: components["schemas"]["ModifierTransform"];
+            started_at: components["schemas"]["WorldInstant"];
+            ends_at?: components["schemas"]["WorldInstant"] | null;
+            /** Invalidation Condition */
+            invalidation_condition?: string | null;
+            /** Stacking Group */
+            stacking_group: string;
+            /**
+             * Stacking Policy
+             * @default stack
+             * @enum {string}
+             */
+            stacking_policy: "stack" | "replace" | "exclusive";
+            /**
+             * Priority
+             * @default 0
+             */
+            priority: number;
+            /**
+             * Status
+             * @default active
+             * @enum {string}
+             */
+            status: "active" | "ended";
+            ended_at?: components["schemas"]["WorldInstant"] | null;
+        };
+        /** ModifierTransform */
+        ModifierTransform: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "add" | "multiply" | "minimum" | "maximum";
+            /** Amount */
+            amount?: string | null;
+            /** Numerator */
+            numerator?: number | null;
+            /** Denominator */
+            denominator?: number | null;
+        };
         /** ModifierWorldDelta */
         ModifierWorldDelta: {
             /**
@@ -2945,10 +3184,10 @@ export type components = {
             modifier_id: string;
             /** Target Entity Id */
             target_entity_id?: string | null;
-            /** Before Value */
-            before_value?: string | number | boolean | null;
-            /** Value */
-            value: string | number | boolean | null;
+            /** Before Status */
+            before_status?: ("active" | "ended") | null;
+            record?: components["schemas"]["ModifierRecord"] | null;
+            ended_at?: components["schemas"]["WorldInstant"] | null;
             /** Source Proposal */
             source_proposal?: string | null;
         };
@@ -3347,6 +3586,24 @@ export type components = {
             /** Controller Entity Id */
             controller_entity_id?: string | null;
         };
+        /** RegionProjection */
+        RegionProjection: {
+            /** Version Id */
+            version_id?: string | null;
+            /**
+             * Region Id
+             * Format: uuid
+             */
+            region_id: string;
+            /** Display Name */
+            display_name: string;
+            /** Controller Entity Id */
+            controller_entity_id?: string | null;
+            /** Local Entity Ids */
+            local_entity_ids?: string[];
+            /** Metrics */
+            metrics?: components["schemas"]["MetricProjection"][];
+        };
         /**
          * RegionThreat
          * @enum {string}
@@ -3414,6 +3671,23 @@ export type components = {
             /** Source Proposal */
             source_proposal?: string | null;
         };
+        /** RollRecord */
+        RollRecord: {
+            /** Roll Id */
+            roll_id: string;
+            /** Protocol Version */
+            protocol_version: string;
+            /** Raw D100 */
+            raw_d100: number;
+            /** Modifiers */
+            modifiers?: components["schemas"]["VisibleRollModifier"][];
+            /** Uncertainty Reasons */
+            uncertainty_reasons: ("opposition" | "hidden_information" | "hazard" | "volatile_environment")[];
+            /** Fact References */
+            fact_references: string[];
+            /** Checkpoint Slot */
+            checkpoint_slot: string;
+        };
         /** SaveRequest */
         SaveRequest: {
             /** Name */
@@ -3433,6 +3707,7 @@ export type components = {
             /** Execution Status */
             execution_status: string;
             provider: components["schemas"]["ProviderAttribution"];
+            executor_facts?: components["schemas"]["ExecutorFacts"] | null;
         };
         /** SettlementCommitResult */
         SettlementCommitResult: {
@@ -3499,7 +3774,7 @@ export type components = {
             /** New Opportunities */
             new_opportunities?: string[];
             /** Deltas */
-            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"] | components["schemas"]["ElapsedStatePatchDelta"] | components["schemas"]["CompatibilityStatePatchDelta"])[];
+            deltas?: (components["schemas"]["MetricWorldDelta"] | components["schemas"]["EntityWorldDelta"] | components["schemas"]["RelationshipWorldDelta"] | components["schemas"]["LifecycleWorldDelta"] | components["schemas"]["PlayerWorldDelta"] | components["schemas"]["ModifierWorldDelta"] | components["schemas"]["CommitmentWorldDelta"] | components["schemas"]["ElapsedStatePatchDelta"] | components["schemas"]["CompatibilityStatePatchDelta"])[];
             /** Duration Reason */
             duration_reason?: string | null;
             time_plan?: components["schemas"]["ElapsedSegmentPlan"] | null;
@@ -3516,6 +3791,10 @@ export type components = {
             /** Actual Outcome */
             actual_outcome?: string | null;
             attribution: components["schemas"]["SettlementAttribution"];
+            /** World State Attribution */
+            world_state_attribution?: components["schemas"]["AppliedMetricAttribution"][];
+            /** Rolls */
+            rolls?: components["schemas"]["RollRecord"][];
             /**
              * Committed At
              * Format: date-time
@@ -3670,6 +3949,15 @@ export type components = {
             /** Error Type */
             type: string;
         };
+        /** VisibleRollModifier */
+        VisibleRollModifier: {
+            /** Name */
+            name: string;
+            /** Value */
+            value: number;
+            /** Source Fact */
+            source_fact: string;
+        };
         /**
          * WorldClock
          * @description Canonical persisted world clock; projections are always derived.
@@ -3751,6 +4039,28 @@ export type components = {
             imported_at?: string | null;
             /** Migration Notes */
             migration_notes?: string[];
+        };
+        /** WorldStateLedger */
+        WorldStateLedger: {
+            /** Modifiers */
+            modifiers?: {
+                [key: string]: components["schemas"]["ModifierRecord"];
+            };
+            /** Commitments */
+            commitments?: {
+                [key: string]: components["schemas"]["CommitmentRecord"];
+            };
+        };
+        /** WorldStateProjection */
+        WorldStateProjection: {
+            /** Version Id */
+            version_id?: string | null;
+            /** Metrics */
+            metrics?: components["schemas"]["MetricProjection"][];
+            /** Executors */
+            executors?: components["schemas"]["ExecutorCandidateProjection"][];
+            /** Regions */
+            regions?: components["schemas"]["RegionProjection"][];
         };
         /** WorldVersionRef */
         WorldVersionRef: {
@@ -5767,6 +6077,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Activity"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+        };
+    };
+    get_world_state_projection_api_world_state__game_id___branch_id___version_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+                branch_id: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldStateProjection"];
                 };
             };
             /** @description Not Found */

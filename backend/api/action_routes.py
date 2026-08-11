@@ -5,9 +5,11 @@ from fastapi import APIRouter, HTTPException
 from db import worlds
 from engine.activity import ActivityContractError, find_activity
 from engine.settlement import SettlementValidationError
+from engine.world_state import world_state_projection
 from models.game import ErrorResponse
 from models.settlement import ActionIntent
-from models.world import Activity, ActivityId, BranchId, GameId
+from models.world import Activity, ActivityId, BranchId, GameId, VersionId
+from models.world_state import WorldStateProjection
 
 from .action_service import (
     AIActionAdjudicator,
@@ -113,6 +115,44 @@ def get_activity(
         raise HTTPException(404, detail=_error_detail(code, message)) from None
     except worlds.WorldStoreError as exc:
         raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.get(
+    "/world-state/{game_id}/{branch_id}/{version_id}",
+    response_model=WorldStateProjection,
+    responses={404: {"model": ActionErrorEnvelope}, 500: {"model": ActionErrorEnvelope}},
+)
+def get_world_state_projection(
+    game_id: GameId,
+    branch_id: BranchId,
+    version_id: VersionId,
+) -> WorldStateProjection:
+    """Return one immutable version-addressed projection for UI/narrative consumers."""
+
+    try:
+        snapshot = worlds.load_version(version_id)
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+    if snapshot.ref.game_id != game_id or snapshot.ref.branch_id != branch_id:
+        raise HTTPException(
+            404,
+            detail=_error_detail(
+                "world_not_found",
+                "指定版本不属于请求的游戏世界线",
+            ),
+        )
+    try:
+        recent_sources = [
+            attribution
+            for facts in worlds.list_settlements(game_id, branch_id)
+            if facts.result_version_id == version_id
+            for attribution in facts.world_state_attribution
+        ]
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+    return world_state_projection(snapshot.state, recent_sources=recent_sources)
 
 
 @action_router.post(

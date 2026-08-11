@@ -25,6 +25,7 @@ from ai.fallbacks import (
     rule_classify_chat_intent,
     rule_classify_script_choice,
     rule_debate_speeches,
+    rule_minister_dialogue,
     rule_parse_free_input,
     rule_petitions,
     rule_process_freeform,
@@ -53,7 +54,9 @@ class FakeProvider(AIProvider):
         marker = "ACTION_INTENT="
         if marker not in prompt:
             return await super().generate_text_once(prompt)
-        intent_text = prompt.split(marker, 1)[1].split("\nCURRENT_WORLD=", 1)[0]
+        intent_text = prompt.split(marker, 1)[1]
+        for boundary in ("\nPUBLIC_ROLL=", "\nCURRENT_WORLD="):
+            intent_text = intent_text.split(boundary, 1)[0]
         intent = json.loads(intent_text)
         action_kind = intent.get("action_kind")
         duration = {

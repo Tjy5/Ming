@@ -25,9 +25,12 @@ from engine.activity import (
 from engine.calendar import advance_game_time, ensure_game_time_clock
 from engine.clock import ClockConsumerRegistry, ClockPlanningError, plan_elapsed_segment
 from engine.elapsed_consumers import default_clock_registry
+from engine.execution import build_executor_facts
+from engine.rng import roll_for_action
 from engine.settlement import (
     SettlementValidationError,
     apply_world_deltas,
+    apply_world_deltas_with_facts,
     validate_adjudication_proposal,
     validate_final_state,
 )
@@ -49,6 +52,7 @@ from models.world import (
     new_settlement_id,
     new_version_id,
 )
+from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
 
 
 class ActionAdjudicator(Protocol):
@@ -153,7 +157,7 @@ class DefaultWorldStateApplier:
         deltas: list[WorldDelta],
         time_plan: ElapsedSegmentPlan | None,
     ) -> GameState:
-        changed, _ = self.apply_with_facts(state, deltas, time_plan)
+        changed, _, _ = self.apply_with_facts(state, deltas, time_plan)
         return changed
 
     def apply_with_facts(
@@ -161,10 +165,18 @@ class DefaultWorldStateApplier:
         state: GameState,
         deltas: list[WorldDelta],
         time_plan: ElapsedSegmentPlan | None,
-    ) -> tuple[GameState, list[WorldDelta]]:
-        changed = apply_world_deltas(state, deltas)
+        *,
+        executor_facts: ExecutorFacts | None = None,
+        roll: RollRecord | None = None,
+    ) -> tuple[GameState, list[WorldDelta], list[AppliedMetricAttribution]]:
+        changed, attribution = apply_world_deltas_with_facts(
+            state,
+            deltas,
+            executor_facts=executor_facts,
+            roll=roll,
+        )
         if time_plan is None:
-            return changed, []
+            return changed, [], attribution
 
         try:
             consumer_deltas = list(self.registry.dispatch(changed, time_plan))
@@ -189,7 +201,7 @@ class DefaultWorldStateApplier:
                 "time plan 与最终世界时钟推进结果不一致",
             )
         try:
-            return GameState.model_validate(changed.model_dump()), consumer_deltas
+            return GameState.model_validate(changed.model_dump()), consumer_deltas, attribution
         except ValidationError as exc:
             raise SettlementValidationError(
                 "invalid_final_state",
@@ -237,6 +249,10 @@ class AIActionAdjudicator:
             activity_instruction = (
                 "For an activity lifecycle command, do not return a new duration or activity candidate. "
             )
+        public_roll = roll_for_action(intent, state)
+        adjudication_intent = intent.model_dump_json(
+            exclude={"suggestion_id", "visible_context_version"},
+        )
         prompt = (
             "Return exactly one JSON object matching AdjudicationProposal schema_version=1. "
             "A duration_candidate must be an object with positive integer value and unit "
@@ -244,7 +260,8 @@ class AIActionAdjudicator:
             f"{activity_instruction}"
             "Judge the player's action only from the supplied current-world snapshot. "
             "Do not use historical canon as a whitelist and do not include prose outside JSON.\n"
-            f"ACTION_INTENT={intent.model_dump_json()}\n"
+            f"ACTION_INTENT={adjudication_intent}\n"
+            f"PUBLIC_ROLL={public_roll.model_dump_json() if public_roll else 'none'}\n"
             f"CURRENT_WORLD={state.model_dump_json()}"
         )
         try:
@@ -348,12 +365,26 @@ class ActionService:
         if proposal.activity_candidate is not None:
             return self._create_activity(intent, previous, proposal)
         time_plan = self._time_planner.plan_segment(intent, previous, proposal)
+        roll = roll_for_action(intent, previous)
+        try:
+            executor_facts = build_executor_facts(
+                previous,
+                requested_executor_id=proposal.requested_executor_id,
+                actual_executor_id=proposal.actual_executor_id,
+                execution_status=proposal.execution_status,
+                action_kind=intent.action_kind,
+            )
+        except ValueError as exc:
+            raise SettlementValidationError("invalid_executor", str(exc)) from exc
+        world_state_attribution: list[AppliedMetricAttribution] = []
         proposal_for_commit = proposal
         if isinstance(self._world_state_applier, DefaultWorldStateApplier):
-            changed, consumer_deltas = self._world_state_applier.apply_with_facts(
+            changed, consumer_deltas, world_state_attribution = self._world_state_applier.apply_with_facts(
                 previous,
                 proposal.deltas,
                 time_plan,
+                executor_facts=executor_facts,
+                roll=roll,
             )
             if consumer_deltas:
                 proposal_for_commit = proposal.model_copy(
@@ -387,6 +418,9 @@ class ActionService:
             changed,
             proposal_for_commit,
             time_plan=time_plan,
+            executor_facts=executor_facts,
+            world_state_attribution=world_state_attribution,
+            rolls=[roll] if roll is not None else [],
             settlement_id=settlement_id,
             version_id=version_id,
         )
@@ -431,7 +465,20 @@ class ActionService:
                 "活动计划无法按当前历法规范化",
             ) from exc
 
-        changed = apply_world_deltas(previous, proposal.deltas)
+        roll = roll_for_action(intent, previous)
+        executor_facts = build_executor_facts(
+            previous,
+            requested_executor_id=proposal.requested_executor_id,
+            actual_executor_id=proposal.actual_executor_id,
+            execution_status=proposal.execution_status,
+            action_kind=intent.action_kind,
+        )
+        changed, world_state_attribution = apply_world_deltas_with_facts(
+            previous,
+            proposal.deltas,
+            executor_facts=executor_facts,
+            roll=roll,
+        )
         changed.activities.append(activity)
         changed = GameState.model_validate(changed.model_dump())
         validate_final_state(previous, changed)
@@ -440,6 +487,9 @@ class ActionService:
             intent,
             changed,
             proposal,
+            executor_facts=executor_facts,
+            world_state_attribution=world_state_attribution,
+            rolls=[roll] if roll is not None else [],
             settlement_id=settlement_id,
             version_id=version_id,
             activity_id=activity.activity_id,
@@ -520,7 +570,7 @@ class ActionService:
             raise SettlementValidationError(code, message) from exc
 
         if isinstance(self._world_state_applier, DefaultWorldStateApplier):
-            projected, consumer_deltas = self._world_state_applier.apply_with_facts(
+            projected, consumer_deltas, _ = self._world_state_applier.apply_with_facts(
                 previous,
                 [],
                 time_plan,
@@ -538,6 +588,14 @@ class ActionService:
             projected.model_copy(deep=True),
         )
         validate_adjudication_proposal(intent, projected, proposal)
+        roll = roll_for_action(intent, projected)
+        executor_facts = build_executor_facts(
+            projected,
+            requested_executor_id=proposal.requested_executor_id,
+            actual_executor_id=proposal.actual_executor_id,
+            execution_status=proposal.execution_status,
+            action_kind=intent.action_kind,
+        )
         try:
             require_available_executor(projected, activity)
         except ActivityContractError as exc:
@@ -548,7 +606,12 @@ class ActionService:
             )
             if transition not in {"pause", "await_player", "fail"}:
                 raise self._activity_error(exc) from exc
-        changed = apply_world_deltas(projected, proposal.deltas)
+        changed, world_state_attribution = apply_world_deltas_with_facts(
+            projected,
+            proposal.deltas,
+            executor_facts=executor_facts,
+            roll=roll,
+        )
         settlement_id = new_settlement_id()
         version_id = new_version_id()
         combined_deltas = [*consumer_deltas, *proposal.deltas]
@@ -578,6 +641,9 @@ class ActionService:
             changed,
             proposal_for_commit,
             time_plan=time_plan,
+            executor_facts=executor_facts,
+            world_state_attribution=world_state_attribution,
+            rolls=[roll] if roll is not None else [],
             settlement_id=settlement_id,
             version_id=version_id,
             activity_id=activity.activity_id,

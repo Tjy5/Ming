@@ -71,19 +71,29 @@ def numeric_context(state: GameState) -> str:
 
     膨胀控制（design 2.2）：危险档（⚠）逐行展开描述；无危险档时一行总述只列档位标签。
     """
+    from engine.world_state import metric_projection
+
     lines: list[str] = []
     for field, label in _GLOBAL_LABELS.items():
-        value = getattr(state, field, None)
-        if value is None:
-            continue
+        projection = metric_projection(state, field)
+        value = projection.effective_value
         band = band_of(GLOBAL_BANDS.get(field), value)
         if band is None:
             continue
         tag, desc = band
+        modifier_note = ""
+        if projection.active_modifiers:
+            names = "、".join(record.name for record in projection.active_modifiers)
+            modifier_note = (
+                f"；基础 {int(projection.base_value)}（{projection.base_band}），"
+                f"修正：{names}"
+            )
         if field in _EXPANDED_GLOBAL and _is_dangerous(band):
-            lines.append(f"{label} {int(value)}（{tag}：{desc}）⚠ 危险区间，叙事必须如实反映")
+            lines.append(
+                f"{label} {int(value)}（{tag}：{desc}{modifier_note}）⚠ 危险区间，叙事必须如实反映",
+            )
         else:
-            lines.append(f"{label} {int(value)}（{tag}）")
+            lines.append(f"{label} {int(value)}（{tag}{modifier_note}）")
     if not lines:
         return ""
     if not any("⚠" in line for line in lines):
@@ -109,10 +119,13 @@ def region_numeric_context(state: GameState) -> str:
 
 def threshold_alerts(state: GameState) -> list[str]:
     """命中 THRESHOLD_ALERTS 的强制叙事口径提示。只读 state，无副作用。"""
+    from engine.world_state import project_effective_state
+
+    effective_state = project_effective_state(state)
     hits: list[str] = []
     for name, check, message in THRESHOLD_ALERTS:
         try:
-            if check(state):
+            if check(effective_state):
                 hits.append(f"【{name}】{message}。")
         except Exception:
             logger.warning("threshold alert check failed", extra={"alert": name})

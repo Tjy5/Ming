@@ -235,10 +235,6 @@ async def _execute_decree_core(
 
     async with _lock:
         state = _get_state().model_copy(deep=True)
-        # 08-07-decree-execution-loss：运行时启用可控随机偏差（测试/默认无 seed → 确定性）
-        state.execution_rng_seed = hash(
-            f"{state.time.year}-{state.time.month}-{state.decree_count}"
-        ) & 0xFFFFFFFF
         provider = _get_provider()
 
         if req.source_script_id:
@@ -292,6 +288,7 @@ async def _execute_decree_core(
                 selected_choice = evt.choices[choice_index]
                 req = DecreeRequest(
                     decrees=list(selected_choice.decrees),
+                    executor_name=req.executor_name,
                     source_script_id=req.source_script_id,
                     loyalty_effects=list(selected_choice.loyalty_effects) or None,
                     state_effects=dict(selected_choice.state_effects) or None,
@@ -307,7 +304,10 @@ async def _execute_decree_core(
                     # effects 不再被叙事描述（文本/数值同源）
                     dropped_out: list = []
                     delta, attribution, triggered, game_over, _reactions, _summary = process_decree(
-                        state, freeform=freeform, dropped_out=dropped_out,
+                        state,
+                        freeform=freeform,
+                        dropped_out=dropped_out,
+                        executor_name=req.executor_name,
                     )
                     _mem_triggers = state.memorials[mem_count_before:]
 
@@ -368,6 +368,7 @@ async def _execute_decree_core(
                     # Execute fallback structured decrees
                     req = DecreeRequest(
                         decrees=parsed,
+                        executor_name=req.executor_name,
                         source_script_id=req.source_script_id,
                         loyalty_effects=req.loyalty_effects,
                         state_effects=None,  # already applied
@@ -408,6 +409,7 @@ async def _execute_decree_core(
                     state,
                     decree,
                     mark_monthly_usage=mark_monthly_usage,
+                    executor_name=req.executor_name,
                 )
                 _mem_triggers = state.memorials[mem_count_before:]
 
@@ -946,10 +948,6 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
 
     async with _lock:
         state = _get_state().model_copy(deep=True)
-        # 08-07-decree-execution-loss：运行时启用可控随机偏差
-        state.execution_rng_seed = hash(
-            f"{state.time.year}-{state.time.month}-{state.decree_count}"
-        ) & 0xFFFFFFFF
         memorial = next((m for m in state.memorials if m.id == memorial_id), None)
         if memorial is None:
             raise HTTPException(404, detail=ErrorResponse(

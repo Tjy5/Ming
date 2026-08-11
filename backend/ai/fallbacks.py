@@ -626,15 +626,10 @@ def rule_minister_dialogue(
     game_state: GameState,
     conversation_history: list[dict],
 ) -> dict:
-    import random
-
-    loyalty_change = random.randint(-1, 1)
-    if loyalty_change > 0:
-        mood = "support"
-    elif loyalty_change < 0:
-        mood = "oppose"
-    else:
-        mood = "neutral"
+    # A rule fallback must not invent a hidden random state change. Provider
+    # adjudication may still return an explicit, validated loyalty delta.
+    loyalty_change = 0
+    mood = "neutral"
 
     if minister.faction == "淮西勋将":
         reply = f"臣{minister.name}谨遵将令。然臣以为此事关乎社稷，望主公三思而后行。"

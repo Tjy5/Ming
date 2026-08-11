@@ -11,6 +11,7 @@ from models.game import GameState, clamp_state
 from models.settlement import (
     ActionIntent,
     AdjudicationProposal,
+    CommitmentWorldDelta,
     CompatibilityStatePatchDelta,
     ElapsedStatePatchDelta,
     EntityWorldDelta,
@@ -22,6 +23,14 @@ from models.settlement import (
     WorldDelta,
 )
 from models.world import EntityId, RelationId, RelationshipEdge, WorldEntity
+from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
+
+from .world_state import (
+    WorldStateValidationError,
+    apply_commitment_delta,
+    apply_metric_delta as apply_typed_metric_delta,
+    apply_modifier_delta,
+)
 
 
 _WORLD_METRIC_FIELDS = frozenset(
@@ -242,6 +251,8 @@ def _delta_conflict_key(delta: WorldDelta) -> Hashable:
         return ("player", delta.operation)
     if isinstance(delta, ModifierWorldDelta):
         return ("modifier", delta.modifier_id)
+    if isinstance(delta, CommitmentWorldDelta):
+        return ("commitment", delta.commitment_id)
     if isinstance(delta, ElapsedStatePatchDelta):
         return ("elapsed_state_patch", tuple(sorted(delta.after_fields)))
     if isinstance(delta, CompatibilityStatePatchDelta):
@@ -466,6 +477,24 @@ def validate_adjudication_proposal(
                 label="modifier.target_entity_id",
                 delta=delta,
             )
+        if isinstance(delta, ModifierWorldDelta) and delta.record is not None:
+            record_target = delta.record.target.target_entity_id
+            if record_target != delta.target_entity_id:
+                _fail(
+                    "invalid_modifier",
+                    "modifier delta target does not match its typed record",
+                    delta=delta,
+                )
+
+        if isinstance(delta, CommitmentWorldDelta) and delta.record is not None:
+            target_entity_id = delta.record.target.target_entity_id
+            if target_entity_id is not None:
+                _require_entity(
+                    target_entity_id,
+                    known,
+                    label="commitment.target_entity_id",
+                    delta=delta,
+                )
 
         if isinstance(delta, ElapsedStatePatchDelta):
             before_keys = set(delta.before_fields)
@@ -526,50 +555,23 @@ def _replace_entity(
     state.entity_registry[entity_id] = entity
 
 
-def _apply_metric_delta(state: GameState, delta: MetricWorldDelta) -> None:
-    if delta.target_scope == "world":
-        if delta.field not in _WORLD_METRIC_FIELDS:
-            _fail(
-                "unsupported_metric_field",
-                "该世界字段不允许通过 metric delta 修改",
-                delta=delta,
-            )
-        current = getattr(state, delta.field)
-        setattr(state, delta.field, _apply_value(current, delta))
-        return
-
-    if delta.target_id is None or delta.target_id not in state.entity_registry:
-        _fail(
-            "unknown_entity_reference",
-            "metric delta 的目标主体不存在",
-            delta=delta,
-        )
-    entity = state.entity_registry[delta.target_id]
-    if delta.target_scope == "region" and entity.entity_type != "region":
-        _fail(
-            "invalid_delta_target",
-            "region metric delta 必须引用地区主体",
-            delta=delta,
-        )
-    if delta.field not in type(entity).model_fields:
-        _fail(
-            "unsupported_metric_field",
-            "目标主体不存在该 metric 字段",
-            delta=delta,
-        )
-    current = getattr(entity, delta.field)
-    payload = entity.model_dump()
-    payload[delta.field] = _apply_value(current, delta)
+def _apply_metric_delta(
+    state: GameState,
+    delta: MetricWorldDelta,
+    *,
+    executor_facts: ExecutorFacts | None = None,
+    roll: RollRecord | None = None,
+) -> AppliedMetricAttribution:
     try:
-        updated = type(entity).model_validate(payload)
-    except ValidationError as exc:
-        _fail(
-            "invalid_delta_value",
-            "metric delta 产生了非法主体状态",
-            delta=delta,
+        return apply_typed_metric_delta(
+            state,
+            delta,
+            executor_facts=executor_facts,
+            roll=roll,
         )
+    except WorldStateValidationError as exc:
+        _fail(exc.code, exc.message, delta=delta)
         raise AssertionError("unreachable") from exc
-    _replace_entity(state, delta.target_id, updated)
 
 
 def _apply_entity_delta(state: GameState, delta: EntityWorldDelta) -> None:
@@ -780,16 +782,27 @@ def _patch_field_values_equal(field: str, left: object, right: object) -> bool:
     return left == right
 
 
-def apply_world_deltas(
+def apply_world_deltas_with_facts(
     state: GameState,
     deltas: Sequence[WorldDelta],
-) -> GameState:
-    """Apply supported deltas to a deep copy and return a validated snapshot."""
+    *,
+    executor_facts: ExecutorFacts | None = None,
+    roll: RollRecord | None = None,
+) -> tuple[GameState, list[AppliedMetricAttribution]]:
+    """Apply supported deltas and return the validated snapshot plus attribution."""
 
     changed = state.model_copy(deep=True)
+    attribution: list[AppliedMetricAttribution] = []
     for delta in deltas:
         if isinstance(delta, MetricWorldDelta):
-            _apply_metric_delta(changed, delta)
+            attribution.append(
+                _apply_metric_delta(
+                    changed,
+                    delta,
+                    executor_facts=executor_facts,
+                    roll=roll,
+                ),
+            )
         elif isinstance(delta, EntityWorldDelta):
             _apply_entity_delta(changed, delta)
         elif isinstance(delta, RelationshipWorldDelta):
@@ -800,7 +813,17 @@ def apply_world_deltas(
             changed = _apply_elapsed_state_patch(changed, delta)
         elif isinstance(delta, CompatibilityStatePatchDelta):
             changed = _apply_compatibility_state_patch(changed, delta)
-        elif isinstance(delta, (LifecycleWorldDelta, ModifierWorldDelta)):
+        elif isinstance(delta, ModifierWorldDelta):
+            try:
+                apply_modifier_delta(changed, delta)
+            except WorldStateValidationError as exc:
+                _fail(exc.code, exc.message, delta=delta)
+        elif isinstance(delta, CommitmentWorldDelta):
+            try:
+                apply_commitment_delta(changed, delta)
+            except WorldStateValidationError as exc:
+                _fail(exc.code, exc.message, delta=delta)
+        elif isinstance(delta, LifecycleWorldDelta):
             _fail(
                 "sibling_contract_unavailable",
                 "该 delta 必须等待对应 sibling contract，不得由 sandbox 重实现",
@@ -811,12 +834,28 @@ def apply_world_deltas(
 
     clamp_state(changed)
     try:
-        return GameState.model_validate(changed.model_dump())
+        return GameState.model_validate(changed.model_dump()), attribution
     except ValidationError as exc:
         raise SettlementValidationError(
             "invalid_final_state",
             "delta 应用后的世界状态未通过模型校验",
         ) from exc
+
+
+def apply_world_deltas(
+    state: GameState,
+    deltas: Sequence[WorldDelta],
+    *,
+    executor_facts: ExecutorFacts | None = None,
+    roll: RollRecord | None = None,
+) -> GameState:
+    changed, _ = apply_world_deltas_with_facts(
+        state,
+        deltas,
+        executor_facts=executor_facts,
+        roll=roll,
+    )
+    return changed
 
 
 def validate_final_state(previous: GameState, changed: GameState) -> None:
