@@ -171,16 +171,23 @@ def pacing_status(turns_taken: int) -> dict:
 
 # ── 1360 兜底钩子 ────────────────────────────────────────
 
-def check_convergence_hook(state: GameState) -> dict | None:
-    """兜底：fallback_year(1360) 仍未完成攻占应天 → 返回收束钩子信息。
+def check_convergence_hook(
+    state: GameState,
+    *,
+    include_early_candidates: bool = False,
+) -> dict | None:
+    """Return a candidate convergence event without forcing a historical gate.
 
-    收束抉择事件的生成与强制切换归阶段D；本阶段仅提供探测钩子。
+    The default preserves the legacy data-import probe (only candidates at or
+    after ``fallback_year``). Public sandbox routes pass
+    ``include_early_candidates=True`` so 1360 is merely a suggested timing,
+    never a phase/terminal lock. The candidate remains explicitly optional.
     """
     if is_frozen(state):
         return None
     phase_switch = get_phase_switch()
     fallback_year = int(phase_switch.get("fallback_year", 1360))
-    if state.time.year < fallback_year:
+    if state.time.year < fallback_year and not include_early_candidates:
         return None
     milestone_id = phase_switch.get("milestone")
     if not milestone_id or milestone_id in state.resolved_script_ids:
@@ -190,7 +197,13 @@ def check_convergence_hook(state: GameState) -> dict | None:
         "milestone": milestone_id,
         "fallback_year": fallback_year,
         "message": (
-            f"已至{fallback_year}年而仍未克应天，主持人将发起收束抉择事件，"
-            "强制剧情走向收束（收束逻辑由阶段D接管）。"
+            (
+                f"建议在{fallback_year}年前后评估收束，但当前世界线可提前选择；"
+                "该候选不会锁定阶段，收束逻辑由阶段D接管。"
+                if state.time.year < fallback_year
+                else f"已至{fallback_year}年而仍未克应天，主持人提供可选收束候选，"
+                "玩家仍可继续当前世界线。"
+            )
         ),
+        "candidate": True,
     }
