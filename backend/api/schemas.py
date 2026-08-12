@@ -24,6 +24,7 @@ from models.world import (
     VersionId,
     WorldBranchRef,
     WorldVersionRef,
+    WorldBookmarkRef,
 )
 
 MAX_FREE_TEXT_LENGTH = 200
@@ -148,6 +149,17 @@ class WorldBranchListResponse(BaseModel):
 
 class WorldVersionListResponse(BaseModel):
     versions: list[WorldVersionRef] = Field(default_factory=list)
+
+
+class WorldBookmarkRequest(BaseModel):
+    game_id: GameId
+    branch_id: BranchId
+    version_id: VersionId
+    name: str = Field(min_length=1, max_length=120)
+
+
+class WorldBookmarkResponse(BaseModel):
+    bookmark: WorldBookmarkRef
 
 
 class DebateStartRequest(BaseModel):

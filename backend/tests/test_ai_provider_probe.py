@@ -106,6 +106,27 @@ def test_openai_probe_uses_main_model_and_thinking_exactly_once(monkeypatch):
     assert fake.closed is True
 
 
+def test_deepseek_probe_disables_default_thinking(monkeypatch):
+    fake = _FakeOpenAIClient()
+
+    monkeypatch.setattr("ai.openai_provider.openai.AsyncOpenAI", lambda **_kwargs: fake)
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _r: httpx.Response(200)))
+    provider = OpenAIProvider(
+        api_key="sk-test",
+        base_url="https://api.deepseek.com",
+        model="deepseek-v4-flash",
+        http_client=client,
+        sdk_max_retries=0,
+        use_environment=False,
+    )
+
+    asyncio.run(provider.probe_generation_once())
+
+    call = fake.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "disabled"}}
+    asyncio.run(provider.aclose())
+
+
 class _FakeGoogleModels:
     def __init__(self):
         self.calls: list[dict] = []

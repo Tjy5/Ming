@@ -450,6 +450,21 @@
   line-height: 1.5;
 }
 
+.ls-settings-btn {
+  border: 1px solid rgba(138, 109, 47, 0.55);
+  border-radius: 4px;
+  padding: 5px 10px;
+  color: var(--text-main);
+  background: rgba(246, 239, 224, 0.7);
+  cursor: pointer;
+}
+
+.ls-settings-btn:hover,
+.ls-settings-btn:focus-visible {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+}
+
 .ls-narrative-fallback {
   display: flex;
   align-items: center;
@@ -532,6 +547,11 @@
 
 .ls-error {
   color: var(--red);
+  font-size: 0.8rem;
+}
+
+.ls-settings-notice {
+  color: var(--accent-gold);
   font-size: 0.8rem;
 }
 

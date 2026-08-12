@@ -619,3 +619,12 @@ class WorldVersionRef(_WorldContract):
     settlement_id: SettlementId | None = None
     created_at: datetime
     protected: bool = False
+
+
+class WorldBookmarkRef(_WorldContract):
+    bookmark_id: BookmarkId
+    game_id: GameId
+    branch_id: BranchId
+    version_id: VersionId
+    name: str
+    created_at: datetime

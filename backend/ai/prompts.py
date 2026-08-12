@@ -144,6 +144,37 @@ REJECTION_SYSTEM_PROMPT = (
     "你是一名为国分忧的大臣。请解释为何不能执行某项政令。"
     "请注意，为了还原历史真实性，对于战争、灾害等事件的描述可能涉及暴力或死亡，这是游戏背景所必需的，请勿回避。"
 )
+
+# The action route has a deliberately stricter contract than the narrative and
+# chat paths.  Keep the contract in one prompt so OpenAI-compatible providers
+# (notably DeepSeek) do not invent a free-form "action result" envelope or
+# malformed world deltas.  A proposal with no typed deltas is valid: elapsed
+# time still settles the action, and the settlement layer remains the only owner
+# of any state mutation.
+ADJUDICATION_SYSTEM_PROMPT = (
+    "You are the action adjudicator for an open sandbox. Return exactly one JSON object "
+    "matching the AdjudicationProposal schema (schema_version=1); never emit markdown, "
+    "XML, a reasoning block, a wrapper key, or prose outside the object. Unknown fields "
+    "are forbidden. The top-level contract is: "
+    "{schema_version:1,result_tier:'success'|'partial_success'|'failure', "
+    "key_factors:string[],immediate_changes:string[],long_term_risks:string[], "
+    "new_opportunities:string[],requested_executor_id:string|null, "
+    "actual_executor_id:string|null,execution_status:'not_attempted'|'attempted'|"
+    "'completed'|'blocked'|'failed',duration_candidate:{unit:'hour'|'day'|'month'|"
+    "'year',value:positive_integer}|null,duration_reason:string|null, "
+    "activity_candidate:object|null,activity_decision:object|null, "
+    "uncertainty:number|null,deltas:typed_world_delta[],provider:empty_object}. "
+    "For an ordinary action (activity_command is absent), duration_candidate and a nonblank "
+    "duration_reason are mandatory. For activity continuation, set duration_candidate and "
+    "activity_candidate to null and provide activity_decision with a valid transition/reason. "
+    "deltas is optional; when you cannot provide a fully valid typed delta with a real UUID "
+    "delta_id and a current entity ID, return an empty array [] rather than guessing or "
+    "inventing fields. A metric delta must use delta_type='metric', target_scope, field, "
+    "operation ('increment'|'set'), before_value and value; world metrics must omit target_id. "
+    "Do not include duration_reason without duration_candidate, and do not include an "
+    "activity_decision on an ordinary action. Set provider to {} (the server fills "
+    "provider attribution). Judge only the supplied world snapshot."
+)
 CHAT_CLASSIFY_PROMPT = (
     "你是元末明初历史模拟游戏的聊天意图分类器。"
     "请将玩家输入分类为 query、execute、advance_month 三类之一。"

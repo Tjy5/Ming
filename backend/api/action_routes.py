@@ -7,7 +7,7 @@ from engine.activity import ActivityContractError, find_activity
 from engine.settlement import SettlementValidationError
 from engine.world_state import world_state_projection
 from models.game import ErrorResponse
-from models.settlement import ActionIntent
+from models.settlement import ActionIntent, SettlementFacts
 from models.world import Activity, ActivityId, BranchId, GameId, VersionId
 from models.world_state import WorldStateProjection
 
@@ -21,6 +21,11 @@ from .schemas import (
     ActionExecutionResponse,
     ActivityBatchExecutionResponse,
     ActivityContinueRequest,
+    WorldBookmarkRequest,
+    WorldBookmarkResponse,
+    WorldLifecycleResponse,
+    WorldBranchListResponse,
+    WorldVersionListResponse,
 )
 from .state import _get_provider, _publish_world_head, _reload_world_head
 from .narrative_routes import generate_committed_narrative
@@ -29,6 +34,80 @@ from .narrative_routes import generate_committed_narrative
 action_router = APIRouter(prefix="/api")
 _action_service_override: ActionService | None = None
 _default_action_service: ActionService | None = None
+
+
+@action_router.get("/worlds/{game_id}/branches", response_model=WorldBranchListResponse)
+def list_world_branches(game_id: GameId) -> WorldBranchListResponse:
+    try:
+        return WorldBranchListResponse(branches=worlds.list_branches(game_id))
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.get("/worlds/{game_id}/branches/{branch_id}/versions", response_model=WorldVersionListResponse)
+def list_world_versions(game_id: GameId, branch_id: BranchId) -> WorldVersionListResponse:
+    try:
+        return WorldVersionListResponse(versions=worlds.list_versions(game_id, branch_id))
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.post("/worlds/{game_id}/versions/{version_id}/branch", response_model=WorldLifecycleResponse)
+def branch_world_version(game_id: GameId, version_id: VersionId) -> WorldLifecycleResponse:
+    try:
+        source = worlds.load_version(version_id)
+        if source.ref.game_id != game_id:
+            raise worlds.WorldNotFoundError("version", str(version_id))
+        branch = worlds.create_branch_from_version(version_id)
+        snapshot = worlds.load_version(branch.version_id)
+        return WorldLifecycleResponse(
+            state=snapshot.state,
+            branch=worlds.get_branch(game_id, branch.branch_id),
+            version=branch,
+        )
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldTerminalStateError as exc:
+        raise HTTPException(409, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.post("/worlds/{game_id}/bookmarks", response_model=WorldBookmarkResponse)
+def create_world_bookmark(game_id: GameId, request: WorldBookmarkRequest) -> WorldBookmarkResponse:
+    if request.game_id != game_id:
+        raise HTTPException(404, detail=_error_detail("world_not_found", "指定版本不属于请求的游戏"))
+    try:
+        bookmark = worlds.create_bookmark(game_id, request.branch_id, request.version_id, request.name)
+        return WorldBookmarkResponse(bookmark=bookmark)
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.delete("/worlds/{game_id}/bookmarks/{bookmark_id}")
+def delete_world_bookmark(game_id: GameId, bookmark_id: str) -> None:
+    try:
+        worlds.delete_bookmark(bookmark_id, game_id=game_id)
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.get("/settlements/{settlement_id}", response_model=SettlementFacts)
+def get_settlement(settlement_id: str):
+    try:
+        return worlds.get_settlement(settlement_id)
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
 
 
 def set_action_service_for_testing(service: ActionService | None) -> None:

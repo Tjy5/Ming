@@ -27,6 +27,7 @@ import CharacterPanel from '../components/trpg/CharacterPanel'
 import NarrativeFeed from '../components/trpg/NarrativeFeed'
 import DiceRollView from '../components/trpg/DiceRollView'
 import OptionList from '../components/trpg/OptionList'
+import AiSettingsModal from '../components/AiSettingsModal'
 import {
   appendActResult,
   appendConvergeResult,
@@ -79,6 +80,8 @@ export default function LifeStoryPage() {
   const transitioned = useRef(false)
   const [convergenceHook, setConvergenceHook] = useState<ConvergenceHook | null>(null)
   const [ending, setEnding] = useState<{ message: string } | null>(null)
+  const [showAiSettings, setShowAiSettings] = useState(false)
+  const [settingsNotice, setSettingsNotice] = useState<string | null>(null)
 
   // 播种：从存档历史回放此前的跑团叙事
   useEffect(() => {
@@ -277,6 +280,14 @@ export default function LifeStoryPage() {
     <div className="life-story-page">
       <header className="ls-topbar">
         <div className="ls-title">元末纪事 · 朱元璋</div>
+        <button
+          type="button"
+          data-testid="ai-settings-open"
+          className="ls-settings-btn"
+          onClick={() => setShowAiSettings(true)}
+        >
+          AI 设置
+        </button>
         <div className="ls-chapter-info">
           <strong>{chapterTitle || '篇章待启'}</strong>
           {time && <span>{formatTime(time)}</span>}
@@ -332,6 +343,11 @@ export default function LifeStoryPage() {
             <button type="submit" disabled={busy || !freeText.trim()}>行动</button>
           </form>
           {error && <div className="ls-error">{error}</div>}
+          {settingsNotice && (
+            <div className="ls-settings-notice" role="status">
+              {settingsNotice}
+            </div>
+          )}
         </div>
       </footer>
 
@@ -363,6 +379,16 @@ export default function LifeStoryPage() {
             <p className="ls-ending-note">刷新页面可重作抉择。</p>
           </div>
         </div>
+      )}
+
+      {showAiSettings && (
+        <AiSettingsModal
+          onClose={() => setShowAiSettings(false)}
+          onSaved={(message) => {
+            setShowAiSettings(false)
+            setSettingsNotice(message)
+          }}
+        />
       )}
     </div>
   )

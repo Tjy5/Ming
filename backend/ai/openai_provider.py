@@ -5,6 +5,7 @@ import logging
 import os
 from collections.abc import AsyncIterator
 from typing import Any, Mapping
+from urllib.parse import urlsplit
 
 import httpx
 import openai
@@ -139,6 +140,14 @@ class OpenAIProvider(AIProvider):
             **client_kwargs,
         )
         self.model = actual_model
+        endpoint_host = (urlsplit(actual_base_url or "").hostname or "").rstrip(".").lower()
+        # DeepSeek's OpenAI-compatible API enables reasoning by default. Its
+        # wire contract uses the provider-specific ``thinking`` body field;
+        # sending ``thinking.type=disabled`` mirrors kivio and prevents a tiny
+        # probe from spending its whole output budget on hidden reasoning.
+        self._deepseek_endpoint = (
+            endpoint_host == "deepseek.com" or endpoint_host.endswith(".deepseek.com")
+        )
         self.parse_model = self.model
         self.freeform_model = self.model
         self.turn_commentary_model = self.model
@@ -259,7 +268,11 @@ class OpenAIProvider(AIProvider):
 
         enable = self._enable_thinking_simple if is_simple else self._enable_thinking
         if enable:
+            if self._deepseek_endpoint:
+                return {"extra_body": {"thinking": {"type": "enabled"}}}
             return {"extra_body": {"enable_thinking": True}}
+        if self._deepseek_endpoint:
+            return {"extra_body": {"thinking": {"type": "disabled"}}}
         return {}
 
     def _env_sampling_value(

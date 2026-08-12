@@ -41,8 +41,11 @@ echo       启动后请在页面右上角「AI 设置」中填写 API Key 等信
 echo.
 
 rem ---- 启动前后端 ----
+set "UVICORN_ENV_FILE="
+if exist ".env" set "UVICORN_ENV_FILE=--env-file ..\.env"
+
 echo [1/2] 启动后端服务  http://localhost:8000
-start "元末纪事-后端" cmd /k "cd /d %~dp0backend && python -m uvicorn main:app --port 8000"
+start "元末纪事-后端" cmd /k "cd /d %~dp0backend && python -m uvicorn main:app --port 8000 %UVICORN_ENV_FILE%"
 
 echo [2/2] 启动前端服务  http://localhost:5173
 start "元末纪事-前端" cmd /k "cd /d %~dp0frontend && npm run dev"

@@ -38,6 +38,7 @@ from .assembly_helpers import (
     select_assembly_actor_views,
     time_to_months as _time_to_months,
 )
+from .continuity_service import ensure_governance_continuity
 from .state import (
     _get_provider,
     _get_state,
@@ -246,6 +247,12 @@ def _suggestion_source_is_visible(suggestion: PolicySuggestion, state) -> bool:
 async def assembly_start():
     async with _lock:
         current_state, _current_ref = _ensure_world_head()
+        # A committed world may have lost every pre-seeded minister. Resolve
+        # that vacuum through the normal settlement pipeline before applying
+        # the assembly action, so this public path remains playable.
+        continuity_state = ensure_governance_continuity()
+        if continuity_state is not None:
+            current_state = continuity_state
         state = current_state.model_copy(deep=True)
         current_month = _time_to_months(state.time.year, state.time.month)
         if state.last_assembly_month >= current_month:
@@ -254,7 +261,7 @@ async def assembly_start():
                 message="本月已召开过朝会",
             ).model_dump())
         participant_views = select_assembly_actor_views(state)
-        if len(participant_views) < _ASSEMBLY_MIN_PARTICIPANTS:
+        if len(participant_views) < _ASSEMBLY_MIN_PARTICIPANTS and continuity_state is None:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="insufficient_ministers",
                 message="在朝大臣不足，无法召开朝会",
@@ -293,6 +300,9 @@ async def assembly_start():
 async def assembly_petition():
     async with _lock:
         current_state, _current_ref = _ensure_world_head()
+        continuity_state = ensure_governance_continuity()
+        if continuity_state is not None:
+            current_state = continuity_state
         state = current_state.model_copy(deep=True)
         assembly = _require_assembly(state, {AssemblyPhase.PETITION})
         ministers = _resolve_assembly_ministers(state, assembly)
@@ -669,7 +679,9 @@ async def convene_assembly(req: ConveneAssemblyRequest):
         ).model_dump())
 
     async with _lock:
-        state = _get_state().model_copy(deep=True)
+        current_state, _current_ref = _ensure_world_head()
+        continuity_state = ensure_governance_continuity()
+        state = (continuity_state or current_state).model_copy(deep=True)
         current_month = _time_to_months(state.time.year, state.time.month)
 
         if state.last_assembly_month >= current_month:
@@ -680,7 +692,7 @@ async def convene_assembly(req: ConveneAssemblyRequest):
 
         participant_views = select_assembly_actor_views(state)
         participants = [actor.minister for actor in participant_views]
-        if len(participant_views) < 3:
+        if len(participant_views) < 3 and continuity_state is None:
             raise HTTPException(400, detail=ErrorResponse(
                 error_code="insufficient_ministers",
                 message="在朝大臣不足，无法召开朝会",

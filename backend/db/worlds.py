@@ -6,6 +6,7 @@ import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from pydantic import ValidationError
 
@@ -26,6 +27,7 @@ from models.world import (
     MEMORIAL_SUBMIT_CAPABILITY,
     OFFICE_APPOINTABLE_CAPABILITY,
     ActivityId,
+    BookmarkId,
     BranchId,
     ClientActionId,
     CheckpointId,
@@ -44,6 +46,7 @@ from models.world import (
     WorldBranchRef,
     WorldEntity,
     WorldVersionRef,
+    WorldBookmarkRef,
     new_branch_id,
     new_entity_id,
     new_game_id,
@@ -492,6 +495,11 @@ def create_game_with_root(
 def create_branch_from_version(version_id: VersionId) -> WorldVersionRef:
     """Atomically fork an immutable version into a new active branch root."""
     source = load_version(version_id)
+    # A committed death is a durable terminal for this branch. Players may
+    # branch from the protected pre-death recovery version, but the terminal
+    # snapshot itself cannot become a playable root.
+    if source.state.player_world_status.life_status == "dead":
+        raise WorldTerminalStateError()
     branch_id = new_branch_id()
     root_version_id = new_version_id()
     created_at = _utc_now()
@@ -731,6 +739,13 @@ def list_versions(game_id: GameId, branch_id: BranchId) -> list[WorldVersionRef]
                 """,
                 (str(game_id), str(branch_id)),
             ).fetchall()
+            if not rows:
+                branch = conn.execute(
+                    "SELECT id FROM branches WHERE game_id = ? AND id = ?",
+                    (str(game_id), str(branch_id)),
+                ).fetchone()
+                if branch is None:
+                    raise WorldNotFoundError("branch", str(branch_id))
         return [_row_to_version_ref(row) for row in rows]
     except sqlite3.Error as exc:
         raise WorldStorageError() from exc
@@ -770,6 +785,63 @@ def get_settlement(settlement_id: SettlementId) -> SettlementFacts:
         raise WorldCorruptDataError("stored settlement is invalid") from exc
     except sqlite3.Error as exc:
         raise WorldStorageError() from exc
+
+
+def create_bookmark(
+    game_id: GameId,
+    branch_id: BranchId,
+    version_id: VersionId,
+    name: str,
+) -> WorldBookmarkRef:
+    """Create a durable bookmark for an existing version in one branch."""
+    bookmark_id = BookmarkId(uuid4())
+    created_at = _utc_now()
+    with closing(_connect()) as conn:
+        try:
+            _begin(conn)
+            row = conn.execute(
+                "SELECT id FROM versions WHERE id = ? AND game_id = ? AND branch_id = ?",
+                (str(version_id), str(game_id), str(branch_id)),
+            ).fetchone()
+            if row is None:
+                raise WorldNotFoundError("version", str(version_id))
+            conn.execute(
+                "INSERT INTO bookmarks (id, game_id, branch_id, version_id, name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (str(bookmark_id), str(game_id), str(branch_id), str(version_id), name.strip(), created_at.isoformat()),
+            )
+            conn.commit()
+        except WorldStoreError:
+            conn.rollback()
+            raise
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise WorldStorageError() from exc
+    return WorldBookmarkRef(
+        bookmark_id=bookmark_id, game_id=game_id, branch_id=branch_id,
+        version_id=version_id, name=name.strip(), created_at=created_at,
+    )
+
+
+def delete_bookmark(bookmark_id: BookmarkId, *, game_id: GameId | None = None) -> None:
+    with closing(_connect()) as conn:
+        try:
+            _begin(conn)
+            if game_id is None:
+                cur = conn.execute("DELETE FROM bookmarks WHERE id = ?", (str(bookmark_id),))
+            else:
+                cur = conn.execute(
+                    "DELETE FROM bookmarks WHERE id = ? AND game_id = ?",
+                    (str(bookmark_id), str(game_id)),
+                )
+            if cur.rowcount == 0:
+                raise WorldNotFoundError("bookmark", str(bookmark_id))
+            conn.commit()
+        except WorldStoreError:
+            conn.rollback()
+            raise
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise WorldStorageError() from exc
 
 
 def _row_to_action_request(row: sqlite3.Row) -> ActionRequestRecord:

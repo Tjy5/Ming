@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import threading
 import weakref
 from dataclasses import dataclass
@@ -56,6 +57,7 @@ from models.world import (
     new_version_id,
 )
 from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
+from ai.prompts import ADJUDICATION_SYSTEM_PROMPT
 
 
 class ActionAdjudicator(Protocol):
@@ -239,6 +241,51 @@ class AIActionAdjudicator:
     def __init__(self, provider_loader):
         self._provider_loader = provider_loader
 
+    @staticmethod
+    def _decode_proposal(text: str) -> dict:
+        """Decode one provider JSON object without repairing its contract.
+
+        Some OpenAI-compatible gateways still wrap JSON in a fenced block or
+        prepend a short reasoning marker even when ``response_format`` is set.
+        We tolerate only that transport noise, then hand the untouched object to
+        Pydantic.  No defaults, aliases, delta fabrication, or rule fallback are
+        applied here: malformed proposal data remains a pre-commit failure.
+        """
+
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("empty adjudication response")
+        payload = text.strip()
+        # DeepSeek may emit a reasoning block before the requested JSON. Only
+        # this explicit provider wrapper is tolerated; arbitrary leading prose
+        # remains a contract violation.
+        think_match = re.match(r"^<think>[\s\S]*?</think>\s*", payload)
+        if think_match:
+            payload = payload[think_match.end():].strip()
+
+        # Fenced JSON is also a known transport wrapper. The opening language
+        # tag must be `json` (or omitted), and the closing marker must be exactly
+        # three backticks; ` ```json` is never a valid closing marker.
+        if payload.startswith("```"):
+            opening = "```json" if payload.startswith("```json") else "```"
+            payload = payload[len(opening):].lstrip()
+            if not payload.endswith("```"):
+                raise ValueError("adjudication response has an unclosed JSON fence")
+            payload = payload[:-3].rstrip()
+
+        if not payload.startswith("{"):
+            raise ValueError("adjudication response does not contain a JSON object")
+        decoder = json.JSONDecoder()
+        try:
+            value, end = decoder.raw_decode(payload)
+        except json.JSONDecodeError as exc:
+            raise ValueError("adjudication response is not valid JSON") from exc
+        if not isinstance(value, dict):
+            raise ValueError("adjudication response must be a JSON object")
+        trailing = payload[end:].strip()
+        if trailing:
+            raise ValueError("adjudication response contains trailing text")
+        return value
+
     async def adjudicate(
         self,
         intent: ActionIntent,
@@ -274,12 +321,9 @@ class AIActionAdjudicator:
             exclude={"suggestion_id", "visible_context_version"},
         )
         prompt = (
-            "Return exactly one JSON object matching AdjudicationProposal schema_version=1. "
-            "A duration_candidate must be an object with positive integer value and unit "
-            "hour/day/month/year, paired with a nonblank duration_reason. "
             f"{activity_instruction}"
             "Judge the player's action only from the supplied current-world snapshot. "
-            "Do not use historical canon as a whitelist and do not include prose outside JSON.\n"
+            "Do not use historical canon as a whitelist.\n"
             f"ACTION_INTENT={adjudication_intent}\n"
             f"PUBLIC_ROLL={public_roll.model_dump_json() if public_roll else 'none'}\n"
             f"CURRENT_WORLD={state.model_dump_json()}"
@@ -287,9 +331,7 @@ class AIActionAdjudicator:
         try:
             generated = await provider.generate_text_once(
                 prompt,
-                system_prompt=(
-                    "You are the action adjudicator for an open sandbox. Output strict JSON only."
-                ),
+                system_prompt=ADJUDICATION_SYSTEM_PROMPT,
                 max_output_tokens=4096,
                 response_json=True,
             )
@@ -300,7 +342,10 @@ class AIActionAdjudicator:
             ) from exc
 
         try:
-            raw = json.loads(generated.text)
+            raw = self._decode_proposal(generated.text)
+            provider_payload = raw.get("provider", {})
+            if not isinstance(provider_payload, dict) or provider_payload:
+                raise ValueError("provider attribution must be an empty object")
             proposal = AdjudicationProposal.model_validate(raw)
         except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
             raise ActionAdjudicationError(

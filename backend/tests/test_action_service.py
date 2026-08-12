@@ -458,6 +458,14 @@ def test_terminal_action_commits_death_record_and_replays_once(
         service.execute_sync(next_intent)
     assert len(worlds.list_settlements(root.game_id, root.branch_id)) == 1
 
+    # A terminal snapshot is not a playable fork root; only the protected
+    # pre-death version may be used to create an alternate world line.
+    with pytest.raises(worlds.WorldTerminalStateError):
+        worlds.create_branch_from_version(committed.result.version.version_id)
+    fork = worlds.create_branch_from_version(root.version_id)
+    assert fork.parent_version_id == root.version_id
+    assert worlds.load_version(fork.version_id).state.player_world_status.life_status == "alive"
+
 
 def test_terminal_record_insert_failure_rolls_back_all_rows_and_allows_retry(
     monkeypatch,
@@ -757,7 +765,7 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
             self.prompts.append(args[0])
             return GenerationResult(text=self.text, provider_request_id="provider-request")
 
-    valid_provider = _Provider(json.dumps(_proposal(0).model_dump(mode="json")))
+    valid_provider = _Provider(json.dumps(_proposal(0).model_dump(mode="json", exclude={"provider"})))
     adjudicator = AIActionAdjudicator(lambda: valid_provider)
     state = create_initial_state()
     from models.world import new_branch_id, new_game_id, new_version_id
@@ -773,7 +781,7 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
     assert '"suggestion_id"' not in valid_provider.prompts[0]
     assert '"visible_context_version"' not in valid_provider.prompts[0]
 
-    duration_payload = _proposal(0).model_dump(mode="json")
+    duration_payload = _proposal(0).model_dump(mode="json", exclude={"provider"})
     duration_payload.update(
         {
             "duration_candidate": {"unit": "day", "value": 2},
@@ -786,7 +794,7 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
     assert parsed.duration_candidate == Duration(unit="day", value=2)
     assert parsed.duration_reason == "行动需要两日"
 
-    invalid_duration_payload = _proposal(0).model_dump(mode="json")
+    invalid_duration_payload = _proposal(0).model_dump(mode="json", exclude={"provider"})
     invalid_duration_payload["duration_candidate"] = {"unit": "day", "value": 0}
     invalid_duration_payload["duration_reason"] = "非法零时长"
     invalid_duration_provider = _Provider(json.dumps(invalid_duration_payload))
@@ -810,3 +818,103 @@ def test_ai_adjudicator_uses_one_json_call_and_has_no_hidden_fallback():
     with pytest.raises(ActionAdjudicationError) as exc_info:
         adjudicator.adjudicate_sync(_intent(root_like), state)
     assert exc_info.value.code == "adjudication_provider_error"
+
+
+def test_ai_adjudicator_accepts_deepseek_transport_wrapping_but_keeps_schema_strict():
+    """DeepSeek may wrap JSON despite response_format=json_object.
+
+    The adapter may remove only that transport wrapper; Pydantic validation
+    remains authoritative and no rule/fallback proposal is synthesized.
+    """
+
+    class _Provider:
+        def __init__(self, text: str):
+            self.text = text
+            self.calls = 0
+            self.prompt = ""
+            self.kwargs = None
+
+        async def generate_text_once(self, *args, **kwargs):
+            self.calls += 1
+            self.prompt = args[0]
+            self.kwargs = kwargs
+            return GenerationResult(
+                text=f"<think>contract check</think>\n```json\n{self.text}\n```",
+                provider_request_id="deepseek-request",
+            )
+
+    from models.world import new_branch_id, new_game_id, new_version_id
+
+    root_like = SimpleNamespace(
+        game_id=new_game_id(),
+        branch_id=new_branch_id(),
+        version_id=new_version_id(),
+    )
+    provider = _Provider(json.dumps(_proposal(0).model_dump(mode="json", exclude={"provider"})))
+    proposal = AIActionAdjudicator(lambda: provider).adjudicate_sync(
+        _intent(root_like),
+        create_initial_state(),
+    )
+
+    assert proposal.duration_candidate is not None
+    assert proposal.provider.request_id == "deepseek-request"
+    assert provider.calls == 1
+    assert provider.kwargs["response_json"] is True
+    assert "deltas is optional" in provider.kwargs["system_prompt"]
+    assert "duration_candidate" in provider.kwargs["system_prompt"]
+
+
+def test_ai_adjudicator_rejects_trailing_provider_prose_without_fallback():
+    class _Provider:
+        async def generate_text_once(self, *_args, **_kwargs):
+            payload = json.dumps(_proposal(0).model_dump(mode="json", exclude={"provider"}))
+            return GenerationResult(text=f"{payload}\nI also recommend another action.")
+
+    from models.world import new_branch_id, new_game_id, new_version_id
+
+    root_like = SimpleNamespace(
+        game_id=new_game_id(),
+        branch_id=new_branch_id(),
+        version_id=new_version_id(),
+    )
+    with pytest.raises(ActionAdjudicationError) as exc_info:
+        AIActionAdjudicator(lambda: _Provider()).adjudicate_sync(
+            _intent(root_like),
+            create_initial_state(),
+        )
+    assert exc_info.value.code == "adjudication_invalid_response"
+
+
+def test_ai_adjudicator_rejects_unrecognized_wrappers_and_spoofed_provider():
+    from models.world import new_branch_id, new_game_id, new_version_id
+
+    root_like = SimpleNamespace(
+        game_id=new_game_id(),
+        branch_id=new_branch_id(),
+        version_id=new_version_id(),
+    )
+    valid = json.dumps(_proposal(0).model_dump(mode="json"))
+
+    class _Provider:
+        def __init__(self, text):
+            self.text = text
+
+        async def generate_text_once(self, *_args, **_kwargs):
+            return GenerationResult(text=self.text)
+
+    for wrapped in (f"leading prose {valid}", f"{valid}```json"):
+        with pytest.raises(ActionAdjudicationError) as exc_info:
+            AIActionAdjudicator(lambda: _Provider(wrapped)).adjudicate_sync(
+                _intent(root_like),
+                create_initial_state(),
+            )
+        assert exc_info.value.code == "adjudication_invalid_response"
+
+    spoofed = json.loads(valid)
+    spoofed["provider"] = {"model": "spoofed-model"}
+    with pytest.raises(ActionAdjudicationError) as exc_info:
+        AIActionAdjudicator(lambda: _Provider(json.dumps(spoofed))).adjudicate_sync(
+            _intent(root_like),
+            create_initial_state(),
+        )
+    assert exc_info.value.code == "adjudication_invalid_response"

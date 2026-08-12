@@ -33,7 +33,11 @@ import type {
   AdoptSuggestionRequest,
 } from '../types/game'
 
-const BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api'
+// Prefer the IPv4 loopback for local/operator runs.  On hosts where
+// ``localhost`` resolves to IPv6 first, the isolated backend binds 127.0.0.1
+// and a browser otherwise reports a misleading network failure before the
+// BYOK settings screen can load.
+const BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8000/api'
 
 class ApiError extends Error {
   status: number

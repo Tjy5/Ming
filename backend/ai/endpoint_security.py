@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import socket
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
@@ -25,6 +26,65 @@ class ResolvedEndpoint:
     hostname: str
     port: int
     addresses: tuple[str, ...]
+    proxy_url: str | None = None
+
+
+def _env_flag(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _proxy_host_allowed(hostname: str) -> bool:
+    """Return whether an operator-approved proxy may receive this hostname.
+
+    Proxy mode intentionally requires an explicit allowlist.  This keeps a
+    local Clash proxy from becoming a generic SSRF bypass for player-supplied
+    Base URLs while still allowing Clash to resolve and route approved public
+    providers.
+    """
+
+    raw = os.environ.get("AI_PROXY_ALLOWED_HOSTS", "")
+    allowed = {item.strip().rstrip(".").lower() for item in raw.split(",") if item.strip()}
+    return hostname in allowed or any(
+        item.startswith("*.") and hostname.endswith(item[1:])
+        for item in allowed
+    )
+
+
+def _operator_proxy_url(base_url: str, *, provider: str) -> str | None:
+    """Read the explicit operator proxy used for Clash-routed AI traffic.
+
+    The normal product path remains direct and fail-closed.  Proxy mode is an
+    operator-only switch: it must be enabled explicitly, name an approved
+    target host, and provide a concrete HTTP(S) proxy URL.  The proxy handles
+    DNS, so the local resolver is not consulted in this mode.
+    """
+
+    if not (_env_flag("AI_USE_SYSTEM_PROXY") or _env_flag("OPENAI_TRUST_ENV_PROXY")):
+        return None
+    hostname = (urlsplit(base_url).hostname or "").rstrip(".").lower()
+    if not _proxy_host_allowed(hostname):
+        raise UnsafeEndpointError(
+            f"{provider} Base URL 未在 AI_PROXY_ALLOWED_HOSTS 中，不能通过系统代理访问。",
+        )
+    proxy_url = (os.environ.get("AI_PROXY_URL") or "").strip()
+    if not proxy_url:
+        raise UnsafeEndpointError(
+            f"{provider} 已启用系统代理，但未配置 AI_PROXY_URL。",
+        )
+    try:
+        parsed = urlsplit(proxy_url)
+        port = parsed.port
+    except ValueError as exc:
+        raise UnsafeEndpointError("AI_PROXY_URL 端口或格式无效。") from exc
+    if parsed.scheme.lower() not in {"http", "https"} or not parsed.hostname:
+        raise UnsafeEndpointError("AI_PROXY_URL 只允许 HTTP 或 HTTPS 代理。")
+    if parsed.username is not None or parsed.password is not None:
+        raise UnsafeEndpointError("AI_PROXY_URL 不允许内嵌代理账号信息。")
+    if parsed.query or parsed.fragment or parsed.path not in {"", "/"}:
+        raise UnsafeEndpointError("AI_PROXY_URL 不允许 path、query 或 fragment。")
+    if port is not None and not 1 <= port <= 65535:
+        raise UnsafeEndpointError("AI_PROXY_URL 端口无效。")
+    return proxy_url.rstrip("/")
 
 
 def _normalized_ip(raw: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
@@ -96,6 +156,18 @@ async def resolve_public_endpoint(
     parsed = urlsplit(validated)
     hostname = (parsed.hostname or "").rstrip(".").lower()
     port = parsed.port or 443
+    proxy_url = _operator_proxy_url(validated, provider=provider)
+    if proxy_url is not None:
+        # The explicit proxy owns DNS resolution.  Keep a non-empty marker in
+        # the endpoint for callers that only need a validated identity; the
+        # proxy client never passes this marker to a direct transport.
+        return ResolvedEndpoint(
+            base_url=validated,
+            hostname=hostname,
+            port=port,
+            addresses=(hostname,),
+            proxy_url=proxy_url,
+        )
     try:
         literal = _normalized_ip(hostname)
     except ValueError:
@@ -147,6 +219,10 @@ class PinnedDNSAsyncTransport(httpx.AsyncBaseTransport):
             str(request.url.copy_with(path="/", query=None, fragment=None)),
             resolver=self._resolver,
         )
+        if endpoint.proxy_url is not None:
+            raise UnsafeEndpointError(
+                "AI 系统代理必须使用显式代理客户端，不能回落到直连 transport。",
+            )
         pinned_url = request.url.copy_with(host=endpoint.addresses[0])
         headers = request.headers.copy()
         default_port = request.url.port in {None, 443}
@@ -174,6 +250,16 @@ def create_safe_async_client(
 ) -> httpx.AsyncClient:
     validated = validate_base_url_structure(base_url)
     hostname = (urlsplit(validated).hostname or "").rstrip(".").lower()
+    proxy_url = _operator_proxy_url(validated, provider="AI")
+    if proxy_url is not None:
+        return httpx.AsyncClient(
+            proxy=proxy_url,
+            timeout=timeout,
+            # Do not consult HTTP(S)_PROXY/NO_PROXY after the explicit proxy
+            # was selected.  This prevents accidental direct fallback.
+            trust_env=False,
+            follow_redirects=False,
+        )
     return httpx.AsyncClient(
         transport=PinnedDNSAsyncTransport(
             allowed_hostname=hostname,

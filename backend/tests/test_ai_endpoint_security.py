@@ -8,6 +8,7 @@ import pytest
 from ai.endpoint_security import (
     PinnedDNSAsyncTransport,
     UnsafeEndpointError,
+    create_safe_async_client,
     resolve_public_endpoint,
     validate_base_url_structure,
 )
@@ -98,3 +99,44 @@ def test_transport_rejects_cross_host_requests():
                 await client.get("https://other.example.com/v1")
 
     asyncio.run(run())
+
+
+def test_explicit_operator_proxy_owns_dns_resolution(monkeypatch):
+    monkeypatch.setenv("AI_USE_SYSTEM_PROXY", "1")
+    monkeypatch.setenv("AI_PROXY_ALLOWED_HOSTS", "api.deepseek.com")
+    monkeypatch.setenv("AI_PROXY_URL", "http://127.0.0.1:7897")
+
+    async def resolver(_host: str, _port: int):
+        raise AssertionError("proxy mode must not perform local DNS resolution")
+
+    endpoint = asyncio.run(
+        resolve_public_endpoint(
+            "https://api.deepseek.com",
+            resolver=resolver,
+        ),
+    )
+    assert endpoint.proxy_url == "http://127.0.0.1:7897"
+    assert endpoint.addresses == ("api.deepseek.com",)
+
+    client = create_safe_async_client("https://api.deepseek.com")
+    try:
+        assert client._trust_env is False
+        assert not isinstance(client._transport, PinnedDNSAsyncTransport)
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_operator_proxy_requires_target_allowlist(monkeypatch):
+    monkeypatch.setenv("AI_USE_SYSTEM_PROXY", "1")
+    monkeypatch.delenv("AI_PROXY_ALLOWED_HOSTS", raising=False)
+    monkeypatch.setenv("AI_PROXY_URL", "http://127.0.0.1:7897")
+    with pytest.raises(UnsafeEndpointError, match="AI_PROXY_ALLOWED_HOSTS"):
+        asyncio.run(resolve_public_endpoint("https://api.deepseek.com"))
+
+
+def test_operator_proxy_rejects_missing_proxy_url(monkeypatch):
+    monkeypatch.setenv("AI_USE_SYSTEM_PROXY", "1")
+    monkeypatch.setenv("AI_PROXY_ALLOWED_HOSTS", "api.deepseek.com")
+    monkeypatch.delenv("AI_PROXY_URL", raising=False)
+    with pytest.raises(UnsafeEndpointError, match="AI_PROXY_URL"):
+        asyncio.run(resolve_public_endpoint("https://api.deepseek.com"))
