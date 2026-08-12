@@ -154,6 +154,9 @@ class ActRequest(BaseModel):
     # 可选：选项 ID（e2e/脚本化确定性选择的双通道，design 第 5.1 节；
     # 与既有文案回传兼容——不回传时行为不变）
     option_id: str | None = Field(default=None, max_length=64)
+    # Open-sandbox clients may explicitly request an early, optional
+    # convergence candidate; the legacy default remains year-gated.
+    allow_early_candidate: bool | None = None
 
 
 # ── ConvergeRequest ───────────────────────────────────────
@@ -165,6 +168,7 @@ class ConvergeRequest(BaseModel):
     """
 
     choice: Literal["accept", "refuse"]
+    allow_early_candidate: bool | None = None
 
 
 # ── GrowthEntry ──────────────────────────────────────────

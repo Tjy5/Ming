@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from db import worlds
 from engine.activity import ActivityContractError, find_activity
+from engine.lifecycle import DefaultLifecyclePlanner
 from engine.settlement import SettlementValidationError
 from engine.world_state import world_state_projection
 from models.game import ErrorResponse
@@ -23,6 +24,8 @@ from .schemas import (
     ActivityContinueRequest,
     WorldBookmarkRequest,
     WorldBookmarkResponse,
+    WorldBookmarkListResponse,
+    WorldRetentionResponse,
     WorldLifecycleResponse,
     WorldBranchListResponse,
     WorldVersionListResponse,
@@ -90,6 +93,50 @@ def create_world_bookmark(game_id: GameId, request: WorldBookmarkRequest) -> Wor
         raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
 
 
+@action_router.get(
+    "/worlds/{game_id}/bookmarks",
+    response_model=WorldBookmarkListResponse,
+)
+def list_world_bookmarks(game_id: GameId, branch_id: BranchId | None = None) -> WorldBookmarkListResponse:
+    try:
+        return WorldBookmarkListResponse(
+            bookmarks=worlds.list_bookmarks(game_id, branch_id),
+        )
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.get(
+    "/worlds/{game_id}/retention",
+    response_model=WorldRetentionResponse,
+)
+def world_retention_report(
+    game_id: GameId,
+    branch_id: BranchId | None = None,
+    recent_limit: int = 100,
+) -> WorldRetentionResponse:
+    """Return a dry-run retention report; no versions are deleted by this API."""
+    try:
+        plan = worlds.plan_retention(game_id, branch_id, recent_limit=recent_limit)
+        return WorldRetentionResponse(
+            game_id=plan.game_id,
+            branch_id=plan.branch_id,
+            recent_limit=plan.recent_limit,
+            protected_version_ids=list(plan.protected_version_ids),
+            monthly_recovery_version_ids=list(plan.monthly_recovery_version_ids),
+            delete_version_ids=list(plan.delete_version_ids),
+            reasons={key: list(value) for key, value in plan.reasons.items()},
+        )
+    except ValueError as exc:
+        raise HTTPException(422, detail=_error_detail("invalid_retention_request", str(exc))) from None
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
 @action_router.delete("/worlds/{game_id}/bookmarks/{bookmark_id}")
 def delete_world_bookmark(game_id: GameId, bookmark_id: str) -> None:
     try:
@@ -122,6 +169,7 @@ def _get_action_service() -> ActionService:
     if _default_action_service is None:
         _default_action_service = ActionService(
             adjudicator=AIActionAdjudicator(_get_provider),
+            lifecycle_planner=DefaultLifecyclePlanner(),
         )
     return _default_action_service
 
@@ -315,10 +363,25 @@ async def continue_activity(
                 processing=execution.processing,
                 continuation_cursor=execution.continuation_cursor,
             )
+    narrative = None
+    if execution.results:
+        # Activity checkpoints are already committed by ``continue_activity_batch``.
+        # Narrative generation is strictly post-commit and receives only the last
+        # settlement facts, so retries/regeneration never execute the activity again.
+        last_result = execution.results[-1]
+        narrative = await generate_committed_narrative(
+            state=execution.state,
+            facts=last_result.facts,
+            path_id="unified_action",
+            topic_id="activity_checkpoint",
+            action_text=f"继续活动：{execution.activity.intent}",
+            reuse_current=False,
+        )
     return ActivityBatchExecutionResponse(
         state=execution.state,
         activity=execution.activity,
         results=list(execution.results),
         processing=execution.processing,
         continuation_cursor=execution.continuation_cursor,
+        narrative=narrative,
     )

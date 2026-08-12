@@ -24,6 +24,7 @@ from .schemas import (
     AdoptSuggestionRequest,
     AssemblyDebateRequest,
     AssemblyDecreeRequest,
+    AssemblyDecreeResponse,
     AssemblyRageRequest,
     AssemblyVoteRequest,
     ConveneAssemblyRequest,
@@ -44,7 +45,6 @@ from .state import (
     _get_state,
     _ensure_world_head,
     _lock,
-    _set_state,
     _settle_state,
 )
 
@@ -286,12 +286,17 @@ async def assembly_start():
             ],
         )
         state.last_assembly_month = current_month
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="assembly_start",
             raw_text="召开朝会",
         )
-        return state.last_assembly.model_dump()
+        response = state.last_assembly.model_dump()
+        response.update({
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
+        })
+        return response
 
 
 # ── POST /api/assembly/petition ─────────────────────────
@@ -314,12 +319,17 @@ async def assembly_petition():
                 urgency="中",
             ))
         assembly.petitions = petitions
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="assembly_petition",
             raw_text="听取朝会奏陈",
         )
-        return state.last_assembly.model_dump()
+        response = state.last_assembly.model_dump()
+        response.update({
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
+        })
+        return response
 
 
 # ── POST /api/assembly/debate ───────────────────────────
@@ -534,7 +544,7 @@ async def assembly_vote(req: AssemblyVoteRequest):
         support_count = sum(1 for v in votes if v.vote == "赞成")
         oppose_count = sum(1 for v in votes if v.vote == "反对")
         abstain_count = sum(1 for v in votes if v.vote == "弃权")
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="assembly_vote",
             raw_text=assembly.current_topic or assembly.topic or "朝会表决",
@@ -544,12 +554,14 @@ async def assembly_vote(req: AssemblyVoteRequest):
             "support_count": support_count,
             "oppose_count": oppose_count,
             "abstain_count": abstain_count,
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
         }
 
 
 # ── POST /api/assembly/decree ───────────────────────────
 
-@assembly_router.post("/assembly/decree")
+@assembly_router.post("/assembly/decree", response_model=AssemblyDecreeResponse)
 async def assembly_decree(req: AssemblyDecreeRequest):
     decision = (req.decision or "").strip().lower()
     if decision not in {"adopt", "override", "dismiss"}:
@@ -602,7 +614,7 @@ async def assembly_decree(req: AssemblyDecreeRequest):
         assembly.phase = AssemblyPhase.DECREE
         assembly.final_decision = decision
         clamp_state(state)
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="assembly_decree",
             raw_text=f"朝会裁断：{decision}",
@@ -613,6 +625,8 @@ async def assembly_decree(req: AssemblyDecreeRequest):
             "majority_vote": majority_vote,
             "vote_counts": vote_counts,
             "faction_changes": faction_changes,
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
         }
         if decree_effects:
             result["decree_effects"] = decree_effects
@@ -654,7 +668,7 @@ async def assembly_rage(req: AssemblyRageRequest):
             faction.satisfaction += delta
             faction_effects[faction.name] = delta
         clamp_state(state)
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="assembly_rage",
             raw_text=f"龙颜大怒，喝止{target_faction}",
@@ -663,6 +677,8 @@ async def assembly_rage(req: AssemblyRageRequest):
             "state": state.model_dump(),
             "assembly": state.last_assembly.model_dump(),
             "effects": faction_effects,
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
         }
 
 
@@ -969,9 +985,14 @@ async def silence_assembly():
         state.last_assembly.silenced = True
         change = min(2, 100 - state.court_prestige)
         state.court_prestige += change
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="court_assembly_silence",
             raw_text="喝止朝会",
         )
-        return {"state": state.model_dump(), "prestige_change": change}
+        return {
+            "state": state.model_dump(),
+            "prestige_change": change,
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
+        }

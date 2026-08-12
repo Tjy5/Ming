@@ -152,6 +152,14 @@ _UNORDERED_PATCH_FIELDS = frozenset(
     },
 )
 
+# Lifecycle currently owns only the minimal goal projection.  The persisted
+# player status intentionally stores visible/actionable goal ids rather than a
+# second status map, so ``available`` and ``active`` are equivalent visible
+# states at this boundary.  Terminal states are represented by absence.
+_GOAL_VISIBLE_STATUSES = frozenset({"available", "active"})
+_GOAL_TERMINAL_STATUSES = frozenset({"completed", "blocked", "ended"})
+_GOAL_STATUSES = _GOAL_VISIBLE_STATUSES | _GOAL_TERMINAL_STATUSES
+
 
 class SettlementValidationError(Exception):
     def __init__(
@@ -353,6 +361,10 @@ def _validate_apply_batch(deltas: Sequence[WorldDelta]) -> None:
     seen_delta_ids: set[object] = set()
     seen_conflicts: set[Hashable] = set()
     ending = _ending_entity_ids_from_deltas(deltas)
+    terminal_death_proposed = any(
+        isinstance(delta, PlayerWorldDelta) and delta.operation == "death"
+        for delta in deltas
+    )
     for delta in deltas:
         if delta.delta_id in seen_delta_ids:
             _fail(
@@ -369,6 +381,7 @@ def _validate_apply_batch(deltas: Sequence[WorldDelta]) -> None:
                 RelationshipWorldDelta,
                 PermissionWorldDelta,
                 OfficeWorldDelta,
+                LifecycleWorldDelta,
             ),
         ):
             conflict_keys = _delta_conflict_keys(delta)
@@ -471,6 +484,16 @@ def _validate_apply_batch(deltas: Sequence[WorldDelta]) -> None:
                 "不能任命本批次结束的主体",
                 delta=delta,
             )
+        elif isinstance(delta, LifecycleWorldDelta):
+            # This batch-level check catches a lifecycle add ordered before a
+            # death delta; the player must never end a terminal settlement with
+            # a newly-created actionable goal.
+            if terminal_death_proposed and delta.next_status in _GOAL_VISIBLE_STATUSES:
+                _fail(
+                    "dead_player_goal_transition",
+                    "同批终局行动不得创建新的 actionable goal",
+                    delta=delta,
+                )
 
 
 def _delta_conflict_keys(delta: WorldDelta) -> set[Hashable]:
@@ -513,6 +536,107 @@ def _delta_conflict_keys(delta: WorldDelta) -> set[Hashable]:
     if isinstance(delta, CompatibilityStatePatchDelta):
         return {("compatibility_state_patch", tuple(sorted(delta.after_fields)))}
     raise TypeError(f"Unsupported world delta: {type(delta).__name__}")
+
+
+def _validate_lifecycle_goal_delta(
+    state: GameState,
+    delta: LifecycleWorldDelta,
+    *,
+    terminal_death_proposed: bool = False,
+) -> bool:
+    """Validate and classify the small, durable lifecycle goal contract.
+
+    ``PlayerWorldStatus.actionable_goal_ids`` is the sole committed projection
+    for visible goals.  We therefore compare preconditions against membership,
+    accepting either visible label (``available``/``active``), and treat
+    completed/blocked/ended as non-visible.  Missing removals without an
+    explicit terminal before status are rejected instead of being silently
+    ignored.
+
+    Returns whether the transition is a visible (goal-creating) transition.
+    """
+
+    if delta.transition_type != "goal":
+        _fail(
+            "sibling_contract_unavailable",
+            "当前 settlement 仅支持 typed goal lifecycle delta",
+            delta=delta,
+        )
+    if not delta.transition_id.strip():
+        _fail(
+            "invalid_lifecycle_transition",
+            "goal transition_id 不能为空",
+            delta=delta,
+        )
+    if delta.next_status not in _GOAL_STATUSES:
+        _fail(
+            "invalid_lifecycle_transition",
+            "goal next_status 必须是 available、active、completed、blocked 或 ended",
+            delta=delta,
+        )
+    if delta.before_status is not None and delta.before_status not in _GOAL_STATUSES:
+        _fail(
+            "invalid_lifecycle_transition",
+            "goal before_status 不是受支持的生命周期状态",
+            delta=delta,
+        )
+
+    status = state.player_world_status
+    goal_ids = status.actionable_goal_ids
+    exists = delta.transition_id in goal_ids
+    visible = delta.next_status in _GOAL_VISIBLE_STATUSES
+
+    # A death delta in the same batch must never be able to create a goal by
+    # ordering the lifecycle item before the player transition.
+    if (status.life_status == "dead" or terminal_death_proposed) and visible:
+        _fail(
+            "dead_player_goal_transition",
+            "dead player 或同批终局行动不得创建新的 actionable goal",
+            delta=delta,
+        )
+
+    if delta.before_status is not None:
+        expected_exists = delta.before_status in _GOAL_VISIBLE_STATUSES
+        if exists != expected_exists:
+            _fail(
+                "lifecycle_goal_precondition_failed",
+                "goal before_status 与当前可见状态/存在性不一致",
+                delta=delta,
+            )
+    elif not visible and not exists:
+        _fail(
+            "lifecycle_goal_not_found",
+            "完成、阻塞或结束 goal 必须引用当前可见目标，或声明其终态 before_status",
+            delta=delta,
+        )
+    return visible
+
+
+def _apply_lifecycle_goal_delta(state: GameState, delta: LifecycleWorldDelta) -> None:
+    """Apply a validated goal transition without duplicating actionable ids."""
+
+    _validate_lifecycle_goal_delta(state, delta)
+    current = list(state.player_world_status.actionable_goal_ids)
+    if delta.next_status in _GOAL_VISIBLE_STATUSES:
+        if delta.transition_id not in current:
+            current.append(delta.transition_id)
+        else:
+            # Repair only this target's duplicate entries; unrelated legacy
+            # ids remain untouched and no duplicate is introduced by retry.
+            seen = False
+            normalized: list[str] = []
+            for goal_id in current:
+                if goal_id == delta.transition_id:
+                    if seen:
+                        continue
+                    seen = True
+                normalized.append(goal_id)
+            current = normalized
+    else:
+        current = [goal_id for goal_id in current if goal_id != delta.transition_id]
+    state.player_world_status = state.player_world_status.model_copy(
+        update={"actionable_goal_ids": current},
+    )
 
 
 def _relationship_id(delta: RelationshipWorldDelta) -> RelationId:
@@ -589,6 +713,10 @@ def validate_adjudication_proposal(
     relationship_ids = set(relationship_id_values)
     permission_ids = set(permission_id_values)
     player_entity_id = state.player_world_status.player_character_id
+    terminal_death_proposed = any(
+        isinstance(candidate, PlayerWorldDelta) and candidate.operation == "death"
+        for candidate in proposal.deltas
+    )
 
     for reference, label in (
         (intent.requested_executor_id, "requested_executor_id"),
@@ -1002,6 +1130,14 @@ def validate_adjudication_proposal(
                         "不能任命已结束或不可用的主体",
                         delta=delta,
                     )
+            continue
+
+        if isinstance(delta, LifecycleWorldDelta):
+            _validate_lifecycle_goal_delta(
+                state,
+                delta,
+                terminal_death_proposed=terminal_death_proposed,
+            )
             continue
 
         if isinstance(delta, PlayerWorldDelta) and delta.operation == "death":
@@ -1596,11 +1732,7 @@ def _apply_world_deltas_with_facts(
             except WorldStateValidationError as exc:
                 _fail(exc.code, exc.message, delta=delta)
         elif isinstance(delta, LifecycleWorldDelta):
-            _fail(
-                "sibling_contract_unavailable",
-                "该 delta 必须等待对应 sibling contract，不得由 sandbox 重实现",
-                delta=delta,
-            )
+            _apply_lifecycle_goal_delta(changed, delta)
         else:
             raise TypeError(f"Unsupported world delta: {type(delta).__name__}")
 

@@ -264,23 +264,6 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
-    "/api/worlds/{game_id}/branches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List World Branches */
-        get: operations["list_world_branches_api_worlds__game_id__branches_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/worlds/{game_id}/{branch_id}/versions": {
         parameters: {
             query?: never;
@@ -892,6 +875,23 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/worlds/{game_id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List World Branches */
+        get: operations["list_world_branches_api_worlds__game_id__branches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/worlds/{game_id}/branches/{branch_id}/versions": {
         parameters: {
             query?: never;
@@ -933,10 +933,31 @@ export type paths = {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List World Bookmarks */
+        get: operations["list_world_bookmarks_api_worlds__game_id__bookmarks_get"];
         put?: never;
         /** Create World Bookmark */
         post: operations["create_world_bookmark_api_worlds__game_id__bookmarks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/worlds/{game_id}/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * World Retention Report
+         * @description Return a dry-run retention report; no versions are deleted by this API.
+         */
+        get: operations["world_retention_report_api_worlds__game_id__retention_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1388,6 +1409,8 @@ export type components = {
             difficulty?: string | null;
             /** Option Id */
             option_id?: string | null;
+            /** Allow Early Candidate */
+            allow_early_candidate?: boolean | null;
         };
         /** ActionErrorEnvelope */
         ActionErrorEnvelope: {
@@ -1533,6 +1556,7 @@ export type components = {
             processing: boolean;
             /** Continuation Cursor */
             continuation_cursor?: string | null;
+            narrative?: components["schemas"]["NarrativeGenerationResult"] | null;
         };
         /** ActivityCheckpoint */
         ActivityCheckpoint: {
@@ -1685,6 +1709,28 @@ export type components = {
         AssemblyDecreeRequest: {
             /** Decision */
             decision: string;
+        };
+        /** AssemblyDecreeResponse */
+        AssemblyDecreeResponse: {
+            state: components["schemas"]["GameState"];
+            /** Assembly */
+            assembly: Record<string, never>;
+            /** Majority Vote */
+            majority_vote?: string | null;
+            /** Vote Counts */
+            vote_counts?: {
+                [key: string]: number;
+            };
+            /** Faction Changes */
+            faction_changes?: {
+                [key: string]: number;
+            };
+            /** Decree Effects */
+            decree_effects?: Record<string, never> | null;
+            /** Settlement Id */
+            settlement_id: string;
+            /** Context Version Id */
+            context_version_id: string;
         };
         /** AssemblyParticipant */
         AssemblyParticipant: {
@@ -1966,6 +2012,8 @@ export type components = {
              * @enum {string}
              */
             choice: "accept" | "refuse";
+            /** Allow Early Candidate */
+            allow_early_candidate?: boolean | null;
         };
         /** ConversationMessage */
         ConversationMessage: {
@@ -2070,6 +2118,10 @@ export type components = {
             state: components["schemas"]["GameState"];
             /** Prestige Change */
             prestige_change: number;
+            /** Settlement Id */
+            settlement_id?: string | null;
+            /** Context Version Id */
+            context_version_id?: string | null;
         };
         /** DebateStartRequest */
         DebateStartRequest: {
@@ -4443,6 +4495,11 @@ export type components = {
             /** Source Fact */
             source_fact: string;
         };
+        /** WorldBookmarkListResponse */
+        WorldBookmarkListResponse: {
+            /** Bookmarks */
+            bookmarks?: components["schemas"]["WorldBookmarkRef"][];
+        };
         /** WorldBookmarkRef */
         WorldBookmarkRef: {
             /**
@@ -4601,6 +4658,28 @@ export type components = {
             state: components["schemas"]["GameState"];
             branch: components["schemas"]["WorldBranchRef"];
             version: components["schemas"]["WorldVersionRef"];
+        };
+        /** WorldRetentionResponse */
+        WorldRetentionResponse: {
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /** Branch Id */
+            branch_id?: string | null;
+            /** Recent Limit */
+            recent_limit: number;
+            /** Protected Version Ids */
+            protected_version_ids?: string[];
+            /** Monthly Recovery Version Ids */
+            monthly_recovery_version_ids?: string[];
+            /** Delete Version Ids */
+            delete_version_ids?: string[];
+            /** Reasons */
+            reasons?: {
+                [key: string]: string[];
+            };
         };
         /**
          * WorldSnapshotMetadata
@@ -5185,37 +5264,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    list_world_branches_api_worlds__game_id__branches_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                game_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorldBranchListResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5952,7 +6000,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["AssemblyDecreeResponse"];
                 };
             };
             /** @description Validation Error */
@@ -6736,6 +6784,37 @@ export interface operations {
             };
         };
     };
+    list_world_branches_api_worlds__game_id__branches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldBranchListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_world_versions_api_worlds__game_id__branches__branch_id__versions_get: {
         parameters: {
             query?: never;
@@ -6800,6 +6879,39 @@ export interface operations {
             };
         };
     };
+    list_world_bookmarks_api_worlds__game_id__bookmarks_get: {
+        parameters: {
+            query?: {
+                branch_id?: string | null;
+            };
+            header?: never;
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldBookmarkListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     create_world_bookmark_api_worlds__game_id__bookmarks_post: {
         parameters: {
             query?: never;
@@ -6822,6 +6934,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorldBookmarkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    world_retention_report_api_worlds__game_id__retention_get: {
+        parameters: {
+            query?: {
+                branch_id?: string | null;
+                recent_limit?: number;
+            };
+            header?: never;
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldRetentionResponse"];
                 };
             };
             /** @description Validation Error */

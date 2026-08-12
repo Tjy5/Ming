@@ -80,6 +80,30 @@ class LegacyWorldImportResult:
         return bool(self.migration_notes)
 
 
+@dataclass(frozen=True)
+class RetentionPlan:
+    """Report-only retention decision for an immutable world graph.
+
+    The planner intentionally performs no writes.  Callers can inspect the
+    protected/restore/delete sets and present the report before enabling a
+    future transactional garbage collector.
+    """
+
+    game_id: GameId
+    branch_id: BranchId | None
+    recent_limit: int
+    protected_version_ids: tuple[VersionId, ...]
+    monthly_recovery_version_ids: tuple[VersionId, ...]
+    delete_version_ids: tuple[VersionId, ...]
+    reasons: dict[str, tuple[str, ...]]
+
+    @property
+    def retained_version_ids(self) -> tuple[VersionId, ...]:
+        ids = set(self.protected_version_ids)
+        ids.update(self.monthly_recovery_version_ids)
+        return tuple(sorted(ids, key=str))
+
+
 def _connect() -> sqlite3.Connection:
     # Import lazily: saves.init_db() initializes this additive schema and is the
     # existing owner of the configured SQLite path used by tests and startup.
@@ -842,6 +866,168 @@ def delete_bookmark(bookmark_id: BookmarkId, *, game_id: GameId | None = None) -
         except sqlite3.Error as exc:
             conn.rollback()
             raise WorldStorageError() from exc
+
+
+def list_bookmarks(
+    game_id: GameId,
+    branch_id: BranchId | None = None,
+) -> list[WorldBookmarkRef]:
+    """List durable version bookmarks, optionally scoped to one branch."""
+    try:
+        with closing(_connect()) as conn:
+            if branch_id is None:
+                rows = conn.execute(
+                    """
+                    SELECT id, game_id, branch_id, version_id, name, created_at
+                    FROM bookmarks WHERE game_id = ? ORDER BY created_at, id
+                    """,
+                    (str(game_id),),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, game_id, branch_id, version_id, name, created_at
+                    FROM bookmarks WHERE game_id = ? AND branch_id = ?
+                    ORDER BY created_at, id
+                    """,
+                    (str(game_id), str(branch_id)),
+                ).fetchall()
+            if branch_id is not None and not rows:
+                branch = conn.execute(
+                    "SELECT id FROM branches WHERE game_id = ? AND id = ?",
+                    (str(game_id), str(branch_id)),
+                ).fetchone()
+                if branch is None:
+                    raise WorldNotFoundError("branch", str(branch_id))
+        return [
+            WorldBookmarkRef(
+                bookmark_id=BookmarkId(row["id"]),
+                game_id=GameId(row["game_id"]),
+                branch_id=BranchId(row["branch_id"]),
+                version_id=VersionId(row["version_id"]),
+                name=row["name"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+            for row in rows
+        ]
+    except WorldStoreError:
+        raise
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored bookmark is invalid") from exc
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
+
+
+def plan_retention(
+    game_id: GameId,
+    branch_id: BranchId | None = None,
+    *,
+    recent_limit: int = 100,
+) -> RetentionPlan:
+    """Build a report-only, reference-aware retention plan.
+
+    The latest ``recent_limit`` action versions on each selected branch are
+    retained individually.  Older ordinary versions retain the final snapshot
+    observed in each game month.  Roots, bookmarks, terminal records and
+    terminal predecessors are always protected.  No database rows are deleted.
+    """
+    if isinstance(recent_limit, bool) or recent_limit < 1:
+        raise ValueError("recent_limit must be a positive integer")
+    try:
+        branches = list_branches(game_id)
+        if branch_id is not None:
+            branches = [branch for branch in branches if branch.branch_id == branch_id]
+            if not branches:
+                raise WorldNotFoundError("branch", str(branch_id))
+        protected: set[VersionId] = set()
+        monthly: set[VersionId] = set()
+        reasons: dict[str, set[str]] = {}
+
+        def protect(version: VersionId, reason: str) -> None:
+            protected.add(version)
+            reasons.setdefault(str(version), set()).add(reason)
+
+        with closing(_connect()) as conn:
+            selected_branch_ids = {str(item.branch_id) for item in branches}
+            placeholders = ",".join("?" for _ in selected_branch_ids)
+            if not selected_branch_ids:
+                versions_rows: list[sqlite3.Row] = []
+                bookmark_rows: list[sqlite3.Row] = []
+                terminal_rows: list[sqlite3.Row] = []
+            else:
+                versions_rows = conn.execute(
+                    f"SELECT id, branch_id, parent_version_id, settlement_id, state_json, created_at, protected "
+                    f"FROM versions WHERE game_id = ? AND branch_id IN ({placeholders}) ORDER BY created_at, id",
+                    (str(game_id), *sorted(selected_branch_ids)),
+                ).fetchall()
+                bookmark_rows = conn.execute(
+                    f"SELECT version_id FROM bookmarks WHERE game_id = ? AND branch_id IN ({placeholders})",
+                    (str(game_id), *sorted(selected_branch_ids)),
+                ).fetchall()
+                terminal_rows = conn.execute(
+                    f"SELECT version_id, previous_version_id FROM terminal_records WHERE game_id = ? AND branch_id IN ({placeholders})",
+                    (str(game_id), *sorted(selected_branch_ids)),
+                ).fetchall()
+
+        by_branch: dict[str, list[sqlite3.Row]] = {}
+        for row in versions_rows:
+            by_branch.setdefault(row["branch_id"], []).append(row)
+            if row["protected"]:
+                protect(VersionId(row["id"]), "database_protected")
+            if row["parent_version_id"] is None:
+                protect(VersionId(row["id"]), "branch_root")
+        for row in bookmark_rows:
+            protect(VersionId(row["version_id"]), "bookmark")
+        for row in terminal_rows:
+            protect(VersionId(row["version_id"]), "terminal_version")
+            protect(VersionId(row["previous_version_id"]), "terminal_predecessor")
+        for branch in branches:
+            if branch.forked_from_version_id is not None:
+                protect(branch.forked_from_version_id, "branch_fork_root")
+
+        for _branch_key, rows in by_branch.items():
+            action_rows = [row for row in rows if row["settlement_id"] is not None]
+            for row in action_rows[-recent_limit:]:
+                protect(VersionId(row["id"]), "recent_action")
+            month_last: dict[tuple[int, int], sqlite3.Row] = {}
+            for row in action_rows[:-recent_limit] if recent_limit < len(action_rows) else []:
+                try:
+                    state = GameState.model_validate_json(row["state_json"])
+                    projection = state.time.calendar
+                    if projection is None:
+                        raise ValueError("version has no calendar projection")
+                    key = (projection.year, projection.month)
+                except Exception:
+                    key = (0, 0)
+                month_last[key] = row
+            for row in month_last.values():
+                version = VersionId(row["id"])
+                if version not in protected:
+                    monthly.add(version)
+                    reasons.setdefault(str(version), set()).add("monthly_recovery")
+
+        retained = protected | monthly
+        delete = {
+            VersionId(row["id"])
+            for row in versions_rows
+            if VersionId(row["id"]) not in retained
+        }
+
+        return RetentionPlan(
+            game_id=game_id,
+            branch_id=branch_id,
+            recent_limit=recent_limit,
+            protected_version_ids=tuple(sorted(protected, key=str)),
+            monthly_recovery_version_ids=tuple(sorted(monthly, key=str)),
+            delete_version_ids=tuple(sorted(delete, key=str)),
+            reasons={key: tuple(sorted(value)) for key, value in reasons.items()},
+        )
+    except WorldStoreError:
+        raise
+    except (ValidationError, ValueError, TypeError) as exc:
+        raise WorldCorruptDataError("stored retention graph is invalid") from exc
+    except sqlite3.Error as exc:
+        raise WorldStorageError() from exc
 
 
 def _row_to_action_request(row: sqlite3.Row) -> ActionRequestRecord:

@@ -83,6 +83,10 @@ class ActivityBatchExecutionResponse(BaseModel):
     results: list[SettlementCommitResult] = Field(default_factory=list)
     processing: bool
     continuation_cursor: str | None = None
+    # Post-commit narrative for the last checkpoint.  It is intentionally
+    # optional when no checkpoint settled; facts/narrative generation never
+    # re-enters the action service.
+    narrative: NarrativeGenerationResult | None = None
 
 
 class ActionErrorEnvelope(BaseModel):
@@ -99,6 +103,8 @@ class HistoryPage(BaseModel):
 class DebateSilenceResponse(BaseModel):
     state: GameState
     prestige_change: int
+    settlement_id: UUID | None = None
+    context_version_id: UUID | None = None
 
 
 class MemorialResolveResponse(BaseModel):
@@ -162,6 +168,20 @@ class WorldBookmarkResponse(BaseModel):
     bookmark: WorldBookmarkRef
 
 
+class WorldBookmarkListResponse(BaseModel):
+    bookmarks: list[WorldBookmarkRef] = Field(default_factory=list)
+
+
+class WorldRetentionResponse(BaseModel):
+    game_id: GameId
+    branch_id: BranchId | None = None
+    recent_limit: int
+    protected_version_ids: list[VersionId] = Field(default_factory=list)
+    monthly_recovery_version_ids: list[VersionId] = Field(default_factory=list)
+    delete_version_ids: list[VersionId] = Field(default_factory=list)
+    reasons: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class DebateStartRequest(BaseModel):
     category: str
     topic: str
@@ -199,6 +219,17 @@ class AssemblyVoteRequest(BaseModel):
 
 class AssemblyDecreeRequest(BaseModel):
     decision: str
+
+
+class AssemblyDecreeResponse(BaseModel):
+    state: GameState
+    assembly: dict
+    majority_vote: str | None = None
+    vote_counts: dict[str, int] = Field(default_factory=dict)
+    faction_changes: dict[str, int] = Field(default_factory=dict)
+    decree_effects: dict | None = None
+    settlement_id: str
+    context_version_id: str
 
 
 class AssemblyRageRequest(BaseModel):

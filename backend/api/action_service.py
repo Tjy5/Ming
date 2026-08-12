@@ -36,6 +36,7 @@ from engine.settlement import (
     validate_adjudication_proposal,
     validate_final_state,
 )
+from engine.lifecycle import LifecyclePlanner
 from models.game import GameState
 from models.settlement import (
     ActionIntent,
@@ -374,6 +375,7 @@ class ActionService:
         time_planner: ActionTimePlanner | None = None,
         world_state_applier: ActionWorldStateApplier | None = None,
         clock_registry: ClockConsumerRegistry | None = None,
+        lifecycle_planner: LifecyclePlanner | None = None,
     ) -> None:
         self._adjudicator = adjudicator
         self._clock_registry = clock_registry or default_clock_registry()
@@ -381,6 +383,7 @@ class ActionService:
         self._world_state_applier = world_state_applier or DefaultWorldStateApplier(
             self._clock_registry,
         )
+        self._lifecycle_planner = lifecycle_planner
         self._action_locks: weakref.WeakValueDictionary[
             tuple[str, str, str], asyncio.Lock
         ] = weakref.WeakValueDictionary()
@@ -481,6 +484,18 @@ class ActionService:
                 proposal.deltas,
                 time_plan,
             )
+        if self._lifecycle_planner is not None:
+            lifecycle = self._lifecycle_planner.propose(
+                previous=previous.model_copy(deep=True),
+                changed=changed.model_copy(deep=True),
+            )
+            if lifecycle.deltas:
+                changed = apply_world_deltas(changed, list(lifecycle.deltas))
+                proposal_for_commit = proposal_for_commit.model_copy(
+                    update={
+                        "deltas": [*proposal_for_commit.deltas, *lifecycle.deltas],
+                    },
+                )
         validate_final_state(previous, changed)
 
         # The provider call happens outside SQLite. Recheck before entering the

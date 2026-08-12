@@ -28,7 +28,7 @@ from trpg import dice as dice_mod
 from trpg import gm as gm_mod
 from trpg import writeback as writeback_mod
 from .narrative_routes import generate_committed_narrative
-from .state import _ensure_world_head, _get_provider, _get_state, _lock, _set_state, _settle_state
+from .state import _ensure_world_head, _get_provider, _get_state, _lock, _settle_state
 
 trpg_router = APIRouter(prefix="/api/trpg")
 logger = logging.getLogger(__name__)
@@ -189,7 +189,10 @@ async def act(req: ActRequest):
         frozen = chapter_mod.is_frozen(state)
         if not frozen:
             chapter_mod.record_turn(state)
-        convergence = chapter_mod.check_convergence_hook(state)
+        convergence = chapter_mod.check_convergence_hook(
+            state,
+            include_early_candidates=bool(req.allow_early_candidate),
+        )
 
         # 4. AI 主持人生成叙事与分支选项（AI 不可用/解析失败 → 规则回退）
         result = await gm_mod.generate_turn(
@@ -340,7 +343,7 @@ async def complete_milestone(milestone_id: str):
             narrative=narrative,
         ))
 
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="trpg_milestone",
             raw_text=f"完成关键事件：{result['title']}",
@@ -370,6 +373,8 @@ async def complete_milestone(milestone_id: str):
             "pacing": chapter_mod.pacing_status(state.chapter_turns),
             "frozen": chapter_mod.is_frozen(state),
             "time": state.time.model_dump(mode="json"),
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
         }
 
 
@@ -390,7 +395,10 @@ async def converge(req: ConvergeRequest):
     """
     async with _lock:
         state = _get_state().model_copy(deep=True)
-        hook = chapter_mod.check_convergence_hook(state)
+        hook = chapter_mod.check_convergence_hook(
+            state,
+            include_early_candidates=bool(req.allow_early_candidate),
+        )
         if hook is None:
             raise HTTPException(409, detail=ErrorResponse(
                 error_code="convergence_not_pending",
@@ -426,7 +434,7 @@ async def converge(req: ConvergeRequest):
             narrative=narrative,
         ))
 
-        state = await _set_state(
+        state, settlement_result = await _settle_state(
             state,
             action_kind="trpg_convergence",
             raw_text="接受招揽" if req.choice == "accept" else "拒绝归降",
@@ -453,4 +461,6 @@ async def converge(req: ConvergeRequest):
             "pacing": chapter_mod.pacing_status(state.chapter_turns),
             "frozen": chapter_mod.is_frozen(state),
             "time": state.time.model_dump(mode="json"),
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
         }

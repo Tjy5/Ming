@@ -894,12 +894,23 @@ async def silence_debate():
         state = _get_state().model_copy(deep=True)
         change = max(0, min(3, 100 - state.court_prestige))
         state.court_prestige += change
-        state = await _set_state(
-            state,
-            action_kind="debate_silence",
-            raw_text="令朝议肃静",
-        )
-        return {"state": state.model_dump(), "prestige_change": change}
+        try:
+            state, settlement_result = await _settle_state(
+                state,
+                action_kind="debate_silence",
+                raw_text="令朝议肃静",
+            )
+        except ActionAdjudicationError as exc:
+            raise HTTPException(
+                503,
+                detail=ErrorResponse(error_code=exc.code, message=exc.message).model_dump(),
+            ) from None
+        return {
+            "state": state.model_dump(),
+            "prestige_change": change,
+            "settlement_id": settlement_result.facts.settlement_id,
+            "context_version_id": settlement_result.version.version_id,
+        }
 
 
 
