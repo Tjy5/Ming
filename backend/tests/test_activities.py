@@ -692,3 +692,10 @@ def test_activity_http_query_continue_and_publish_recovery(monkeypatch, tmp_path
     assert payload["activity"]["status"] == "completed"
     assert payload["activity"] == payload["state"]["activities"][0]
     assert payload["results"][0]["facts"]["checkpoint_sequence"] == 1
+    assert payload["narrative"]["settlement_id"] == payload["results"][0]["facts"]["settlement_id"]
+    assert payload["narrative"]["narrative_status"] in {
+        "validated",
+        "repaired",
+        "sanitized",
+        "fallback_facts",
+    }

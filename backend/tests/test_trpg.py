@@ -373,6 +373,16 @@ class TestChapter:
         state.phase = "governance"
         assert chapter.check_convergence_hook(state) is None  # 冻结
 
+    def test_public_candidate_can_be_offered_before_fallback_year(self):
+        state = create_initial_state()
+        candidate = chapter.check_convergence_hook(
+            state,
+            include_early_candidates=True,
+        )
+        assert candidate is not None
+        assert candidate["candidate"] is True
+        assert "不会锁定阶段" in candidate["message"]
+
 
 # ── 5. AI 主持人（GM）────────────────────────────────────
 

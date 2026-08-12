@@ -72,6 +72,15 @@
       {"case_id": "narrative_suggestion_ancestry_guard", "node_id": "tests/test_api_routes.py::test_adopt_suggestion_rejects_nonancestor_source_before_effects"},
       {"case_id": "narrative_stale_suggestion_current_settlement", "node_id": "tests/test_api_routes.py::test_adopt_stale_ancestor_re_evaluates_current_world_before_new_settlement"},
       {"case_id": "narrative_stale_parent_rejected", "node_id": "tests/test_action_idempotency.py::test_stale_parent_is_legal_conflict_and_leaves_head_unchanged"}
+    ]},
+    {"category": "public_http_sse_browser_flow", "cases": [
+      {"case_id": "public_world_branch_version_routes", "node_id": "tests/test_world_lifecycle_routes.py::test_public_branch_lifecycle_restores_state_and_ancestry_scoped_memory"},
+      {"case_id": "public_bookmark_retention_routes", "node_id": "tests/test_world_retention_routes.py::test_public_bookmark_and_report_only_retention_routes_are_typed"},
+      {"case_id": "public_activity_narrative_facts", "node_id": "tests/test_activities.py::test_activity_http_query_continue_and_publish_recovery"}
+    ]},
+    {"category": "security_privacy_provider_config", "cases": [
+      {"case_id": "provider_endpoint_security", "node_id": "tests/test_ai_endpoint_security.py::test_dns_rejects_empty_private_or_mixed_results"},
+      {"case_id": "narrative_stream_hides_raw_provider", "node_id": "tests/test_strict_narrative_stream.py::test_invalid_provider_candidate_and_raw_stream_chunks_are_never_visible"}
     ]}
   ]
 }

@@ -9,7 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from ai.base import GenerationResult
-from api.action_routes import set_action_service_for_testing
+from api.action_routes import _get_action_service, set_action_service_for_testing
+from engine.lifecycle import DefaultLifecyclePlanner
 from api.action_service import (
     AIActionAdjudicator,
     ActionAdjudicationError,
@@ -731,6 +732,48 @@ def test_openapi_declares_typed_action_contract():
     assert operation["responses"]["409"]["content"]["application/json"]["schema"]["$ref"].endswith(
         "/ActionErrorEnvelope",
     )
+
+
+def test_default_public_action_service_injects_lifecycle_planner(monkeypatch):
+    import api.action_routes as routes
+
+    monkeypatch.setattr(routes, "_default_action_service", None)
+    set_action_service_for_testing(None)
+    service = _get_action_service()
+    assert isinstance(service._lifecycle_planner, DefaultLifecyclePlanner)
+
+
+def test_default_lifecycle_planner_commits_continuity_goal_for_empty_goal_state(monkeypatch, tmp_path):
+    initial, root = _store(monkeypatch, tmp_path)
+    set_action_service_for_testing(
+        ActionService(
+            adjudicator=_StaticAdjudicator(_proposal(initial.consecutive_waits)),
+            lifecycle_planner=DefaultLifecyclePlanner(),
+        ),
+    )
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                "/api/actions",
+                json=_intent(root).model_dump(mode="json"),
+            )
+    finally:
+        set_action_service_for_testing(None)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["state"]["player_world_status"]["actionable_goal_ids"] == [
+        "world_continuity_required",
+    ]
+
+
+def test_world_branches_route_is_registered_once():
+    matches = [
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/worlds/{game_id}/branches"
+        and "GET" in getattr(route, "methods", set())
+    ]
+    assert len(matches) == 1
 
 
 def test_invalid_public_action_request_uses_typed_safe_error():

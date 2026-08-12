@@ -4,8 +4,11 @@ import json
 import sqlite3
 
 import pytest
+from fastapi.testclient import TestClient
 
+from api import state as api_state
 from db import saves, worlds
+from main import app
 from models.game import create_initial_state
 
 
@@ -122,3 +125,27 @@ def test_legacy_import_rejects_explicit_chongzhen_scenario(monkeypatch, tmp_path
             for table in ("games", "branches", "versions", "legacy_save_imports")
         ]
     assert counts == [0, 0, 0, 0]
+
+
+def test_public_legacy_load_reuses_imported_root(monkeypatch, tmp_path):
+    _, save_id, _, _ = _legacy_save(monkeypatch, tmp_path)
+    old_state = api_state._state
+    old_ref = api_state._get_world_head_ref()
+    api_state._world_head_cache.clear()
+    try:
+        with TestClient(app) as client:
+            first = client.post(f"/api/load/{save_id}")
+            second = client.post(f"/api/load/{save_id}")
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        assert first.json()["world_metadata"]["source_ref"] == str(save_id)
+        assert second.json()["world_metadata"]["source_ref"] == str(save_id)
+        with saves._connect() as conn:
+            counts = {
+                table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                for table in ("games", "branches", "versions", "legacy_save_imports")
+            }
+        assert counts == {"games": 1, "branches": 1, "versions": 1, "legacy_save_imports": 1}
+    finally:
+        api_state._state = old_state
+        api_state._world_head_cache.restore_ref(old_ref)
