@@ -12,6 +12,7 @@
     "check-generated-types": "openapi-typescript http://localhost:8000/openapi.json -o src/types/generated.ts --export-type --check",
     "type-check": "npm run check-generated-types && tsc -b",
     "test": "vitest run --exclude e2e/**",
+    "test:e2e": "node ../scripts/run-lifecycle-e2e.mjs",
     "test:e2e:live": "node ../scripts/run-release-smoke.mjs",
     "release:gate": "node ../scripts/release-smoke-gate.mjs"
   },

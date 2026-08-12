@@ -15,17 +15,24 @@ try {
 }
 
 if (candidate) {
-    const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-    const root = path.join(repoRoot, 'output', 'playwright', 'release-smoke', candidate)
+  const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
+  const root = path.join(repoRoot, 'output', 'playwright', 'release-smoke', candidate)
   let entries = []
+  let readFailed = false
   try {
     entries = await fs.readdir(root, { withFileTypes: true })
   } catch {
     console.error(`release blocked: no smoke artifacts for ${candidate}`)
+    readFailed = true
     process.exitCode = 1
   }
 
-  if (entries.length) {
+  if (readFailed) {
+    // The missing directory is already a blocking condition.
+  } else if (!entries.length) {
+    console.error(`release blocked: no smoke artifacts for ${candidate}`)
+    process.exitCode = 1
+  } else {
     const reports = []
     for (const entry of entries) {
       if (!entry.isFile() || !entry.name.endsWith('.json')) continue

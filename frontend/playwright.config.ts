@@ -6,7 +6,12 @@ const offlineLifecycle = process.env.MING_E2E_MODE === 'offline'
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: '**/*.spec.mjs',
+  // Offline lifecycle evidence and operator live smoke are separate gates.
+  // Keep the live spec undiscovered in the deterministic profile so a local
+  // browser run cannot fail merely because BYOK configuration is absent.
+  testMatch: offlineLifecycle
+    ? '**/lifecycle-continuity.spec.mjs'
+    : '**/release-smoke.spec.mjs',
   timeout: 120_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
