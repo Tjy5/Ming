@@ -26,6 +26,8 @@ from .schemas import (
     WorldBookmarkResponse,
     WorldBookmarkListResponse,
     WorldRetentionResponse,
+    WorldRetentionCollectRequest,
+    WorldRetentionCollectResponse,
     WorldLifecycleResponse,
     WorldBranchListResponse,
     WorldVersionListResponse,
@@ -67,6 +69,11 @@ def branch_world_version(game_id: GameId, version_id: VersionId) -> WorldLifecyc
             raise worlds.WorldNotFoundError("version", str(version_id))
         branch = worlds.create_branch_from_version(version_id)
         snapshot = worlds.load_version(branch.version_id)
+        # Keep the process-local compatibility cache aligned with the newly
+        # selected branch.  Without publishing here, the response shows the
+        # forked state while subsequent legacy-compatible routes still read the
+        # previous branch head.
+        _publish_world_head(snapshot.state, snapshot.ref)
         return WorldLifecycleResponse(
             state=snapshot.state,
             branch=worlds.get_branch(game_id, branch.branch_id),
@@ -127,6 +134,47 @@ def world_retention_report(
             protected_version_ids=list(plan.protected_version_ids),
             monthly_recovery_version_ids=list(plan.monthly_recovery_version_ids),
             delete_version_ids=list(plan.delete_version_ids),
+            reasons={key: list(value) for key, value in plan.reasons.items()},
+        )
+    except ValueError as exc:
+        raise HTTPException(422, detail=_error_detail("invalid_retention_request", str(exc))) from None
+    except worlds.WorldNotFoundError as exc:
+        raise HTTPException(404, detail=_error_detail(exc.code, exc.message)) from None
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(500, detail=_error_detail(exc.code, exc.message)) from None
+
+
+@action_router.post(
+    "/worlds/{game_id}/retention/collect",
+    response_model=WorldRetentionCollectResponse,
+    responses={404: {"model": ActionErrorEnvelope}, 422: {"model": ActionErrorEnvelope}, 500: {"model": ActionErrorEnvelope}},
+)
+def collect_world_retention(
+    game_id: GameId,
+    request: WorldRetentionCollectRequest,
+) -> WorldRetentionCollectResponse:
+    """Run retention GC after an explicit, typed enable acknowledgement."""
+    try:
+        result = worlds.collect_retention(
+            game_id,
+            request.branch_id,
+            recent_limit=request.recent_limit,
+            enabled=request.enabled,
+        )
+        plan = result.plan
+        return WorldRetentionCollectResponse(
+            audit_id=result.audit_id,
+            game_id=plan.game_id,
+            branch_id=plan.branch_id,
+            recent_limit=plan.recent_limit,
+            mode=plan.mode,
+            enabled=result.enabled,
+            committed=result.committed,
+            deleted_version_ids=list(result.deleted_version_ids),
+            deleted_settlement_ids=list(result.deleted_settlement_ids),
+            blocked_version_ids=list(result.blocked_version_ids),
+            protected_version_ids=list(plan.protected_version_ids),
+            monthly_recovery_version_ids=list(plan.monthly_recovery_version_ids),
             reasons={key: list(value) for key, value in plan.reasons.items()},
         )
     except ValueError as exc:

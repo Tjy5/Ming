@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 const candidate = process.env.MING_RELEASE_CANDIDATE ?? 'unassigned'
 const runId = process.env.MING_RELEASE_SMOKE_RUN_ID ?? 'local'
+const offlineLifecycle = process.env.MING_E2E_MODE === 'offline'
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,7 +14,9 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: [['line']],
-  outputDir: `../output/playwright/release-smoke/${candidate}/${runId}`,
+  outputDir: offlineLifecycle
+    ? '../output/playwright/lifecycle-continuity'
+    : `../output/playwright/release-smoke/${candidate}/${runId}`,
   // Network traces can contain request bodies. Live smoke artifacts therefore
   // deliberately disable trace/video/screenshot capture; the report stores only
   // allowlisted IDs and stage statuses.
@@ -30,7 +33,9 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'python scripts/release_smoke_server.py',
+      command: offlineLifecycle
+        ? 'python scripts/lifecycle_e2e_server.py'
+        : 'python scripts/release_smoke_server.py',
       cwd: '../backend',
       url: 'http://127.0.0.1:8000/api/health',
       timeout: 120_000,

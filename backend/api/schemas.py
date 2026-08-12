@@ -182,6 +182,30 @@ class WorldRetentionResponse(BaseModel):
     reasons: dict[str, list[str]] = Field(default_factory=dict)
 
 
+class WorldRetentionCollectRequest(BaseModel):
+    """Explicit operator acknowledgement for destructive retention GC."""
+
+    branch_id: BranchId | None = None
+    recent_limit: int = Field(default=100, ge=1)
+    enabled: Literal[True] = True
+
+
+class WorldRetentionCollectResponse(BaseModel):
+    audit_id: str
+    game_id: GameId
+    branch_id: BranchId | None = None
+    recent_limit: int
+    mode: str
+    enabled: bool
+    committed: bool
+    deleted_version_ids: list[VersionId] = Field(default_factory=list)
+    deleted_settlement_ids: list[UUID] = Field(default_factory=list)
+    blocked_version_ids: list[VersionId] = Field(default_factory=list)
+    protected_version_ids: list[VersionId] = Field(default_factory=list)
+    monthly_recovery_version_ids: list[VersionId] = Field(default_factory=list)
+    reasons: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class DebateStartRequest(BaseModel):
     category: str
     topic: str

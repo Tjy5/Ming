@@ -21,8 +21,10 @@ from engine.continuity import (
 )
 from engine.elapsed_consumers import default_clock_registry
 from engine.execution import build_executor_facts
+from engine.lifecycle import DefaultLifecyclePlanner
 from engine.settlement import (
     SettlementValidationError,
+    apply_world_deltas,
     validate_adjudication_proposal,
     validate_final_state,
 )
@@ -86,6 +88,15 @@ def ensure_governance_continuity() -> GameState | None:
     if consumer_deltas:
         proposal = proposal.model_copy(
             update={"deltas": [*proposal.deltas, *consumer_deltas]},
+        )
+    lifecycle = DefaultLifecyclePlanner().propose(
+        previous=previous.model_copy(deep=True),
+        changed=changed.model_copy(deep=True),
+    )
+    if lifecycle.deltas:
+        changed = apply_world_deltas(changed, list(lifecycle.deltas))
+        proposal = proposal.model_copy(
+            update={"deltas": [*proposal.deltas, *lifecycle.deltas]},
         )
     validate_final_state(previous, changed)
 

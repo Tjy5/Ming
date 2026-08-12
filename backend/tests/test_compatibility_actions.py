@@ -16,7 +16,7 @@ from fakes import FakeProvider
 from main import app
 from models.game import create_initial_state
 from engine.settlement import apply_world_deltas
-from models.settlement import CompatibilityStatePatchDelta
+from models.settlement import CompatibilityStatePatchDelta, LifecycleWorldDelta
 from models.world import Duration, new_client_action_id, new_delta_id, new_version_id
 
 
@@ -64,6 +64,10 @@ def test_legacy_action_patch_and_time_commit_as_one_version(monkeypatch, tmp_pat
     assert len(versions) == 2
     assert settlements[0].time_plan.segment.elapsed_hours == 1
     assert settlements[0].duration_reason == "测试 AI 的确定性行动耗时裁决"
+    assert committed.player_world_status.actionable_goal_ids == [
+        "world_continuity_required",
+    ]
+    assert any(isinstance(delta, LifecycleWorldDelta) for delta in settlements[0].deltas)
     patches = [
         delta
         for delta in settlements[0].deltas
@@ -196,6 +200,13 @@ def test_advance_month_http_uses_one_replayable_unified_settlement(monkeypatch, 
         "unit": "month",
         "value": 1,
     }
+    assert first_payload["state"]["player_world_status"]["actionable_goal_ids"] == [
+        "world_continuity_required",
+    ]
+    assert any(
+        delta["delta_type"] == "lifecycle"
+        for delta in first_payload["result"]["facts"]["deltas"]
+    )
     assert len(worlds.list_settlements(root.ref.game_id, root.ref.branch_id)) == 1
     assert len(worlds.list_versions(root.ref.game_id, root.ref.branch_id)) == 2
 

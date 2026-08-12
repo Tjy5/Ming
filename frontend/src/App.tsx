@@ -291,6 +291,7 @@ function App() {
         onShowSaves={() => setShowSaves(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
         onOpenChat={() => navigate('/chat')}
+        onOpenContinuity={() => navigate('/continuity')}
         onOpenGuide={() => setGuideOpen(true)}
         onNewGame={handleNewGame}
       />

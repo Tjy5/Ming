@@ -33,6 +33,7 @@ from engine.clock import ClockPlanningError, plan_elapsed_segment
 from engine.elapsed_consumers import default_clock_registry, project_state_at_boundary
 from engine.entity_views import resolve_dialogue_actor, resolve_registry_actor
 from api.action_service import AIActionAdjudicator, ActionAdjudicationError, ActionService
+from engine.lifecycle import DefaultLifecyclePlanner
 from db import worlds
 from db.narrative_memory import list_visible_memories
 from models.settlement import ActionIntent, AdjudicationProposal
@@ -698,6 +699,7 @@ async def advance_month_endpoint(req: AdvanceMonthRequest | None = None):
         service = ActionService(
             adjudicator=_AdvanceMonthAdjudicator(_get_provider, script_decisions),
             clock_registry=registry,
+            lifecycle_planner=DefaultLifecyclePlanner(),
         )
         execution = await service.execute(intent)
         try:

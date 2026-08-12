@@ -96,12 +96,34 @@ class RetentionPlan:
     monthly_recovery_version_ids: tuple[VersionId, ...]
     delete_version_ids: tuple[VersionId, ...]
     reasons: dict[str, tuple[str, ...]]
+    # These fields make the report self-describing for operators and callers
+    # which decide whether to invoke the explicitly enabled collector.
+    graph_version_count: int = 0
+    shared_ancestor_version_ids: tuple[VersionId, ...] = ()
+    mode: str = "report"
 
     @property
     def retained_version_ids(self) -> tuple[VersionId, ...]:
         ids = set(self.protected_version_ids)
         ids.update(self.monthly_recovery_version_ids)
         return tuple(sorted(ids, key=str))
+
+
+@dataclass(frozen=True)
+class RetentionGCResult:
+    """Outcome of an explicitly enabled, transactional retention collection."""
+
+    audit_id: str
+    plan: RetentionPlan
+    deleted_version_ids: tuple[VersionId, ...] = ()
+    deleted_settlement_ids: tuple[SettlementId, ...] = ()
+    blocked_version_ids: tuple[VersionId, ...] = ()
+    enabled: bool = False
+    committed: bool = False
+
+    @property
+    def deleted_count(self) -> int:
+        return len(self.deleted_version_ids)
 
 
 def _connect() -> sqlite3.Connection:
@@ -152,7 +174,9 @@ def init_worlds_db() -> None:
                 game_id TEXT NOT NULL,
                 branch_id TEXT NOT NULL,
                 client_action_id TEXT NOT NULL,
-                parent_version_id TEXT NOT NULL,
+                -- Nullable after retention compaction: a retained full snapshot
+                -- may be detached from a deleted historical ancestor.
+                parent_version_id TEXT,
                 facts_json TEXT NOT NULL,
                 delta_json TEXT NOT NULL,
                 attribution_json TEXT NOT NULL,
@@ -262,15 +286,99 @@ def init_worlds_db() -> None:
                     REFERENCES versions(game_id, branch_id, id) ON DELETE RESTRICT
             );
 
+            CREATE TABLE IF NOT EXISTS retention_gc_audits (
+                id TEXT PRIMARY KEY,
+                game_id TEXT NOT NULL,
+                branch_id TEXT,
+                recent_limit INTEGER NOT NULL,
+                mode TEXT NOT NULL,
+                enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+                committed INTEGER NOT NULL CHECK (committed IN (0, 1)),
+                planned_version_ids_json TEXT NOT NULL,
+                protected_version_ids_json TEXT NOT NULL,
+                monthly_recovery_version_ids_json TEXT NOT NULL,
+                deleted_version_ids_json TEXT NOT NULL,
+                blocked_version_ids_json TEXT NOT NULL,
+                reasons_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE RESTRICT
+            );
+
             CREATE INDEX IF NOT EXISTS idx_versions_branch_created
                 ON versions(game_id, branch_id, created_at, id);
             CREATE INDEX IF NOT EXISTS idx_settlements_branch_created
                 ON settlements(game_id, branch_id, created_at, id);
             CREATE INDEX IF NOT EXISTS idx_action_requests_status
                 ON action_requests(game_id, branch_id, status);
+            CREATE INDEX IF NOT EXISTS idx_retention_gc_audits_game_created
+                ON retention_gc_audits(game_id, created_at, id);
             """,
         )
         conn.commit()
+
+        # Older installations created ``settlements.parent_version_id`` as
+        # NOT NULL before retention compaction was introduced.  SQLite cannot
+        # alter a column's nullability in place, so perform a small additive
+        # forward migration once, preserving every row and constraint.  This
+        # keeps transactional GC usable after upgrading an existing save DB;
+        # fresh databases already have the nullable definition above.
+        columns = conn.execute("PRAGMA table_info(settlements)").fetchall()
+        parent_column = next(
+            (row for row in columns if row["name"] == "parent_version_id"),
+            None,
+        )
+        if parent_column is not None and int(parent_column["notnull"] or 0) == 1:
+            conn.execute("PRAGMA foreign_keys = OFF")
+            try:
+                conn.execute("BEGIN")
+                conn.execute(
+                    """
+                    CREATE TABLE settlements__nullable (
+                        id TEXT PRIMARY KEY,
+                        game_id TEXT NOT NULL,
+                        branch_id TEXT NOT NULL,
+                        client_action_id TEXT NOT NULL,
+                        parent_version_id TEXT,
+                        facts_json TEXT NOT NULL,
+                        delta_json TEXT NOT NULL,
+                        attribution_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        UNIQUE (game_id, branch_id, client_action_id),
+                        UNIQUE (game_id, branch_id, id),
+                        FOREIGN KEY (game_id, branch_id)
+                            REFERENCES branches(game_id, id) ON DELETE RESTRICT,
+                        FOREIGN KEY (game_id, branch_id, parent_version_id)
+                            REFERENCES versions(game_id, branch_id, id) ON DELETE RESTRICT
+                    )
+                    """,
+                )
+                conn.execute(
+                    """
+                    INSERT INTO settlements__nullable (
+                        id, game_id, branch_id, client_action_id,
+                        parent_version_id, facts_json, delta_json,
+                        attribution_json, created_at
+                    )
+                    SELECT id, game_id, branch_id, client_action_id,
+                           parent_version_id, facts_json, delta_json,
+                           attribution_json, created_at
+                    FROM settlements
+                    """,
+                )
+                conn.execute("DROP TABLE settlements")
+                conn.execute("ALTER TABLE settlements__nullable RENAME TO settlements")
+                conn.execute(
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_settlements_branch_created
+                        ON settlements(game_id, branch_id, created_at, id)
+                    """,
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _utc_now() -> datetime:
@@ -918,116 +1026,368 @@ def list_bookmarks(
         raise WorldStorageError() from exc
 
 
+def _retention_plan_in_transaction(
+    conn: sqlite3.Connection,
+    game_id: GameId,
+    branch_id: BranchId | None,
+    recent_limit: int,
+) -> RetentionPlan:
+    """Compute a graph-wide plan using the caller's open transaction.
+
+    Retention is reference-aware across *all* branches in a game.  A selected
+    branch may only contribute candidates, but any root, head, bookmark,
+    terminal predecessor, or shared descendant retained by another branch is
+    protected globally. Same-branch historical edges can be detached during
+    commit because every snapshot stores a complete recoverable state.
+    """
+    branch_rows = conn.execute(
+        """
+        SELECT id, game_id, parent_branch_id, forked_from_version_id,
+               head_version_id, created_at, status
+        FROM branches WHERE game_id = ? ORDER BY created_at, id
+        """,
+        (str(game_id),),
+    ).fetchall()
+    if not branch_rows:
+        raise WorldNotFoundError("game", str(game_id))
+    all_branches = [_row_to_branch_ref(row) for row in branch_rows]
+    selected = [
+        branch for branch in all_branches
+        if branch_id is None or branch.branch_id == branch_id
+    ]
+    if branch_id is not None and not selected:
+        raise WorldNotFoundError("branch", str(branch_id))
+
+    versions_rows = conn.execute(
+        """
+        SELECT id, game_id, branch_id, parent_version_id, settlement_id,
+               state_json, created_at, protected
+        FROM versions WHERE game_id = ? ORDER BY created_at, id
+        """,
+        (str(game_id),),
+    ).fetchall()
+    by_id = {str(row["id"]): row for row in versions_rows}
+    # SQLite yields strings while Pydantic may yield UUID-backed NewTypes.
+    # Canonicalize graph keys to strings internally to avoid mixed-set misses.
+    protected: set[str] = set()
+    monthly: set[str] = set()
+    reasons: dict[str, set[str]] = {}
+
+    def protect(version: VersionId | str, reason: str) -> None:
+        key = str(version)
+        if key not in by_id:
+            # A dangling reference is graph corruption, never a deletion hint.
+            raise WorldCorruptDataError(f"retention reference points to unknown version {key}")
+        protected.add(key)
+        reasons.setdefault(key, set()).add(reason)
+
+    # Durable references and branch roots/heads are always retained globally.
+    for row in versions_rows:
+        version = str(row["id"])
+        if row["protected"]:
+            protect(version, "database_protected")
+        if row["parent_version_id"] is None:
+            protect(version, "branch_root")
+    for branch in all_branches:
+        if branch.head_version_id is not None:
+            protect(branch.head_version_id, "branch_head")
+        if branch.forked_from_version_id is not None:
+            protect(branch.forked_from_version_id, "branch_fork_root")
+        # The first node belonging to a branch is its immutable branch root,
+        # including a fork root whose parent lives on another branch.
+        root = conn.execute(
+            """
+            SELECT id FROM versions WHERE game_id = ? AND branch_id = ?
+            ORDER BY created_at, id LIMIT 1
+            """,
+            (str(game_id), str(branch.branch_id)),
+        ).fetchone()
+        if root is not None:
+            protect(root["id"], "branch_root")
+
+    for row in conn.execute("SELECT version_id FROM bookmarks WHERE game_id = ?", (str(game_id),)):
+        protect(row["version_id"], "bookmark")
+    for row in conn.execute(
+        "SELECT version_id, previous_version_id FROM terminal_records WHERE game_id = ?",
+        (str(game_id),),
+    ):
+        protect(row["version_id"], "terminal_version")
+        protect(row["previous_version_id"], "terminal_predecessor")
+
+    # Recent and monthly recovery points only contribute candidates/protection
+    # for the requested branch scope; references above remain graph-wide.
+    selected_ids = {str(item.branch_id) for item in selected}
+    by_branch: dict[str, list[sqlite3.Row]] = {}
+    for row in versions_rows:
+        if row["branch_id"] in selected_ids:
+            by_branch.setdefault(row["branch_id"], []).append(row)
+    for rows in by_branch.values():
+        action_rows = [row for row in rows if row["settlement_id"] is not None]
+        for row in action_rows[-recent_limit:]:
+            protect(row["id"], "recent_action")
+        month_last: dict[tuple[int, int], sqlite3.Row] = {}
+        older = action_rows[:-recent_limit] if recent_limit < len(action_rows) else []
+        for row in older:
+            try:
+                state = GameState.model_validate_json(row["state_json"])
+                projection = state.time.calendar
+                if projection is None:
+                    raise ValueError("version has no calendar projection")
+                key = (projection.year, projection.month)
+            except Exception:
+                key = (0, 0)
+            month_last[key] = row
+        for row in month_last.values():
+            version = str(row["id"])
+            if version not in protected:
+                monthly.add(version)
+                reasons.setdefault(version, set()).add("monthly_recovery")
+
+    # Shared ancestors (nodes referenced by more than one branch) are retained
+    # globally. Ordinary same-branch ancestors can be detached during the
+    # transactional compaction below because snapshots are complete recoverable
+    # states; preserving every linear parent would make GC impossible.
+    child_branches: dict[str, set[str]] = {}
+    for row in versions_rows:
+        parent = row["parent_version_id"]
+        if parent is not None:
+            child_branches.setdefault(str(parent), set()).add(str(row["branch_id"]))
+    for parent, branch_set in child_branches.items():
+        if len(branch_set) > 1:
+            protect(parent, "shared_ancestor")
+
+    retained = protected | monthly
+    delete = {
+        str(row["id"])
+        for row in versions_rows
+        if row["branch_id"] in selected_ids and str(row["id"]) not in retained
+    }
+    shared = tuple(
+        sorted(
+            (VersionId(version) for version, branch_set in child_branches.items() if len(branch_set) > 1),
+            key=str,
+        )
+    )
+    return RetentionPlan(
+        game_id=game_id,
+        branch_id=branch_id,
+        recent_limit=recent_limit,
+        protected_version_ids=tuple(VersionId(value) for value in sorted(protected)),
+        monthly_recovery_version_ids=tuple(VersionId(value) for value in sorted(monthly)),
+        delete_version_ids=tuple(VersionId(value) for value in sorted(delete)),
+        reasons={key: tuple(sorted(value)) for key, value in reasons.items()},
+        graph_version_count=len(versions_rows),
+        shared_ancestor_version_ids=shared,
+    )
+
+
 def plan_retention(
     game_id: GameId,
     branch_id: BranchId | None = None,
     *,
     recent_limit: int = 100,
 ) -> RetentionPlan:
-    """Build a report-only, reference-aware retention plan.
-
-    The latest ``recent_limit`` action versions on each selected branch are
-    retained individually.  Older ordinary versions retain the final snapshot
-    observed in each game month.  Roots, bookmarks, terminal records and
-    terminal predecessors are always protected.  No database rows are deleted.
-    """
+    """Build a report-only, reference-aware retention plan (never deletes)."""
     if isinstance(recent_limit, bool) or recent_limit < 1:
         raise ValueError("recent_limit must be a positive integer")
     try:
-        branches = list_branches(game_id)
-        if branch_id is not None:
-            branches = [branch for branch in branches if branch.branch_id == branch_id]
-            if not branches:
-                raise WorldNotFoundError("branch", str(branch_id))
-        protected: set[VersionId] = set()
-        monthly: set[VersionId] = set()
-        reasons: dict[str, set[str]] = {}
-
-        def protect(version: VersionId, reason: str) -> None:
-            protected.add(version)
-            reasons.setdefault(str(version), set()).add(reason)
-
         with closing(_connect()) as conn:
-            selected_branch_ids = {str(item.branch_id) for item in branches}
-            placeholders = ",".join("?" for _ in selected_branch_ids)
-            if not selected_branch_ids:
-                versions_rows: list[sqlite3.Row] = []
-                bookmark_rows: list[sqlite3.Row] = []
-                terminal_rows: list[sqlite3.Row] = []
-            else:
-                versions_rows = conn.execute(
-                    f"SELECT id, branch_id, parent_version_id, settlement_id, state_json, created_at, protected "
-                    f"FROM versions WHERE game_id = ? AND branch_id IN ({placeholders}) ORDER BY created_at, id",
-                    (str(game_id), *sorted(selected_branch_ids)),
-                ).fetchall()
-                bookmark_rows = conn.execute(
-                    f"SELECT version_id FROM bookmarks WHERE game_id = ? AND branch_id IN ({placeholders})",
-                    (str(game_id), *sorted(selected_branch_ids)),
-                ).fetchall()
-                terminal_rows = conn.execute(
-                    f"SELECT version_id, previous_version_id FROM terminal_records WHERE game_id = ? AND branch_id IN ({placeholders})",
-                    (str(game_id), *sorted(selected_branch_ids)),
-                ).fetchall()
-
-        by_branch: dict[str, list[sqlite3.Row]] = {}
-        for row in versions_rows:
-            by_branch.setdefault(row["branch_id"], []).append(row)
-            if row["protected"]:
-                protect(VersionId(row["id"]), "database_protected")
-            if row["parent_version_id"] is None:
-                protect(VersionId(row["id"]), "branch_root")
-        for row in bookmark_rows:
-            protect(VersionId(row["version_id"]), "bookmark")
-        for row in terminal_rows:
-            protect(VersionId(row["version_id"]), "terminal_version")
-            protect(VersionId(row["previous_version_id"]), "terminal_predecessor")
-        for branch in branches:
-            if branch.forked_from_version_id is not None:
-                protect(branch.forked_from_version_id, "branch_fork_root")
-
-        for _branch_key, rows in by_branch.items():
-            action_rows = [row for row in rows if row["settlement_id"] is not None]
-            for row in action_rows[-recent_limit:]:
-                protect(VersionId(row["id"]), "recent_action")
-            month_last: dict[tuple[int, int], sqlite3.Row] = {}
-            for row in action_rows[:-recent_limit] if recent_limit < len(action_rows) else []:
-                try:
-                    state = GameState.model_validate_json(row["state_json"])
-                    projection = state.time.calendar
-                    if projection is None:
-                        raise ValueError("version has no calendar projection")
-                    key = (projection.year, projection.month)
-                except Exception:
-                    key = (0, 0)
-                month_last[key] = row
-            for row in month_last.values():
-                version = VersionId(row["id"])
-                if version not in protected:
-                    monthly.add(version)
-                    reasons.setdefault(str(version), set()).add("monthly_recovery")
-
-        retained = protected | monthly
-        delete = {
-            VersionId(row["id"])
-            for row in versions_rows
-            if VersionId(row["id"]) not in retained
-        }
-
-        return RetentionPlan(
-            game_id=game_id,
-            branch_id=branch_id,
-            recent_limit=recent_limit,
-            protected_version_ids=tuple(sorted(protected, key=str)),
-            monthly_recovery_version_ids=tuple(sorted(monthly, key=str)),
-            delete_version_ids=tuple(sorted(delete, key=str)),
-            reasons={key: tuple(sorted(value)) for key, value in reasons.items()},
-        )
+            return _retention_plan_in_transaction(conn, game_id, branch_id, recent_limit)
     except WorldStoreError:
         raise
     except (ValidationError, ValueError, TypeError) as exc:
         raise WorldCorruptDataError("stored retention graph is invalid") from exc
     except sqlite3.Error as exc:
         raise WorldStorageError() from exc
+
+
+def collect_retention(
+    game_id: GameId,
+    branch_id: BranchId | None = None,
+    *,
+    recent_limit: int = 100,
+    enabled: bool = False,
+) -> RetentionGCResult:
+    """Collect report candidates only when the caller explicitly enables GC.
+
+    Planning remains the default and is side-effect free.  ``enabled=True`` is
+    the deliberate deletion path; planning, audit insertion, dependency checks,
+    row deletion, and audit completion all run in one SQLite transaction.  Any
+    failure rolls back the graph and leaves no misleading audit entry.
+    """
+    if isinstance(recent_limit, bool) or recent_limit < 1:
+        raise ValueError("recent_limit must be a positive integer")
+    audit_id = str(uuid4())
+    with closing(_connect()) as conn:
+        try:
+            _begin(conn)
+            plan = _retention_plan_in_transaction(conn, game_id, branch_id, recent_limit)
+            if not enabled:
+                conn.rollback()
+                return RetentionGCResult(audit_id=audit_id, plan=plan, enabled=False, committed=False)
+
+            # Re-check every candidate against live references while holding the
+            # write lock.  A candidate with any retained child or durable edge is
+            # blocked and recorded rather than risking a partial graph delete.
+            planned = set(plan.delete_version_ids)
+            blocked: set[VersionId] = set()
+            rows = conn.execute(
+                "SELECT id, parent_version_id, settlement_id FROM versions WHERE game_id = ?",
+                (str(game_id),),
+            ).fetchall()
+            for row in rows:
+                version = VersionId(row["id"])
+                if version not in planned:
+                    continue
+                children = conn.execute(
+                    "SELECT id, branch_id FROM versions WHERE game_id = ? AND parent_version_id = ?",
+                    (str(game_id), str(version)),
+                ).fetchall()
+                retained_children = [
+                    child for child in children if VersionId(child["id"]) not in planned
+                ]
+                if retained_children:
+                    # Cross-branch children are protected by the planner's
+                    # shared-ancestor rule. Same-branch retained snapshots are
+                    # complete states and may be detached in this transaction.
+                    if len({str(child["branch_id"]) for child in retained_children}) > 1:
+                        blocked.add(version)
+                    else:
+                        for child in retained_children:
+                            conn.execute(
+                                "UPDATE versions SET parent_version_id = NULL WHERE game_id = ? AND id = ?",
+                                (str(game_id), str(child["id"])),
+                            )
+                            conn.execute(
+                                "UPDATE settlements SET parent_version_id = NULL WHERE game_id = ? AND parent_version_id = ?",
+                                (str(game_id), str(version)),
+                            )
+                if conn.execute(
+                    "SELECT 1 FROM branches WHERE game_id = ? AND (head_version_id = ? OR forked_from_version_id = ?) LIMIT 1",
+                    (str(game_id), str(version), str(version)),
+                ).fetchone() is not None:
+                    blocked.add(version)
+                if conn.execute(
+                    "SELECT 1 FROM bookmarks WHERE game_id = ? AND version_id = ? LIMIT 1",
+                    (str(game_id), str(version)),
+                ).fetchone() is not None:
+                    blocked.add(version)
+                if conn.execute(
+                    "SELECT 1 FROM terminal_records WHERE game_id = ? AND (version_id = ? OR previous_version_id = ?) LIMIT 1",
+                    (str(game_id), str(version), str(version)),
+                ).fetchone() is not None:
+                    blocked.add(version)
+            delete_ids = tuple(sorted(planned - blocked, key=str))
+            deleted_settlements: list[SettlementId] = []
+            for version in sorted(delete_ids, key=str, reverse=True):
+                row = conn.execute(
+                    "SELECT settlement_id FROM versions WHERE game_id = ? AND id = ?",
+                    (str(game_id), str(version)),
+                ).fetchone()
+                if row is None:
+                    raise WorldCorruptDataError(f"retention candidate {version} disappeared")
+                settlement_id = row["settlement_id"]
+                if settlement_id is not None:
+                    conn.execute(
+                        "DELETE FROM action_requests WHERE game_id = ? AND (version_id = ? OR settlement_id = ? OR expected_parent_version_id = ?)",
+                        (str(game_id), str(version), str(settlement_id), str(version)),
+                    )
+                    # Break the version -> settlement FK before removing the
+                    # settlement row; both records are retired as one unit.
+                    conn.execute(
+                        "UPDATE versions SET settlement_id = NULL WHERE game_id = ? AND id = ?",
+                        (str(game_id), str(version)),
+                    )
+                    conn.execute(
+                        "DELETE FROM settlements WHERE game_id = ? AND id = ?",
+                        (str(game_id), str(settlement_id)),
+                    )
+                    deleted_settlements.append(SettlementId(settlement_id))
+                else:
+                    conn.execute(
+                        "DELETE FROM action_requests WHERE game_id = ? AND expected_parent_version_id = ?",
+                        (str(game_id), str(version)),
+                    )
+                deleted = conn.execute(
+                    "DELETE FROM versions WHERE game_id = ? AND id = ?",
+                    (str(game_id), str(version)),
+                )
+                if deleted.rowcount != 1:
+                    raise WorldCorruptDataError(f"retention candidate {version} could not be deleted")
+
+            now = _utc_now().isoformat()
+            blocked_ids = tuple(sorted(blocked, key=str))
+            audit_reasons = dict(plan.reasons)
+            for version in blocked_ids:
+                audit_reasons.setdefault(str(version), ())
+                audit_reasons[str(version)] = tuple(sorted(set(audit_reasons[str(version)]) | {"blocked_live_reference"}))
+            conn.execute(
+                """
+                INSERT INTO retention_gc_audits (
+                    id, game_id, branch_id, recent_limit, mode, enabled, committed,
+                    planned_version_ids_json, protected_version_ids_json,
+                    monthly_recovery_version_ids_json, deleted_version_ids_json,
+                    blocked_version_ids_json, reasons_json, created_at
+                ) VALUES (?, ?, ?, ?, 'transactional_gc', 1, 1, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    audit_id,
+                    str(game_id),
+                    str(branch_id) if branch_id is not None else None,
+                    recent_limit,
+                    json.dumps([str(item) for item in plan.delete_version_ids], sort_keys=True),
+                    json.dumps([str(item) for item in plan.protected_version_ids], sort_keys=True),
+                    json.dumps([str(item) for item in plan.monthly_recovery_version_ids], sort_keys=True),
+                    json.dumps([str(item) for item in delete_ids], sort_keys=True),
+                    json.dumps([str(item) for item in blocked_ids], sort_keys=True),
+                    json.dumps(audit_reasons, sort_keys=True),
+                    now,
+                ),
+            )
+            conn.commit()
+            committed_plan = RetentionPlan(
+                **{**plan.__dict__, "mode": "transactional_gc"},
+            )
+            return RetentionGCResult(
+                audit_id=audit_id,
+                plan=committed_plan,
+                deleted_version_ids=delete_ids,
+                deleted_settlement_ids=tuple(sorted(deleted_settlements, key=str)),
+                blocked_version_ids=blocked_ids,
+                enabled=True,
+                committed=True,
+            )
+        except WorldStoreError:
+            conn.rollback()
+            raise
+        except sqlite3.Error as exc:
+            conn.rollback()
+            raise WorldStorageError() from exc
+        except Exception:
+            conn.rollback()
+            raise
+
+
+# Explicitly named alias for callers that prefer the garbage-collector term;
+# both names retain the same ``enabled=False`` safety default.
+garbage_collect_retention = collect_retention
+
+
+def run_retention_gc(
+    game_id: GameId,
+    branch_id: BranchId | None = None,
+    *,
+    recent_limit: int = 100,
+    enable: bool = False,
+) -> RetentionGCResult:
+    """Compatibility spelling with an explicit ``enable`` switch."""
+
+    return collect_retention(
+        game_id,
+        branch_id,
+        recent_limit=recent_limit,
+        enabled=enable,
+    )
 
 
 def _row_to_action_request(row: sqlite3.Row) -> ActionRequestRecord:

@@ -46,3 +46,20 @@ def test_public_bookmark_and_report_only_retention_routes_are_typed() -> None:
     assert str(root.version_id) in report["protected_version_ids"]
     assert report["delete_version_ids"] == []
 
+
+def test_public_retention_collect_requires_explicit_enable_and_returns_audit() -> None:
+    root = worlds.create_game_with_root(create_initial_state())
+
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/worlds/{root.game_id}/retention/collect",
+            json={"branch_id": str(root.branch_id), "recent_limit": 1, "enabled": True},
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["enabled"] is True
+    assert payload["committed"] is True
+    assert payload["mode"] == "transactional_gc"
+    assert payload["audit_id"]
+    assert str(root.version_id) in payload["protected_version_ids"]

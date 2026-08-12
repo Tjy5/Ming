@@ -7,6 +7,7 @@ import GameRoot from './pages/GameRoot.tsx'
 const AdminPage = lazy(() => import('./pages/AdminPage.tsx'))
 const ChatPage = lazy(() => import('./pages/ChatPage.tsx'))
 const ModeSelectPage = lazy(() => import('./pages/ModeSelectPage.tsx'))
+const ContinuityPage = lazy(() => import('./pages/ContinuityPage.tsx'))
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -34,6 +35,14 @@ createRoot(document.getElementById('root')!).render(
           element={(
             <Suspense fallback={<div style={{ padding: 24 }}>Loading mode select…</div>}>
               <ModeSelectPage />
+            </Suspense>
+          )}
+        />
+        <Route
+          path="/continuity"
+          element={(
+            <Suspense fallback={<div style={{ padding: 24 }}>Loading continuity…</div>}>
+              <ContinuityPage />
             </Suspense>
           )}
         />

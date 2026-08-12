@@ -7,6 +7,7 @@ from api.assembly_routes import assembly_petition, assembly_start
 from api.continuity_service import ensure_governance_continuity
 from db import saves, worlds
 from engine.continuity import detect_governance_vacuum
+from models.settlement import LifecycleWorldDelta
 from fakes import FakeProvider
 from models.enums import MinisterStatus
 from models.game import create_initial_state
@@ -54,6 +55,11 @@ def test_continuity_commits_person_and_non_person_once():
     assert {entity.entity_type for entity in created} >= {"person", "temporary_authority"}
     settlement_ids = {entity.created_by_settlement_id for entity in created}
     assert len(settlement_ids) == 1
+    continuity_settlement = worlds.list_settlements(root_ref.game_id, root_ref.branch_id)[0]
+    assert settled.player_world_status.actionable_goal_ids == [
+        "world_continuity_required",
+    ]
+    assert any(isinstance(delta, LifecycleWorldDelta) for delta in continuity_settlement.deltas)
 
     # The settled head is no longer a vacuum, so retries do not create another
     # continuity settlement or duplicate identities.

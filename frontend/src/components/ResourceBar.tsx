@@ -11,6 +11,7 @@ interface Props {
   onNewGame: () => void
   onOpenAiSettings: () => void
   onOpenChat: () => void
+  onOpenContinuity?: () => void
   onOpenGuide?: () => void
 }
 
@@ -44,19 +45,25 @@ function barColor(val: number, max: number): string {
   return 'var(--red)'
 }
 
-export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenGuide }: Props) {
+export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenContinuity, onOpenGuide }: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
 
   useEffect(() => {
-    api.getSettings().then(s => setFallbackEnabled(s.rule_parse_fallback)).catch(() => { })
+    api.getSettings()
+      .then(s => setFallbackEnabled(s.rule_parse_fallback))
+      .catch((cause) => {
+        // Settings are ancillary to the resource bar, but failures must remain
+        // visible so a contract or backend outage is diagnosable.
+        console.warn('[resource-bar] failed to load settings', cause)
+      })
   }, [])
 
   const toggleFallback = async () => {
     try {
       const res = await api.updateSettings({ rule_parse_fallback: !fallbackEnabled })
       setFallbackEnabled(res.rule_parse_fallback)
-    } catch {
-      // ignore
+    } catch (cause) {
+      console.warn('[resource-bar] failed to update fallback setting', cause)
     }
   }
 
@@ -94,6 +101,9 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         <button className="toolbar-btn" onClick={onSave}>存档</button>
         <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
         <button className="toolbar-btn" onClick={onOpenChat}>对话模式</button>
+        {onOpenContinuity && (
+          <button className="toolbar-btn" onClick={onOpenContinuity} title="查看世界分支、书签和活动">世界连续性</button>
+        )}
         <button className="toolbar-btn" onClick={onOpenAiSettings}>AI设置</button>
         {onOpenGuide && (
           <button className="toolbar-btn" onClick={onOpenGuide} title="查看界面操作指引">指引</button>

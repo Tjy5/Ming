@@ -3,6 +3,10 @@ import type { components as OpenApiComponents } from './generated'
 type OpenApiSchemas = OpenApiComponents['schemas']
 
 export type ApiGameState = OpenApiSchemas['GameState']
+export type WorldSnapshotMetadata = OpenApiSchemas['WorldSnapshotMetadata']
+export type PlayerWorldStatus = OpenApiSchemas['PlayerWorldStatus']
+export type Activity = OpenApiSchemas['Activity']
+export type WorldStateLedger = OpenApiSchemas['WorldStateLedger']
 export type ApiTurnSummary = OpenApiSchemas['TurnSummary']
 export type ApiEventChoice = OpenApiSchemas['EventChoice']
 export type ApiDecreeResponse = OpenApiSchemas['DecreeResponse']
@@ -151,6 +155,12 @@ export interface TriggerDecision {
 
 export interface GameState {
   time: GameTime
+  /** Versioned world identity; optional for legacy saves during migration. */
+  world_metadata?: WorldSnapshotMetadata
+  entity_registry?: ApiGameState['entity_registry']
+  player_world_status?: PlayerWorldStatus
+  activities?: Activity[]
+  world_state?: WorldStateLedger
   // phase state machine: life_story (跑团叙事) / governance (治理模拟)，由后端驱动
   phase: 'life_story' | 'governance'
   // 人生篇章 id：childhood/monk_wanderer/enlistment/warlord

@@ -144,9 +144,11 @@ async def _settle_state(
     from db import worlds
     from engine.elapsed_consumers import default_clock_registry
     from engine.activity import ActivityContractError, rebase_pending_checkpoints
+    from engine.lifecycle import DefaultLifecyclePlanner
     from engine.settlement import (
         COMPATIBILITY_PATCH_FIELDS,
         SettlementValidationError,
+        apply_world_deltas,
         validate_adjudication_proposal,
         validate_final_state,
     )
@@ -262,10 +264,19 @@ async def _settle_state(
         proposal.deltas,
         time_plan,
     )
-    validate_final_state(previous, changed)
     proposal_for_commit = proposal.model_copy(
         update={"deltas": [*proposal.deltas, *consumer_deltas]},
     )
+    lifecycle = DefaultLifecyclePlanner().propose(
+        previous=previous.model_copy(deep=True),
+        changed=changed.model_copy(deep=True),
+    )
+    if lifecycle.deltas:
+        changed = apply_world_deltas(changed, list(lifecycle.deltas))
+        proposal_for_commit = proposal_for_commit.model_copy(
+            update={"deltas": [*proposal_for_commit.deltas, *lifecycle.deltas]},
+        )
+    validate_final_state(previous, changed)
     from models.world import new_settlement_id
 
     settlement_id = new_settlement_id()

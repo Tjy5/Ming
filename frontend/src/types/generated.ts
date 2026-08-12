@@ -964,6 +964,26 @@ export type paths = {
         patch?: never;
         trace?: never;
     };
+    "/api/worlds/{game_id}/retention/collect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Collect World Retention
+         * @description Run retention GC after an explicit, typed enable acknowledgement.
+         */
+        post: operations["collect_world_retention_api_worlds__game_id__retention_collect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/worlds/{game_id}/bookmarks/{bookmark_id}": {
         parameters: {
             query?: never;
@@ -4659,6 +4679,60 @@ export type components = {
             branch: components["schemas"]["WorldBranchRef"];
             version: components["schemas"]["WorldVersionRef"];
         };
+        /**
+         * WorldRetentionCollectRequest
+         * @description Explicit operator acknowledgement for destructive retention GC.
+         */
+        WorldRetentionCollectRequest: {
+            /** Branch Id */
+            branch_id?: string | null;
+            /**
+             * Recent Limit
+             * @default 100
+             */
+            recent_limit: number;
+            /**
+             * Enabled
+             * @default true
+             * @constant
+             * @enum {boolean}
+             */
+            enabled: true;
+        };
+        /** WorldRetentionCollectResponse */
+        WorldRetentionCollectResponse: {
+            /** Audit Id */
+            audit_id: string;
+            /**
+             * Game Id
+             * Format: uuid
+             */
+            game_id: string;
+            /** Branch Id */
+            branch_id?: string | null;
+            /** Recent Limit */
+            recent_limit: number;
+            /** Mode */
+            mode: string;
+            /** Enabled */
+            enabled: boolean;
+            /** Committed */
+            committed: boolean;
+            /** Deleted Version Ids */
+            deleted_version_ids?: string[];
+            /** Deleted Settlement Ids */
+            deleted_settlement_ids?: string[];
+            /** Blocked Version Ids */
+            blocked_version_ids?: string[];
+            /** Protected Version Ids */
+            protected_version_ids?: string[];
+            /** Monthly Recovery Version Ids */
+            monthly_recovery_version_ids?: string[];
+            /** Reasons */
+            reasons?: {
+                [key: string]: string[];
+            };
+        };
         /** WorldRetentionResponse */
         WorldRetentionResponse: {
             /**
@@ -6977,6 +7051,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    collect_world_retention_api_worlds__game_id__retention_collect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                game_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorldRetentionCollectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorldRetentionCollectResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionErrorEnvelope"];
                 };
             };
         };
