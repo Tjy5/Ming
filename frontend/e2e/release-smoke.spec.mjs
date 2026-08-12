@@ -46,9 +46,7 @@ async function responseBody(response) {
 }
 
 test.describe('release candidate BYOK runtime smoke', () => {
-  test('settings → public gameplay → strict runtime action → reload', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'desktop', 'live smoke executes once; mobile project remains available for lifecycle expansion')
-
+  test('settings → public gameplay → strict runtime action → reload', async ({ page }) => {
     const candidate = env('MING_RELEASE_CANDIDATE')
     for (const name of required.slice(1)) env(name)
     const apiKey = process.env.MING_LIVE_AI_API_KEY
