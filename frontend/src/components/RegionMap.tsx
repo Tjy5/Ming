@@ -56,9 +56,13 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
           const level = resolveLevel(r)
           const highlighted = highlightRegion === r.name
           return (
-            <div
+            <button
+              type="button"
               key={r.name}
               className={`region-block ${stabClassMap[level]}${highlighted ? ' highlight-pulse' : ''}`}
+              data-region-name={r.name}
+              aria-pressed={highlighted}
+              aria-label={`${r.name}，控制：${r.control}，稳定度：${r.stability}`}
               onClick={() => {
                 setTooltip(tooltip === r.name ? null : r.name)
                 onRegionClick?.(r)
@@ -90,7 +94,7 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
                   {getTooltipText(viewMode, r)}
                 </div>
               )}
-            </div>
+            </button>
           )
         })}
         <AnimatePresence>

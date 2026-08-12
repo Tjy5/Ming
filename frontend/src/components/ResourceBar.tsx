@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { GameState } from '../types/game'
 import { api } from '../api/client'
 import HistoricalCalendar from './HistoricalCalendar'
@@ -30,7 +30,7 @@ const RESOURCES: { key: keyof GameState; label: string; max: number; unit: strin
 const RESOURCE_INFO: Record<string, string> = {
   national_treasury: '国库：税收与赏赐之和，减军费与工程开销。',
   imperial_treasury: '内帑：君主私库，用于特殊赏赐与应急。',
-  grain: '粮草：军需与赈灾之本，灾年 pivotal。',
+  grain: '粮草：军需与赈灾之本，灾年尤为关键。',
   population: '人口：治下编户，影响赋税与兵源。',
   military_strength: '兵力：常备军，守土与征伐之基。',
   civil_morale: '民心：治下安宁度，过低则生民变。',
@@ -47,6 +47,19 @@ function barColor(val: number, max: number): string {
 
 export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenContinuity, onOpenGuide }: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
+  const [detailsKey, setDetailsKey] = useState<keyof GameState | null>(null)
+  const detailTrigger = useRef<HTMLButtonElement | null>(null)
+  const [detailsPosition, setDetailsPosition] = useState({ top: 60, left: 14 })
+
+  const updateDetailsPosition = () => {
+    const trigger = detailTrigger.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const width = Math.min(360, window.innerWidth - 28)
+    const left = Math.max(14, Math.min(rect.left, window.innerWidth - width - 14))
+    const top = Math.min(rect.bottom + 8, window.innerHeight - 440)
+    setDetailsPosition({ top: Math.max(14, top), left })
+  }
 
   useEffect(() => {
     api.getSettings()
@@ -67,6 +80,30 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
     }
   }
 
+  useEffect(() => {
+    if (!detailsKey) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setDetailsKey(null)
+        window.setTimeout(() => detailTrigger.current?.focus(), 0)
+      }
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', updateDetailsPosition)
+    window.addEventListener('scroll', updateDetailsPosition, true)
+    updateDetailsPosition()
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', updateDetailsPosition)
+      window.removeEventListener('scroll', updateDetailsPosition, true)
+    }
+  }, [detailsKey])
+
+  const selectedResource = RESOURCES.find(resource => resource.key === detailsKey)
+  const selectedValue = selectedResource ? Number(state[selectedResource.key]) : 0
+  const selectedPrevious = selectedResource ? Number(prevState?.[selectedResource.key] ?? selectedValue) : selectedValue
+  const selectedDiff = selectedValue - selectedPrevious
+
   return (
     <div className="resource-bar">
       <HistoricalCalendar {...state.time} />
@@ -76,7 +113,19 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         const diff = val - prev
         const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : ''
         return (
-          <div className="resource-item" key={key} title={RESOURCE_INFO[key] || label}>
+          <button
+            type="button"
+            className="resource-item"
+            key={key}
+            title={RESOURCE_INFO[key] || label}
+            aria-label={`${label} ${val}${unit}，按 Enter 查看详情`}
+            aria-expanded={detailsKey === key}
+            onClick={(event) => {
+              detailTrigger.current = event.currentTarget
+              setDetailsKey(detailsKey === key ? null : key)
+              if (detailsKey !== key) window.setTimeout(updateDetailsPosition, 0)
+            }}
+          >
             <div className="resource-label">
               <span>{label}</span>
               <span className={`val ${cls}`}>{val}<small>{unit}</small></span>
@@ -87,9 +136,29 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
                 style={{ width: `${(val / max) * 100}%`, backgroundColor: barColor(val, max) }}
               />
             </div>
-          </div>
+          </button>
         )
       })}
+      {selectedResource && (
+        <div className="resource-details-popover" role="dialog" aria-label={`${selectedResource.label}详情`} style={{ top: detailsPosition.top, left: detailsPosition.left }}>
+          <div className="resource-details-header">
+            <strong>{selectedResource.label}</strong>
+            <button type="button" className="resource-details-close" aria-label="关闭资源详情" onClick={() => {
+              setDetailsKey(null)
+              window.setTimeout(() => detailTrigger.current?.focus(), 0)
+            }}>×</button>
+          </div>
+          <p className="resource-details-current">当前 {selectedValue}{selectedResource.unit} <span className={selectedDiff > 0 ? 'up' : selectedDiff < 0 ? 'down' : ''}>{selectedDiff > 0 ? `↑${selectedDiff}` : selectedDiff < 0 ? `↓${Math.abs(selectedDiff)}` : '持平'}</span></p>
+          <dl>
+            <div><dt>基础档位</dt><dd>0–{selectedResource.max}{selectedResource.unit}</dd></div>
+            <div><dt>有效档位</dt><dd>{Math.round((selectedValue / selectedResource.max) * 100)}%</dd></div>
+            <div><dt>近期变化来源</dt><dd>{selectedDiff === 0 ? '暂无已结算变化' : '上一项已结算行动'}</dd></div>
+            <div><dt>生效修正</dt><dd>以当前世界投影为准</dd></div>
+            <div><dt>未来收支</dt><dd>仅显示已落库承诺，预测不计入余额</dd></div>
+          </dl>
+          <p className="resource-details-note">{RESOURCE_INFO[selectedResource.key] || selectedResource.label}</p>
+        </div>
+      )}
       <div className="toolbar-actions">
         <button
           className={`toolbar-btn${fallbackEnabled ? ' active-toggle' : ''}`}

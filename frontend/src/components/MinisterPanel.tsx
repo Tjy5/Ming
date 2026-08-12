@@ -15,6 +15,7 @@ interface Props {
   ministers?: Minister[] | null
   reactions?: MinisterReaction[]
   onMinisterClick?: (minister: Minister) => void
+  onEmptyAction?: () => void
 }
 
 const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: string }[] = [
@@ -83,7 +84,19 @@ function MinisterCard({ minister, reaction, onClick }: {
   if (onClick && !onMission) cls.push('mp-clickable')
 
   return (
-    <div className={cls.join(' ')} onClick={() => !onMission && onClick?.(minister)}>
+    <div
+      className={cls.join(' ')}
+      role={onClick && !onMission ? 'button' : undefined}
+      tabIndex={onClick && !onMission ? 0 : undefined}
+      aria-label={onClick && !onMission ? `查看${minister.name}的治理主体详情` : undefined}
+      onClick={() => !onMission && onClick?.(minister)}
+      onKeyDown={(event) => {
+        if (!onMission && onClick && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault()
+          onClick(minister)
+        }
+      }}
+    >
       <Portrait minister={minister} />
       <div className="mp-info">
         <div className="mp-name">
@@ -161,7 +174,7 @@ function MinisterCard({ minister, reaction, onClick }: {
   )
 }
 
-export default function MinisterPanel({ ministers, reactions, onMinisterClick }: Props) {
+export default function MinisterPanel({ ministers, reactions, onMinisterClick, onEmptyAction }: Props) {
   const [searchTerm, setSearchTerm] = useState('')
   const [showNotEntered, setShowNotEntered] = useState(false)
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(DEFAULT_EXPANDED_FACTIONS))
@@ -185,7 +198,11 @@ export default function MinisterPanel({ ministers, reactions, onMinisterClick }:
   const displayFactions = useMemo(() => getDisplayFactions(grouped), [grouped])
 
   if (!displayFactions.length && !searchTerm) {
-    return <div className="minister-panel minister-panel-empty">暂无大臣数据</div>
+    return <div className="minister-panel minister-panel-empty">
+      <p>当前没有可用的预置大臣，权力真空仍可治理。</p>
+      <p className="mp-empty-hint">可在朝议中接纳新人物、势力代表或替代机构。</p>
+      {onEmptyAction && <button type="button" className="modal-btn primary" onClick={onEmptyAction}>前往朝议寻找接替者</button>}
+    </div>
   }
 
   return (
@@ -209,14 +226,15 @@ export default function MinisterPanel({ ministers, reactions, onMinisterClick }:
         const isExpanded = expanded.has(fname)
         return (
           <div key={fname} className="mp-faction-group">
-            <div
+            <button
+              type="button"
               className="mp-faction-header"
               style={{ borderLeftColor: FACTION_COLORS[fname] ?? '#555' }}
               onClick={() => toggleFaction(fname)}
             >
               <span>{fname} ({members.length})</span>
               <span className="mp-faction-arrow">{isExpanded ? '▼' : '▶'}</span>
-            </div>
+            </button>
             {isExpanded && members.map(m => (
               <MinisterCard key={m.name} minister={m} reaction={reactionMap.get(m.name)} onClick={onMinisterClick} />
             ))}

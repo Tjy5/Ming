@@ -14,12 +14,16 @@ interface Props {
   onAdvanceMonth: () => void
   advanceMonthInFlight: boolean
   currentModal: ModalItem | null
+  targetRegion?: string | null
+  onClearTargetRegion?: () => void
 }
 
 export default function ActionArea({
   state, loading, hasBlockingEvent,
   onDecree, onFreeText, onAdvanceMonth, advanceMonthInFlight,
   currentModal,
+  targetRegion,
+  onClearTargetRegion,
 }: Props) {
   const [text, setText] = useState('')
   const [tab, setTab] = useState<DecreeCategoryTab>('内政')
@@ -30,7 +34,7 @@ export default function ActionArea({
   function handleSubmit() {
     const t = text.trim()
     if (!t) return
-    onFreeText(t)
+    onFreeText(targetRegion ? `【目标地区：${targetRegion}】${t}` : t)
     setText('')
   }
 
@@ -81,6 +85,12 @@ export default function ActionArea({
       </div>
 
       <div className="text-input-row">
+        {targetRegion && (
+          <div className="action-target-chip" aria-label={`行动目标：${targetRegion}`}>
+            <span>目标地区：{targetRegion}</span>
+            <button type="button" aria-label="移除地区目标" onClick={onClearTargetRegion}>×</button>
+          </div>
+        )}
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}

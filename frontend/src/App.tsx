@@ -21,6 +21,7 @@ import MinisterDialogue from './components/MinisterDialogue'
 import OfficialRankModal from './components/OfficialRankModal'
 import MissionPanel from './components/MissionPanel'
 import GuideModal from './components/GuideModal'
+import RegionInspector from './components/RegionInspector'
 import { shouldAutoOpenGuide } from './components/guideModalLogic'
 import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
@@ -63,11 +64,29 @@ function App() {
   const [dialogueMinisterName, setDialogueMinisterName] = useState<string | null>(null)
   // 08-07-frontend-ui-polish：地图选省 + 指引手册
   const [selectedRegion, setSelectedRegion] = useState<import('./types/game').Region | null>(null)
+  const [targetRegion, setTargetRegion] = useState<string | null>(null)
   const [guideOpen, setGuideOpen] = useState(false)
+
+  const closeRegionInspector = useCallback(() => {
+    const name = selectedRegion?.name
+    setSelectedRegion(null)
+    if (name) {
+      window.setTimeout(() => {
+        document.querySelector<HTMLButtonElement>(`button[data-region-name="${name}"]`)?.focus()
+      }, 0)
+    }
+  }, [selectedRegion?.name])
 
   useEffect(() => {
     if (shouldAutoOpenGuide()) setGuideOpen(true)
   }, [])
+
+  const selectedRegionName = selectedRegion?.name
+  useEffect(() => {
+    if (!selectedRegionName || !state) return
+    const current = state.regions.find(region => region.name === selectedRegionName)
+    setSelectedRegion(current ?? null)
+  }, [selectedRegionName, state])
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -296,7 +315,19 @@ function App() {
         onNewGame={handleNewGame}
       />
       <div className="main-area">
-        <RegionMap regions={state.regions} onRegionClick={(r) => setSelectedRegion(r)} />
+        <div className="map-workspace">
+          <RegionMap regions={state.regions} highlightRegion={selectedRegion?.name} onRegionClick={(r) => setSelectedRegion(r)} />
+          {selectedRegion && (
+            <RegionInspector
+              region={selectedRegion}
+              entityRegistry={state.entity_registry}
+              activeEvents={state.active_events}
+              versionId={state.world_metadata?.version_id}
+              onClose={closeRegionInspector}
+              onAct={(region) => setTargetRegion(region.name)}
+            />
+          )}
+        </div>
         <div className="right-panel">
           <div className="right-panel-tabs">
             <button
@@ -320,7 +351,7 @@ function App() {
             <MissionPanel ministers={state.ministers} />
             {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
             {rightTab === 'minister' && (
-              <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} />
+              <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} onEmptyAction={() => setRightTab('assembly')} />
             )}
             {rightTab === 'assembly' && (
               <CourtAssemblyView
@@ -354,6 +385,8 @@ function App() {
             onAdvanceMonth={handleAdvanceMonth}
             advanceMonthInFlight={advanceMonthInFlight}
             currentModal={currentModal}
+            targetRegion={targetRegion}
+            onClearTargetRegion={() => setTargetRegion(null)}
           />
         </div>
       </div>
@@ -468,34 +501,6 @@ function App() {
           onClose={() => setDialogueMinisterName(null)}
           onStateUpdate={setState}
         />
-      )}
-
-      {selectedRegion && (
-        <div className="modal-overlay" onClick={() => setSelectedRegion(null)} data-testid="region-panel">
-          <div className="modal-panel region-detail-panel" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">{selectedRegion.name}</h2>
-            <ul className="region-detail-list">
-              <li>稳定度：{selectedRegion.stability}</li>
-              <li>驻军：{selectedRegion.garrison.toLocaleString()}</li>
-              <li>控制：{selectedRegion.control}</li>
-              <li>威胁：{selectedRegion.threat}</li>
-              <li>民心：{selectedRegion.civil_morale}</li>
-              <li>动乱风险：{selectedRegion.rebellion_risk}</li>
-              <li>灾害等级：{selectedRegion.disaster_level}</li>
-              <li>税率：{Math.round(selectedRegion.tax_rate * 100)}%</li>
-            </ul>
-            <div className="region-detail-actions">
-              <button
-                className="modal-btn primary"
-                onClick={() => {
-                  setSelectedRegion(null)
-                  setRightTab('minister')
-                }}
-              >调阅军队</button>
-              <button className="modal-btn" onClick={() => setSelectedRegion(null)}>关闭</button>
-            </div>
-          </div>
-        </div>
       )}
 
       <GuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />

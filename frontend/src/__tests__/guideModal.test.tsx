@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import GuideModal from '../components/GuideModal'
 import { shouldAutoOpenGuide } from '../components/guideModalLogic'
@@ -28,5 +28,18 @@ describe('GuideModal', () => {
     expect(shouldAutoOpenGuide()).toBe(true)
     localStorage.setItem('ming_guide_seen', '1')
     expect(shouldAutoOpenGuide()).toBe(false)
+  })
+
+  it('closes on Escape and returns focus to the opener', () => {
+    const opener = document.createElement('button')
+    document.body.appendChild(opener)
+    opener.focus()
+    const onClose = vi.fn()
+    const { unmount } = render(<GuideModal open={true} onClose={onClose} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    unmount()
+    expect(document.activeElement).toBe(opener)
+    opener.remove()
   })
 })

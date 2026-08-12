@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
-import { markGuideSeen } from './guideModalLogic'
+import { useEffect, useRef, useState } from 'react'
+import { markGuideSeen, setGuidePreference } from './guideModalLogic'
 
 // 08-07-frontend-ui-polish：界面指引手册（新手引导）
 const GUIDE_SECTIONS: { title: string; body: string }[] = [
   {
     title: '顶部数据栏',
-    body: '国库、内帑、粮草、人口、兵力、民心、军心、威望。将鼠标悬停于任一项可查看其含义与构成。',
+    body: '国库、内帑、粮草、人口、兵力、民心、军心、威望。点击任一项，或聚焦后按 Enter/Space，可查看其含义与构成。',
   },
   {
     title: '天下地图',
-    body: '点击任一省份，可查看驻军、控制与税率详情，并快捷对该省下诏或调阅军队状态。右上角可切换显示维度（稳定/灾害/民心/动乱/税率）。',
+    body: '点击或聚焦任一省份，可查看驻军、控制与税率详情，并将该省带入自由行动。右侧可切换显示维度（标准/灾害/民心/动乱/税率/赋税）。',
   },
   {
     title: '大臣面板',
@@ -32,13 +32,46 @@ interface Props {
 
 function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
   const [page, setPage] = useState(0)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const section = GUIDE_SECTIONS[page]
   const isLast = page === GUIDE_SECTIONS.length - 1
 
+  useEffect(() => {
+    returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const panel = panelRef.current
+    const focusable = () => panel ? Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : []
+    focusable()[0]?.focus()
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      returnFocusRef.current?.focus()
+    }
+  }, [onClose])
+
   return (
     <div className="modal-overlay" onClick={onClose} data-testid="guide-modal">
-      <div className="modal-panel guide-panel" onClick={(e) => e.stopPropagation()}>
-        <h2 className="modal-title">界面指引</h2>
+      <div ref={panelRef} className="modal-panel guide-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="guide-title" className="modal-title">界面指引</h2>
         <div className="guide-section">
           <h3>{section.title}</h3>
           <p>{section.body}</p>
@@ -49,22 +82,21 @@ function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
           </button>
           <span className="guide-progress">{page + 1} / {GUIDE_SECTIONS.length}</span>
           {isLast ? (
-            <button className="modal-btn primary" onClick={onClose}>开始游戏</button>
+            <button className="modal-btn primary" onClick={() => { setGuidePreference('completed'); onClose() }}>完成并开始</button>
           ) : (
-            <button className="modal-btn primary" onClick={() => setPage((p) => p + 1)}>下一步</button>
+            <button className="modal-btn primary" onClick={() => { markGuideSeen(); setPage((p) => p + 1) }}>下一步</button>
           )}
         </div>
-        <button className="guide-skip" onClick={onClose}>跳过</button>
+        <div className="guide-preferences">
+          <button className="guide-skip" onClick={() => { setGuidePreference('skipped'); onClose() }}>跳过本次</button>
+          <button className="guide-never" onClick={() => { setGuidePreference('never'); onClose() }}>以后不再显示</button>
+        </div>
       </div>
     </div>
   )
 }
 
 export default function GuideModal({ open, onClose }: Props) {
-  useEffect(() => {
-    if (open) markGuideSeen()
-  }, [open])
-
   if (!open) return null
   return <GuideModalContent onClose={onClose} />
 }
