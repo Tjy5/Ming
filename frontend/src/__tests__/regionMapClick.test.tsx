@@ -51,4 +51,72 @@ describe('RegionMap onRegionClick', () => {
     fireEvent.keyDown(getByRole('button', { name: /应天，控制/ }), { key: 'Enter' })
     expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ name: '应天' }))
   })
+
+  it('supports Space activation on a mapped strategic region', () => {
+    const onClick = vi.fn()
+    const { getByRole } = render(<RegionMap regions={[makeRegion('应天')]} onRegionClick={onClick} />)
+    fireEvent.keyDown(getByRole('button', { name: /应天，控制/ }), { key: ' ' })
+    expect(onClick).toHaveBeenCalledWith(expect.objectContaining({ name: '应天' }))
+  })
+
+  it('renders distinct mode context, legends, and region summaries for all six views', () => {
+    const region = {
+      ...makeRegion('应天'),
+      stability: 47,
+      disaster_level: 18,
+      civil_morale: 63,
+      rebellion_risk: 29,
+      tax_rate: 0.74,
+      tax_collected: 1234,
+    }
+    const { container, getByRole } = render(<RegionMap regions={[region]} />)
+    const expected = [
+      ['标准', '治势总览', '稳定 47'],
+      ['灾情', '灾情态势', '灾情 18'],
+      ['民心', '民心向背', '民心 63'],
+      ['动乱', '动乱风险', '风险 29'],
+      ['税率', '税赋完成', '完成 74%'],
+      ['赋税', '实征赋税', '实征 1,234'],
+    ]
+
+    for (const [buttonLabel, title, value] of expected) {
+      fireEvent.click(getByRole('button', { name: buttonLabel }))
+      expect(getByRole('heading', { name: title })).toBeTruthy()
+      expect(container.querySelectorAll('.map-legend [data-legend-level]')).toHaveLength(3)
+      expect(container.querySelector('[data-map-region-id="yingtian"] .region-mode-value')?.textContent).toBe(value)
+    }
+  })
+
+  it('exposes selected, threat, control, missing, unmapped, and duplicate states explicitly', () => {
+    const threatened = { ...makeRegion('应天'), control: '沦陷' as const, threat: '元军' as const }
+    const duplicate = makeRegion('集庆')
+    const unmapped = makeRegion('不存在')
+    const { container } = render(
+      <RegionMap regions={[threatened, duplicate, unmapped]} highlightRegion="应天" />,
+    )
+
+    const selected = container.querySelector('[data-map-region-id="yingtian"]')
+    expect(selected?.classList.contains('selected')).toBe(true)
+    expect(selected?.classList.contains('has-threat')).toBe(true)
+    expect(selected?.getAttribute('data-control')).toBe('沦陷')
+    expect(selected?.getAttribute('data-threat')).toBe('元军')
+    expect(container.querySelectorAll('[data-state="missing"]')).toHaveLength(7)
+    expect(container.querySelector('[data-warning-kind="unmapped"]')?.textContent).toContain('不存在')
+    expect(container.querySelector('[data-warning-kind="duplicate"]')?.textContent).toContain('集庆')
+  })
+
+  it('mirrors pointer and focus hover state onto the strategic path group', () => {
+    const { container, getByRole } = render(<RegionMap regions={[makeRegion('应天')]} />)
+    const button = getByRole('button', { name: /应天，控制：朝廷，治势总览/ })
+    const feature = container.querySelector('[data-map-region-id="yingtian"]')
+
+    fireEvent.mouseEnter(button)
+    expect(feature?.classList.contains('hovered')).toBe(true)
+    fireEvent.mouseLeave(button)
+    expect(feature?.classList.contains('hovered')).toBe(false)
+    fireEvent.focus(button)
+    expect(feature?.classList.contains('hovered')).toBe(true)
+    fireEvent.blur(button)
+    expect(feature?.classList.contains('hovered')).toBe(false)
+  })
 })

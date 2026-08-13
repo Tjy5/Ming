@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { getTooltipText, getTaxCollectedRanks, type ViewMode } from '../components/regionMapUtils'
+import {
+  MAP_MODE_PRESENTATIONS,
+  VIEW_MODES,
+  getModeValueLabel,
+  getTooltipText,
+  getTaxCollectedRanks,
+  type ViewMode,
+} from '../components/regionMapUtils'
 import type { Region } from '../types/game'
 
 function makeRegion(overrides: Partial<Region> = {}): Region {
@@ -12,6 +19,39 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
 }
 
 const ALL_VIEWS: ViewMode[] = ['standard', 'disaster', 'morale', 'rebellion', 'tax_rate', 'tax_collected']
+
+describe('map mode presentation contract', () => {
+  it('defines ordered, deterministic context and legends for all six modes', () => {
+    expect(VIEW_MODES).toEqual(ALL_VIEWS)
+    expect(Object.keys(MAP_MODE_PRESENTATIONS)).toEqual(ALL_VIEWS)
+
+    for (const mode of VIEW_MODES) {
+      const presentation = MAP_MODE_PRESENTATIONS[mode]
+      expect(presentation.label).not.toBe('')
+      expect(presentation.title).not.toBe('')
+      expect(presentation.description).not.toBe('')
+      expect(presentation.legend.map((entry) => entry.level)).toEqual(['high', 'mid', 'low'])
+      expect(presentation.legend.every((entry) => entry.label.length > 0 && entry.range.length > 0)).toBe(true)
+    }
+    expect(new Set(VIEW_MODES.map((mode) => MAP_MODE_PRESENTATIONS[mode].title)).size).toBe(6)
+    expect(new Set(VIEW_MODES.map((mode) => MAP_MODE_PRESENTATIONS[mode].description)).size).toBe(6)
+  })
+
+  it('formats a mode-specific compact value for every mode', () => {
+    const region = makeRegion({
+      control: '失控', stability: 47, disaster_level: 18, civil_morale: 63,
+      rebellion_risk: 29, tax_rate: 0.74, tax_collected: 1234,
+    })
+    expect(VIEW_MODES.map((mode) => getModeValueLabel(mode, region))).toEqual([
+      '稳定 47',
+      '灾情 18',
+      '民心 63',
+      '风险 29',
+      '完成 74%',
+      '实征 1,234',
+    ])
+  })
+})
 
 describe('getTooltipText — field count <= 3', () => {
   ALL_VIEWS.forEach(view => {
