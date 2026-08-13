@@ -17,6 +17,7 @@ describe('GuideModal', () => {
     const onClose = () => {}
     render(<GuideModal open={true} onClose={onClose} />)
     expect(screen.getByTestId('guide-modal')).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: '界面指引' }).classList.contains('modal')).toBe(true)
     expect(screen.getByText('顶部数据栏')).toBeTruthy()
     fireEvent.click(screen.getByText('下一步'))
     expect(screen.getByText('天下地图')).toBeTruthy()

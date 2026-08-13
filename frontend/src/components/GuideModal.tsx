@@ -70,7 +70,7 @@ function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
 
   return (
     <div className="modal-overlay" onClick={onClose} data-testid="guide-modal">
-      <div ref={panelRef} className="modal-panel guide-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title" onClick={(e) => e.stopPropagation()}>
+      <div ref={panelRef} className="modal guide-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title" onClick={(e) => e.stopPropagation()}>
         <h2 id="guide-title" className="modal-title">界面指引</h2>
         <div className="guide-section">
           <h3>{section.title}</h3>

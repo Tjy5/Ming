@@ -22,9 +22,9 @@ const ABILITY_LABELS: { key: keyof MinisterAbilities; label: string; color: stri
   { key: 'civil', label: '文', color: 'var(--green)' },
   { key: 'military', label: '武', color: 'var(--red)' },
   { key: 'diplomacy', label: '略', color: 'var(--accent-gold)' },
-  { key: 'administration', label: '管', color: 'var(--blue)' },
-  { key: 'knowledge', label: '知', color: 'var(--purple)' },
-  { key: 'politics', label: '政', color: 'var(--ink)' },
+  { key: 'administration', label: '管', color: 'var(--ink-teal)' },
+  { key: 'knowledge', label: '知', color: 'var(--yellow)' },
+  { key: 'politics', label: '政', color: 'var(--text-main)' },
 ]
 
 // 八维扩展属性（忠诚/腐败/野心/势力）展示
@@ -32,7 +32,7 @@ const TRAIT_LABELS: { key: keyof Minister; label: string; color: string }[] = [
   { key: 'loyalty', label: '忠', color: 'var(--green)' },
   { key: 'corruption', label: '腐', color: 'var(--red)' },
   { key: 'ambition', label: '野', color: 'var(--accent-gold)' },
-  { key: 'influence', label: '势', color: 'var(--blue)' },
+  { key: 'influence', label: '势', color: 'var(--ink-teal)' },
 ]
 
 // Helper to detect NOBLE positions by suffix (公、侯、伯)

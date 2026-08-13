@@ -5,17 +5,17 @@
 
 /* 08-07-frontend-ui-polish：指引手册与选省面板 */
 .guide-panel {
+  position: relative;
   max-width: 520px;
   border-color: var(--accent-gold);
 }
 .guide-section {
   margin: 1rem 0;
   line-height: 1.7;
-  color: var(--ink);
+  color: var(--text-main);
 }
 .guide-section h3 {
   color: var(--accent-gold);
-  font-family: var(--font-kai);
   margin-bottom: 0.4rem;
 }
 .guide-nav {
@@ -26,7 +26,7 @@
   margin-top: 1rem;
 }
 .guide-progress {
-  color: var(--ink-muted);
+  color: var(--text-dim);
   font-size: 0.85rem;
 }
 .guide-skip {
@@ -35,30 +35,32 @@
   right: 1rem;
   background: none;
   border: none;
-  color: var(--ink-muted);
+  color: var(--text-dim);
   cursor: pointer;
   font-size: 0.85rem;
 }
 .guide-skip:hover {
   color: var(--accent-gold);
 }
-.region-detail-list {
-  list-style: none;
-  padding: 0;
-  margin: 1rem 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem 1.5rem;
-  color: var(--ink);
+.guide-never {
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
 }
-.region-detail-list li {
-  border-bottom: 1px dashed var(--border-faint);
-  padding-bottom: 0.3rem;
+.guide-never:hover {
+  color: var(--accent-gold);
 }
-.region-detail-actions {
+.guide-preferences {
   display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+.guide-skip:focus-visible,
+.guide-never:focus-visible {
+  outline: 2px solid var(--ink-teal);
+  outline-offset: 2px;
 }
 .resource-item {
   cursor: pointer;
@@ -108,6 +110,17 @@
 .map-workspace > .region-inspector { flex: 0 0 min(320px, 30vw); }
 .action-target-chip { display: inline-flex; align-items: center; gap: 5px; background: rgba(47, 93, 90, 0.12); border: 1px solid var(--ink-teal); padding: 3px 7px; font-size: 0.8rem; margin-right: 6px; }
 .action-target-chip button { border: 0; background: transparent; cursor: pointer; color: var(--ink-teal); }
+
+@media (prefers-reduced-motion: reduce) {
+  #root *,
+  #root *::before,
+  #root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
 
 @media (max-width: 900px) {
   .map-workspace { display: block; position: relative; }
