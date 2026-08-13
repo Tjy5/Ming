@@ -118,6 +118,26 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
           <title id="region-map-title">现代中国地理参考与元末八战略区域</title>
           <desc id="region-map-description">现代省域轮廓仅作方位参照，彩色范围为可操作的元末战略区域。</desc>
           <rect x="0" y="0" width="774" height="569" className="map-water" aria-hidden="true" />
+          <g className="map-atmosphere" aria-hidden="true" pointerEvents="none">
+            <image
+              className="map-atmosphere-paper-water"
+              href="/map/atmosphere/v1/paper-water-wash-v1.webp"
+              x="0"
+              y="0"
+              width="774"
+              height="569"
+              preserveAspectRatio="xMidYMid slice"
+            />
+            <image
+              className="map-atmosphere-terrain"
+              href="/map/atmosphere/v1/terrain-drybrush-v1.webp"
+              x="0"
+              y="0"
+              width="774"
+              height="569"
+              preserveAspectRatio="xMidYMid slice"
+            />
+          </g>
           <defs aria-hidden="true">
             <pattern id="map-missing-pattern" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="10" height="10" className="map-missing-pattern-bg" />

@@ -187,6 +187,10 @@ body {
 }
 
 .map-water { fill: #dbe4dd; }
+.map-atmosphere { pointer-events: none; }
+.map-atmosphere image { pointer-events: none; }
+.map-atmosphere-paper-water { opacity: 0.24; mix-blend-mode: multiply; }
+.map-atmosphere-terrain { opacity: 0.11; mix-blend-mode: multiply; }
 .china-reference-basemap path { fill: rgba(239, 230, 208, 0.82); stroke: rgba(91, 91, 78, 0.4); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
 .map-feature-shape { fill: var(--map-level-fill); stroke: var(--map-level-stroke); fill-opacity: 0.82; vector-effect: non-scaling-stroke; stroke-width: 3.2; paint-order: stroke fill; transition: fill 0.2s, fill-opacity 0.2s, stroke 0.2s, stroke-width 0.2s, filter 0.2s; }
 .map-feature.stab-high { --map-level-fill: rgba(63, 122, 78, 0.64); --map-level-stroke: #285d38; }

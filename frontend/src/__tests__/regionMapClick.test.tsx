@@ -25,6 +25,26 @@ describe('RegionMap onRegionClick', () => {
     expect(screen.getByText(/不等同于现代省界或精确的 1368 行政疆界/)).toBeTruthy()
   })
 
+  it('keeps local atmosphere assets decorative, pointer-inert, and below authoritative map layers', () => {
+    const { container } = render(<RegionMap regions={[makeRegion('应天')]} />)
+    const svg = container.querySelector('.geographic-map svg')
+    const atmosphere = svg?.querySelector('.map-atmosphere')
+    const basemap = svg?.querySelector('.china-reference-basemap')
+    const strategicOverlay = svg?.querySelector('.yuanming-strategic-overlay')
+    const images = atmosphere?.querySelectorAll('image')
+
+    expect(atmosphere?.getAttribute('aria-hidden')).toBe('true')
+    expect(atmosphere?.getAttribute('pointer-events')).toBe('none')
+    expect(images).toHaveLength(2)
+    expect(Array.from(images ?? []).map((image) => image.getAttribute('href'))).toEqual([
+      '/map/atmosphere/v1/paper-water-wash-v1.webp',
+      '/map/atmosphere/v1/terrain-drybrush-v1.webp',
+    ])
+    expect(svg && atmosphere && basemap && (atmosphere.compareDocumentPosition(basemap) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
+    expect(svg && basemap && strategicOverlay && (basemap.compareDocumentPosition(strategicOverlay) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
+    expect(svg?.querySelector('.map-water')).toBeTruthy()
+  })
+
   it('calls onRegionClick with the clicked region', () => {
     const onClick = vi.fn()
     const regions = [makeRegion('应天'), makeRegion('集庆')]
