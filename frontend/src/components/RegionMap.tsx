@@ -9,7 +9,8 @@ import {
   levelColor,
   type ViewMode,
 } from './regionMapUtils'
-import { joinRegionsToMap, MAP_LANDMASS_PATH, MAP_RIVERS, MAP_VIEWBOX, type MapRegionStatus } from '../data/map/geography'
+import { CHINA_REFERENCE_BASEMAP } from '../data/map/chinaReferenceBasemap'
+import { joinRegionsToMap, MAP_VIEWBOX, type MapRegionStatus } from '../data/map/geography'
 
 const VIEW_LABELS: Record<ViewMode, string> = {
   standard: '标准', disaster: '灾情', morale: '民心', rebellion: '动乱', tax_rate: '税率', tax_collected: '赋税',
@@ -22,17 +23,6 @@ interface Props {
   highlightRegion?: string
   toasts?: string[]
   onRegionClick?: (region: Region) => void
-}
-
-function featureViewport(feature: MapRegionStatus) {
-  const pathNumbers = feature.feature.path.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? []
-  const xs = pathNumbers.filter((_, index) => index % 2 === 0)
-  const ys = pathNumbers.filter((_, index) => index % 2 === 1)
-  const x = Math.min(...xs, feature.feature.label.x) - 8
-  const y = Math.min(...ys, feature.feature.label.y) - 8
-  const width = Math.max(...xs, feature.feature.label.x) - x + 16
-  const height = Math.max(...ys, feature.feature.label.y) - y + 16
-  return { x, y, width, height }
 }
 
 export default function RegionMap({ regions, highlightRegion, toasts, onRegionClick }: Props) {
@@ -49,7 +39,7 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
     const { feature, region } = item
     const highlighted = !!region && highlightRegion === region.name
     const level = region ? resolveLevel(region) : 'low'
-    const viewport = featureViewport(item)
+    const { anchor, label: viewport } = feature
     const label = region
       ? `${region.name}，控制：${region.control}，稳定度：${region.stability}`
       : `${feature.displayName}，尚未接入治理数据`
@@ -62,6 +52,12 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
           stroke={region ? levelColor(level) : 'var(--gray)'}
           aria-hidden="true"
         />
+        <path
+          d={`M${anchor.x} ${anchor.y} L${viewport.x + viewport.width / 2} ${viewport.y + viewport.height / 2}`}
+          className="map-feature-leader"
+          aria-hidden="true"
+        />
+        <circle cx={anchor.x} cy={anchor.y} r="4" className="map-feature-anchor" aria-hidden="true" />
         <foreignObject {...viewport}>
           <button
             type="button"
@@ -100,14 +96,18 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
   return (
     <div className="region-map-container">
       <div className="region-map geographic-map">
-        <svg viewBox={MAP_VIEWBOX} aria-labelledby="region-map-title" preserveAspectRatio="xMidYMid meet">
-          <title id="region-map-title">八地理区域治理地图</title>
-          <rect x="0" y="0" width="1000" height="620" className="map-water" aria-hidden="true" />
-          <path d={MAP_LANDMASS_PATH} className="map-landmass" aria-hidden="true" />
-          <g className="map-rivers" aria-hidden="true">
-            {MAP_RIVERS.map((river) => <path key={river} d={river} />)}
+        <svg viewBox={MAP_VIEWBOX} aria-labelledby="region-map-title region-map-description" preserveAspectRatio="xMidYMid meet">
+          <title id="region-map-title">现代中国地理参考与元末八战略区域</title>
+          <desc id="region-map-description">现代省域轮廓仅作方位参照，彩色范围为可操作的元末战略区域。</desc>
+          <rect x="0" y="0" width="774" height="569" className="map-water" aria-hidden="true" />
+          <g className="china-reference-basemap" aria-hidden="true">
+            {CHINA_REFERENCE_BASEMAP.features.map((province) => (
+              <path key={province.id} data-reference-id={province.id} d={province.path} />
+            ))}
           </g>
-          {joined.features.map(renderFeature)}
+          <g className="yuanming-strategic-overlay">
+            {joined.features.map(renderFeature)}
+          </g>
         </svg>
         {(joined.unmapped.length > 0 || joined.duplicates.length > 0) && (
           <div className="map-data-warning" role="status">
@@ -118,6 +118,7 @@ export default function RegionMap({ regions, highlightRegion, toasts, onRegionCl
         <div className="map-legend" aria-label="地图图例">
           <span><i className="legend-swatch legend-high" />高</span><span><i className="legend-swatch legend-mid" />中</span><span><i className="legend-swatch legend-low" />低</span>
         </div>
+        <p className="map-accuracy-note">现代地理参考底图；区域为元末战略范围，不等同于现代省界或精确的 1368 行政疆界。</p>
         <AnimatePresence>{toasts?.map((msg) => <motion.div key={msg} className="map-toast" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{msg}</motion.div>)}</AnimatePresence>
       </div>
       <div className="view-switcher" role="group" aria-label="地图视图">

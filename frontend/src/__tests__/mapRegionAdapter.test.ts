@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { joinRegionsToMap, MAP_FEATURES, featureForLegacyName, normalizeRegionName } from '../data/map/geography'
+import { CHINA_REFERENCE_BASEMAP } from '../data/map/chinaReferenceBasemap'
+import { joinRegionsToMap, YUANMING_STRATEGIC_OVERLAY, featureForLegacyName, normalizeRegionName } from '../data/map/geography'
 import type { Region } from '../types/game'
 
 const makeRegion = (name: string): Region => ({
@@ -9,8 +10,38 @@ const makeRegion = (name: string): Region => ({
 })
 
 describe('map geography adapter', () => {
+  it('loads the attributed modern reference basemap without gameplay ids', () => {
+    expect(CHINA_REFERENCE_BASEMAP).toMatchObject({
+      viewBox: '0 0 774 569',
+      sourcePackage: '@svg-maps/china',
+      sourceVersion: '2.0.0',
+      license: 'CC-BY-4.0',
+    })
+    expect(CHINA_REFERENCE_BASEMAP.features).toHaveLength(33)
+    expect(new Set(CHINA_REFERENCE_BASEMAP.features.map((feature) => feature.id)).size).toBe(33)
+    const gameplayIds = new Set(YUANMING_STRATEGIC_OVERLAY.map((feature) => feature.mapRegionId))
+    expect(CHINA_REFERENCE_BASEMAP.features.every((feature) => !gameplayIds.has(feature.id))).toBe(true)
+  })
+
+  it('defines exactly eight explicit strategic overlay entries', () => {
+    expect(YUANMING_STRATEGIC_OVERLAY.map((feature) => feature.mapRegionId)).toEqual([
+      'dadu', 'lianghuai', 'wuchang', 'taiping', 'yingtian', 'zhenjiang', 'pingjiang', 'hangzhou',
+    ])
+    expect(YUANMING_STRATEGIC_OVERLAY.every((feature) => feature.path.length > 0)).toBe(true)
+    expect(YUANMING_STRATEGIC_OVERLAY.every((feature) => Number.isFinite(feature.anchor.x) && Number.isFinite(feature.anchor.y))).toBe(true)
+    const labelsOverlap = (first: typeof YUANMING_STRATEGIC_OVERLAY[number], second: typeof YUANMING_STRATEGIC_OVERLAY[number]) => (
+      first.label.x < second.label.x + second.label.width
+      && first.label.x + first.label.width > second.label.x
+      && first.label.y < second.label.y + second.label.height
+      && first.label.y + first.label.height > second.label.y
+    )
+    expect(YUANMING_STRATEGIC_OVERLAY.flatMap((feature, index) => (
+      YUANMING_STRATEGIC_OVERLAY.slice(index + 1).map((other) => labelsOverlap(feature, other))
+    ))).not.toContain(true)
+  })
+
   it('maps all eight canonical regions to stable feature ids', () => {
-    const result = joinRegionsToMap(MAP_FEATURES.map((feature) => makeRegion(feature.displayName)))
+    const result = joinRegionsToMap(YUANMING_STRATEGIC_OVERLAY.map((feature) => makeRegion(feature.displayName)))
     expect(result.features.every((feature) => feature.state === 'mapped')).toBe(true)
     expect(result.unmapped).toHaveLength(0)
     expect(result.duplicates).toHaveLength(0)

@@ -41,6 +41,7 @@ body {
 /* ── Layout ────────────────────────────────────────────── */
 .game-layout {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 56px minmax(0, 1fr) 250px;
   height: 100vh;
   overflow: hidden;
@@ -48,14 +49,14 @@ body {
 
 .main-area {
   display: grid;
-  grid-template-columns: 7fr 3fr;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
   overflow: visible;
   min-height: 0;
 }
 
 .bottom-panel {
   display: grid;
-  grid-template-columns: 6fr 4fr;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 4fr);
   border-top: 2px solid var(--accent-gold);
   background: var(--bg-panel);
 }
@@ -173,7 +174,7 @@ body {
   padding: 8px;
   min-width: 0;
   min-height: 0;
-  background: linear-gradient(145deg, rgba(47, 93, 90, 0.12), rgba(43, 38, 32, 0.03));
+  background: #dbe4dd;
 }
 
 .geographic-map > svg {
@@ -183,27 +184,29 @@ body {
   display: block;
 }
 
-.map-water { fill: rgba(47, 93, 90, 0.08); }
-.map-landmass { fill: rgba(239, 230, 208, 0.94); stroke: rgba(111, 101, 82, 0.54); stroke-width: 4; vector-effect: non-scaling-stroke; }
-.map-landmass::after { content: ''; }
-.map-rivers path { fill: none; stroke: rgba(47, 93, 90, 0.34); stroke-width: 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.map-feature-shape { vector-effect: non-scaling-stroke; stroke-width: 3; transition: fill 0.2s, stroke 0.2s, filter 0.2s; }
+.map-water { fill: #dbe4dd; }
+.china-reference-basemap path { fill: rgba(239, 230, 208, 0.9); stroke: rgba(91, 91, 78, 0.48); stroke-width: 0.85; vector-effect: non-scaling-stroke; }
+.map-feature-shape { fill-opacity: 0.62; vector-effect: non-scaling-stroke; stroke-width: 2.5; transition: fill 0.2s, stroke 0.2s, filter 0.2s; }
+.map-feature-leader { fill: none; stroke: rgba(43, 38, 32, 0.7); stroke-width: 1.2; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.map-feature-anchor { fill: var(--accent-red); stroke: var(--bg-panel); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .map-feature.selected .map-feature-shape { stroke: var(--accent-gold); stroke-width: 5; filter: drop-shadow(0 0 7px rgba(138, 109, 47, 0.55)); }
-.map-feature.missing .map-feature-shape { stroke-dasharray: 8 6; }
-.map-region-button { width: 100%; height: 100%; min-width: 78px; min-height: 54px; padding: 6px; border: 1px solid transparent; background: transparent; color: var(--text-main); display: flex; flex-direction: column; justify-content: center; gap: 3px; font-family: inherit; cursor: pointer; }
-.map-region-button:hover, .map-region-button:focus-visible { border-color: var(--accent-gold); background: rgba(246, 239, 224, 0.82); outline: 2px solid var(--ink-teal); outline-offset: 1px; }
+.map-feature.selected .map-feature-anchor { r: 6px; fill: var(--accent-gold); }
+.map-feature.missing .map-feature-shape { stroke-dasharray: 8 6; fill: rgba(43, 38, 32, 0.06); }
+.map-region-button { width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 4px; border: 1px solid rgba(111, 101, 82, 0.54); background: rgba(246, 239, 224, 0.9); color: var(--text-main); display: flex; flex-direction: column; justify-content: center; gap: 2px; font-family: inherit; cursor: pointer; box-shadow: 0 1px 3px rgba(43, 38, 32, 0.18); }
+.map-region-button:hover, .map-region-button:focus-visible { border-color: var(--accent-gold); background: rgba(246, 239, 224, 0.98); outline: 2px solid var(--ink-teal); outline-offset: 1px; }
 .map-region-button:disabled { cursor: default; opacity: 0.72; }
-.map-region-button .region-name { font-size: clamp(0.72rem, 1.4vw, 1rem); text-shadow: 0 1px 0 var(--bg-panel); }
-.map-region-button .region-info { justify-content: center; font-size: 0.68rem; }
+.map-region-button .region-name { font-size: 0.76rem; line-height: 1; text-shadow: 0 1px 0 var(--bg-panel); }
+.map-region-button .region-info { justify-content: center; font-size: 0.6rem; line-height: 1; }
 .map-region-button .region-stab-bar { display: block; width: 80%; margin: 0 auto; }
 .map-missing-label { color: var(--text-dim); }
-.map-data-warning { position: absolute; left: 16px; bottom: 16px; max-width: calc(100% - 32px); padding: 5px 8px; color: var(--text-dim); background: rgba(246, 239, 224, 0.92); border: 1px solid var(--accent-gold); font-size: 0.72rem; }
+.map-data-warning { position: absolute; left: 16px; bottom: 54px; max-width: calc(100% - 32px); padding: 5px 8px; color: var(--text-dim); background: rgba(246, 239, 224, 0.96); border: 1px solid var(--accent-gold); font-size: 0.72rem; }
 .map-legend { position: absolute; top: 14px; left: 16px; display: flex; gap: 8px; padding: 4px 7px; color: var(--text-dim); background: rgba(246, 239, 224, 0.82); font-size: 0.7rem; }
 .map-legend span { display: inline-flex; align-items: center; gap: 3px; }
 .legend-swatch { width: 9px; height: 9px; display: inline-block; border-radius: 50%; }
 .legend-high { background: var(--green); }
 .legend-mid { background: var(--yellow); }
 .legend-low { background: var(--red); }
+.map-accuracy-note { position: absolute; right: 16px; bottom: 12px; max-width: min(440px, calc(100% - 32px)); margin: 0; padding: 5px 8px; color: var(--text-dim); background: rgba(246, 239, 224, 0.94); border-left: 3px solid var(--ink-teal); font-size: 0.68rem; line-height: 1.35; }
 
 /* Keep the geographic surface out of the legacy 4x2 grid rules above. */
 .region-map.geographic-map {
