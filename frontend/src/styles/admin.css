@@ -83,7 +83,7 @@
 .admin-select,
 .admin-textarea {
   width: 100%;
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   border-radius: 4px;
   background: var(--bg-card);
   color: var(--text-main);
@@ -238,7 +238,7 @@
 }
 
 .admin-subpanel {
-  border: 1px solid rgba(43, 38, 32, 0.16);
+  border: 1px solid var(--border-subtle);
   border-radius: 6px;
   padding: 8px;
   display: grid;

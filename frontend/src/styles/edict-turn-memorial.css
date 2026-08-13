@@ -213,7 +213,7 @@
 
 .ts-header {
   text-align: center;
-  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 12px;
   margin-bottom: 16px;
   position: relative;
@@ -259,7 +259,7 @@
 .ts-section h3 {
   font-size: 0.9rem;
   color: var(--text-dim);
-  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 4px;
   margin-bottom: 8px;
 }
@@ -395,7 +395,7 @@
 
 .ts-footer {
   margin-top: 24px;
-  border-top: 1px solid rgba(43, 38, 32, 0.16);
+  border-top: 1px solid var(--border-subtle);
   padding-top: 16px;
   display: flex;
   align-items: center;
@@ -449,7 +449,7 @@
 
 .memorial-card {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -528,7 +528,7 @@
 
 .memorial-detail {
   padding: 0 10px 10px;
-  border-top: 1px solid rgba(43, 38, 32, 0.16);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .memorial-content {
@@ -556,7 +556,7 @@
 
 .mem-btn {
   padding: 5px 14px;
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   background: var(--bg-card);
   color: var(--text-main);
   cursor: pointer;

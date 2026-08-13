@@ -33,7 +33,7 @@
 
 .assembly-select {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   padding: 6px 10px;
   font-family: inherit;
@@ -51,7 +51,7 @@
   text-align: left;
   padding: 6px 10px;
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   font-family: inherit;
   font-size: 0.8rem;
@@ -168,7 +168,7 @@
 
 .suggestion-card {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   border-radius: 3px;
   padding: 10px;
 }
@@ -359,7 +359,7 @@
 
 .md-left {
   width: 30%;
-  border-right: 1px solid rgba(43, 38, 32, 0.16);
+  border-right: 1px solid var(--border-subtle);
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -419,7 +419,7 @@
   color: var(--accent-gold);
   margin-top: 12px;
   margin-bottom: 6px;
-  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
+  border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 2px;
 }
 
@@ -529,12 +529,12 @@
   background: var(--bg-card);
   color: var(--text-main);
   border-bottom-left-radius: 2px;
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
 }
 
 .md-input-area {
   padding: 16px;
-  border-top: 1px solid rgba(43, 38, 32, 0.16);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   gap: 12px;
 }
@@ -542,7 +542,7 @@
 .md-input-area input {
   flex: 1;
   background: var(--bg-dark);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   padding: 10px 16px;
   border-radius: 20px;
@@ -690,7 +690,7 @@
   display: flex;
   justify-content: flex-end;
   padding-top: 10px;
-  border-top: 1px solid rgba(43, 38, 32, 0.16);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .assembly-close-btn {
@@ -722,7 +722,7 @@
 
 .petition-card {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   padding: 12px;
   border-radius: 4px;
   transition: all 0.2s;

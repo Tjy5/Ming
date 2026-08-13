@@ -45,7 +45,7 @@
 
 .edict-target-btn {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   padding: 8px;
   font-family: inherit;
@@ -75,7 +75,7 @@
 .edict-personnel select,
 .edict-personnel input {
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   padding: 6px 10px;
   font-family: inherit;
@@ -91,7 +91,7 @@
 .edict-cancel {
   padding: 6px 16px;
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   cursor: pointer;
   font-family: inherit;
@@ -177,7 +177,7 @@
 }
 
 .script-hint-section {
-  border-top: 1px solid rgba(43, 38, 32, 0.16);
+  border-top: 1px solid var(--border-subtle);
   margin-top: 12px;
   padding-top: 8px;
 }
@@ -337,7 +337,7 @@
 /* ── Right Panel Tabs ──────────────────────────────────── */
 .right-panel {
   background: var(--bg-panel);
-  border-left: 1px solid rgba(43, 38, 32, 0.16);
+  border-left: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -345,7 +345,7 @@
 
 .right-panel-tabs {
   display: flex;
-  border-bottom: 1px solid rgba(43, 38, 32, 0.16);
+  border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
 
@@ -472,7 +472,7 @@
 .mp-search {
   flex: 1;
   background: var(--bg-dark);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   color: var(--text-main);
   font-size: 0.78rem;
   padding: 3px 8px;
@@ -505,7 +505,7 @@
   display: flex;
   gap: 8px;
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   border-radius: 3px;
   padding: 8px;
   position: relative;
@@ -574,7 +574,7 @@
   gap: 4px;
   padding: 6px 8px;
   background: var(--bg-card);
-  border: 1px solid rgba(43, 38, 32, 0.25);
+  border: 1px solid var(--border-control);
   border-radius: 2px;
   margin-bottom: 6px;
 }
