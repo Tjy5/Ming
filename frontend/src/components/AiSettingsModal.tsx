@@ -179,6 +179,9 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const [assessmentStatus, setAssessmentStatus] = useState<AssessmentStatus>('idle')
   const [assessment, setAssessment] = useState<AssessmentReport | null>(null)
   const [assessmentInvalidated, setAssessmentInvalidated] = useState(false)
+  const [modelQuery, setModelQuery] = useState('')
+  const [manualModel, setManualModel] = useState('')
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const draftRef = useRef(draft)
   const loadRequestIdRef = useRef(0)
@@ -291,6 +294,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     setCache((current) => ({ ...current, [settings.provider]: settings }))
     setModels([])
     setModelsSource('')
+    setModelQuery('')
+    setManualModel('')
     setHint('')
     setVerification(null)
     setTestStatus('idle')
@@ -651,6 +656,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
 
   const assessmentCalls = assessment?.calls_completed ?? (assessmentRunning ? 1 : 0)
   const effectiveSources = effectiveSettings?.sources ?? {}
+  const filteredModels = models.filter((name) => name.toLowerCase().includes(modelQuery.trim().toLowerCase()))
+  const hasDraftChanges = verification === null && !loading
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -685,6 +692,50 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
         {loading ? (
           <p role="status" aria-label="读取 AI 配置中">读取配置中...</p>
         ) : (
+          <div className="ai-settings-layout">
+            <aside className="ai-provider-sidebar" aria-label="供应商列表">
+              <div className="ai-provider-sidebar-header">
+                <span>供应商</span>
+                <button
+                  type="button"
+                  className="ai-icon-action"
+                  onClick={() => void handleProviderChange('custom')}
+                  disabled={fieldsDisabled}
+                  title="添加自定义供应商"
+                  aria-label="添加自定义供应商"
+                >
+                  +
+                </button>
+              </div>
+              <div className="ai-provider-list">
+                {providerChoices.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`ai-provider-item${draft.provider === option ? ' active' : ''}`}
+                    onClick={() => void handleProviderChange(option)}
+                    disabled={fieldsDisabled}
+                  >
+                    <span className="ai-provider-dot" aria-hidden="true" />
+                    <span>{option === 'custom' ? '自定义供应商' : providerLabel(option)}</span>
+                    {effectiveSettings?.provider === option && <small>当前</small>}
+                  </button>
+                ))}
+              </div>
+              <p className="ai-provider-sidebar-note">选择供应商后，在右侧编辑连接与模型。</p>
+            </aside>
+
+            <section className="ai-provider-detail" aria-labelledby="ai-provider-detail-title">
+              <div className="ai-provider-detail-heading">
+                <div>
+                  <span className="ai-eyebrow">Provider detail</span>
+                  <h4 id="ai-provider-detail-title">{providerLabel(draft.provider)}</h4>
+                </div>
+                <span className={`ai-draft-badge${verificationValid ? ' verified' : ''}`}>
+                  {verificationValid ? '已验证' : hasDraftChanges ? '待验证' : '未验证'}
+                </span>
+              </div>
+
           <div className="ai-settings-form">
             <label className="ai-field">
               <span>供应商</span>
@@ -791,12 +842,6 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               />
               {renderFieldError('model')}
             </label>
-            {renderThinkingConfig(
-              draft.thinkingConfig,
-              (next) => updateDraft({ thinkingConfig: next }),
-              '主模型',
-            )}
-
             <label className="ai-field">
               <span>基础模型</span>
               <input
@@ -806,12 +851,6 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                 disabled={fieldsDisabled}
               />
             </label>
-            {renderThinkingConfig(
-              draft.thinkingConfigSimple,
-              (next) => updateDraft({ thinkingConfigSimple: next }),
-              '基础模型',
-            )}
-
             <div className="ai-model-tools">
               <button
                 type="button"
@@ -826,9 +865,24 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
             {hint && <p className="ai-hint">{hint}</p>}
             {renderDiagnostic('模型列表获取失败', modelError)}
 
-            {models.length > 0 && (
+            <div className="ai-model-picker">
+              <div className="ai-model-picker-header">
+                <div>
+                  <strong>模型选择器</strong>
+                  <span>{models.length ? `${filteredModels.length} / ${models.length} 个模型` : '可拉取或手动添加模型'}</span>
+                </div>
+                <input
+                  className="ai-model-search"
+                  value={modelQuery}
+                  onChange={(event) => setModelQuery(event.target.value)}
+                  placeholder="搜索模型"
+                  aria-label="搜索模型"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              {filteredModels.length > 0 && (
               <div className="ai-model-list">
-                {models.map((name) => (
+                {filteredModels.map((name) => (
                   <div key={name} className="ai-model-item-group">
                     <span className="ai-model-name">{name}</span>
                     <button
@@ -851,6 +905,54 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
                     </button>
                   </div>
                 ))}
+              </div>
+              )}
+              <div className="ai-manual-model-row">
+                <input
+                  value={manualModel}
+                  onChange={(event) => setManualModel(event.target.value)}
+                  placeholder="手动添加模型 ID"
+                  aria-label="手动添加模型 ID"
+                  disabled={fieldsDisabled}
+                />
+                <button
+                  type="button"
+                  className="modal-btn"
+                  onClick={() => {
+                    const value = manualModel.trim()
+                    if (!value) return
+                    updateDraft({ model: value })
+                    setModels((current) => current.includes(value) ? current : [...current, value])
+                    setManualModel('')
+                  }}
+                  disabled={fieldsDisabled || !manualModel.trim()}
+                >
+                  添加并设为主模型
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="ai-advanced-toggle"
+              onClick={() => setAdvancedOpen((open) => !open)}
+              aria-expanded={advancedOpen}
+            >
+              <span>高级思考配置</span><span aria-hidden="true">{advancedOpen ? '收起' : '展开'}</span>
+            </button>
+            {advancedOpen && (
+              <div className="ai-advanced-drawer">
+                <p>思考能力按 Provider Type 映射到兼容的请求字段。</p>
+                {renderThinkingConfig(
+                  draft.thinkingConfig,
+                  (next) => updateDraft({ thinkingConfig: next }),
+                  '主模型',
+                )}
+                {renderThinkingConfig(
+                  draft.thinkingConfigSimple,
+                  (next) => updateDraft({ thinkingConfigSimple: next }),
+                  '基础模型',
+                )}
               </div>
             )}
 
@@ -976,6 +1078,8 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
               <p className="ai-assessment-disclaimer">
                 结果仅提示有限合同风险，不能保证所有开放剧情质量，也不评价文风或正史路线。
               </p>
+            </section>
+          </div>
             </section>
           </div>
         )}

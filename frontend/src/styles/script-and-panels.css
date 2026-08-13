@@ -375,6 +375,29 @@
   overflow-y: auto;
 }
 
+.info-empty-state {
+  min-height: 180px;
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.info-empty-state h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1rem;
+}
+
+.info-empty-state p,
+.info-empty-state span {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
 /* ── Minister Panel ────────────────────────────────────── */
 .minister-panel {
   padding: 8px;

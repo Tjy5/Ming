@@ -28,7 +28,7 @@ import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
 
-type RightTab = 'faction' | 'minister' | 'assembly'
+type RightTab = 'faction' | 'minister' | 'assembly' | 'classes' | 'army' | 'all'
 type NarrativePayload = {
   narrative: string
   delta: Record<string, number>
@@ -36,6 +36,16 @@ type NarrativePayload = {
   turnSummary?: TurnSummary
   settlementId?: string | null
   contextVersionId?: string | null
+}
+
+function UnavailableInfoPanel({ title }: { title: string }) {
+  return (
+    <section className="info-empty-state" aria-labelledby={`info-empty-${title}`}>
+      <h3 id={`info-empty-${title}`}>{title}</h3>
+      <p>该信息组尚未接入当前世界数据。</p>
+      <span>接入后将在此显示经过服务端结算的数据。</span>
+    </section>
+  )
 }
 
 function App() {
@@ -343,6 +353,18 @@ function App() {
               onClick={() => setRightTab('assembly')}
             >朝议</button>
             <button
+              className={`rp-tab${rightTab === 'classes' ? ' active' : ''}`}
+              onClick={() => setRightTab('classes')}
+            >阶层</button>
+            <button
+              className={`rp-tab${rightTab === 'army' ? ' active' : ''}`}
+              onClick={() => setRightTab('army')}
+            >军队</button>
+            <button
+              className={`rp-tab${rightTab === 'all' ? ' active' : ''}`}
+              onClick={() => setRightTab('all')}
+            >全部</button>
+            <button
               className="rp-tab"
               onClick={() => setShowOfficialRank(true)}
             >官职</button>
@@ -363,6 +385,9 @@ function App() {
                 onShowToast={showToast}
               />
             )}
+            {rightTab === 'classes' && <UnavailableInfoPanel title="阶层信息" />}
+            {rightTab === 'army' && <UnavailableInfoPanel title="军队信息" />}
+            {rightTab === 'all' && <UnavailableInfoPanel title="全部信息" />}
           </div>
         </div>
       </div>
