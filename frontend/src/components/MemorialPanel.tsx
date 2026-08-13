@@ -49,22 +49,18 @@ export default function MemorialPanel({ memorials, resolving = false, onResolve,
     setExpandedId(expanded ? null : id)
   }
 
-  const handleCardHeadKeyDown = (e: React.KeyboardEvent, id: string, expanded: boolean) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      handleCardHeadClick(id, expanded)
-    }
-  }
-
   return (
     <div className="modal-overlay" onClick={onClose}>
       <motion.div
         className="modal memorial-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="memorial-dialog-title"
         onClick={e => e.stopPropagation()}
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
       >
-        <h3 className="memorial-header">奏折批阅</h3>
+        <h3 className="memorial-header" id="memorial-dialog-title">奏折批阅</h3>
         {sorted.length === 0 ? (
           <div className="memorial-empty">暂无待批奏折</div>
         ) : (
@@ -80,13 +76,12 @@ export default function MemorialPanel({ memorials, resolving = false, onResolve,
                     if (el) cardRefs.current[m.id] = el
                   }}
                 >
-                  <div
+                  <button
+                    type="button"
                     className="memorial-card-head"
-                    role="button"
-                    tabIndex={0}
                     onClick={() => handleCardHeadClick(m.id, expanded)}
-                    onKeyDown={(e) => handleCardHeadKeyDown(e, m.id, expanded)}
                     aria-expanded={expanded}
+                    aria-controls={`memorial-detail-${m.id}`}
                     aria-label={`${m.title} - ${m.author_name}`}
                   >
                     <span className={`memorial-urg ${URGENCY_CLASS[m.urgency] ?? ''}`}>
@@ -107,9 +102,9 @@ export default function MemorialPanel({ memorials, resolving = false, onResolve,
                       <span className="memorial-author">{m.author_name}（{m.author_faction}）</span>
                     </div>
                     <span className="memorial-expand">{expanded ? '▼' : '▶'}</span>
-                  </div>
+                  </button>
                   {expanded && (
-                    <div className="memorial-detail">
+                    <div className="memorial-detail" id={`memorial-detail-${m.id}`}>
                       <div className="memorial-content">
                         <Markdown>{m.content}</Markdown>
                       </div>

@@ -351,14 +351,16 @@
 
 .rp-tab {
   flex: 1;
-  padding: 8px 0;
+  min-height: 34px;
+  padding: 7px 4px;
   background: none;
   border: none;
   color: var(--text-dim);
   font-size: 0.8rem;
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.2s;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, background-color 0.2s, border-color 0.2s;
 }
 
 .rp-tab:hover {
@@ -366,36 +368,21 @@
 }
 
 .rp-tab.active {
-  color: var(--accent-gold);
+  color: var(--text-main);
   border-bottom: 2px solid var(--accent-gold);
+  background: rgba(138, 109, 47, 0.1);
+  font-weight: bold;
 }
+
+.rp-tab:focus-visible, .right-panel-tools button:focus-visible { outline: 2px solid var(--ink-teal); outline-offset: -2px; }
+.rp-tab.unavailable { color: rgba(111, 101, 82, 0.62); cursor: not-allowed; background: repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(43, 38, 32, 0.035) 4px, rgba(43, 38, 32, 0.035) 8px); }
+.right-panel-tools { min-height: 35px; padding: 5px 9px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border-subtle); }
+.right-panel-tools button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; color: var(--text-main); background: var(--bg-card); border: 1px solid var(--border-control); font: inherit; font-size: 0.75rem; cursor: pointer; }
+.right-panel-tools span { margin-left: auto; color: var(--text-dim); font-size: 0.68rem; }
 
 .right-panel-body {
   flex: 1;
   overflow-y: auto;
-}
-
-.info-empty-state {
-  min-height: 180px;
-  padding: 24px 18px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  color: var(--text-dim);
-  text-align: center;
-}
-
-.info-empty-state h3 {
-  margin: 0;
-  color: var(--text-main);
-  font-size: 1rem;
-}
-
-.info-empty-state p,
-.info-empty-state span {
-  margin: 0;
-  font-size: 0.82rem;
 }
 
 .trpg-entry-panel {
@@ -403,9 +390,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  min-height: 76px;
-  padding: 14px 18px;
-  border-top: 1px solid var(--ink-line);
+  height: 100%;
+  min-height: 0;
+  padding: 20px 24px;
+  border-left: 3px solid var(--accent-gold);
   background: var(--bg-panel);
 }
 
@@ -413,6 +401,8 @@
 .trpg-entry-panel span { display: block; }
 .trpg-entry-panel strong { color: var(--text-main); }
 .trpg-entry-panel span { margin-top: 4px; color: var(--text-dim); font-size: 0.82rem; }
+.trpg-entry-panel .modal-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.trpg-entry-kicker { display: inline-flex !important; align-items: center; gap: 5px; margin: 0 0 8px !important; color: var(--accent-red) !important; font-size: 0.72rem !important; }
 
 @media (max-width: 720px) {
   .trpg-entry-panel { align-items: stretch; flex-direction: column; }

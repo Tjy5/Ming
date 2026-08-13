@@ -1,8 +1,10 @@
 /* ── Court Assembly ──────────────────────────────────── */
 .assembly-modal {
   max-width: 640px;
-  background: linear-gradient(180deg, #f6efe0, #eae0c8);
-  border: 2px solid var(--accent-gold);
+  background: var(--bg-panel);
+  border: 1px solid var(--accent-gold);
+  border-top: 4px solid var(--accent-gold);
+  box-shadow: 0 18px 48px rgba(43, 38, 32, 0.34);
 }
 
 .assembly-header {

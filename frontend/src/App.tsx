@@ -22,13 +22,20 @@ import OfficialRankModal from './components/OfficialRankModal'
 import MissionPanel from './components/MissionPanel'
 import GuideModal from './components/GuideModal'
 import RegionInspector from './components/RegionInspector'
+import SurfaceHeader from './components/SurfaceHeader'
+import DesktopIcon from './components/DesktopIcon'
 import { shouldAutoOpenGuide } from './components/guideModalLogic'
 import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
 
-type RightTab = 'faction' | 'minister' | 'assembly' | 'classes' | 'army' | 'all'
+type RightTab = 'faction' | 'minister' | 'assembly'
+const RIGHT_TABS: { id: RightTab; label: string }[] = [
+  { id: 'faction', label: '派系' },
+  { id: 'minister', label: '大臣' },
+  { id: 'assembly', label: '朝议' },
+]
 type NarrativePayload = {
   narrative: string
   delta: Record<string, number>
@@ -36,16 +43,6 @@ type NarrativePayload = {
   turnSummary?: TurnSummary
   settlementId?: string | null
   contextVersionId?: string | null
-}
-
-function UnavailableInfoPanel({ title }: { title: string }) {
-  return (
-    <section className="info-empty-state" aria-labelledby={`info-empty-${title}`}>
-      <h3 id={`info-empty-${title}`}>{title}</h3>
-      <p>该信息组尚未接入当前世界数据。</p>
-      <span>接入后将在此显示经过服务端结算的数据。</span>
-    </section>
-  )
 }
 
 function App() {
@@ -76,6 +73,7 @@ function App() {
   const [selectedRegion, setSelectedRegion] = useState<import('./types/game').Region | null>(null)
   const [targetRegion, setTargetRegion] = useState<string | null>(null)
   const [guideOpen, setGuideOpen] = useState(false)
+  const memorialTrigger = useRef<HTMLElement | null>(null)
 
   const closeRegionInspector = useCallback(() => {
     const name = selectedRegion?.name
@@ -86,6 +84,29 @@ function App() {
       }, 0)
     }
   }, [selectedRegion?.name])
+
+  const closeMemorialPanel = useCallback(() => {
+    popModal()
+    window.setTimeout(() => memorialTrigger.current?.focus(), 0)
+  }, [popModal])
+
+  const handleRightTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: RightTab) => {
+    const currentIndex = RIGHT_TABS.findIndex(item => item.id === tab)
+    const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? RIGHT_TABS.length - 1
+        : direction
+          ? (currentIndex + direction + RIGHT_TABS.length) % RIGHT_TABS.length
+          : null
+    if (nextIndex === null) return
+
+    event.preventDefault()
+    const nextTab = RIGHT_TABS[nextIndex]
+    setRightTab(nextTab.id)
+    window.setTimeout(() => document.getElementById(`right-tab-${nextTab.id}`)?.focus(), 0)
+  }
 
   useEffect(() => {
     if (shouldAutoOpenGuide()) setGuideOpen(true)
@@ -342,37 +363,43 @@ function App() {
           )}
         </div>
         <div className="right-panel">
-          <div className="right-panel-tabs">
+          <SurfaceHeader icon="users" title="朝廷管理" meta={rightTab === 'faction' ? '派系' : rightTab === 'minister' ? '大臣' : '朝议'} id="right-panel-title" />
+          <div className="right-panel-tabs" role="tablist" aria-labelledby="right-panel-title">
+            {RIGHT_TABS.map(tab => (
+              <button
+                key={tab.id}
+                id={`right-tab-${tab.id}`}
+                className={`rp-tab${rightTab === tab.id ? ' active' : ''}`}
+                role="tab"
+                aria-selected={rightTab === tab.id}
+                aria-controls="right-panel-content"
+                tabIndex={rightTab === tab.id ? 0 : -1}
+                onClick={() => setRightTab(tab.id)}
+                onKeyDown={(event) => handleRightTabKeyDown(event, tab.id)}
+              >{tab.label}</button>
+            ))}
             <button
-              className={`rp-tab${rightTab === 'faction' ? ' active' : ''}`}
-              onClick={() => setRightTab('faction')}
-            >派系</button>
-            <button
-              className={`rp-tab${rightTab === 'minister' ? ' active' : ''}`}
-              onClick={() => setRightTab('minister')}
-            >大臣</button>
-            <button
-              className={`rp-tab${rightTab === 'assembly' ? ' active' : ''}`}
-              onClick={() => setRightTab('assembly')}
-            >朝议</button>
-            <button
-              className={`rp-tab${rightTab === 'classes' ? ' active' : ''}`}
-              onClick={() => setRightTab('classes')}
+              className="rp-tab unavailable"
+              role="tab"
+              aria-selected={false}
+              disabled
+              title="阶层数据尚未接入当前世界"
+              aria-label="阶层，尚未接入"
             >阶层</button>
             <button
-              className={`rp-tab${rightTab === 'army' ? ' active' : ''}`}
-              onClick={() => setRightTab('army')}
+              className="rp-tab unavailable"
+              role="tab"
+              aria-selected={false}
+              disabled
+              title="军队数据尚未接入当前世界"
+              aria-label="军队，尚未接入"
             >军队</button>
-            <button
-              className={`rp-tab${rightTab === 'all' ? ' active' : ''}`}
-              onClick={() => setRightTab('all')}
-            >全部</button>
-            <button
-              className="rp-tab"
-              onClick={() => setShowOfficialRank(true)}
-            >官职</button>
           </div>
-          <div className="right-panel-body">
+          <div className="right-panel-tools">
+            <button type="button" onClick={() => setShowOfficialRank(true)} title="查看并任免官职"><DesktopIcon name="archive" />官职任免</button>
+            <span>阶层、军队数据待接入</span>
+          </div>
+          <div className="right-panel-body" id="right-panel-content" role="tabpanel" aria-labelledby={`right-tab-${rightTab}`}>
             <MissionPanel ministers={state.ministers} />
             {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
             {rightTab === 'minister' && (
@@ -388,9 +415,6 @@ function App() {
                 onShowToast={showToast}
               />
             )}
-            {rightTab === 'classes' && <UnavailableInfoPanel title="阶层信息" />}
-            {rightTab === 'army' && <UnavailableInfoPanel title="军队信息" />}
-            {rightTab === 'all' && <UnavailableInfoPanel title="全部信息" />}
           </div>
         </div>
       </div>
@@ -400,17 +424,21 @@ function App() {
           pendingMemorials={pendingMemorials.length}
           onScriptClick={(e) => pushModal({ type: 'script_event', priority: 10, payload: e })}
           onMemorialClick={() => {
-            if (pendingMemorials.length) pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
+            if (pendingMemorials.length) {
+              memorialTrigger.current = document.activeElement as HTMLElement | null
+              pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
+            }
           }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {isLifeStory ? (
             <section className="trpg-entry-panel" aria-labelledby="trpg-entry-title">
               <div>
+                <span className="trpg-entry-kicker"><DesktopIcon name="dice" />当前篇章</span>
                 <strong id="trpg-entry-title">跑团篇章正在进行</strong>
                 <span>从地图查看天下局势，进入跑团模式继续角色行动。</span>
               </div>
-              <button type="button" className="modal-btn" onClick={() => navigate('/trpg')}>进入跑团</button>
+              <button type="button" className="modal-btn primary" onClick={() => navigate('/trpg')}><DesktopIcon name="dice" />进入跑团</button>
             </section>
           ) : (
             <ActionArea
@@ -460,7 +488,7 @@ function App() {
           memorials={state?.memorials ?? []}
           resolving={memorialResolving}
           onResolve={handleMemorialResolve}
-          onClose={popModal}
+          onClose={closeMemorialPanel}
         />
       )}
 

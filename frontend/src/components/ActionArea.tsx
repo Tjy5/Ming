@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { GameState, DecreeType, StructuredDecree, ModalItem } from '../types/game'
 import { DECREE_LABELS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
 import { CATEGORY_DECREES, CATEGORY_TABS, TAB_TO_CATEGORY, type DecreeCategoryTab } from '../constants/decreeCategories'
 import EdictWritingPanel from './EdictWritingPanel'
+import SurfaceHeader from './SurfaceHeader'
+import DesktopIcon from './DesktopIcon'
 
 interface Props {
   state: GameState
@@ -28,6 +30,7 @@ export default function ActionArea({
   const [text, setText] = useState('')
   const [tab, setTab] = useState<DecreeCategoryTab>('内政')
   const [edictType, setEdictType] = useState<DecreeType | null>(null)
+  const edictTrigger = useRef<HTMLButtonElement | null>(null)
   const actionLocked = loading || hasBlockingEvent
   const textLocked = loading
 
@@ -45,21 +48,52 @@ export default function ActionArea({
 
   function handleEdictCancel() {
     setEdictType(null)
+    window.setTimeout(() => edictTrigger.current?.focus(), 0)
+  }
+
+  function handleCategoryTabKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, category: DecreeCategoryTab) {
+    const currentIndex = CATEGORY_TABS.indexOf(category)
+    const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? CATEGORY_TABS.length - 1
+        : direction
+          ? (currentIndex + direction + CATEGORY_TABS.length) % CATEGORY_TABS.length
+          : null
+    if (nextIndex === null) return
+
+    event.preventDefault()
+    const nextTab = CATEGORY_TABS[nextIndex]
+    setTab(nextTab)
+    window.setTimeout(() => document.getElementById(`decree-category-${nextTab}`)?.focus(), 0)
   }
 
   return (
-    <div className="action-area">
-      <div className="category-tabs">
+    <section className="action-area" aria-labelledby="command-surface-title">
+      <SurfaceHeader
+        icon="document"
+        title="政令与行动"
+        meta={actionLocked ? (hasBlockingEvent ? '事件待决' : '结算中') : `当前：${tab}`}
+        id="command-surface-title"
+      />
+      <div className="category-tabs" role="tablist" aria-label="政令分类">
         {CATEGORY_TABS.map(c => (
           <button
             key={c}
             className={`cat-tab${tab === c ? ' active' : ''}`}
+            id={`decree-category-${c}`}
+            role="tab"
+            aria-selected={tab === c}
+            aria-controls="decree-tab-content"
+            tabIndex={tab === c ? 0 : -1}
             onClick={() => setTab(c)}
+            onKeyDown={(event) => handleCategoryTabKeyDown(event, c)}
           >{c}</button>
         ))}
       </div>
 
-      <div className="decree-tab-content">
+      <div className="decree-tab-content" id="decree-tab-content" role="tabpanel" aria-labelledby={`decree-category-${tab}`}>
           <div
             className="decree-grid"
           >
@@ -72,8 +106,9 @@ export default function ActionArea({
                   className="decree-btn"
                   disabled={!ok || actionLocked || usedThisMonth}
                   title={ok ? DECREE_LABELS[type] : PRECONDITION_MESSAGES[type]}
-                  onClick={() => {
+                  onClick={(event) => {
                     if (actionLocked) return
+                    edictTrigger.current = event.currentTarget
                     setEdictType(type)
                   }}
                 >
@@ -98,7 +133,7 @@ export default function ActionArea({
           placeholder="输入政令（如：整顿军备）"
           disabled={textLocked}
         />
-        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}>下令</button>
+        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}><DesktopIcon name="document" />下令</button>
       </div>
 
       <button
@@ -106,7 +141,7 @@ export default function ActionArea({
         disabled={loading || !!currentModal || hasBlockingEvent || advanceMonthInFlight || actionLocked}
         onClick={onAdvanceMonth}
       >
-        {advanceMonthInFlight && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />}
+        {advanceMonthInFlight ? <div className="spinner command-spinner" /> : <DesktopIcon name="clock" />}
         进入下月
       </button>
 
@@ -119,6 +154,6 @@ export default function ActionArea({
           onCancel={handleEdictCancel}
         />
       )}
-    </div>
+    </section>
   )
 }

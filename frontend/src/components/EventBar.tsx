@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Markdown from 'react-markdown'
 import type { GameEvent } from '../types/game'
+import SurfaceHeader from './SurfaceHeader'
+import DesktopIcon from './DesktopIcon'
 
 interface Props {
   events: GameEvent[]
@@ -28,23 +30,30 @@ export default function EventBar({ events, pendingMemorials = 0, onScriptClick, 
   }
 
   return (
-    <div className="event-bar">
-      <div className="event-bar-title">近期事件</div>
+    <section className="event-bar" aria-labelledby="event-report-title">
+      <SurfaceHeader icon="document" title="事件与奏报" meta={recent.length ? `近报 ${recent.length}` : '暂无新报'} id="event-report-title" />
       {pendingMemorials > 0 && (
-        <div className="event-item memorial-notify" onClick={onMemorialClick}>
+        <button type="button" className="event-item memorial-notify" onClick={onMemorialClick}>
           <span className="event-badge urg-high" />
           <span className="event-title">奏折待批</span>
           <span className="memorial-badge">{pendingMemorials}</span>
-        </div>
+          <DesktopIcon name="chevron" size={13} />
+        </button>
       )}
-      {recent.length === 0 && <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)' }}>暂无事件</div>}
+      {recent.length === 0 && <div className="event-empty-state">天下暂无新报，已结算事项将在此列示。</div>}
       {recent.map((e, i) => (
         <div key={`${e.name}-${i}`}>
-          <div className="event-item" onClick={() => handleClick(e)}>
+          <button
+            type="button"
+            className="event-item"
+            aria-expanded={!e.is_scripted || e.choices.length === 0 ? expanded === e.name : undefined}
+            onClick={() => handleClick(e)}
+          >
             <span className={`event-badge ${urgClass(e.urgency)}`} />
             <span className="event-title">{e.name}</span>
             {e.is_scripted && <span className="event-scripted-badge">剧情</span>}
-          </div>
+            <DesktopIcon name="chevron" size={13} />
+          </button>
           {expanded === e.name && (
             <div className="event-narrative">
               {e.rich_description
@@ -54,6 +63,6 @@ export default function EventBar({ events, pendingMemorials = 0, onScriptClick, 
           )}
         </div>
       ))}
-    </div>
+    </section>
   )
 }

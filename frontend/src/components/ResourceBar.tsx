@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { GameState } from '../types/game'
 import { api } from '../api/client'
 import HistoricalCalendar from './HistoricalCalendar'
+import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
 
 interface Props {
   state: GameState
@@ -37,6 +38,14 @@ const RESOURCE_INFO: Record<string, string> = {
   civil_morale: '民心：治下安宁度，过低则生民变。',
   military_morale: '军心：将士效命度，关乎战力。',
   court_prestige: '威望：君主号令之重，影响外交与朝堂。',
+}
+
+interface ToolCommand {
+  label: string
+  icon: DesktopIconName
+  onClick: () => void
+  title?: string
+  danger?: boolean
 }
 
 function barColor(val: number, max: number): string {
@@ -104,6 +113,16 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
   const selectedValue = selectedResource ? Number(state[selectedResource.key]) : 0
   const selectedPrevious = selectedResource ? Number(prevState?.[selectedResource.key] ?? selectedValue) : selectedValue
   const selectedDiff = selectedValue - selectedPrevious
+  const toolCommands: ToolCommand[] = [
+    { label: '存档', icon: 'save', onClick: onSave },
+    { label: '读档', icon: 'folder', onClick: onShowSaves },
+    { label: '对话', icon: 'chat', onClick: onOpenChat, title: '进入对话模式' },
+    ...(onOpenTrpg ? [{ label: '跑团', icon: 'dice' as const, onClick: onOpenTrpg, title: '进入跑团模式' }] : []),
+    ...(onOpenContinuity ? [{ label: '连续性', icon: 'branch' as const, onClick: onOpenContinuity, title: '查看世界分支、书签和活动' }] : []),
+    { label: 'AI', icon: 'settings', onClick: onOpenAiSettings, title: '打开 AI 设置' },
+    ...(onOpenGuide ? [{ label: '指引', icon: 'book' as const, onClick: onOpenGuide, title: '查看界面操作指引' }] : []),
+    { label: '新局', icon: 'refresh', onClick: onNewGame, title: '开始新局', danger: true },
+  ]
 
   return (
     <div className="resource-bar">
@@ -160,27 +179,30 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
           <p className="resource-details-note">{RESOURCE_INFO[selectedResource.key] || selectedResource.label}</p>
         </div>
       )}
-      <div className="toolbar-actions">
+      <nav className="toolbar-actions" aria-label="全局工具">
         <button
+          type="button"
           className={`toolbar-btn${fallbackEnabled ? ' active-toggle' : ''}`}
           onClick={toggleFallback}
           title={fallbackEnabled ? '本地规则兜底已开启' : '本地规则兜底已关闭'}
         >
-          {fallbackEnabled ? '兜底:开' : '兜底:关'}
+          <DesktopIcon name="shield" />
+          <span>{fallbackEnabled ? '兜底开' : '兜底关'}</span>
         </button>
-        <button className="toolbar-btn" onClick={onSave}>存档</button>
-        <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
-        <button className="toolbar-btn" onClick={onOpenChat}>对话模式</button>
-        {onOpenTrpg && <button className="toolbar-btn" onClick={onOpenTrpg}>跑团模式</button>}
-        {onOpenContinuity && (
-          <button className="toolbar-btn" onClick={onOpenContinuity} title="查看世界分支、书签和活动">世界连续性</button>
-        )}
-        <button className="toolbar-btn" onClick={onOpenAiSettings}>AI设置</button>
-        {onOpenGuide && (
-          <button className="toolbar-btn" onClick={onOpenGuide} title="查看界面操作指引">指引</button>
-        )}
-        <button className="toolbar-btn" onClick={onNewGame}>新局</button>
-      </div>
+        {toolCommands.map(command => (
+          <button
+            key={command.label}
+            type="button"
+            className={`toolbar-btn${command.danger ? ' toolbar-btn-danger' : ''}`}
+            onClick={command.onClick}
+            title={command.title ?? command.label}
+            aria-label={command.title ?? command.label}
+          >
+            <DesktopIcon name={command.icon} />
+            <span>{command.label}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }

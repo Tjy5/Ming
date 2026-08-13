@@ -104,6 +104,9 @@ export default function EdictWritingPanel({
           <motion.div
             key="edict"
             className="edict-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edict-dialog-title"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, width: 0, padding: 0 }}
@@ -111,7 +114,7 @@ export default function EdictWritingPanel({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="edict-vertical-title">奉天承运皇帝诏曰</div>
-            <div className="edict-header">{DECREE_LABELS[type]}</div>
+            <div className="edict-header" id="edict-dialog-title">{DECREE_LABELS[type]}</div>
 
             {!canIssue && (
               <div className="edict-warn">{PRECONDITION_MESSAGES[type]}</div>

@@ -154,4 +154,39 @@ describe('App adoption result integrity', () => {
     expect(modal?.getAttribute('data-settlement-id')).toBe(response.settlement_id)
     expect(modal?.getAttribute('data-context-version-id')).toBe(response.context_version_id)
   })
+
+  it('marks unavailable management categories honestly and restores memorial trigger focus', async () => {
+    const initialState = {
+      ...gameState(22),
+      memorials: [{
+        id: 'memorial-1',
+        title: '请修河堤疏',
+        author_name: '徐达',
+        author_faction: '淮西',
+        content: '请发民夫修筑河堤。',
+        trigger_reason: '连月阴雨',
+        urgency: 'high',
+        status: 'pending',
+      }],
+    } as GameState
+    vi.spyOn(api, 'getCapabilities').mockResolvedValue({ debate_supported: true, assembly_supported: true, memorial_enabled: true })
+    vi.spyOn(api, 'getSettings').mockResolvedValue({ rule_parse_fallback: false })
+    useStore.setState({ state: initialState })
+
+    render(<MemoryRouter><App /></MemoryRouter>)
+
+    expect((screen.getByRole('tab', { name: '阶层，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('tab', { name: '军队，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)
+    const factionTab = screen.getByRole('tab', { name: '派系' })
+    fireEvent.keyDown(factionTab, { key: 'ArrowRight' })
+    expect(screen.getByRole('tab', { name: '大臣' }).getAttribute('aria-selected')).toBe('true')
+    const trigger = screen.getByRole('button', { name: /奏折待批/ })
+    trigger.focus()
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog', { name: '奏折批阅' })).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: '退出批阅' }))
+    })
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
 })

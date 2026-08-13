@@ -15,6 +15,43 @@ import type {
 import { DECREE_LABELS, DECREE_TYPES } from '../types/game'
 import { isAbortError, showCancelToast } from '../utils/toast'
 
+const MIN_ASSEMBLY_PARTICIPANTS = 10
+const ASSEMBLY_PARTICIPATE_CAPABILITY = 'governance.assembly.participate'
+const ASSEMBLY_ACTOR_ENTITY_TYPES = new Set([
+  'person',
+  'faction',
+  'institution',
+  'temporary_authority',
+])
+
+function countAssemblyParticipants(state: GameState): number {
+  const registry = state.entity_registry
+  if (!registry || Object.keys(registry).length === 0) {
+    return state.ministers.filter((minister) => minister.status === 'active').length
+  }
+
+  const activeLegacyMinisters = new Set(
+    state.ministers
+      .filter((minister) => minister.status === 'active')
+      .map((minister) => minister.name),
+  )
+
+  return Object.values(registry).filter((entity) => {
+    if (
+      !ASSEMBLY_ACTOR_ENTITY_TYPES.has(entity.entity_type)
+      || entity.status !== 'active'
+      || !entity.available
+      || !entity.permissions?.some((permission) => permission.capability === ASSEMBLY_PARTICIPATE_CAPABILITY)
+    ) {
+      return false
+    }
+
+    return entity.entity_type !== 'person'
+      || !entity.legacy_name
+      || activeLegacyMinisters.has(entity.legacy_name)
+  }).length
+}
+
 /* ── Props interfaces ── */
 interface PanelProps {
   state: GameState
@@ -47,6 +84,9 @@ export default function CourtAssemblyView(props: Props) {
       <div className="modal-overlay" onClick={props.onClose}>
         <motion.div
           className="modal assembly-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="朝议"
           onClick={e => e.stopPropagation()}
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -81,8 +121,16 @@ function AssemblyPanel({
   const [panelLoading, setPanelLoading] = useState(false)
   const [panelError, setPanelError] = useState<string | null>(null)
 
-  const activeMinisters = state.ministers.filter((m) => m.status === 'active').length
-  const canConvene = !loading && !panelLoading
+  const participantCount = countAssemblyParticipants(state)
+  const hasVersionedRegistry = Boolean(
+    state.world_metadata?.version_id
+    && state.entity_registry
+    && Object.keys(state.entity_registry).length > 0,
+  )
+  // A versioned registry vacuum is repaired by the backend before assembly validation.
+  const continuityMayRestoreRoster = hasVersionedRegistry && participantCount === 0
+  const hasEnoughParticipants = continuityMayRestoreRoster || participantCount >= MIN_ASSEMBLY_PARTICIPANTS
+  const canConvene = hasEnoughParticipants && !loading && !panelLoading
 
   async function handleStartAssembly() {
     if (!canConvene) return
@@ -124,8 +172,10 @@ function AssemblyPanel({
         {!capabilities.assembly_supported && (
           <div className="assembly-error">当前配置显示朝会可能不可用，仍可尝试召集</div>
         )}
-        {activeMinisters < 10 && (
-          <div className="assembly-error">在朝大臣不足 10 人，无法召开朝会</div>
+        {!hasEnoughParticipants && (
+          <div className="assembly-error">
+            在朝大臣不足 {MIN_ASSEMBLY_PARTICIPANTS} 人，无法召开朝会
+          </div>
         )}
         {panelError && (
           <div className="assembly-error">{panelError}</div>

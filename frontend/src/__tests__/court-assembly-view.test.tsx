@@ -10,6 +10,7 @@ import type { CourtAssembly, DecreeResponse, GameState } from '../types/game'
 vi.mock('../api/client', () => ({
   api: {
     adoptSuggestion: vi.fn(),
+    startAssembly: vi.fn(),
   },
   ApiError: class ApiError extends Error {
     status: number
@@ -24,6 +25,7 @@ vi.mock('../api/client', () => ({
 }))
 
 const adoptSuggestionMock = vi.mocked(api.adoptSuggestion)
+const startAssemblyMock = vi.mocked(api.startAssembly)
 
 function gameState(): GameState {
   return {
@@ -49,6 +51,25 @@ function gameState(): GameState {
     event_cooldowns: {},
     resolved_script_ids: [],
   }
+}
+
+function assemblyParticipantRegistry(count: number): NonNullable<GameState['entity_registry']> {
+  return Object.fromEntries(Array.from({ length: count }, (_, index) => [
+    `participant-${index}`,
+    {
+      entity_id: `participant-${index}`,
+      display_name: `议政主体${index}`,
+      entity_type: 'institution',
+      status: 'active',
+      available: true,
+      source: { kind: 'system', summary: 'test assembly participant' },
+      institution_kind: 'council',
+      permissions: [{
+        permission_id: `permission-${index}`,
+        capability: 'governance.assembly.participate',
+      }],
+    },
+  ]))
 }
 
 function assembly(): CourtAssembly {
@@ -131,6 +152,118 @@ afterEach(() => {
 })
 
 describe('CourtAssemblyView 候选依据与采用模式', () => {
+  it('disables convening when fewer than ten active ministers are available', () => {
+    render(
+      <CourtAssemblyView
+        state={gameState()}
+        capabilities={{ debate_supported: true, assembly_supported: true, memorial_enabled: true }}
+        loading={false}
+        onStateUpdate={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('在朝大臣不足 10 人，无法召开朝会')).toBeTruthy()
+    const conveneButton = screen.getByRole('button', { name: '召开朝会' }) as HTMLButtonElement
+    expect(conveneButton.disabled).toBe(true)
+
+    fireEvent.click(conveneButton)
+
+    expect(startAssemblyMock).not.toHaveBeenCalled()
+  })
+
+  it('counts eligible registry actors when deciding whether the backend participant minimum is met', async () => {
+    startAssemblyMock.mockResolvedValue({
+      ...assembly(),
+      phase: 'petition',
+    })
+    render(
+      <CourtAssemblyView
+        state={{ ...gameState(), entity_registry: assemblyParticipantRegistry(10) }}
+        capabilities={{ debate_supported: true, assembly_supported: true, memorial_enabled: true }}
+        loading={false}
+        onStateUpdate={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByText('在朝大臣不足 10 人，无法召开朝会')).toBeNull()
+    const conveneButton = screen.getByRole('button', { name: '召开朝会' }) as HTMLButtonElement
+    expect(conveneButton.disabled).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(conveneButton)
+    })
+
+    expect(startAssemblyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not block a versioned registry vacuum that the backend restores through continuity', async () => {
+    startAssemblyMock.mockResolvedValue({
+      ...assembly(),
+      phase: 'petition',
+    })
+    const nonParticipantRegistry = assemblyParticipantRegistry(1)
+    Object.values(nonParticipantRegistry)[0].permissions = []
+    render(
+      <CourtAssemblyView
+        state={{
+          ...gameState(),
+          world_metadata: {
+            schema_version: 1,
+            calendar_schema_version: 'yuanming-calendar-v1',
+            game_id: 'game-1',
+            branch_id: 'branch-1',
+            version_id: 'version-1',
+            source_kind: 'settlement',
+          },
+          entity_registry: nonParticipantRegistry,
+        }}
+        capabilities={{ debate_supported: true, assembly_supported: true, memorial_enabled: true }}
+        loading={false}
+        onStateUpdate={vi.fn()}
+      />,
+    )
+
+    const conveneButton = screen.getByRole('button', { name: '召开朝会' }) as HTMLButtonElement
+    expect(conveneButton.disabled).toBe(false)
+    await act(async () => {
+      fireEvent.click(conveneButton)
+    })
+    expect(startAssemblyMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats an empty registry as a legacy roster instead of a continuity vacuum', () => {
+    render(
+      <CourtAssemblyView
+        state={{ ...gameState(), entity_registry: {} }}
+        capabilities={{ debate_supported: true, assembly_supported: true, memorial_enabled: true }}
+        loading={false}
+        onStateUpdate={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('在朝大臣不足 10 人，无法召开朝会')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '召开朝会' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(startAssemblyMock).not.toHaveBeenCalled()
+  })
+
+  it('excludes registry entries outside the backend actor projection', () => {
+    const officeRegistry = assemblyParticipantRegistry(10)
+    for (const entity of Object.values(officeRegistry)) {
+      entity.entity_type = 'office'
+    }
+    render(
+      <CourtAssemblyView
+        state={{ ...gameState(), entity_registry: officeRegistry }}
+        capabilities={{ debate_supported: true, assembly_supported: true, memorial_enabled: true }}
+        loading={false}
+        onStateUpdate={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('在朝大臣不足 10 人，无法召开朝会')).toBeTruthy()
+    expect((screen.getByRole('button', { name: '召开朝会' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('renders safe factors in a folded detail and submits original provenance', async () => {
     adoptSuggestionMock.mockResolvedValue(adoptionResponse('original'))
     const { onAdoptionResult, onClose } = renderAssembly()
