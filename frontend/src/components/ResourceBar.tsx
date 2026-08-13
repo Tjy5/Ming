@@ -11,6 +11,7 @@ interface Props {
   onNewGame: () => void
   onOpenAiSettings: () => void
   onOpenChat: () => void
+  onOpenTrpg?: () => void
   onOpenContinuity?: () => void
   onOpenGuide?: () => void
 }
@@ -45,7 +46,7 @@ function barColor(val: number, max: number): string {
   return 'var(--red)'
 }
 
-export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenContinuity, onOpenGuide }: Props) {
+export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenTrpg, onOpenContinuity, onOpenGuide }: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
   const [detailsKey, setDetailsKey] = useState<keyof GameState | null>(null)
   const detailTrigger = useRef<HTMLButtonElement | null>(null)
@@ -170,6 +171,7 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
         <button className="toolbar-btn" onClick={onSave}>存档</button>
         <button className="toolbar-btn" onClick={onShowSaves}>读档</button>
         <button className="toolbar-btn" onClick={onOpenChat}>对话模式</button>
+        {onOpenTrpg && <button className="toolbar-btn" onClick={onOpenTrpg}>跑团模式</button>}
         {onOpenContinuity && (
           <button className="toolbar-btn" onClick={onOpenContinuity} title="查看世界分支、书签和活动">世界连续性</button>
         )}

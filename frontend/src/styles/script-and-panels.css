@@ -398,6 +398,26 @@
   font-size: 0.82rem;
 }
 
+.trpg-entry-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--ink-line);
+  background: var(--bg-panel);
+}
+
+.trpg-entry-panel strong,
+.trpg-entry-panel span { display: block; }
+.trpg-entry-panel strong { color: var(--text-main); }
+.trpg-entry-panel span { margin-top: 4px; color: var(--text-dim); font-size: 0.82rem; }
+
+@media (max-width: 720px) {
+  .trpg-entry-panel { align-items: stretch; flex-direction: column; }
+}
+
 /* ── Minister Panel ────────────────────────────────────── */
 .minister-panel {
   padding: 8px;

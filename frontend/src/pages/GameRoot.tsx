@@ -11,7 +11,12 @@ import { resolvePhaseRoute } from '../components/trpg/trpgLogic'
 import App from '../App'
 import LifeStoryPage from './LifeStoryPage'
 
-export default function GameRoot() {
+interface Props {
+  forceMap?: boolean
+  forceTrpg?: boolean
+}
+
+export default function GameRoot({ forceMap = false, forceTrpg = false }: Props) {
   const state = useStore((s) => s.state)
   const setState = useStore((s) => s.setState)
   const setError = useStore((s) => s.setError)
@@ -39,6 +44,6 @@ export default function GameRoot() {
     )
   }
 
-  if (route === 'life_story') return <LifeStoryPage />
+  if (forceTrpg || (!forceMap && route === 'life_story')) return <LifeStoryPage />
   return <App />
 }

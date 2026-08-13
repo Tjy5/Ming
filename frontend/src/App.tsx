@@ -311,6 +311,8 @@ function App() {
     )
   }
 
+  const isLifeStory = state.phase === 'life_story'
+
   return (
     <div className="game-layout">
       <ResourceBar
@@ -320,6 +322,7 @@ function App() {
         onShowSaves={() => setShowSaves(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
         onOpenChat={() => navigate('/chat')}
+        onOpenTrpg={() => navigate('/trpg')}
         onOpenContinuity={() => navigate('/continuity')}
         onOpenGuide={() => setGuideOpen(true)}
         onNewGame={handleNewGame}
@@ -401,18 +404,28 @@ function App() {
           }}
         />
         <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <ActionArea
-            state={state}
-            loading={loading}
-            hasBlockingEvent={hasBlockingEvent}
-            onDecree={executeDecrees}
-            onFreeText={handleFreeText}
-            onAdvanceMonth={handleAdvanceMonth}
-            advanceMonthInFlight={advanceMonthInFlight}
-            currentModal={currentModal}
-            targetRegion={targetRegion}
-            onClearTargetRegion={() => setTargetRegion(null)}
-          />
+          {isLifeStory ? (
+            <section className="trpg-entry-panel" aria-labelledby="trpg-entry-title">
+              <div>
+                <strong id="trpg-entry-title">跑团篇章正在进行</strong>
+                <span>从地图查看天下局势，进入跑团模式继续角色行动。</span>
+              </div>
+              <button type="button" className="modal-btn" onClick={() => navigate('/trpg')}>进入跑团</button>
+            </section>
+          ) : (
+            <ActionArea
+              state={state}
+              loading={loading}
+              hasBlockingEvent={hasBlockingEvent}
+              onDecree={executeDecrees}
+              onFreeText={handleFreeText}
+              onAdvanceMonth={handleAdvanceMonth}
+              advanceMonthInFlight={advanceMonthInFlight}
+              currentModal={currentModal}
+              targetRegion={targetRegion}
+              onClearTargetRegion={() => setTargetRegion(null)}
+            />
+          )}
         </div>
       </div>
 

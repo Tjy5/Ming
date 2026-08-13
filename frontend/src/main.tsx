@@ -13,7 +13,8 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<GameRoot />} />
+        <Route path="/" element={<GameRoot forceMap />} />
+        <Route path="/trpg" element={<GameRoot forceTrpg />} />
         <Route
           path="/admin"
           element={(
@@ -46,7 +47,7 @@ createRoot(document.getElementById('root')!).render(
             </Suspense>
           )}
         />
-        <Route path="*" element={<GameRoot />} />
+        <Route path="*" element={<GameRoot forceMap />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
