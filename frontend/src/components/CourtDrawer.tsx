@@ -4,12 +4,12 @@ import FactionPanel from './FactionPanel'
 import MinisterPanel from './MinisterPanel'
 import CourtAssemblyView from './CourtAssemblyView'
 import MissionPanel from './MissionPanel'
-import DesktopIcon from './DesktopIcon'
+import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
 
 export type CourtDrawerTab = 'faction' | 'minister' | 'assembly'
 
-const COURT_TABS: { id: CourtDrawerTab; label: string; icon: import('./DesktopIcon').DesktopIconName }[] = [
-  { id: 'faction', label: '派系', icon: 'users' },
+const COURT_TABS: { id: CourtDrawerTab; label: string; icon: DesktopIconName }[] = [
+  { id: 'faction', label: '派系', icon: 'branch' },
   { id: 'minister', label: '大臣', icon: 'users' },
   { id: 'assembly', label: '朝议', icon: 'archive' },
 ]
@@ -43,12 +43,14 @@ export function CourtDrawerHandles({ isOpen, activeTab, onTabChange }: CourtDraw
         <button
           key={tab.id}
           type="button"
-          className={`drawer-tab-handle${isOpen && activeTab === tab.id ? ' active' : ''}`}
+          className={`rail-icon-button drawer-tab-handle${isOpen && activeTab === tab.id ? ' active' : ''}`}
           onClick={() => onTabChange(tab.id)}
           title={`打开${tab.label}面板`}
+          aria-label={tab.label}
           aria-expanded={isOpen && activeTab === tab.id}
         >
-          {tab.label}
+          <DesktopIcon name={tab.icon} size={21} />
+          <span className="rail-tooltip" aria-hidden="true">{tab.label}</span>
         </button>
       ))}
     </div>

@@ -1,15 +1,16 @@
 import {
+  useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type WheelEvent as ReactWheelEvent,
 } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Region, RegionControl } from '../types/game'
-import DesktopIcon from './DesktopIcon'
+import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
 import {
   MAP_MODE_PRESENTATIONS,
   VIEW_MODES,
@@ -49,6 +50,14 @@ const MIN_MAP_ZOOM = 1
 const MAX_MAP_ZOOM = 3
 const MAP_ZOOM_STEP = 1.25
 const MAP_WHEEL_ZOOM_STEP = 1.15
+const MAP_MODE_ICONS: Record<ViewMode, DesktopIconName> = {
+  standard: 'map',
+  disaster: 'alert',
+  morale: 'heart',
+  rebellion: 'flag',
+  tax_rate: 'percent',
+  tax_collected: 'coins',
+}
 const DEFAULT_MAP_CAMERA = {
   centerX: BASE_MAP_VIEW.x + BASE_MAP_VIEW.width / 2,
   centerY: BASE_MAP_VIEW.y + BASE_MAP_VIEW.height / 2,
@@ -179,6 +188,7 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
   const [mapViewport, setMapViewport] = useState<MapViewport>(DEFAULT_MAP_VIEWPORT)
   const [isDraggingMap, setIsDraggingMap] = useState(false)
   const mapSurface = useRef<HTMLDivElement | null>(null)
+  const mapSvg = useRef<SVGSVGElement | null>(null)
   const mapDrag = useRef<MapDragState | null>(null)
   const joined = useMemo(() => joinRegionsToGovernanceDivisions(regions), [regions])
   const mappedRegions = useMemo(() => joined.divisions.flatMap((division) => division.region ? [division.region] : []), [joined])
@@ -226,9 +236,11 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
     })
   }
 
-  function handleMapWheel(event: ReactWheelEvent<SVGSVGElement>) {
+  const handleMapWheel = useCallback((event: WheelEvent) => {
     event.preventDefault()
-    const svgBounds = event.currentTarget.getBoundingClientRect()
+    const svg = event.currentTarget
+    if (!(svg instanceof SVGSVGElement)) return
+    const svgBounds = svg.getBoundingClientRect()
     if (svgBounds.width <= 0 || svgBounds.height <= 0) return
     const focusRatioX = clamp((event.clientX - svgBounds.left) / svgBounds.width, 0, 1)
     const focusRatioY = clamp((event.clientY - svgBounds.top) / svgBounds.height, 0, 1)
@@ -250,7 +262,14 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
         zoom,
       }, mapViewport)
     })
-  }
+  }, [mapViewport])
+
+  useEffect(() => {
+    const svg = mapSvg.current
+    if (!svg) return
+    svg.addEventListener('wheel', handleMapWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', handleMapWheel)
+  }, [handleMapWheel])
 
   function handleMapPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (event.button !== 0) return
@@ -348,12 +367,12 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
     <div className="region-map-container">
       <div ref={mapSurface} className={`region-map geographic-map mode-${viewMode}`} data-view-mode={viewMode}>
         <svg
+          ref={mapSvg}
           viewBox={formatViewBox(mapView)}
           aria-labelledby="region-map-title region-map-description"
           preserveAspectRatio="xMidYMid meet"
           className={`is-pannable${mapZoom > MIN_MAP_ZOOM ? ' is-zoomed' : ''}${isDraggingMap ? ' is-dragging' : ''}`}
           data-map-zoom={mapZoom.toFixed(2)}
-          onWheel={handleMapWheel}
           onPointerDown={handleMapPointerDown}
           onPointerMove={handleMapPointerMove}
           onPointerUp={endMapDrag}
@@ -481,12 +500,6 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
             })}
           </g>
         </svg>
-        <div className="map-zoom-controls" role="group" aria-label="地图缩放">
-          <button type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>-</button>
-          <output className="map-zoom-level" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
-          <button type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>+</button>
-          <button type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}><DesktopIcon name="refresh" size={14} /></button>
-        </div>
         {(joined.unmapped.length > 0 || joined.duplicates.length > 0) && (
           <div className="map-data-warning" role="status" aria-label="地图数据告警">
             {joined.unmapped.length > 0 && <span className="map-warning-item warning-unmapped" data-warning-kind="unmapped">未映射：{joined.unmapped.map((region) => region.name).join('、')}</span>}
@@ -515,8 +528,39 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
       </div>
       <aside className="view-switcher" aria-label="地图与朝廷控制">
         {railControls}
-        <div className="map-view-controls" role="group" aria-label="地图视图">
-          {VIEW_MODES.map((mode) => <button key={mode} type="button" className={`view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`} aria-pressed={viewMode === mode} onClick={() => setViewMode(mode)}>{MAP_MODE_PRESENTATIONS[mode].label}</button>)}
+        <div className="map-view-controls" role="group" aria-label="地图模式">
+          {VIEW_MODES.map((mode) => {
+            const label = MAP_MODE_PRESENTATIONS[mode].label
+            return (
+              <button
+                key={mode}
+                type="button"
+                className={`rail-icon-button view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`}
+                aria-label={label}
+                title={`${label}地图模式`}
+                aria-pressed={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+              >
+                <DesktopIcon name={MAP_MODE_ICONS[mode]} size={18} />
+                <span className="rail-tooltip" aria-hidden="true">{label}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="map-zoom-controls" role="group" aria-label="地图镜头">
+          <output className="map-zoom-level" aria-label="当前地图缩放比例" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
+          <button className="rail-icon-button" type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>
+            <DesktopIcon name="minus" size={17} />
+            <span className="rail-tooltip" aria-hidden="true">缩小地图</span>
+          </button>
+          <button className="rail-icon-button" type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>
+            <DesktopIcon name="plus" size={17} />
+            <span className="rail-tooltip" aria-hidden="true">放大地图</span>
+          </button>
+          <button className="rail-icon-button map-reset-view" type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}>
+            <DesktopIcon name="refresh" size={16} />
+            <span className="rail-tooltip" aria-hidden="true">重置地图视图</span>
+          </button>
         </div>
       </aside>
     </div>

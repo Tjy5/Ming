@@ -104,43 +104,30 @@
 .court-drawer-handles {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   width: 100%;
   flex: 0 0 auto;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(138, 109, 47, 0.42);
   pointer-events: auto;
 }
 
 .drawer-tab-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
-  min-height: 35px;
-  padding: 6px 8px;
-  background: var(--bg-card);
-  color: var(--text-dim);
-  border: 1px solid var(--border-control);
-  border-radius: 2px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 0.7rem;
-  white-space: nowrap;
-  transition: border-color 0.2s, color 0.2s, background-color 0.2s, box-shadow 0.2s;
-}
-
-.drawer-tab-handle:hover {
-  border-color: var(--accent-gold);
-  color: var(--text-main);
+  min-height: 42px;
 }
 
 .drawer-tab-handle.active {
   border-color: var(--accent-gold);
   color: var(--text-main);
   background: rgba(138, 109, 47, 0.18);
-  box-shadow: inset 3px 0 0 var(--accent-gold);
+  box-shadow: inset 0 -3px 0 var(--accent-gold);
 }
 
-.drawer-tab-handle:focus-visible { outline: 3px solid var(--ink-teal); outline-offset: 2px; }
+@media (max-height: 820px) {
+  .court-drawer-handles { gap: 4px; padding-bottom: 7px; }
+  .drawer-tab-handle { min-height: 34px; }
+}
 
 .court-drawer-backdrop {
   position: fixed;

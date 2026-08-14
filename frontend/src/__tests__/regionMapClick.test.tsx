@@ -170,7 +170,40 @@ describe('RegionMap administrative governance interaction', () => {
       expect(getByRole('heading', { name: title })).toBeTruthy()
       expect(container.querySelectorAll('.map-legend [data-legend-level]')).toHaveLength(3)
       expect(container.querySelector('[data-governance-division-id="henan-jiangbei"]')?.getAttribute('aria-label')).toContain(value)
+      expect(getByRole('button', { name: buttonLabel }).getAttribute('aria-pressed')).toBe('true')
+      expect(container.querySelectorAll('.map-view-controls [aria-pressed="true"]')).toHaveLength(1)
     }
+  })
+
+  it('orders the court, map mode, and camera groups in one icon control rail', () => {
+    const { container, getByRole, getByLabelText } = render(
+      <RegionMap
+        regions={[makeRegion('应天')]}
+        railControls={<div role="group" aria-label="朝廷抽屉控制" />}
+      />,
+    )
+    const rail = getByRole('complementary', { name: '地图与朝廷控制' })
+    expect(Array.from(rail.children).map((child) => child.getAttribute('aria-label'))).toEqual([
+      '朝廷抽屉控制',
+      '地图模式',
+      '地图镜头',
+    ])
+
+    const modeButtons = Array.from(getByRole('group', { name: '地图模式' }).querySelectorAll('button'))
+    expect(modeButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      '标准', '灾情', '民心', '动乱', '税率', '赋税',
+    ])
+    expect(modeButtons.every((button) => button.querySelector('.desktop-icon'))).toBe(true)
+    expect(modeButtons.every((button) => button.querySelector('.rail-tooltip'))).toBe(true)
+    expect(modeButtons[0].getAttribute('aria-pressed')).toBe('true')
+
+    const camera = getByRole('group', { name: '地图镜头' })
+    expect(Array.from(camera.querySelectorAll('button')).map((button) => button.getAttribute('aria-label'))).toEqual([
+      '缩小地图', '放大地图', '重置地图视图',
+    ])
+    expect(getByLabelText('当前地图缩放比例').textContent).toBe('100%')
+    expect(container.querySelector('.geographic-map .map-zoom-controls')).toBeNull()
+    expect(rail.contains(camera)).toBe(true)
   })
 
   it('zooms with controls and resets to the full East Asia view', () => {

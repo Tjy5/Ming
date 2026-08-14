@@ -176,11 +176,18 @@ describe('App adoption result integrity', () => {
     const { container } = render(<MemoryRouter><App /></MemoryRouter>)
 
     const controlRail = container.querySelector('.view-switcher')
-    expect(controlRail?.contains(screen.getByRole('group', { name: '朝廷抽屉控制' }))).toBe(true)
-    expect(controlRail?.contains(screen.getByRole('group', { name: '地图视图' }))).toBe(true)
+    const courtControls = screen.getByRole('group', { name: '朝廷抽屉控制' })
+    expect(controlRail?.contains(courtControls)).toBe(true)
+    expect(controlRail?.contains(screen.getByRole('group', { name: '地图模式' }))).toBe(true)
+    expect(controlRail?.contains(screen.getByRole('group', { name: '地图镜头' }))).toBe(true)
+    const courtButtons = Array.from(courtControls.querySelectorAll('button'))
+    expect(courtButtons.map((button) => button.getAttribute('aria-label'))).toEqual(['派系', '大臣', '朝议'])
+    expect(courtButtons.every((button) => button.querySelector('.desktop-icon'))).toBe(true)
+    expect(courtButtons.every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true)
 
     // 点击右侧抽屉提手打开抽屉
     fireEvent.click(screen.getByRole('button', { name: '派系' }))
+    expect(screen.getByRole('button', { name: '派系' }).getAttribute('aria-expanded')).toBe('true')
 
     expect((screen.getByRole('tab', { name: '阶层，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('tab', { name: '军队，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)
