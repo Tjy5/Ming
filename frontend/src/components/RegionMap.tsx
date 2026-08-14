@@ -117,6 +117,8 @@ interface MapDragState {
   view: MapView
 }
 
+type MapControlPanel = 'map' | 'camera'
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
 }
@@ -178,9 +180,12 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
   const [mapCamera, setMapCamera] = useState<MapCamera>(DEFAULT_MAP_CAMERA)
   const [mapViewport, setMapViewport] = useState<MapViewport>(DEFAULT_MAP_VIEWPORT)
   const [isDraggingMap, setIsDraggingMap] = useState(false)
+  const [activeControlPanel, setActiveControlPanel] = useState<MapControlPanel | null>(null)
   const mapSurface = useRef<HTMLDivElement | null>(null)
   const mapSvg = useRef<SVGSVGElement | null>(null)
   const mapDrag = useRef<MapDragState | null>(null)
+  const mapPanelTrigger = useRef<HTMLButtonElement | null>(null)
+  const cameraPanelTrigger = useRef<HTMLButtonElement | null>(null)
   const joined = useMemo(() => joinRegionsToGovernanceDivisions(regions), [regions])
   const mappedRegions = useMemo(() => joined.divisions.flatMap((division) => division.region ? [division.region] : []), [joined])
   const taxRanks = useMemo(() => viewMode === 'tax_collected' ? getTaxCollectedRanks(mappedRegions) : null, [viewMode, mappedRegions])
@@ -261,6 +266,30 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
     svg.addEventListener('wheel', handleMapWheel, { passive: false })
     return () => svg.removeEventListener('wheel', handleMapWheel)
   }, [handleMapWheel])
+
+  useEffect(() => {
+    if (!activeControlPanel) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const trigger = activeControlPanel === 'map' ? mapPanelTrigger.current : cameraPanelTrigger.current
+      trigger?.focus()
+      setActiveControlPanel(null)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeControlPanel])
+
+  function toggleControlPanel(panel: MapControlPanel) {
+    setActiveControlPanel((current) => current === panel ? null : panel)
+  }
+
+  function closeControlPanel() {
+    const trigger = activeControlPanel === 'map' ? mapPanelTrigger.current : cameraPanelTrigger.current
+    trigger?.focus()
+    setActiveControlPanel(null)
+  }
 
   function handleMapPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (event.button !== 0) return
@@ -502,61 +531,119 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
             {railControls}
           </nav>
         )}
-        <section className="map-mode-context" aria-live="polite" aria-label={`${presentation.title}图例`}>
-          <div className="map-mode-heading">
-            <h2>{presentation.title}</h2>
-            <span>{presentation.label}</span>
-          </div>
-          <p>{presentation.description}</p>
-          <div className="map-legend">
-            {presentation.legend.map((entry) => (
-              <span key={entry.level} data-legend-level={entry.level}><i className={`legend-swatch legend-${entry.level}`} />{entry.label}<small>{entry.range}</small></span>
-            ))}
-          </div>
-          <div className="map-boundary-legend" aria-label="地图图层图例">
-            <span><i className="boundary-sample polity-boundary-sample" />周边政权</span>
-            <span><i className="boundary-sample admin-boundary-sample" />元代政区</span>
-            <span><i className="governance-division-sample" />可治理行政区</span>
-          </div>
-        </section>
         <p className="map-accuracy-note">约 14 世纪中叶历史归组；现代省界仅用于拼合历史行政区。点击有治理数据的行政区轮廓可查看汇总状态并施政；淡色斜纹区尚未接入本剧本数据。</p>
         <AnimatePresence>{toasts?.map((msg) => <motion.div key={msg} className="map-toast" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{msg}</motion.div>)}</AnimatePresence>
       </div>
-      <aside className="view-switcher" aria-label="地图控制">
-        <div className="map-view-controls" role="group" aria-label="地图模式">
-          <span className="rail-section-title" aria-hidden="true">地图</span>
-          {VIEW_MODES.map((mode) => {
-            const label = MAP_MODE_PRESENTATIONS[mode].label
-            return (
+      <aside className="view-switcher" aria-label="地图控制" data-expanded-panel={activeControlPanel ?? 'none'}>
+        {activeControlPanel && (
+          <section
+            id={`map-${activeControlPanel}-control-panel`}
+            className={`map-control-panel panel-${activeControlPanel}`}
+            role="region"
+            aria-label={activeControlPanel === 'map' ? '地图模式面板' : '地图镜头面板'}
+          >
+            <header className="map-control-panel-header">
+              <div>
+                <span>地图工具</span>
+                <h2>{activeControlPanel === 'map' ? '地图模式' : '地图镜头'}</h2>
+              </div>
               <button
-                key={mode}
                 type="button"
-                className={`rail-text-button view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`}
-                aria-label={label}
-                title={`${label}地图模式`}
-                aria-pressed={viewMode === mode}
-                onClick={() => setViewMode(mode)}
+                className="map-control-panel-close"
+                aria-label={`收起${activeControlPanel === 'map' ? '地图模式' : '地图镜头'}面板`}
+                title="收起面板"
+                onClick={closeControlPanel}
               >
-                <span className="rail-button-label">{label}</span>
+                ×
               </button>
-            )
-          })}
-        </div>
-        <div className="map-zoom-controls" role="group" aria-label="地图镜头">
-          <div className="map-zoom-heading">
-            <span className="rail-section-title" aria-hidden="true">镜头</span>
-            <output className="map-zoom-level" aria-label="当前地图缩放比例" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
-          </div>
-          <button className="rail-text-button" type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>
-            <span className="rail-button-label">缩小</span>
+            </header>
+
+            {activeControlPanel === 'map' ? (
+              <div className="map-control-panel-body">
+                <div className="map-view-controls" role="group" aria-label="地图模式">
+                  {VIEW_MODES.map((mode) => {
+                    const label = MAP_MODE_PRESENTATIONS[mode].label
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={`rail-text-button view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`}
+                        aria-label={label}
+                        title={`${label}地图模式`}
+                        aria-pressed={viewMode === mode}
+                        onClick={() => setViewMode(mode)}
+                      >
+                        <span className="rail-button-label">{label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <section className="map-mode-context" aria-live="polite" aria-label={`${presentation.title}图例`}>
+                  <div className="map-mode-heading">
+                    <h3>{presentation.title}</h3>
+                    <span>{presentation.label}</span>
+                  </div>
+                  <p>{presentation.description}</p>
+                  <div className="map-legend">
+                    {presentation.legend.map((entry) => (
+                      <span key={entry.level} data-legend-level={entry.level}><i className={`legend-swatch legend-${entry.level}`} />{entry.label}<small>{entry.range}</small></span>
+                    ))}
+                  </div>
+                  <div className="map-boundary-legend" aria-label="地图图层图例">
+                    <span><i className="boundary-sample polity-boundary-sample" />周边政权</span>
+                    <span><i className="boundary-sample admin-boundary-sample" />元代政区</span>
+                    <span><i className="governance-division-sample" />可治理行政区</span>
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <div className="map-control-panel-body">
+                <div className="map-zoom-controls" role="group" aria-label="地图镜头">
+                  <div className="map-zoom-heading">
+                    <span>当前缩放</span>
+                    <output className="map-zoom-level" aria-label="当前地图缩放比例" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
+                  </div>
+                  <button className="rail-text-button" type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>
+                    <span className="rail-button-label">缩小</span>
+                  </button>
+                  <button className="rail-text-button" type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>
+                    <span className="rail-button-label">放大</span>
+                  </button>
+                  <button className="rail-text-button map-reset-view" type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}>
+                    <span className="rail-button-label">复位</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        <nav className="map-control-dock" aria-label="地图工具入口">
+          <button
+            ref={mapPanelTrigger}
+            type="button"
+            className={`map-dock-button${activeControlPanel === 'map' ? ' active' : ''}`}
+            aria-label="地图模式"
+            aria-expanded={activeControlPanel === 'map'}
+            aria-controls="map-map-control-panel"
+            title="地图模式"
+            onClick={() => toggleControlPanel('map')}
+          >
+            地图
           </button>
-          <button className="rail-text-button" type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>
-            <span className="rail-button-label">放大</span>
+          <button
+            ref={cameraPanelTrigger}
+            type="button"
+            className={`map-dock-button camera-dock-button${activeControlPanel === 'camera' ? ' active' : ''}`}
+            aria-label="地图镜头"
+            aria-expanded={activeControlPanel === 'camera'}
+            aria-controls="map-camera-control-panel"
+            title="地图镜头"
+            onClick={() => toggleControlPanel('camera')}
+          >
+            镜头
           </button>
-          <button className="rail-text-button map-reset-view" type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}>
-            <span className="rail-button-label">复位</span>
-          </button>
-        </div>
+        </nav>
       </aside>
     </div>
   )

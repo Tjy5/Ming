@@ -12,6 +12,14 @@
   pointer-events: auto;
 }
 
+.main-area:has(.view-switcher[data-expanded-panel]:not([data-expanded-panel="none"])) .hud-bottom-bar {
+  right: calc(var(--map-control-rail-width) + var(--map-control-panel-width) + 20px);
+}
+
+@media (max-width: 600px) {
+  .main-area:has(.view-switcher[data-expanded-panel]:not([data-expanded-panel="none"])) .hud-bottom-bar { display: none; }
+}
+
 .hud-edict-btn {
   display: inline-flex;
   align-items: center;
