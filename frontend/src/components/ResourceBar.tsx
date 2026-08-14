@@ -7,6 +7,10 @@ import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
 interface Props {
   state: GameState
   prevState: GameState | null
+  pendingMemorials?: number
+  onMemorialClick?: () => void
+  blockingEvents?: number
+  onBlockingEventClick?: () => void
   onSave: () => void
   onShowSaves: () => void
   onNewGame: () => void
@@ -55,7 +59,22 @@ function barColor(val: number, max: number): string {
   return 'var(--red)'
 }
 
-export default function ResourceBar({ state, prevState, onSave, onShowSaves, onNewGame, onOpenAiSettings, onOpenChat, onOpenTrpg, onOpenContinuity, onOpenGuide }: Props) {
+export default function ResourceBar({
+  state,
+  prevState,
+  pendingMemorials = 0,
+  onMemorialClick,
+  blockingEvents = 0,
+  onBlockingEventClick,
+  onSave,
+  onShowSaves,
+  onNewGame,
+  onOpenAiSettings,
+  onOpenChat,
+  onOpenTrpg,
+  onOpenContinuity,
+  onOpenGuide,
+}: Props) {
   const [fallbackEnabled, setFallbackEnabled] = useState(false)
   const [detailsKey, setDetailsKey] = useState<keyof GameState | null>(null)
   const detailTrigger = useRef<HTMLButtonElement | null>(null)
@@ -177,6 +196,34 @@ export default function ResourceBar({ state, prevState, onSave, onShowSaves, onN
             <div><dt>未来收支</dt><dd>仅显示已落库承诺，预测不计入余额</dd></div>
           </dl>
           <p className="resource-details-note">{RESOURCE_INFO[selectedResource.key] || selectedResource.label}</p>
+        </div>
+      )}
+      {(pendingMemorials > 0 || blockingEvents > 0) && (
+        <div className="ck3-alerts-bar" aria-label="紧急待办提醒">
+          {pendingMemorials > 0 && (
+            <button
+              type="button"
+              className="ck3-alert-badge"
+              onClick={onMemorialClick}
+              title={`有 ${pendingMemorials} 份奏折待批阅`}
+              aria-label={`奏折待批 ${pendingMemorials} 份`}
+            >
+              <span>📜 奏折待批</span>
+              <span className="ck3-alert-badge-count">{pendingMemorials}</span>
+            </button>
+          )}
+          {blockingEvents > 0 && (
+            <button
+              type="button"
+              className="ck3-alert-badge"
+              onClick={onBlockingEventClick}
+              title={`有 ${blockingEvents} 项关键剧情亟待裁断`}
+              aria-label={`关键剧情待决 ${blockingEvents} 项`}
+            >
+              <span>🚨 剧情决断</span>
+              <span className="ck3-alert-badge-count">{blockingEvents}</span>
+            </button>
+          )}
         </div>
       )}
       <nav className="toolbar-actions" aria-label="全局工具">

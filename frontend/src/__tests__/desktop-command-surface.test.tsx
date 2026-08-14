@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import ActionArea from '../components/ActionArea'
-import EventBar from '../components/EventBar'
+import Ck3EventFeed from '../components/Ck3EventFeed'
+import ImperialEdictModal from '../components/ImperialEdictModal'
+import CommandHud from '../components/CommandHud'
 import ResourceBar from '../components/ResourceBar'
 import type { GameEvent, GameState } from '../types/game'
 
@@ -32,14 +33,20 @@ function event(overrides: Partial<GameEvent> = {}): GameEvent {
 afterEach(cleanup)
 
 describe('desktop command and report surfaces', () => {
-  it('keeps global tool callbacks distinct behind accessible icon commands', () => {
+  it('keeps global tool callbacks and CK3 alert badges distinct behind accessible icon commands', () => {
     const onSave = vi.fn()
     const onNewGame = vi.fn()
     const onOpenContinuity = vi.fn()
+    const onMemorialClick = vi.fn()
+    const onBlockingEventClick = vi.fn()
     render(
       <ResourceBar
         state={gameState()}
         prevState={null}
+        pendingMemorials={2}
+        onMemorialClick={onMemorialClick}
+        blockingEvents={1}
+        onBlockingEventClick={onBlockingEventClick}
         onSave={onSave}
         onShowSaves={() => {}}
         onNewGame={onNewGame}
@@ -52,75 +59,84 @@ describe('desktop command and report surfaces', () => {
     fireEvent.click(screen.getByRole('button', { name: '存档' }))
     fireEvent.click(screen.getByRole('button', { name: '查看世界分支、书签和活动' }))
     fireEvent.click(screen.getByRole('button', { name: '开始新局' }))
+    fireEvent.click(screen.getByRole('button', { name: /奏折待批/ }))
+    fireEvent.click(screen.getByRole('button', { name: /关键剧情待决/ }))
+
     expect(onSave).toHaveBeenCalledTimes(1)
     expect(onOpenContinuity).toHaveBeenCalledTimes(1)
     expect(onNewGame).toHaveBeenCalledTimes(1)
+    expect(onMemorialClick).toHaveBeenCalledTimes(1)
+    expect(onBlockingEventClick).toHaveBeenCalledTimes(1)
   })
 
-  it('distinguishes expandable reports from scripted event actions', () => {
+  it('distinguishes expandable reports from scripted event actions in CK3EventFeed', () => {
     const onScriptClick = vi.fn()
     render(
-      <EventBar
+      <Ck3EventFeed
         events={[
           event(),
           event({ name: '军议急报', is_scripted: true, choices: [{ label: '固守', description: '据城固守', decrees: [] }] }),
         ]}
-        pendingMemorials={2}
         onScriptClick={onScriptClick}
       />,
     )
 
     fireEvent.click(screen.getByRole('button', { name: /漕运迟滞/ }))
-    expect(screen.getByText('漕粮未能如期抵达。')).toBeTruthy()
+    expect(document.querySelector('.ck3-event-expanded')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /军议急报/ }))
     expect(onScriptClick).toHaveBeenCalledWith(expect.objectContaining({ name: '军议急报' }))
   })
 
-  it('preserves the target-prefixed free-text command contract and tab state', () => {
+  it('preserves the target-prefixed free-text command contract and tab state in ImperialEdictModal', () => {
     const onFreeText = vi.fn()
+    const onClose = vi.fn()
     render(
-      <ActionArea
+      <ImperialEdictModal
+        isOpen={true}
+        onClose={onClose}
         state={gameState()}
         loading={false}
         hasBlockingEvent={false}
+        targetRegion="河南江北行省"
+        targetRegionMembers={['两淮', '应天', '太平', '镇江', '平江']}
         onDecree={() => {}}
         onFreeText={onFreeText}
-        onAdvanceMonth={() => {}}
-        advanceMonthInFlight={false}
-        currentModal={null}
-        targetRegion="江南"
       />,
     )
 
-    const militaryTab = screen.getByRole('tab', { name: '军事' })
+    const militaryTab = screen.getByRole('tab', { name: /军事/ })
     fireEvent.click(militaryTab)
     expect(militaryTab.getAttribute('aria-selected')).toBe('true')
-    fireEvent.keyDown(militaryTab, { key: 'ArrowRight' })
-    expect(screen.getByRole('tab', { name: '外交' }).getAttribute('aria-selected')).toBe('true')
-    fireEvent.change(screen.getByPlaceholderText('输入政令（如：整顿军备）'), { target: { value: '整修河堤' } })
-    fireEvent.click(screen.getByRole('button', { name: '下令' }))
-    expect(onFreeText).toHaveBeenCalledWith('【目标地区：江南】整修河堤')
+
+    const textarea = screen.getByPlaceholderText(/向【河南江北行省】颁布政令/)
+    fireEvent.change(textarea, { target: { value: '整修河堤' } })
+    fireEvent.click(screen.getByRole('button', { name: /御批 · 颁布诏书/ }))
+    expect(onFreeText).toHaveBeenCalledWith('【目标行政区：河南江北行省；所辖治理地区：两淮、应天、太平、镇江、平江】整修河堤')
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('returns focus to the command that opened a canceled edict dialog', async () => {
+  it('triggers edict opening and month advance from CommandHud', () => {
+    const onOpenEdictModal = vi.fn()
+    const onAdvanceMonth = vi.fn()
     render(
-      <ActionArea
+      <CommandHud
         state={gameState()}
         loading={false}
         hasBlockingEvent={false}
-        onDecree={() => {}}
-        onFreeText={() => {}}
-        onAdvanceMonth={() => {}}
         advanceMonthInFlight={false}
         currentModal={null}
+        targetRegion="两淮"
+        isLifeStory={false}
+        onOpenEdictModal={onOpenEdictModal}
+        onAdvanceMonth={onAdvanceMonth}
+        onOpenTrpg={() => {}}
       />,
     )
 
-    const trigger = document.querySelector<HTMLButtonElement>('.decree-btn')
-    expect(trigger).not.toBeNull()
-    trigger?.focus()
-    fireEvent.click(trigger!)
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    await waitFor(() => expect(document.activeElement).toBe(trigger))
+    fireEvent.click(screen.getByRole('button', { name: /御笔草诏/ }))
+    expect(onOpenEdictModal).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: '推进月份' }))
+    expect(onAdvanceMonth).toHaveBeenCalledTimes(1)
   })
 })

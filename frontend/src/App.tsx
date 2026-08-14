@@ -1,14 +1,14 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from './hooks/store'
 import { api, ApiError } from './api/client'
 import type { StructuredDecree, GameState, GameEvent, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
-import FactionPanel from './components/FactionPanel'
-import MinisterPanel from './components/MinisterPanel'
-import EventBar from './components/EventBar'
-import ActionArea from './components/ActionArea'
+import CourtDrawer, { CourtDrawerHandles, type CourtDrawerTab } from './components/CourtDrawer'
+import Ck3EventFeed from './components/Ck3EventFeed'
+import ImperialEdictModal from './components/ImperialEdictModal'
+import CommandHud from './components/CommandHud'
 import NarrativeModal from './components/NarrativeModal'
 import GameOverScreen from './components/GameOverScreen'
 import MultiConfirm from './components/MultiConfirm'
@@ -19,23 +19,15 @@ import CourtAssemblyView from './components/CourtAssemblyView'
 import AiSettingsModal from './components/AiSettingsModal'
 import MinisterDialogue from './components/MinisterDialogue'
 import OfficialRankModal from './components/OfficialRankModal'
-import MissionPanel from './components/MissionPanel'
 import GuideModal from './components/GuideModal'
 import RegionInspector from './components/RegionInspector'
-import SurfaceHeader from './components/SurfaceHeader'
-import DesktopIcon from './components/DesktopIcon'
+import { joinRegionsToGovernanceDivisions, type GovernanceDivisionStatus } from './data/map/geography'
 import { shouldAutoOpenGuide } from './components/guideModalLogic'
 import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
 import './App.css'
 
-type RightTab = 'faction' | 'minister' | 'assembly'
-const RIGHT_TABS: { id: RightTab; label: string }[] = [
-  { id: 'faction', label: '派系' },
-  { id: 'minister', label: '大臣' },
-  { id: 'assembly', label: '朝议' },
-]
 type NarrativePayload = {
   narrative: string
   delta: Record<string, number>
@@ -60,7 +52,9 @@ function App() {
   const [showOfficialRank, setShowOfficialRank] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [rightTab, setRightTab] = useState<RightTab>('faction')
+  const [courtDrawerTab, setCourtDrawerTab] = useState<CourtDrawerTab>('faction')
+  const [courtDrawerOpen, setCourtDrawerOpen] = useState(false)
+  const [edictModalOpen, setEdictModalOpen] = useState(false)
   const [lastReactions, setLastReactions] = useState<MinisterReaction[]>([])
   const toastTimer = useRef<number>(0)
   const capsFetched = useRef(false)
@@ -69,55 +63,46 @@ function App() {
   const blockingPushedFor = useRef<string | null>(null)
   const [memorialResolving, setMemorialResolving] = useState(false)
   const [dialogueMinisterName, setDialogueMinisterName] = useState<string | null>(null)
-  // 08-07-frontend-ui-polish：地图选省 + 指引手册
-  const [selectedRegion, setSelectedRegion] = useState<import('./types/game').Region | null>(null)
+  const [selectedDivisionId, setSelectedDivisionId] = useState<string | null>(null)
   const [targetRegion, setTargetRegion] = useState<string | null>(null)
+  const [targetRegionMembers, setTargetRegionMembers] = useState<readonly string[]>([])
   const [guideOpen, setGuideOpen] = useState(false)
   const memorialTrigger = useRef<HTMLElement | null>(null)
 
   const closeRegionInspector = useCallback(() => {
-    const name = selectedRegion?.name
-    setSelectedRegion(null)
-    if (name) {
+    const divisionId = selectedDivisionId
+    setSelectedDivisionId(null)
+    if (divisionId) {
       window.setTimeout(() => {
-        document.querySelector<HTMLButtonElement>(`button[data-region-name="${name}"]`)?.focus()
+        document.querySelector<SVGGElement>(`[data-governance-division-id="${divisionId}"]`)?.focus()
       }, 0)
     }
-  }, [selectedRegion?.name])
+  }, [selectedDivisionId])
 
   const closeMemorialPanel = useCallback(() => {
     popModal()
     window.setTimeout(() => memorialTrigger.current?.focus(), 0)
   }, [popModal])
 
-  const handleRightTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: RightTab) => {
-    const currentIndex = RIGHT_TABS.findIndex(item => item.id === tab)
-    const direction = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0
-    const nextIndex = event.key === 'Home'
-      ? 0
-      : event.key === 'End'
-        ? RIGHT_TABS.length - 1
-        : direction
-          ? (currentIndex + direction + RIGHT_TABS.length) % RIGHT_TABS.length
-          : null
-    if (nextIndex === null) return
-
-    event.preventDefault()
-    const nextTab = RIGHT_TABS[nextIndex]
-    setRightTab(nextTab.id)
-    window.setTimeout(() => document.getElementById(`right-tab-${nextTab.id}`)?.focus(), 0)
-  }
-
   useEffect(() => {
     if (shouldAutoOpenGuide()) setGuideOpen(true)
   }, [])
 
-  const selectedRegionName = selectedRegion?.name
+  const governanceDivisions = useMemo(
+    () => joinRegionsToGovernanceDivisions(state?.regions ?? []).divisions,
+    [state?.regions],
+  )
+  const selectedDivision = selectedDivisionId
+    ? governanceDivisions.find((item) => item.division.id === selectedDivisionId && item.region) ?? null
+    : null
+
   useEffect(() => {
-    if (!selectedRegionName || !state) return
-    const current = state.regions.find(region => region.name === selectedRegionName)
-    setSelectedRegion(current ?? null)
-  }, [selectedRegionName, state])
+    if (selectedDivisionId && !selectedDivision) setSelectedDivisionId(null)
+  }, [selectedDivision, selectedDivisionId])
+
+  const handleDivisionClick = useCallback((item: GovernanceDivisionStatus) => {
+    if (item.region) setSelectedDivisionId(item.division.id)
+  }, [])
 
   const showToast = useCallback((msg: string) => {
     setToast(msg)
@@ -286,9 +271,20 @@ function App() {
     })
   }
 
-  const hasBlockingEvent = !!state?.active_events.some(
-    e => e.is_scripted && e.is_blocking && e.choices.length > 0,
+  const blockingEvents = useMemo(
+    () => state?.active_events.filter(
+      e => e.is_scripted && e.is_blocking && e.choices.length > 0,
+    ) ?? [],
+    [state?.active_events],
   )
+  const hasBlockingEvent = blockingEvents.length > 0
+
+  const handleBlockingEventClick = useCallback(() => {
+    if (blockingEvents[0]) {
+      pushModal({ type: 'script_event_blocking', priority: 90, payload: blockingEvents[0] })
+    }
+  }, [blockingEvents, pushModal])
+
   const {
     decreeInFlight,
     applyDecreeResult,
@@ -339,6 +335,15 @@ function App() {
       <ResourceBar
         state={state}
         prevState={prevState}
+        pendingMemorials={pendingMemorials.length}
+        onMemorialClick={() => {
+          if (pendingMemorials.length) {
+            memorialTrigger.current = document.activeElement as HTMLElement | null
+            pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
+          }
+        }}
+        blockingEvents={blockingEvents.length}
+        onBlockingEventClick={handleBlockingEventClick}
         onSave={handleSave}
         onShowSaves={() => setShowSaves(true)}
         onOpenAiSettings={() => setShowAiSettings(true)}
@@ -348,114 +353,98 @@ function App() {
         onOpenGuide={() => setGuideOpen(true)}
         onNewGame={handleNewGame}
       />
-      <div className="main-area">
+
+      <main className="main-area">
         <div className="map-workspace">
-          <RegionMap regions={state.regions} highlightRegion={selectedRegion?.name} onRegionClick={(r) => setSelectedRegion(r)} />
-          {selectedRegion && (
+          <RegionMap
+            regions={state.regions}
+            highlightDivisionId={selectedDivision?.division.id}
+            onDivisionClick={handleDivisionClick}
+            railControls={(
+              <CourtDrawerHandles
+                isOpen={courtDrawerOpen}
+                activeTab={courtDrawerTab}
+                onTabChange={(tab) => {
+                  setCourtDrawerTab(tab)
+                  setCourtDrawerOpen(true)
+                }}
+              />
+            )}
+          />
+          {selectedDivision?.region && (
             <RegionInspector
-              region={selectedRegion}
+              region={selectedDivision.region}
+              sourceRegions={selectedDivision.sourceRegions}
               entityRegistry={state.entity_registry}
               activeEvents={state.active_events}
               versionId={state.world_metadata?.version_id}
               onClose={closeRegionInspector}
-              onAct={(region) => setTargetRegion(region.name)}
+              onAct={() => {
+                setTargetRegion(selectedDivision.division.name)
+                setTargetRegionMembers(selectedDivision.sourceRegions.map((region) => region.name))
+                setEdictModalOpen(true)
+              }}
             />
           )}
         </div>
-        <div className="right-panel">
-          <SurfaceHeader icon="users" title="朝廷管理" meta={rightTab === 'faction' ? '派系' : rightTab === 'minister' ? '大臣' : '朝议'} id="right-panel-title" />
-          <div className="right-panel-tabs" role="tablist" aria-labelledby="right-panel-title">
-            {RIGHT_TABS.map(tab => (
-              <button
-                key={tab.id}
-                id={`right-tab-${tab.id}`}
-                className={`rp-tab${rightTab === tab.id ? ' active' : ''}`}
-                role="tab"
-                aria-selected={rightTab === tab.id}
-                aria-controls="right-panel-content"
-                tabIndex={rightTab === tab.id ? 0 : -1}
-                onClick={() => setRightTab(tab.id)}
-                onKeyDown={(event) => handleRightTabKeyDown(event, tab.id)}
-              >{tab.label}</button>
-            ))}
-            <button
-              className="rp-tab unavailable"
-              role="tab"
-              aria-selected={false}
-              disabled
-              title="阶层数据尚未接入当前世界"
-              aria-label="阶层，尚未接入"
-            >阶层</button>
-            <button
-              className="rp-tab unavailable"
-              role="tab"
-              aria-selected={false}
-              disabled
-              title="军队数据尚未接入当前世界"
-              aria-label="军队，尚未接入"
-            >军队</button>
-          </div>
-          <div className="right-panel-tools">
-            <button type="button" onClick={() => setShowOfficialRank(true)} title="查看并任免官职"><DesktopIcon name="archive" />官职任免</button>
-            <span>阶层、军队数据待接入</span>
-          </div>
-          <div className="right-panel-body" id="right-panel-content" role="tabpanel" aria-labelledby={`right-tab-${rightTab}`}>
-            <MissionPanel ministers={state.ministers} />
-            {rightTab === 'faction' && <FactionPanel factions={state.factions} />}
-            {rightTab === 'minister' && (
-              <MinisterPanel ministers={state.ministers} reactions={lastReactions} onMinisterClick={handleMinisterClick} onEmptyAction={() => setRightTab('assembly')} />
-            )}
-            {rightTab === 'assembly' && (
-              <CourtAssemblyView
-                state={state}
-                capabilities={capabilities}
-                loading={false}
-                onStateUpdate={setState}
-                onAdoptionResult={(response) => applyDecreeResult(response, state)}
-                onShowToast={showToast}
-              />
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="bottom-panel">
-        <EventBar
+
+        {/* CK3 风格左下角文字消息流 */}
+        <Ck3EventFeed
           events={state.active_events}
-          pendingMemorials={pendingMemorials.length}
           onScriptClick={(e) => pushModal({ type: 'script_event', priority: 10, payload: e })}
-          onMemorialClick={() => {
-            if (pendingMemorials.length) {
-              memorialTrigger.current = document.activeElement as HTMLElement | null
-              pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
-            }
-          }}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {isLifeStory ? (
-            <section className="trpg-entry-panel" aria-labelledby="trpg-entry-title">
-              <div>
-                <span className="trpg-entry-kicker"><DesktopIcon name="dice" />当前篇章</span>
-                <strong id="trpg-entry-title">跑团篇章正在进行</strong>
-                <span>从地图查看天下局势，进入跑团模式继续角色行动。</span>
-              </div>
-              <button type="button" className="modal-btn primary" onClick={() => navigate('/trpg')}><DesktopIcon name="dice" />进入跑团</button>
-            </section>
-          ) : (
-            <ActionArea
-              state={state}
-              loading={loading}
-              hasBlockingEvent={hasBlockingEvent}
-              onDecree={executeDecrees}
-              onFreeText={handleFreeText}
-              onAdvanceMonth={handleAdvanceMonth}
-              advanceMonthInFlight={advanceMonthInFlight}
-              currentModal={currentModal}
-              targetRegion={targetRegion}
-              onClearTargetRegion={() => setTargetRegion(null)}
-            />
-          )}
-        </div>
-      </div>
+
+        {/* 朝廷折叠抽屉面板；入口位于地图右侧控制栏 */}
+        <CourtDrawer
+          isOpen={courtDrawerOpen}
+          activeTab={courtDrawerTab}
+          onTabChange={(tab) => {
+            setCourtDrawerTab(tab)
+            setCourtDrawerOpen(true)
+          }}
+          onToggle={() => setCourtDrawerOpen((prev) => !prev)}
+          onClose={() => setCourtDrawerOpen(false)}
+          state={state}
+          capabilities={capabilities}
+          lastReactions={lastReactions}
+          onMinisterClick={handleMinisterClick}
+          onShowOfficialRank={() => setShowOfficialRank(true)}
+          onStateUpdate={setState}
+          onAdoptionResult={(response) => applyDecreeResult(response, state)}
+          onShowToast={showToast}
+        />
+
+        {/* 底部悬浮行动指令台 */}
+        <CommandHud
+          state={state}
+          loading={loading}
+          hasBlockingEvent={hasBlockingEvent}
+          advanceMonthInFlight={advanceMonthInFlight}
+          currentModal={currentModal}
+          targetRegion={targetRegion}
+          isLifeStory={isLifeStory}
+          onOpenEdictModal={() => setEdictModalOpen(true)}
+          onAdvanceMonth={handleAdvanceMonth}
+          onOpenTrpg={() => navigate('/trpg')}
+        />
+      </main>
+
+      {/* 御笔草诏台弹窗（非全屏古风宣纸卷轴） */}
+      <ImperialEdictModal
+        isOpen={edictModalOpen}
+        onClose={() => setEdictModalOpen(false)}
+        state={state}
+        loading={loading}
+        hasBlockingEvent={hasBlockingEvent}
+        targetRegion={targetRegion}
+        targetRegionMembers={targetRegionMembers}
+        onClearTargetRegion={() => {
+          setTargetRegion(null)
+          setTargetRegionMembers([])
+        }}
+        onDecree={executeDecrees}
+        onFreeText={handleFreeText}
+      />
 
       {loading && (
         <div className="loading-overlay">

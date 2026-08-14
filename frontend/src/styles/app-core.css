@@ -44,23 +44,23 @@ body {
 .game-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 56px minmax(0, 1fr) 250px;
+  grid-template-rows: 56px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
+  position: relative;
 }
 
 .main-area {
-  display: grid;
-  grid-template-columns: minmax(0, 7fr) minmax(0, 3fr);
-  overflow: visible;
+  display: flex;
+  position: relative;
+  overflow: hidden;
   min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .bottom-panel {
-  display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 4fr);
-  border-top: 2px solid var(--accent-gold);
-  background: var(--bg-panel);
+  display: none;
 }
 
 /* ── Resource Bar ──────────────────────────────────────── */
@@ -174,9 +174,13 @@ body {
 /* ── Region Map ────────────────────────────────────────── */
 .region-map-container {
   display: flex;
-  overflow: visible;
+  align-items: stretch;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  background: var(--bg-dark);
 }
 
 .toolbar-btn-danger { border-color: rgba(160, 58, 36, 0.48); color: var(--accent-red); }
@@ -190,68 +194,111 @@ body {
 .geographic-map {
   display: block;
   position: relative;
-  padding: 8px;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  padding: 0;
   min-width: 0;
   min-height: 0;
   background: #dbe4dd;
+  isolation: isolate;
+}
+
+.geographic-map::before,
+.geographic-map::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-position: center;
+  background-size: cover;
+  mix-blend-mode: multiply;
+}
+
+.geographic-map::before {
+  background-image: url('/map/atmosphere/v1/paper-water-wash-v1.webp');
+  opacity: 0.24;
+}
+
+.geographic-map::after {
+  background-image: url('/map/atmosphere/v1/terrain-drybrush-v1.webp');
+  opacity: 0.09;
 }
 
 .geographic-map > svg {
   width: 100%;
   height: 100%;
-  min-height: 280px;
+  min-height: 0;
   display: block;
+  position: relative;
+  z-index: 1;
 }
 
-.map-water { fill: #dbe4dd; }
-.map-atmosphere { pointer-events: none; }
+.geographic-map > svg.is-pannable { cursor: grab; touch-action: none; user-select: none; }
+.geographic-map > svg.is-dragging { cursor: grabbing; }
+.map-zoom-controls { position: absolute; top: 14px; right: 16px; z-index: 6; display: grid; grid-template-columns: 30px 46px 30px 30px; align-items: center; gap: 3px; padding: 4px; color: var(--text-main); background: rgba(246, 239, 224, 0.94); border: 1px solid var(--border-control); box-shadow: 0 2px 7px rgba(43, 38, 32, 0.18); }
+.map-zoom-controls button { width: 30px; height: 30px; min-width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-control); border-radius: 2px; background: var(--bg-card); color: var(--text-main); font-family: inherit; font-size: 1rem; font-weight: 700; line-height: 1; cursor: pointer; }
+.map-zoom-controls button:hover:not(:disabled) { border-color: var(--accent-gold); background: rgba(255, 252, 243, 0.99); }
+.map-zoom-controls button:focus-visible { outline: 3px solid var(--ink-teal); outline-offset: 1px; }
+.map-zoom-controls button:disabled { color: rgba(111, 101, 82, 0.45); cursor: not-allowed; }
+.map-zoom-controls .desktop-icon { pointer-events: none; }
+.map-zoom-level { width: 46px; min-width: 46px; text-align: center; color: var(--text-dim); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
+
+.map-water { fill: transparent; }
+.map-atmosphere { display: none; pointer-events: none; }
 .map-atmosphere image { pointer-events: none; }
 .map-atmosphere-paper-water { opacity: 0.24; mix-blend-mode: multiply; }
 .map-atmosphere-terrain { opacity: 0.11; mix-blend-mode: multiply; }
-.china-reference-basemap path { fill: rgba(239, 230, 208, 0.82); stroke: rgba(91, 91, 78, 0.4); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
-.map-feature-shape { fill: var(--map-level-fill); stroke: var(--map-level-stroke); fill-opacity: 0.82; vector-effect: non-scaling-stroke; stroke-width: 3.2; paint-order: stroke fill; transition: fill 0.2s, fill-opacity 0.2s, stroke 0.2s, stroke-width 0.2s, filter 0.2s; }
-.map-feature.stab-high { --map-level-fill: rgba(63, 122, 78, 0.64); --map-level-stroke: #285d38; }
-.map-feature.stab-mid { --map-level-fill: rgba(168, 132, 31, 0.65); --map-level-stroke: #7b5d12; }
-.map-feature.stab-low { --map-level-fill: rgba(176, 58, 46, 0.67); --map-level-stroke: #84271f; }
-.mode-disaster .map-feature.stab-high { --map-level-fill: rgba(47, 93, 90, 0.62); --map-level-stroke: #214b49; }
-.mode-disaster .map-feature.stab-mid { --map-level-fill: rgba(164, 112, 34, 0.66); --map-level-stroke: #795017; }
-.mode-morale .map-feature.stab-high { --map-level-fill: rgba(46, 111, 77, 0.66); --map-level-stroke: #1f5c3c; }
-.mode-rebellion .map-feature.stab-mid { --map-level-fill: rgba(173, 102, 31, 0.68); --map-level-stroke: #82490f; }
-.mode-tax_rate .map-feature.stab-high { --map-level-fill: rgba(47, 93, 90, 0.68); --map-level-stroke: #1f4e4b; }
-.mode-tax_collected .map-feature.stab-high { --map-level-fill: rgba(117, 98, 39, 0.7); --map-level-stroke: #5d4b17; }
-.mode-tax_collected .map-feature.stab-mid { --map-level-fill: rgba(82, 113, 91, 0.63); --map-level-stroke: #385d47; }
-.map-feature-leader { fill: none; stroke: rgba(43, 38, 32, 0.72); stroke-width: 1.35; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; transition: stroke 0.2s, stroke-width 0.2s; }
-.map-feature-anchor { fill: var(--map-level-stroke); stroke: var(--bg-panel); stroke-width: 1.7; vector-effect: non-scaling-stroke; transition: fill 0.2s, r 0.2s; }
-.map-feature.hovered .map-feature-shape { fill-opacity: 0.96; stroke-width: 5; filter: drop-shadow(0 0 4px rgba(43, 38, 32, 0.42)); }
-.map-feature.hovered .map-feature-leader { stroke: var(--ink-teal); stroke-width: 2; }
-.map-feature.hovered .map-feature-anchor { r: 5.5px; }
-.map-feature.selected .map-feature-shape { stroke: var(--accent-gold); stroke-width: 6; fill-opacity: 0.96; filter: drop-shadow(0 0 8px rgba(138, 109, 47, 0.66)); }
-.map-feature.selected .map-feature-leader { stroke: var(--accent-gold); stroke-width: 2.4; stroke-dasharray: none; }
-.map-feature.selected .map-feature-anchor { r: 6.5px; fill: var(--accent-gold); }
-.map-feature.control-court .map-feature-anchor { stroke: rgba(246, 239, 224, 0.96); }
-.map-feature.control-lost .map-feature-shape { stroke-dasharray: 7 3; }
-.map-feature.control-fallen .map-feature-shape { stroke: #6f1712; stroke-width: 4.5; }
-.map-feature.has-threat:not(.selected) .map-feature-shape { filter: drop-shadow(0 0 5px rgba(160, 58, 36, 0.72)); }
-.map-feature.has-threat .map-feature-anchor { fill: var(--accent-red); stroke-width: 2.5; }
-.map-feature.missing .map-feature-shape, .map-feature.control-missing .map-feature-shape { fill: url(#map-missing-pattern); stroke: var(--gray); stroke-width: 2.5; stroke-dasharray: 8 6; filter: none; }
-.map-feature.missing .map-feature-leader { stroke: rgba(111, 101, 82, 0.56); }
-.map-feature.missing .map-feature-anchor { fill: var(--gray); }
+.east-asia-reference-basemap path { fill: rgba(239, 230, 208, 0.88); stroke: rgba(73, 72, 62, 0.38); stroke-width: 0.8; vector-effect: non-scaling-stroke; }
+.east-asia-country-grid,
+.china-historical-admin-grid,
+.yuan-administrative-labels,
+.east-asia-coastline { pointer-events: none; }
+.east-asia-country-grid path { fill: rgba(246, 239, 224, 0.16); stroke: rgba(72, 67, 57, 0.55); stroke-width: 0.9; vector-effect: non-scaling-stroke; }
+.china-historical-admin-grid path { fill: rgba(246, 239, 224, 0.2); stroke: rgba(64, 58, 48, 0.58); stroke-width: 0.78; vector-effect: non-scaling-stroke; }
+.east-asia-country-grid .paint-tone-cinnabar { fill: rgba(160, 58, 36, 0.2); }
+.east-asia-country-grid .paint-tone-ochre { fill: rgba(150, 116, 43, 0.24); }
+.east-asia-country-grid .paint-tone-teal { fill: rgba(47, 93, 90, 0.22); }
+.east-asia-country-grid .paint-tone-moss { fill: rgba(72, 108, 72, 0.22); }
+.east-asia-country-grid .paint-tone-blue-gray { fill: rgba(70, 91, 105, 0.2); }
+.east-asia-country-grid .paint-tone-clay { fill: rgba(143, 88, 65, 0.2); }
+.china-historical-admin-grid .paint-tone-cinnabar { fill: rgba(160, 58, 36, 0.3); }
+.china-historical-admin-grid .paint-tone-ochre { fill: rgba(150, 116, 43, 0.32); }
+.china-historical-admin-grid .paint-tone-teal { fill: rgba(47, 93, 90, 0.3); }
+.china-historical-admin-grid .paint-tone-moss { fill: rgba(72, 108, 72, 0.3); }
+.china-historical-admin-grid .paint-tone-blue-gray { fill: rgba(70, 91, 105, 0.28); }
+.china-historical-admin-grid .paint-tone-clay { fill: rgba(143, 88, 65, 0.28); }
+.east-asia-coastline path { fill: none; stroke: rgba(54, 52, 45, 0.68); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
+.yuan-administrative-labels text { fill: rgba(58, 52, 43, 0.76); stroke: rgba(246, 239, 224, 0.9); stroke-width: 3px; paint-order: stroke fill; font-size: 12px; font-weight: 600; letter-spacing: 0; }
+.yuan-administrative-labels text.admin-kind-central { fill: rgba(119, 42, 29, 0.82); font-size: 13px; }
+.yuan-administrative-labels text.admin-kind-special { fill: rgba(91, 68, 30, 0.8); }
+.historical-polity-labels { pointer-events: none; }
+.historical-polity-label text { fill: rgba(65, 57, 45, 0.84); stroke: rgba(246, 239, 224, 0.9); stroke-width: 4px; paint-order: stroke fill; font-size: 17px; font-weight: 600; letter-spacing: 0; }
+.historical-polity-label.prominence-major text { fill: rgba(94, 39, 28, 0.88); font-size: 24px; font-weight: 700; }
+.historical-polity-label.prominence-local text { fill: rgba(70, 91, 105, 0.62); stroke: rgba(246, 239, 224, 0.78); stroke-width: 2px; font-size: 10px; font-weight: 400; }
+.map-governance-division { outline: none; }
+.map-governance-division.stab-high { --map-level-fill: rgba(63, 122, 78, 0.64); --map-level-stroke: #285d38; }
+.map-governance-division.stab-mid { --map-level-fill: rgba(168, 132, 31, 0.65); --map-level-stroke: #7b5d12; }
+.map-governance-division.stab-low { --map-level-fill: rgba(176, 58, 46, 0.67); --map-level-stroke: #84271f; }
+.mode-disaster .map-governance-division.stab-high { --map-level-fill: rgba(47, 93, 90, 0.62); --map-level-stroke: #214b49; }
+.mode-disaster .map-governance-division.stab-mid { --map-level-fill: rgba(164, 112, 34, 0.66); --map-level-stroke: #795017; }
+.mode-morale .map-governance-division.stab-high { --map-level-fill: rgba(46, 111, 77, 0.66); --map-level-stroke: #1f5c3c; }
+.mode-rebellion .map-governance-division.stab-mid { --map-level-fill: rgba(173, 102, 31, 0.68); --map-level-stroke: #82490f; }
+.mode-tax_rate .map-governance-division.stab-high { --map-level-fill: rgba(47, 93, 90, 0.68); --map-level-stroke: #1f4e4b; }
+.mode-tax_collected .map-governance-division.stab-high { --map-level-fill: rgba(117, 98, 39, 0.7); --map-level-stroke: #5d4b17; }
+.mode-tax_collected .map-governance-division.stab-mid { --map-level-fill: rgba(82, 113, 91, 0.63); --map-level-stroke: #385d47; }
+.map-governance-division path { fill: var(--map-level-fill); fill-opacity: 0.38; stroke: var(--map-level-stroke); stroke-width: 1.45; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill-opacity 0.2s, stroke 0.2s, stroke-width 0.2s, filter 0.2s; }
+.map-governance-division.hovered path { fill-opacity: 0.56; stroke-width: 2.4; filter: drop-shadow(0 0 3px rgba(43, 38, 32, 0.34)); }
+.map-governance-division:focus-visible path { fill-opacity: 0.56; stroke: var(--ink-teal); stroke-width: 3; }
+.map-governance-division.selected path { fill-opacity: 0.58; stroke: var(--accent-gold); stroke-width: 3.4; filter: drop-shadow(0 0 5px rgba(138, 109, 47, 0.52)); }
+.map-governance-division.control-lost path { stroke-dasharray: 5 3; }
+.map-governance-division.control-fallen path { stroke: #6f1712; stroke-width: 2.8; }
+.map-governance-division.has-threat:not(.selected) path { filter: drop-shadow(0 0 3px rgba(160, 58, 36, 0.54)); }
+.map-governance-division.missing path { fill: url(#map-missing-pattern); fill-opacity: 0.36; stroke: rgba(111, 101, 82, 0.48); stroke-width: 1; cursor: default; pointer-events: none; filter: none; }
 .map-missing-pattern-bg { fill: rgba(246, 239, 224, 0.74); }
 .map-missing-pattern-line { stroke: rgba(111, 101, 82, 0.38); stroke-width: 4; }
-.map-region-button { width: 100%; height: 100%; min-width: 0; min-height: 0; padding: 4px 5px; border: 1px solid rgba(111, 101, 82, 0.68); border-left: 4px solid var(--map-level-stroke); background: rgba(246, 239, 224, 0.94); color: var(--text-main); display: flex; flex-direction: column; justify-content: center; gap: 3px; font-family: inherit; cursor: pointer; box-shadow: 0 2px 5px rgba(43, 38, 32, 0.22); }
-.map-feature.control-lost .map-region-button { background: rgba(244, 230, 191, 0.96); }
-.map-feature.control-fallen .map-region-button { border-color: rgba(132, 39, 31, 0.8); background: rgba(242, 213, 200, 0.97); }
-.map-region-button:hover { border-color: var(--accent-gold); background: rgba(255, 252, 243, 0.99); }
-.map-region-button:focus-visible { border-color: var(--ink-teal); background: rgba(255, 252, 243, 0.99); outline: 3px solid var(--ink-teal); outline-offset: 2px; }
-.map-region-button[aria-pressed="true"] { border-color: var(--accent-gold); box-shadow: 0 0 0 2px rgba(138, 109, 47, 0.34), 0 3px 7px rgba(43, 38, 32, 0.25); }
-.map-region-button:disabled { cursor: not-allowed; border-color: var(--gray); border-left-color: var(--gray); background: rgba(239, 230, 208, 0.88); box-shadow: none; opacity: 0.82; }
-.map-region-button .region-name { font-size: 0.78rem; line-height: 1; text-shadow: 0 1px 0 var(--bg-panel); }
-.map-region-button .region-info { align-items: center; justify-content: center; gap: 3px; min-width: 0; font-size: 0.54rem; line-height: 1; }
-.map-region-button .region-mode-value { flex: 0 1 auto; min-width: 0; white-space: nowrap; }
-.map-region-button .region-threat { flex: 0 0 auto; padding: 1px 3px; border: 1px solid rgba(160, 58, 36, 0.5); background: rgba(160, 58, 36, 0.12); line-height: 1; }
-.map-region-button .region-stab-bar { display: block; width: 84%; height: 5px; margin: 0 auto; border: 1px solid rgba(43, 38, 32, 0.14); }
-.map-missing-label { color: var(--text-dim); }
-.map-data-warning { position: absolute; left: 16px; bottom: 55px; z-index: 6; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 32px); color: var(--text-main); font-size: 0.7rem; }
+.map-data-warning { position: absolute; left: 16px; bottom: 72px; z-index: 6; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 32px); color: var(--text-main); font-size: 0.7rem; }
 .map-warning-item { padding: 4px 7px; background: rgba(246, 239, 224, 0.97); border: 1px solid var(--accent-gold); box-shadow: 0 1px 3px rgba(43, 38, 32, 0.18); }
 .warning-duplicate { border-color: var(--accent-red); color: var(--accent-red); }
 .map-mode-context { position: absolute; top: 14px; left: 16px; z-index: 5; width: 235px; padding: 8px 10px; color: var(--text-main); background: rgba(246, 239, 224, 0.94); border-top: 3px solid var(--accent-gold); border-bottom: 1px solid var(--border-control); box-shadow: 0 2px 7px rgba(43, 38, 32, 0.18); }
@@ -269,12 +316,21 @@ body {
 .mode-disaster .legend-high, .mode-tax_rate .legend-high { background: var(--ink-teal); }
 .mode-tax_collected .legend-high { background: #756227; }
 .mode-tax_collected .legend-mid { background: #52715b; }
-.map-accuracy-note { position: absolute; right: 16px; bottom: 12px; z-index: 5; max-width: min(440px, calc(100% - 32px)); margin: 0; padding: 5px 8px; color: var(--text-dim); background: rgba(246, 239, 224, 0.95); border-left: 3px solid var(--ink-teal); font-size: 0.68rem; line-height: 1.35; }
+.map-boundary-legend { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 4px; margin-top: 6px; padding-top: 5px; border-top: 1px solid rgba(111, 101, 82, 0.25); color: var(--text-dim); font-size: 0.58rem; }
+.map-boundary-legend > span { display: inline-flex; align-items: center; gap: 4px; }
+.boundary-sample { width: 20px; height: 8px; display: inline-block; border: 1px solid rgba(64, 58, 48, 0.58); }
+.polity-boundary-sample { background: rgba(47, 93, 90, 0.22); }
+.admin-boundary-sample { background: rgba(150, 116, 43, 0.32); }
+.governance-division-sample { background: rgba(63, 122, 78, 0.38); border-color: #285d38; }
+.map-accuracy-note { position: absolute; right: 16px; bottom: 72px; z-index: 5; max-width: min(440px, calc(100% - 32px)); margin: 0; padding: 5px 8px; color: var(--text-dim); background: rgba(246, 239, 224, 0.95); border-left: 3px solid var(--ink-teal); font-size: 0.68rem; line-height: 1.35; }
 
 /* Keep the geographic surface out of the legacy 4x2 grid rules above. */
 .region-map.geographic-map {
   display: block;
-  padding: 8px;
+  align-self: stretch;
+  flex: 1 1 auto;
+  height: 100%;
+  padding: 0;
   gap: 0;
 }
 
@@ -291,12 +347,22 @@ body {
 .view-switcher {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  flex: 0 0 68px;
+  gap: 12px;
   width: 68px;
-  padding: 12px 7px;
-  justify-content: center;
+  height: 100%;
+  padding: 12px 7px 64px;
+  justify-content: space-between;
+  align-self: stretch;
   border-left: 1px solid var(--border-subtle);
   background: rgba(246, 239, 224, 0.62);
+}
+
+.map-view-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
 }
 
 .view-btn {
@@ -328,6 +394,23 @@ body {
 .view-btn:focus-visible { outline: 3px solid var(--ink-teal); outline-offset: 2px; }
 .view-btn.mode-disaster.active, .view-btn.mode-tax_rate.active { box-shadow: inset 3px 0 0 var(--ink-teal); }
 .view-btn.mode-rebellion.active { box-shadow: inset 3px 0 0 var(--accent-red); }
+
+@media (max-height: 820px) {
+  .view-switcher {
+    gap: 8px;
+    padding: 8px 7px 64px;
+  }
+
+  .map-view-controls {
+    gap: 3px;
+  }
+
+  .view-btn,
+  .drawer-tab-handle {
+    min-height: 31px;
+    padding-block: 4px;
+  }
+}
 
 .region-block {
   background: var(--bg-card);

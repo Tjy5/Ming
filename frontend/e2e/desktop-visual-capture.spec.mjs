@@ -14,10 +14,9 @@ const landmarks = {
   resourceBar: '.resource-bar',
   mapWorkspace: '.map-workspace',
   map: '.geographic-map',
-  rightPanel: '.right-panel',
-  bottomPanel: '.bottom-panel',
-  eventBar: '.event-bar',
-  commandSurface: '.action-area, .trpg-entry-panel',
+  rightPanel: '.view-switcher',
+  bottomPanel: '.hud-bottom-bar',
+  commandSurface: '.hud-bottom-bar',
 }
 const closedSurfaces = {
   guide: '[data-testid="guide-modal"]',
@@ -82,7 +81,7 @@ test.describe('deterministic desktop visual capture @visual', () => {
 
       await page.goto('/')
       await expect(page.locator('.game-layout')).toBeVisible()
-      await expect(page.locator('.geographic-map svg')).toBeVisible()
+      await expect(page.locator('.geographic-map > svg')).toBeVisible()
       await page.evaluate(async () => {
         await document.fonts.ready
         await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))

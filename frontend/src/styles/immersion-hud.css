@@ -1,0 +1,643 @@
+/* ── 沉浸式全景大战略 HUD (CK3 风格) ────────────────────────── */
+
+/* 1. HUD 悬浮底栏与行动控制台 */
+.hud-bottom-bar {
+  position: absolute;
+  bottom: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 40;
+  pointer-events: auto;
+}
+
+.hud-edict-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  color: var(--text-main);
+  border: 1.5px solid var(--accent-gold);
+  padding: 10px 18px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(43, 38, 32, 0.22);
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.hud-edict-btn:hover:not(:disabled) {
+  background: var(--bg-card);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(160, 58, 36, 0.25);
+}
+
+.hud-edict-btn .target-pill {
+  font-size: 0.8rem;
+  background: rgba(47, 93, 90, 0.15);
+  color: var(--ink-teal);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--ink-teal);
+}
+
+.hud-advance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-red);
+  color: #fff8eb;
+  border: 1.5px solid #772412;
+  padding: 10px 20px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(160, 58, 36, 0.35);
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.hud-advance-btn:hover:not(:disabled) {
+  background: #8b2c17;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(160, 58, 36, 0.45);
+}
+
+.hud-advance-btn:disabled,
+.hud-edict-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.hud-trpg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink-teal);
+  color: #eef7f6;
+  border: 1.5px solid #1a3c3a;
+  padding: 10px 18px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(47, 93, 90, 0.3);
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+.hud-trpg-pill:hover {
+  background: #244946;
+  transform: translateY(-2px);
+}
+
+/* 2. 右侧朝廷折叠抽屉 */
+.court-drawer-handles {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+
+.drawer-tab-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 35px;
+  padding: 6px 8px;
+  background: var(--bg-card);
+  color: var(--text-dim);
+  border: 1px solid var(--border-control);
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  transition: border-color 0.2s, color 0.2s, background-color 0.2s, box-shadow 0.2s;
+}
+
+.drawer-tab-handle:hover {
+  border-color: var(--accent-gold);
+  color: var(--text-main);
+}
+
+.drawer-tab-handle.active {
+  border-color: var(--accent-gold);
+  color: var(--text-main);
+  background: rgba(138, 109, 47, 0.18);
+  box-shadow: inset 3px 0 0 var(--accent-gold);
+}
+
+.drawer-tab-handle:focus-visible { outline: 3px solid var(--ink-teal); outline-offset: 2px; }
+
+.court-drawer-backdrop {
+  position: fixed;
+  inset: 56px 0 0 0;
+  background: rgba(43, 38, 32, 0.3);
+  backdrop-filter: blur(4px);
+  z-index: 48;
+}
+
+.court-drawer-container {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 92vw);
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  border-left: 2px solid var(--accent-gold);
+  box-shadow: -8px 0 32px rgba(43, 38, 32, 0.3);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: drawerSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawerSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.court-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(138, 109, 47, 0.08);
+}
+
+.court-drawer-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.court-drawer-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.court-drawer-close:hover {
+  color: var(--accent-red);
+  background: rgba(160, 58, 36, 0.1);
+}
+
+.court-drawer-tabs {
+  display: flex;
+  background: rgba(43, 38, 32, 0.04);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.court-drawer-tab-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.92rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.court-drawer-tab-btn.active {
+  color: var(--accent-gold);
+  font-weight: bold;
+  border-bottom-color: var(--accent-gold);
+  background: rgba(138, 109, 47, 0.06);
+}
+
+.court-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.court-drawer-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+}
+
+.court-drawer-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--accent-gold);
+  background: var(--bg-panel);
+  color: var(--accent-gold);
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.court-drawer-tools button:hover {
+  background: var(--accent-gold);
+  color: #fff;
+}
+
+/* 3. CK3 风格左下角文字消息流 */
+.ck3-event-feed {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  max-width: 480px;
+  width: calc(100vw - 420px);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.ck3-event-item {
+  pointer-events: auto;
+  background: rgba(246, 239, 224, 0.9);
+  background-image: var(--paper-noise);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-subtle);
+  border-left: 3.5px solid var(--accent-gold);
+  border-radius: 4px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 14px rgba(43, 38, 32, 0.15);
+  font-size: 0.86rem;
+  color: var(--text-main);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.ck3-event-item:hover {
+  background: rgba(246, 239, 224, 0.98);
+  border-color: var(--accent-gold);
+  transform: translateX(4px);
+  box-shadow: 0 6px 18px rgba(43, 38, 32, 0.22);
+}
+
+.ck3-event-item.urg-high {
+  border-left-color: var(--accent-red);
+}
+
+.ck3-event-item.urg-mid {
+  border-left-color: var(--accent-gold);
+}
+
+.ck3-event-item.urg-low {
+  border-left-color: var(--ink-teal);
+}
+
+.ck3-event-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.ck3-event-badge {
+  font-size: 0.72rem;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: rgba(138, 109, 47, 0.15);
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.ck3-event-title {
+  font-weight: bold;
+  color: var(--text-main);
+  flex: 1;
+}
+
+.ck3-event-desc {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ck3-event-expanded {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-main);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* 4. 顶部 CK3 待办徽标区 (ResourceBar) */
+.ck3-alerts-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 12px;
+}
+
+.ck3-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(160, 58, 36, 0.12);
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  padding: 3px 9px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  animation: alertPulse 2s infinite ease-in-out;
+}
+
+@keyframes alertPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(160, 58, 36, 0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(160, 58, 36, 0); }
+}
+
+.ck3-alert-badge:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+.ck3-alert-badge-count {
+  background: var(--accent-red);
+  color: #fff;
+  font-size: 0.72rem;
+  padding: 0 5px;
+  border-radius: 10px;
+  line-height: 1.3;
+}
+
+.ck3-alert-badge:hover .ck3-alert-badge-count {
+  background: #fff;
+  color: var(--accent-red);
+}
+
+/* 5. 非全屏宣纸圣旨台弹窗 */
+.imperial-edict-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(43, 38, 32, 0.45);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 110;
+  padding: 16px;
+}
+
+.imperial-edict-scroll {
+  width: min(740px, 94vw);
+  max-height: min(640px, 88vh);
+  background: var(--bg-panel);
+  background-image: var(--paper-noise);
+  border: 2px solid var(--accent-gold);
+  border-radius: 6px;
+  box-shadow: 0 12px 48px rgba(43, 38, 32, 0.4);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.imperial-edict-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(138, 109, 47, 0.1);
+}
+
+.imperial-edict-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.imperial-edict-kicker {
+  font-size: 0.8rem;
+  color: var(--accent-red);
+  letter-spacing: 2px;
+  font-weight: bold;
+}
+
+.imperial-edict-title {
+  font-size: 1.25rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.imperial-edict-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.imperial-edict-close:hover {
+  color: var(--accent-red);
+}
+
+.imperial-edict-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.imperial-edict-target-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.imperial-edict-categories {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 8px;
+}
+
+.imperial-category-tab {
+  padding: 6px 14px;
+  border: 1px solid var(--border-control);
+  background: var(--bg-card);
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.imperial-category-tab.active {
+  background: var(--accent-gold);
+  color: #fff;
+  border-color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.imperial-textarea-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.imperial-textarea-wrap label {
+  font-size: 0.85rem;
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.imperial-textarea {
+  width: 100%;
+  min-height: 90px;
+  padding: 12px;
+  background: #fcf9f2;
+  border: 1px solid var(--accent-gold);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--text-main);
+  resize: vertical;
+}
+
+.imperial-textarea:focus {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 1px;
+}
+
+.imperial-quick-decrees {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.imperial-quick-decrees label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.imperial-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.imperial-quick-btn {
+  padding: 7px 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-control);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.imperial-quick-btn:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  background: var(--bg-panel);
+}
+
+.imperial-quick-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.imperial-quick-btn.selected {
+  background: rgba(138, 109, 47, 0.15);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.imperial-edict-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: rgba(43, 38, 32, 0.03);
+}
+
+.imperial-seal-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-red);
+  color: #fff;
+  border: 1px solid #7d2a17;
+  padding: 9px 22px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(160, 58, 36, 0.35);
+  transition: all 0.15s ease;
+}
+
+.imperial-seal-submit:hover:not(:disabled) {
+  background: #8b2c17;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(160, 58, 36, 0.45);
+}
+
+.imperial-seal-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

@@ -173,7 +173,14 @@ describe('App adoption result integrity', () => {
     vi.spyOn(api, 'getSettings').mockResolvedValue({ rule_parse_fallback: false })
     useStore.setState({ state: initialState })
 
-    render(<MemoryRouter><App /></MemoryRouter>)
+    const { container } = render(<MemoryRouter><App /></MemoryRouter>)
+
+    const controlRail = container.querySelector('.view-switcher')
+    expect(controlRail?.contains(screen.getByRole('group', { name: '朝廷抽屉控制' }))).toBe(true)
+    expect(controlRail?.contains(screen.getByRole('group', { name: '地图视图' }))).toBe(true)
+
+    // 点击右侧抽屉提手打开抽屉
+    fireEvent.click(screen.getByRole('button', { name: '派系' }))
 
     expect((screen.getByRole('tab', { name: '阶层，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)
     expect((screen.getByRole('tab', { name: '军队，尚未接入' }) as HTMLButtonElement).disabled).toBe(true)

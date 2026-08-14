@@ -569,6 +569,8 @@ export const DECREE_TYPES: DecreeType[] = [
 ]
 
 export const REGION_NAMES = ['应天', '太平', '镇江', '两淮', '杭州', '武昌', '平江', '大都'] as const
+export const GOVERNANCE_REGION_NAMES = ['中书省', '河南江北行省', '湖广行省', '江浙行省'] as const
+export const REGION_TARGET_NAMES = [...GOVERNANCE_REGION_NAMES, ...REGION_NAMES] as const
 export const DIPLOMACY_TARGETS: DiplomacyTarget[] = ['龙凤政权', '汉政权', '吴政权', '元廷', '东南群雄']
 
 export const TARGET_REQUIRED: Partial<Record<DecreeType, string>> = {

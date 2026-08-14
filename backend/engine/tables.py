@@ -103,7 +103,22 @@ DECREE_TARGET_REQUIRED: dict[DecreeType, str] = {
 }
 
 REGION_NAMES = {"应天", "太平", "镇江", "两淮", "杭州", "武昌", "平江", "大都"}
+GOVERNANCE_DIVISION_REGION_NAMES: dict[str, tuple[str, ...]] = {
+    "中书省": ("大都",),
+    "河南江北行省": ("两淮", "应天", "太平", "镇江", "平江"),
+    "湖广行省": ("武昌",),
+    "江浙行省": ("杭州",),
+}
+REGION_TARGET_NAMES = REGION_NAMES | set(GOVERNANCE_DIVISION_REGION_NAMES)
 DIPLOMACY_TARGETS = {"龙凤政权", "汉政权", "吴政权", "元廷", "东南群雄"}
+
+
+def region_target_members(target: str | None) -> tuple[str, ...]:
+    if target in GOVERNANCE_DIVISION_REGION_NAMES:
+        return GOVERNANCE_DIVISION_REGION_NAMES[target]
+    if target in REGION_NAMES:
+        return (target,)
+    return ()
 
 PRECONDITION_MESSAGES: dict[DecreeType, str] = {
     DecreeType.TAX_INCREASE:     "民心浮动，仓促加征恐激变乱（需要民心>5，当前{civil_morale}）",

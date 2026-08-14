@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { GameState, DecreeType, StructuredDecree, PersonnelAction } from '../types/game'
-import { DECREE_LABELS, REGION_NAMES, DIPLOMACY_TARGETS, PRECONDITION_MESSAGES } from '../types/game'
+import { DECREE_LABELS, GOVERNANCE_REGION_NAMES, REGION_TARGET_NAMES, DIPLOMACY_TARGETS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
 }
 
 function matchKeyword(type: DecreeType, kw: string): 'target' | null {
-  if (type === 'disaster_relief' && (REGION_NAMES as readonly string[]).includes(kw)) return 'target'
+  if (type === 'disaster_relief' && (REGION_TARGET_NAMES as readonly string[]).includes(kw)) return 'target'
   if (type === 'diplomacy' && (DIPLOMACY_TARGETS as string[]).includes(kw)) return 'target'
   if (type === 'personnel' && kw.length >= 2 && kw.length <= 4) return 'target'
   return null
@@ -139,7 +139,7 @@ export default function EdictWritingPanel({
 
             {type === 'disaster_relief' && (
               <div className="edict-targets">
-                {REGION_NAMES.map(name => (
+                {GOVERNANCE_REGION_NAMES.map(name => (
                   <button
                     key={name}
                     className={`edict-target-btn${target === name ? ' selected' : ''}`}

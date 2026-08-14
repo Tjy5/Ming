@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DecreeType, StructuredDecree, PersonnelAction } from '../types/game'
-import { REGION_NAMES, DIPLOMACY_TARGETS } from '../types/game'
+import { GOVERNANCE_REGION_NAMES, DIPLOMACY_TARGETS } from '../types/game'
 
 interface Props {
   type: DecreeType
@@ -18,7 +18,7 @@ export default function TargetDialog({ type, onConfirm, onCancel }: Props) {
         <div className="modal" onClick={(e) => e.stopPropagation()}>
           <h3>赈灾 — 选择目标区域</h3>
           <div className="target-list">
-            {REGION_NAMES.map((name) => (
+            {GOVERNANCE_REGION_NAMES.map((name) => (
               <button key={name} className="target-option" onClick={() => onConfirm({ type, target: name })}>
                 {name}
               </button>

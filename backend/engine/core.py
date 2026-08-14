@@ -30,7 +30,8 @@ from .entity_views import (
 from .calendar import advance_game_time, resolve_era
 from .tables import (
     DECREE_EFFECTS, FACTION_STANCE, DECREE_PRECONDITIONS,
-    DECREE_TARGET_REQUIRED, REGION_NAMES, DIPLOMACY_TARGETS,
+    DECREE_TARGET_REQUIRED, DIPLOMACY_TARGETS, REGION_TARGET_NAMES,
+    GOVERNANCE_DIVISION_REGION_NAMES, region_target_members,
     PRECONDITION_MESSAGES, TARGET_MISSING_MESSAGES,
     WRITABLE_FIELDS, VALID_STATUS_TRANSITIONS,
     DECREE_LABELS,
@@ -125,7 +126,7 @@ def validate_target(decree: StructuredDecree, state: GameState | None = None) ->
     if req is None:
         return None
     if req == "region":
-        if not decree.target or decree.target not in REGION_NAMES:
+        if not decree.target or decree.target not in REGION_TARGET_NAMES:
             return TARGET_MISSING_MESSAGES[decree.type]
     elif req == "person":
         if not decree.target or not decree.sub_action:
@@ -455,6 +456,7 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
     dt = decree.type
     tax_mod = 1.0
     source = DECREE_LABELS.get(dt, "政令")
+    target_region_names = set(region_target_members(decree.target))
     for r in state.regions:
         if dt == DecreeType.TAX_INCREASE:
             if r.stability < 30:
@@ -491,7 +493,7 @@ def apply_region_impact(state: GameState, decree: StructuredDecree, attr: dict) 
                 r.garrison -= 3000
                 _attr_add(attr, f"{r.name}_garrison", source, -3000)
         elif dt == DecreeType.DISASTER_RELIEF:
-            if decree.target and r.name == decree.target:
+            if r.name in target_region_names:
                 r.stability += 22
                 r.civil_morale += 10
                 r.disaster_level -= 18
@@ -1261,6 +1263,16 @@ def validate_ai_effects(effects: dict, state: GameState, *, dropped_out: list | 
         if dropped_out is not None and effects:
             dropped_out.append(("<non-dict-effects>", effects, "effects 非字典"))
         return {}
+    expanded_effects = dict(effects)
+    for path, value in effects.items():
+        parts = path.split(".") if isinstance(path, str) else []
+        if len(parts) < 3 or parts[0] != "region" or parts[1] not in GOVERNANCE_DIVISION_REGION_NAMES:
+            continue
+        expanded_effects.pop(path, None)
+        for member_name in GOVERNANCE_DIVISION_REGION_NAMES[parts[1]]:
+            member_path = ".".join(("region", member_name, *parts[2:]))
+            expanded_effects.setdefault(member_path, value)
+    effects = expanded_effects
     valid: dict = {}
     for path, value in effects.items():
         drop_reason: str | None = None

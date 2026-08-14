@@ -3,14 +3,15 @@ import type { GameEvent, GameState, Region } from '../types/game'
 
 interface Props {
   region: Region
+  sourceRegions: readonly Region[]
   entityRegistry?: GameState['entity_registry']
   activeEvents?: GameEvent[]
   versionId?: string | null
   onClose: () => void
-  onAct: (region: Region) => void
+  onAct: () => void
 }
 
-export default function RegionInspector({ region, entityRegistry, activeEvents = [], versionId, onClose, onAct }: Props) {
+export default function RegionInspector({ region, sourceRegions, entityRegistry, activeEvents = [], versionId, onClose, onAct }: Props) {
   const closeButton = useRef<HTMLButtonElement | null>(null)
   const activeEntities = Object.values(entityRegistry ?? {}).filter(entity => entity.status === 'active' && entity.available)
   useEffect(() => {
@@ -23,17 +24,29 @@ export default function RegionInspector({ region, entityRegistry, activeEvents =
   }, [onClose, region.name])
 
   return (
-    <aside className="region-inspector" aria-label={`${region.name}地区检查器`}>
+    <aside className="region-inspector" aria-label={`${region.name}行政区检查器`}>
       <div className="region-inspector-header">
         <div>
-          <p className="region-inspector-kicker">当前地区</p>
+          <p className="region-inspector-kicker">历史行政区</p>
           <h2>{region.name}</h2>
         </div>
         <button ref={closeButton} type="button" className="inspector-close" aria-label="关闭地区检查器" onClick={onClose}>×</button>
       </div>
       <div className="region-inspector-actions">
-        <button type="button" className="modal-btn primary" onClick={() => onAct(region)}>对该地区行动</button>
+        <button type="button" className="modal-btn primary" onClick={onAct}>对该行政区施政</button>
       </div>
+      <section aria-labelledby="region-members-heading">
+        <h3 id="region-members-heading">所辖治理地区</h3>
+        <ul className="region-inspector-list region-member-list">
+          {sourceRegions.map(sourceRegion => (
+            <li key={sourceRegion.name}>
+              {sourceRegion.name}
+              <span>稳定 {sourceRegion.stability} · 民心 {sourceRegion.civil_morale}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="region-inspector-muted">下列总览由这些剧本地区汇总，施政时会同时作用于所辖地区。</p>
+      </section>
       <section aria-labelledby="region-control-heading">
         <h3 id="region-control-heading">控制与风险</h3>
         <dl className="region-inspector-grid">

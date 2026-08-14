@@ -5,7 +5,7 @@ import RegionInspector from '../components/RegionInspector'
 import type { GameEvent, Region } from '../types/game'
 
 const region: Region = {
-  name: '应天', stability: 70, garrison: 1000, control: '朝廷', threat: 'none',
+  name: '河南江北行省', stability: 70, garrison: 1000, control: '朝廷', threat: 'none',
   tax_contribution: 'high', civil_morale: 60, rebellion_risk: 10, tax_rate: 0.5,
   tax_collected: 100, disaster_level: 0,
 }
@@ -21,6 +21,7 @@ describe('RegionInspector', () => {
     render(
       <RegionInspector
         region={region}
+        sourceRegions={[{ ...region, name: '应天' }, { ...region, name: '两淮', stability: 64 }]}
         activeEvents={[event]}
         entityRegistry={{ person: {
           entity_id: 'person', display_name: '临时代理', entity_type: 'person', status: 'active', available: true,
@@ -33,5 +34,9 @@ describe('RegionInspector', () => {
     )
     expect(screen.getByText('河工告急')).toBeTruthy()
     expect(screen.getByText('临时代理')).toBeTruthy()
+    expect(screen.getByText('历史行政区')).toBeTruthy()
+    expect(screen.getByText('应天')).toBeTruthy()
+    expect(screen.getByText('两淮')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '对该行政区施政' })).toBeTruthy()
   })
 })
