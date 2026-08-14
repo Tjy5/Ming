@@ -176,16 +176,21 @@ describe('App adoption result integrity', () => {
     const { container } = render(<MemoryRouter><App /></MemoryRouter>)
 
     const controlRail = container.querySelector('.view-switcher')
+    const primaryStrip = screen.getByRole('navigation', { name: '朝廷管理' })
     const courtControls = screen.getByRole('group', { name: '朝廷抽屉控制' })
-    expect(controlRail?.contains(courtControls)).toBe(true)
+    expect(primaryStrip.contains(courtControls)).toBe(true)
+    expect(controlRail?.contains(courtControls)).toBe(false)
     expect(controlRail?.contains(screen.getByRole('group', { name: '地图模式' }))).toBe(true)
     expect(controlRail?.contains(screen.getByRole('group', { name: '地图镜头' }))).toBe(true)
     const courtButtons = Array.from(courtControls.querySelectorAll('button'))
     expect(courtButtons.map((button) => button.getAttribute('aria-label'))).toEqual(['派系', '大臣', '朝议'])
-    expect(courtButtons.every((button) => button.querySelector('.desktop-icon'))).toBe(true)
+    expect(courtButtons.map((button) => button.textContent)).toEqual(['派系', '大臣', '朝议'])
+    expect(courtButtons.every((button) => button.querySelector('.rail-button-label'))).toBe(true)
+    expect(courtControls.querySelector('.desktop-icon')).toBeNull()
+    expect(courtControls.querySelector('.rail-tooltip')).toBeNull()
     expect(courtButtons.every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true)
 
-    // 点击右侧抽屉提手打开抽屉
+    // 点击左上主功能排打开朝廷抽屉
     fireEvent.click(screen.getByRole('button', { name: '派系' }))
     expect(screen.getByRole('button', { name: '派系' }).getAttribute('aria-expanded')).toBe('true')
 

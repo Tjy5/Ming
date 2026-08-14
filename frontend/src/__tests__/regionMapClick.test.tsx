@@ -175,16 +175,20 @@ describe('RegionMap administrative governance interaction', () => {
     }
   })
 
-  it('orders the court, map mode, and camera groups in one icon control rail', () => {
+  it('places court navigation at the map top-left and keeps map tools in the right rail', () => {
     const { container, getByRole, getByLabelText } = render(
       <RegionMap
         regions={[makeRegion('应天')]}
         railControls={<div role="group" aria-label="朝廷抽屉控制" />}
       />,
     )
-    const rail = getByRole('complementary', { name: '地图与朝廷控制' })
+    const primaryStrip = getByRole('navigation', { name: '朝廷管理' })
+    const courtControls = getByRole('group', { name: '朝廷抽屉控制' })
+    const rail = getByRole('complementary', { name: '地图控制' })
+    expect(primaryStrip.contains(courtControls)).toBe(true)
+    expect(container.querySelector('.geographic-map')?.contains(primaryStrip)).toBe(true)
+    expect(rail.contains(courtControls)).toBe(false)
     expect(Array.from(rail.children).map((child) => child.getAttribute('aria-label'))).toEqual([
-      '朝廷抽屉控制',
       '地图模式',
       '地图镜头',
     ])
@@ -193,13 +197,23 @@ describe('RegionMap administrative governance interaction', () => {
     expect(modeButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
       '标准', '灾情', '民心', '动乱', '税率', '赋税',
     ])
-    expect(modeButtons.every((button) => button.querySelector('.desktop-icon'))).toBe(true)
-    expect(modeButtons.every((button) => button.querySelector('.rail-tooltip'))).toBe(true)
+    expect(modeButtons.map((button) => button.textContent)).toEqual([
+      '标准', '灾情', '民心', '动乱', '税率', '赋税',
+    ])
+    expect(modeButtons.every((button) => button.querySelector('.rail-button-label'))).toBe(true)
+    expect(rail.querySelector('.desktop-icon')).toBeNull()
+    expect(rail.querySelector('.rail-tooltip')).toBeNull()
     expect(modeButtons[0].getAttribute('aria-pressed')).toBe('true')
 
     const camera = getByRole('group', { name: '地图镜头' })
     expect(Array.from(camera.querySelectorAll('button')).map((button) => button.getAttribute('aria-label'))).toEqual([
       '缩小地图', '放大地图', '重置地图视图',
+    ])
+    expect(Array.from(camera.querySelectorAll('button')).map((button) => button.textContent)).toEqual([
+      '缩小', '放大', '复位',
+    ])
+    expect(Array.from(rail.querySelectorAll('.rail-section-title')).map((title) => title.textContent)).toEqual([
+      '地图', '镜头',
     ])
     expect(getByLabelText('当前地图缩放比例').textContent).toBe('100%')
     expect(container.querySelector('.geographic-map .map-zoom-controls')).toBeNull()

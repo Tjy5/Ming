@@ -4,14 +4,14 @@ import FactionPanel from './FactionPanel'
 import MinisterPanel from './MinisterPanel'
 import CourtAssemblyView from './CourtAssemblyView'
 import MissionPanel from './MissionPanel'
-import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
+import DesktopIcon from './DesktopIcon'
 
 export type CourtDrawerTab = 'faction' | 'minister' | 'assembly'
 
-const COURT_TABS: { id: CourtDrawerTab; label: string; icon: DesktopIconName }[] = [
-  { id: 'faction', label: '派系', icon: 'branch' },
-  { id: 'minister', label: '大臣', icon: 'users' },
-  { id: 'assembly', label: '朝议', icon: 'archive' },
+const COURT_TABS: { id: CourtDrawerTab; label: string }[] = [
+  { id: 'faction', label: '派系' },
+  { id: 'minister', label: '大臣' },
+  { id: 'assembly', label: '朝议' },
 ]
 
 interface Props {
@@ -39,18 +39,18 @@ interface CourtDrawerHandlesProps {
 export function CourtDrawerHandles({ isOpen, activeTab, onTabChange }: CourtDrawerHandlesProps) {
   return (
     <div className="court-drawer-handles" role="group" aria-label="朝廷抽屉控制">
+      <span className="rail-section-title" aria-hidden="true">朝廷</span>
       {COURT_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
-          className={`rail-icon-button drawer-tab-handle${isOpen && activeTab === tab.id ? ' active' : ''}`}
+          className={`rail-text-button drawer-tab-handle${isOpen && activeTab === tab.id ? ' active' : ''}`}
           onClick={() => onTabChange(tab.id)}
           title={`打开${tab.label}面板`}
           aria-label={tab.label}
           aria-expanded={isOpen && activeTab === tab.id}
         >
-          <DesktopIcon name={tab.icon} size={21} />
-          <span className="rail-tooltip" aria-hidden="true">{tab.label}</span>
+          <span className="rail-button-label">{tab.label}</span>
         </button>
       ))}
     </div>

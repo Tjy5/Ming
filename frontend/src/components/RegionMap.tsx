@@ -10,7 +10,6 @@ import {
 } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Region, RegionControl } from '../types/game'
-import DesktopIcon, { type DesktopIconName } from './DesktopIcon'
 import {
   MAP_MODE_PRESENTATIONS,
   VIEW_MODES,
@@ -50,14 +49,6 @@ const MIN_MAP_ZOOM = 1
 const MAX_MAP_ZOOM = 3
 const MAP_ZOOM_STEP = 1.25
 const MAP_WHEEL_ZOOM_STEP = 1.15
-const MAP_MODE_ICONS: Record<ViewMode, DesktopIconName> = {
-  standard: 'map',
-  disaster: 'alert',
-  morale: 'heart',
-  rebellion: 'flag',
-  tax_rate: 'percent',
-  tax_collected: 'coins',
-}
 const DEFAULT_MAP_CAMERA = {
   centerX: BASE_MAP_VIEW.x + BASE_MAP_VIEW.width / 2,
   centerY: BASE_MAP_VIEW.y + BASE_MAP_VIEW.height / 2,
@@ -506,6 +497,11 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
             {joined.duplicates.length > 0 && <span className="map-warning-item warning-duplicate" data-warning-kind="duplicate">重复：{joined.duplicates.map((region) => region.name).join('、')}</span>}
           </div>
         )}
+        {railControls && (
+          <nav className="primary-command-strip" aria-label="朝廷管理">
+            {railControls}
+          </nav>
+        )}
         <section className="map-mode-context" aria-live="polite" aria-label={`${presentation.title}图例`}>
           <div className="map-mode-heading">
             <h2>{presentation.title}</h2>
@@ -526,40 +522,39 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
         <p className="map-accuracy-note">约 14 世纪中叶历史归组；现代省界仅用于拼合历史行政区。点击有治理数据的行政区轮廓可查看汇总状态并施政；淡色斜纹区尚未接入本剧本数据。</p>
         <AnimatePresence>{toasts?.map((msg) => <motion.div key={msg} className="map-toast" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{msg}</motion.div>)}</AnimatePresence>
       </div>
-      <aside className="view-switcher" aria-label="地图与朝廷控制">
-        {railControls}
+      <aside className="view-switcher" aria-label="地图控制">
         <div className="map-view-controls" role="group" aria-label="地图模式">
+          <span className="rail-section-title" aria-hidden="true">地图</span>
           {VIEW_MODES.map((mode) => {
             const label = MAP_MODE_PRESENTATIONS[mode].label
             return (
               <button
                 key={mode}
                 type="button"
-                className={`rail-icon-button view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`}
+                className={`rail-text-button view-btn mode-${mode}${viewMode === mode ? ' active' : ''}`}
                 aria-label={label}
                 title={`${label}地图模式`}
                 aria-pressed={viewMode === mode}
                 onClick={() => setViewMode(mode)}
               >
-                <DesktopIcon name={MAP_MODE_ICONS[mode]} size={18} />
-                <span className="rail-tooltip" aria-hidden="true">{label}</span>
+                <span className="rail-button-label">{label}</span>
               </button>
             )
           })}
         </div>
         <div className="map-zoom-controls" role="group" aria-label="地图镜头">
-          <output className="map-zoom-level" aria-label="当前地图缩放比例" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
-          <button className="rail-icon-button" type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>
-            <DesktopIcon name="minus" size={17} />
-            <span className="rail-tooltip" aria-hidden="true">缩小地图</span>
+          <div className="map-zoom-heading">
+            <span className="rail-section-title" aria-hidden="true">镜头</span>
+            <output className="map-zoom-level" aria-label="当前地图缩放比例" aria-live="polite">{Math.round(mapZoom * 100)}%</output>
+          </div>
+          <button className="rail-text-button" type="button" aria-label="缩小地图" title="缩小地图" disabled={mapZoom <= MIN_MAP_ZOOM} onClick={() => zoomBy(1 / MAP_ZOOM_STEP)}>
+            <span className="rail-button-label">缩小</span>
           </button>
-          <button className="rail-icon-button" type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>
-            <DesktopIcon name="plus" size={17} />
-            <span className="rail-tooltip" aria-hidden="true">放大地图</span>
+          <button className="rail-text-button" type="button" aria-label="放大地图" title="放大地图" disabled={mapZoom >= MAX_MAP_ZOOM} onClick={() => zoomBy(MAP_ZOOM_STEP)}>
+            <span className="rail-button-label">放大</span>
           </button>
-          <button className="rail-icon-button map-reset-view" type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}>
-            <DesktopIcon name="refresh" size={16} />
-            <span className="rail-tooltip" aria-hidden="true">重置地图视图</span>
+          <button className="rail-text-button map-reset-view" type="button" aria-label="重置地图视图" title="重置地图视图" disabled={mapIsAtDefaultView} onClick={() => setMapCamera(DEFAULT_MAP_CAMERA)}>
+            <span className="rail-button-label">复位</span>
           </button>
         </div>
       </aside>
