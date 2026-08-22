@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SaveEntry, GameState } from '../types/game'
 import { api, ApiError } from '../api/client'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   onLoad: (state: GameState, migrationNote?: string) => void
@@ -11,6 +12,13 @@ interface Props {
 export default function SavePanel({ onLoad, onClose, hasUnsaved }: Props) {
   const [saves, setSaves] = useState<SaveEntry[]>([])
   const [error, setError] = useState('')
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'save_panel',
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -42,9 +50,17 @@ export default function SavePanel({ onLoad, onClose, hasUnsaved }: Props) {
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>存档列表</h3>
+    <div className="modal-overlay" onClick={onClose} data-overlay-root="modal">
+      <div
+        ref={panelRef}
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-labelledby="save-panel-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 id="save-panel-title">存档列表</h3>
         {error && <p style={{ color: 'var(--red)' }}>{error}</p>}
         <div className="save-list">
           {saves.length === 0 && <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>暂无存档</p>}
@@ -58,9 +74,7 @@ export default function SavePanel({ onLoad, onClose, hasUnsaved }: Props) {
             </div>
           ))}
         </div>
-        <div className="modal-actions">
-          <button className="modal-btn" onClick={onClose}>关闭</button>
-        </div>
+        <button className="modal-btn" onClick={onClose}>关闭</button>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -48,6 +49,8 @@ def _append(
     mode="chat",
     person_entity_id=None,
     memory_id=None,
+    role="assistant",
+    created_at=None,
 ):
     state = worlds.load_version(ref.version_id).state
     assert state.time.clock is not None
@@ -62,10 +65,11 @@ def _append(
         topic_id=topic,
         person_entity_id=person_entity_id,
         kind=kind,
-        role="assistant",
+        role=role,
         content=content,
         created_world_hour=state.time.clock.absolute_hour,
         memory_id=memory_id,
+        created_at=created_at,
     )
 
 
@@ -128,7 +132,6 @@ def test_memory_visibility_follows_version_ancestry_not_process_or_name(
         root_memory.memory_id,
         branch_memory.memory_id,
     ]
-
     child_memory = _append(fork, content="只属于子分支")
     original = narrative_memory.list_visible_memories(
         game_id=committed.version.game_id,
@@ -138,6 +141,26 @@ def test_memory_visibility_follows_version_ancestry_not_process_or_name(
         topic_id="same-topic",
     )
     assert child_memory.memory_id not in {item.memory_id for item in original}
+
+
+def test_memory_ties_preserve_insertion_order(monkeypatch, tmp_path):
+    _db_path, root = _store(monkeypatch, tmp_path)
+    tied_at = datetime(2026, 8, 15, tzinfo=timezone.utc)
+    _append(root, content="user", role="user", created_at=tied_at)
+    _append(root, content="assistant", role="assistant", created_at=tied_at)
+
+    memories = narrative_memory.list_visible_memories(
+        game_id=root.game_id,
+        branch_id=root.branch_id,
+        version_id=root.version_id,
+        mode="chat",
+        topic_id="same-topic",
+    )
+
+    assert [(item.role, item.content) for item in memories] == [
+        ("user", "user"),
+        ("assistant", "assistant"),
+    ]
 
 
 def test_memory_retry_is_idempotent_and_changed_payload_conflicts(monkeypatch, tmp_path):
@@ -268,6 +291,8 @@ def test_persisted_chat_context_keeps_same_topic_across_month_and_filters_scope(
 
 
 def test_artifact_display_updates_without_creating_world_versions(monkeypatch, tmp_path):
+    fixed_now = datetime(2026, 8, 15, tzinfo=timezone.utc)
+    monkeypatch.setattr(narrative_memory, "_utc_now", lambda: fixed_now)
     _db_path, root = _store(monkeypatch, tmp_path)
     result = _commit(root)
     before_versions = worlds.list_versions(root.game_id, root.branch_id)

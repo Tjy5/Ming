@@ -5,7 +5,8 @@ import { api, ApiError } from './api/client'
 import type { StructuredDecree, GameState, GameEvent, MinisterReaction, TurnSummary, CourtAssembly, Minister } from './types/game'
 import ResourceBar from './components/ResourceBar'
 import RegionMap from './components/RegionMap'
-import CourtDrawer, { CourtDrawerHandles, type CourtDrawerTab } from './components/CourtDrawer'
+import CourtDrawer, { CourtDrawerHandles } from './components/CourtDrawer'
+import type { CourtDrawerTab } from './components/courtDrawerTabs'
 import Ck3EventFeed from './components/Ck3EventFeed'
 import ImperialEdictModal from './components/ImperialEdictModal'
 import CommandHud from './components/CommandHud'
@@ -26,6 +27,8 @@ import { shouldAutoOpenGuide } from './components/guideModalLogic'
 import { MODE_SELECT_OPERATION_FLAG } from './constants/modeSelect'
 import { useDecreeExecution } from './hooks/useDecreeExecution'
 import { useAdvanceMonth } from './hooks/useAdvanceMonth'
+import { useGlobalShortcuts } from './hooks/useGlobalShortcuts'
+import { useRegisterOverlay } from './hooks/useRegisterOverlay'
 import './App.css'
 
 type NarrativePayload = {
@@ -41,9 +44,9 @@ function App() {
   const navigate = useNavigate()
   const {
     state, loading, error, gameOver, prevState,
-    capabilities, currentModal,
+    capabilities, currentModal, activeHudSurface, overlayStack,
     setState, setLoading, setError, setGameOver, setPrevState,
-    setCapabilities,
+    setCapabilities, setActiveHudSurface, closeTopmostOverlay,
     pushModal, popModal, clearModals, reset,
   } = useStore()
 
@@ -52,8 +55,6 @@ function App() {
   const [showOfficialRank, setShowOfficialRank] = useState(false)
   const [pendingMulti, setPendingMulti] = useState<StructuredDecree[] | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [courtDrawerTab, setCourtDrawerTab] = useState<CourtDrawerTab>('faction')
-  const [courtDrawerOpen, setCourtDrawerOpen] = useState(false)
   const [edictModalOpen, setEdictModalOpen] = useState(false)
   const [lastReactions, setLastReactions] = useState<MinisterReaction[]>([])
   const toastTimer = useRef<number>(0)
@@ -69,6 +70,48 @@ function App() {
   const [guideOpen, setGuideOpen] = useState(false)
   const memorialTrigger = useRef<HTMLElement | null>(null)
 
+  // Derive court drawer state from activeHudSurface
+  const courtDrawerOpen = activeHudSurface === 'faction' || activeHudSurface === 'minister' || activeHudSurface === 'assembly'
+  const courtDrawerTab: CourtDrawerTab = (activeHudSurface === 'faction' || activeHudSurface === 'minister' || activeHudSurface === 'assembly')
+    ? activeHudSurface
+    : 'faction'
+
+  // Register secondary overlays
+  useRegisterOverlay(showSaves, {
+    id: 'save_panel',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: () => setShowSaves(false),
+  })
+
+  useRegisterOverlay(showAiSettings, {
+    id: 'ai_settings_modal',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: () => setShowAiSettings(false),
+  })
+
+  useRegisterOverlay(showOfficialRank, {
+    id: 'official_rank_modal',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: () => setShowOfficialRank(false),
+  })
+
+  useRegisterOverlay(!!dialogueMinisterName, {
+    id: 'minister_dialogue',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: () => setDialogueMinisterName(null),
+  })
+
+  useRegisterOverlay(!!pendingMulti, {
+    id: 'multi_confirm_modal',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: () => setPendingMulti(null),
+  })
+
   const closeRegionInspector = useCallback(() => {
     const divisionId = selectedDivisionId
     setSelectedDivisionId(null)
@@ -80,9 +123,8 @@ function App() {
   }, [selectedDivisionId])
 
   const closeMemorialPanel = useCallback(() => {
-    popModal()
-    window.setTimeout(() => memorialTrigger.current?.focus(), 0)
-  }, [popModal])
+    closeTopmostOverlay()
+  }, [closeTopmostOverlay])
 
   useEffect(() => {
     if (shouldAutoOpenGuide()) setGuideOpen(true)
@@ -301,6 +343,7 @@ function App() {
     showToast,
     onReactions: setLastReactions,
   })
+
   const {
     advanceMonthInFlight,
     handleAdvanceMonth,
@@ -318,7 +361,40 @@ function App() {
     showToast,
     onMissionComplete: (name, missionName) => showToast(`${name} 完成任务：${missionName}`),
   })
+
   const pendingMemorials = state?.memorials?.filter(m => m.status === 'pending' || m.status === 'deferred') ?? []
+
+  function openMemorialPanel() {
+    if (!pendingMemorials.length) return
+    memorialTrigger.current = document.activeElement as HTMLElement | null
+    pushModal(
+      { type: 'memorial', priority: 30, payload: pendingMemorials },
+      { openerRef: memorialTrigger },
+    )
+  }
+
+  // Global Shortcuts Coordinator
+  useGlobalShortcuts({
+    state,
+    loading,
+    currentModal,
+    hasBlockingEvent,
+    gameOver,
+    advanceMonthInFlight,
+    decreeInFlight,
+    activeHudSurface,
+    capabilities,
+    overlayStack,
+    pendingMemorialsCount: pendingMemorials.length,
+    onAdvanceMonth: handleAdvanceMonth,
+    onOpenEdictModal: () => setEdictModalOpen(true),
+    onOpenMemorials: openMemorialPanel,
+    onToggleSurface: (surface) => {
+      setActiveHudSurface(activeHudSurface === surface ? null : surface)
+    },
+    onShowToast: showToast,
+    onCloseTopmostOverlay: closeTopmostOverlay,
+  })
 
   if (!state) {
     return (
@@ -336,12 +412,7 @@ function App() {
         state={state}
         prevState={prevState}
         pendingMemorials={pendingMemorials.length}
-        onMemorialClick={() => {
-          if (pendingMemorials.length) {
-            memorialTrigger.current = document.activeElement as HTMLElement | null
-            pushModal({ type: 'memorial', priority: 30, payload: pendingMemorials })
-          }
-        }}
+        onMemorialClick={openMemorialPanel}
         blockingEvents={blockingEvents.length}
         onBlockingEventClick={handleBlockingEventClick}
         onSave={handleSave}
@@ -360,13 +431,14 @@ function App() {
             regions={state.regions}
             highlightDivisionId={selectedDivision?.division.id}
             onDivisionClick={handleDivisionClick}
+            activeHudSurface={activeHudSurface}
+            onHudSurfaceChange={(s) => setActiveHudSurface(s)}
             railControls={(
               <CourtDrawerHandles
                 isOpen={courtDrawerOpen}
                 activeTab={courtDrawerTab}
                 onTabChange={(tab) => {
-                  setCourtDrawerTab(tab)
-                  setCourtDrawerOpen(true)
+                  setActiveHudSurface(activeHudSurface === tab ? null : tab)
                 }}
               />
             )}
@@ -399,11 +471,9 @@ function App() {
           isOpen={courtDrawerOpen}
           activeTab={courtDrawerTab}
           onTabChange={(tab) => {
-            setCourtDrawerTab(tab)
-            setCourtDrawerOpen(true)
+            setActiveHudSurface(tab)
           }}
-          onToggle={() => setCourtDrawerOpen((prev) => !prev)}
-          onClose={() => setCourtDrawerOpen(false)}
+          onClose={() => setActiveHudSurface(null)}
           state={state}
           capabilities={capabilities}
           lastReactions={lastReactions}

@@ -23,6 +23,8 @@ import type {
   AiSettingsFieldErrors,
   ThinkingConfig,
 } from './aiSettingsLogic'
+import { useStore } from '../hooks/store'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   onClose: () => void
@@ -231,9 +233,14 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  useFocusTrap({ active: true, containerRef: panelRef, overlayId: 'ai_settings_modal' })
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || saving) return
+      const stack = useStore.getState().overlayStack
+      if (stack.length > 0 && !useStore.getState().isTopmostOverlay('ai_settings_modal')) return
       testControllerRef.current?.abort()
       assessmentControllerRef.current?.abort()
       onClose()
@@ -660,11 +667,13 @@ export default function AiSettingsModal({ onClose, onSaved }: Props) {
   const hasDraftChanges = verification === null && !loading
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div className="modal-overlay" onClick={handleClose} data-overlay-root="modal">
       <div
+        ref={panelRef}
         className="modal ai-settings-modal"
         role="dialog"
         aria-modal="true"
+        data-overlay-panel="true"
         aria-labelledby="ai-settings-title"
         onClick={(event) => event.stopPropagation()}
       >

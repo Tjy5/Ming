@@ -1,24 +1,18 @@
-import { useEffect } from 'react'
+import { useRef } from 'react'
 import type { Capabilities, DecreeResponse, GameState, Minister, MinisterReaction } from '../types/game'
 import FactionPanel from './FactionPanel'
 import MinisterPanel from './MinisterPanel'
 import CourtAssemblyView from './CourtAssemblyView'
 import MissionPanel from './MissionPanel'
 import DesktopIcon from './DesktopIcon'
-
-export type CourtDrawerTab = 'faction' | 'minister' | 'assembly'
-
-const COURT_TABS: { id: CourtDrawerTab; label: string }[] = [
-  { id: 'faction', label: '派系' },
-  { id: 'minister', label: '大臣' },
-  { id: 'assembly', label: '朝议' },
-]
+import { useFocusTrap } from '../hooks/useFocusTrap'
+import { COURT_TABS, type CourtDrawerTab } from './courtDrawerTabs'
 
 interface Props {
   isOpen: boolean
   activeTab: CourtDrawerTab
   onTabChange: (tab: CourtDrawerTab) => void
-  onToggle: () => void
+  onToggle?: () => void
   onClose: () => void
   state: GameState
   capabilities: Capabilities
@@ -43,12 +37,15 @@ export function CourtDrawerHandles({ isOpen, activeTab, onTabChange }: CourtDraw
       {COURT_TABS.map((tab) => (
         <button
           key={tab.id}
+          id={`rail-btn-${tab.id}`}
           type="button"
           className={`rail-text-button drawer-tab-handle${isOpen && activeTab === tab.id ? ' active' : ''}`}
           onClick={() => onTabChange(tab.id)}
-          title={`打开${tab.label}面板`}
+          title={`打开${tab.label}面板${tab.shortcut ? ` (${tab.shortcut})` : ''}`}
           aria-label={tab.label}
           aria-expanded={isOpen && activeTab === tab.id}
+          aria-controls="court-drawer-container"
+          data-shortcut={tab.shortcut}
         >
           <span className="rail-button-label">{tab.label}</span>
         </button>
@@ -71,16 +68,13 @@ export default function CourtDrawer({
   onAdoptionResult,
   onShowToast,
 }: Props) {
-  useEffect(() => {
-    if (!isOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  const drawerPanelRef = useRef<HTMLElement | null>(null)
+
+  useFocusTrap({
+    active: isOpen,
+    containerRef: drawerPanelRef,
+    overlayId: 'hud_surface',
+  })
 
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tabId: CourtDrawerTab) => {
     const currentIndex = COURT_TABS.findIndex((item) => item.id === tabId)
@@ -93,6 +87,7 @@ export default function CourtDrawer({
           : direction
             ? (currentIndex + direction + COURT_TABS.length) % COURT_TABS.length
             : null
+
     if (nextIndex === null) return
 
     event.preventDefault()
@@ -103,98 +98,117 @@ export default function CourtDrawer({
 
   return (
     <>
-      {/* 展开后的抽屉及遮罩 */}
       {isOpen && (
         <>
           <div className="court-drawer-backdrop" onClick={onClose} aria-hidden="true" />
-          <aside className="court-drawer-container" role="dialog" aria-labelledby="court-drawer-title" aria-modal="true">
-            <header className="court-drawer-header">
-              <div className="court-drawer-header-title" id="court-drawer-title">
-                <DesktopIcon name="users" />
-                <span>朝廷理政 · {COURT_TABS.find((t) => t.id === activeTab)?.label}</span>
-              </div>
-              <button
-                type="button"
-                className="court-drawer-close"
-                onClick={onClose}
-                aria-label="关闭朝廷抽屉"
-                title="关闭 (ESC)"
-              >
-                ×
-              </button>
-            </header>
-
-            <nav className="court-drawer-tabs" role="tablist" aria-label="朝廷管理标签">
-              {COURT_TABS.map((tab) => (
+          <aside
+            ref={drawerPanelRef}
+            id="court-drawer-container"
+            className="court-drawer-container"
+            role="dialog"
+            aria-labelledby="court-drawer-title"
+            aria-modal="true"
+            data-overlay-root="modal"
+          >
+            <div data-overlay-panel="true" className="court-drawer-panel-inner">
+              <header className="court-drawer-header">
+                <div className="court-drawer-header-title" id="court-drawer-title">
+                  <DesktopIcon name="users" />
+                  <span>朝廷理政 · {COURT_TABS.find((t) => t.id === activeTab)?.label}</span>
+                </div>
                 <button
-                  key={tab.id}
                   type="button"
-                  role="tab"
-                  id={`court-tab-${tab.id}`}
-                  className={`court-drawer-tab-btn${activeTab === tab.id ? ' active' : ''}`}
-                  aria-selected={activeTab === tab.id}
-                  onClick={() => onTabChange(tab.id)}
-                  onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
+                  className="court-drawer-close"
+                  onClick={onClose}
+                  aria-label="关闭朝廷抽屉"
+                  title="关闭 (ESC)"
                 >
-                  {tab.label}
+                  ×
                 </button>
-              ))}
-              <button
-                type="button"
-                className="court-drawer-tab-btn unavailable"
-                role="tab"
-                aria-selected={false}
-                disabled
-                title="阶层数据尚未接入当前世界"
-                aria-label="阶层，尚未接入"
-              >
-                阶层
-              </button>
-              <button
-                type="button"
-                className="court-drawer-tab-btn unavailable"
-                role="tab"
-                aria-selected={false}
-                disabled
-                title="军队数据尚未接入当前世界"
-                aria-label="军队，尚未接入"
-              >
-                军队
-              </button>
-            </nav>
+              </header>
 
-            <div className="court-drawer-body">
-              <div className="court-drawer-tools">
-                <button type="button" onClick={onShowOfficialRank} title="查看并任免官职">
-                  <DesktopIcon name="archive" />
-                  <span>官职任免</span>
+              <nav className="court-drawer-tabs" role="tablist" aria-label="朝廷管理标签">
+                {COURT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    id={`court-tab-${tab.id}`}
+                    tabIndex={activeTab === tab.id ? 0 : -1}
+                    className={`court-drawer-tab-btn${activeTab === tab.id ? ' active' : ''}`}
+                    aria-selected={activeTab === tab.id}
+                    aria-controls={`court-tabpanel-${tab.id}`}
+                    onClick={() => onTabChange(tab.id)}
+                    onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="court-drawer-tab-btn unavailable"
+                  role="tab"
+                  tabIndex={-1}
+                  aria-selected={false}
+                  disabled
+                  title="阶层数据尚未接入当前世界"
+                  aria-label="阶层，尚未接入"
+                >
+                  阶层
                 </button>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>阶层与军队演化中</span>
-              </div>
+                <button
+                  type="button"
+                  className="court-drawer-tab-btn unavailable"
+                  role="tab"
+                  tabIndex={-1}
+                  aria-selected={false}
+                  disabled
+                  title="军队数据尚未接入当前世界"
+                  aria-label="军队，尚未接入"
+                >
+                  军队
+                </button>
+              </nav>
 
-              <MissionPanel ministers={state.ministers} />
+              <section
+                id={`court-tabpanel-${activeTab}`}
+                role="tabpanel"
+                aria-labelledby={`court-tab-${activeTab}`}
+                tabIndex={0}
+                className="court-drawer-body"
+              >
+                <div className="court-drawer-tools">
+                  <button type="button" onClick={onShowOfficialRank} title="查看并任免官职">
+                    <DesktopIcon name="archive" />
+                    <span>官职任免</span>
+                  </button>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-dim)' }}>阶层与军队演化中</span>
+                </div>
 
-              {activeTab === 'faction' && <FactionPanel factions={state.factions} />}
+                <MissionPanel ministers={state.ministers} />
 
-              {activeTab === 'minister' && (
-                <MinisterPanel
-                  ministers={state.ministers}
-                  reactions={lastReactions}
-                  onMinisterClick={onMinisterClick}
-                  onEmptyAction={() => onTabChange('assembly')}
-                />
-              )}
+                {activeTab === 'faction' && <FactionPanel factions={state.factions} />}
 
-              {activeTab === 'assembly' && (
-                <CourtAssemblyView
-                  state={state}
-                  capabilities={capabilities}
-                  loading={false}
-                  onStateUpdate={onStateUpdate}
-                  onAdoptionResult={onAdoptionResult}
-                  onShowToast={onShowToast}
-                />
-              )}
+                {activeTab === 'minister' && (
+                  <MinisterPanel
+                    ministers={state.ministers}
+                    reactions={lastReactions}
+                    onMinisterClick={onMinisterClick}
+                    onEmptyAction={() => onTabChange('assembly')}
+                  />
+                )}
+
+                {activeTab === 'assembly' && (
+                  <CourtAssemblyView
+                    state={state}
+                    capabilities={capabilities}
+                    loading={false}
+                    onStateUpdate={onStateUpdate}
+                    onAdoptionResult={onAdoptionResult}
+                    onShowToast={onShowToast}
+                  />
+                )}
+              </section>
             </div>
           </aside>
         </>

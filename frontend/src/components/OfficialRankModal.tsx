@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { FACTION_COLORS } from '../shared/constants/factions'
 import { POSITION_DESCRIPTIONS } from '../shared/constants/positions'
 import type { Minister } from '../types/game'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   ministers: Minister[]
@@ -34,6 +35,13 @@ const NOBLE_POSITIONS = ['吴国公', '太师', '太尉', '司徒', '司空']
 export default function OfficialRankModal({ ministers, onClose, onAppoint }: Props) {
   const [expandedLeaf, setExpandedLeaf] = useState<string | null>(null)
   const [appointing, setAppointing] = useState(false)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'official_rank_modal',
+  })
 
   function getEligibleMinisters(position: string) {
     const isEunuchPos = EUNUCH_POSITIONS.has(position)
@@ -58,14 +66,11 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
     const holders = ministers.filter(m => m.positions?.some(p => positionMatchesLeaf(p, position)) && m.status === 'active')
     const candidate = ministers.find(m => m.name === name)
 
-    // Build confirmation message
-    let confirmMsg = `确认将 ${name} 任命为 ${position}？`
+    if (!candidate) return
+
+    let confirmMsg = `确认任命 ${name} 为 ${position}？`
     if (holders.length > 0) {
-      confirmMsg += `\n原任职者 ${holders.map(h => h.name).join('、')} 将失去该职位。`
-    }
-    // Task 5.5: Warn if candidate already has positions (multi-position scenario)
-    if (candidate && candidate.positions?.length > 0) {
-      confirmMsg += `\n\n${name} 现任职位：${candidate.positions.join('、')}`
+      confirmMsg += `\n注意：当前该职位已有 ${holders.map(h => h.name).join('、')} 任职。`
     }
 
     if (!window.confirm(confirmMsg)) return
@@ -79,10 +84,18 @@ export default function OfficialRankModal({ ministers, onClose, onAppoint }: Pro
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal official-rank-modal" onClick={e => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} data-overlay-root="modal">
+      <div
+        ref={panelRef}
+        className="modal official-rank-modal"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-labelledby="official-rank-title"
+        onClick={e => e.stopPropagation()}
+      >
         <div className="orm-header">
-          <span className="orm-title">官职补缺与百科</span>
+          <span className="orm-title" id="official-rank-title">官职补缺与百科</span>
           <button className="toolbar-btn" onClick={onClose}>✕</button>
         </div>
 

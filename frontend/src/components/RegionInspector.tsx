@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { GameEvent, GameState, Region } from '../types/game'
+import { useRegisterOverlay } from '../hooks/useRegisterOverlay'
 
 interface Props {
   region: Region
@@ -14,14 +15,17 @@ interface Props {
 export default function RegionInspector({ region, sourceRegions, entityRegistry, activeEvents = [], versionId, onClose, onAct }: Props) {
   const closeButton = useRef<HTMLButtonElement | null>(null)
   const activeEntities = Object.values(entityRegistry ?? {}).filter(entity => entity.status === 'active' && entity.available)
+
   useEffect(() => {
     closeButton.current?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose, region.name])
+  }, [region.name])
+
+  useRegisterOverlay(true, {
+    id: 'region_inspector',
+    kind: 'inspector',
+    priority: 20,
+    closeAction: onClose,
+  })
 
   return (
     <aside className="region-inspector" aria-label={`${region.name}行政区检查器`}>

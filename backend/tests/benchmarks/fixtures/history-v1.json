@@ -1,0 +1,19 @@
+{
+  "fixture_id": "history-v1",
+  "schema_version": 1,
+  "generator_version": "history-sha256-round-robin-v1",
+  "seed": 135205,
+  "entry_count": 10000,
+  "start_year": 1350,
+  "year_count": 10,
+  "months": 12,
+  "categories": ["domestic", "military", "diplomacy", "personnel", "disaster", "other"],
+  "provinces": [
+    "政区01", "政区02", "政区03", "政区04", "政区05",
+    "政区06", "政区07", "政区08", "政区09", "政区10",
+    "政区11", "政区12", "政区13", "政区14", "政区15",
+    "政区16", "政区17", "政区18", "政区19", "政区20"
+  ],
+  "dataset_sha256": "4f25cd4059c01bdf4423329573278307279112d532f0762be2c873886dddd5b7",
+  "manifest_sha256": "a6935c16f44fe97d9ad446e47f6ab95c541ddbcdcc2a84c1d175ecb348fadcdc"
+}

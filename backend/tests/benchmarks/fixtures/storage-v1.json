@@ -1,0 +1,25 @@
+{
+  "fixture_id": "storage-v1",
+  "schema_version": 1,
+  "generator_version": "storage-v1",
+  "seed": 135204,
+  "snapshot_count": 1000,
+  "target_snapshot_bytes": 65536,
+  "snapshot_size_tolerance_percent": 2,
+  "branch_snapshot_counts": {
+    "A": 600,
+    "B": 250,
+    "C": 150
+  },
+  "months_per_branch": 24,
+  "bookmark_local_indexes": {
+    "A": [25, 75, 125, 175, 225, 275, 325, 375, 425, 525],
+    "B": [25, 50, 75, 100, 125, 150],
+    "C": [25, 50, 75, 100]
+  },
+  "payload_rule": "seeded-history-narrative-padding-v1",
+  "payload_rule_sha256": "4dc333b42e36edad58e43f93ed05d7dca37f286a876678fdb5ccd8f78c4887f0",
+  "recent_limit": 100,
+  "max_post_vacuum_ratio": 0.45,
+  "manifest_sha256": "68464a77590f33064ca52e2951e946e9b2542281e12b63aa92023966d60d1355"
+}

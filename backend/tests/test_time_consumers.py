@@ -63,7 +63,13 @@ def _gameplay_projection(state):
     payload = state.model_dump(mode="json")
     return {
         "time": payload["time"],
-        **{field: payload[field] for field in sorted(ELAPSED_PATCH_FIELDS)},
+        # Decision history intentionally records one entry per submitted action;
+        # split waits therefore differ in audit history while their physical
+        # elapsed-time effects must remain identical.
+        **{
+            field: payload[field]
+            for field in sorted(ELAPSED_PATCH_FIELDS - {"history_log"})
+        },
     }
 
 

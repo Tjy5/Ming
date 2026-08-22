@@ -20,6 +20,7 @@ from api.action_routes import action_router
 from api.narrative_routes import narrative_router
 from models.game import ErrorResponse
 from db import worlds
+from db.maintenance import schedule_startup_idle_maintenance
 from engine.settlement import SettlementValidationError
 from api.state import startup as api_startup
 
@@ -80,10 +81,23 @@ def _invalid_action_detail(exc: RequestValidationError) -> dict[str, Any]:
     ).model_dump(exclude_none=True)
 
 
+def _invalid_request_detail(exc: RequestValidationError) -> dict[str, Any]:
+    return ErrorResponse(
+        error_code="request_validation_error",
+        message="请求参数校验失败",
+        details={"errors": _safe_validation_errors(exc)},
+    ).model_dump(exclude_none=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     api_startup()
-    yield
+    maintenance_task = schedule_startup_idle_maintenance()
+    try:
+        yield
+    finally:
+        if maintenance_task is not None:
+            await maintenance_task
 
 
 app = FastAPI(title="元末纪事", lifespan=lifespan)
@@ -156,7 +170,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     elif request.url.path == "/api/actions":
         content = {"detail": _invalid_action_detail(exc)}
     else:
-        content = {"detail": _safe_validation_errors(exc)}
+        content = {"detail": _invalid_request_detail(exc)}
     return JSONResponse(
         status_code=422,
         content=content,

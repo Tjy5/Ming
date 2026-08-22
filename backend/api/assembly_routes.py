@@ -11,7 +11,7 @@ from models.game import (
     ErrorResponse, CourtAssembly, AssemblyParticipant,
     PolicySuggestion, SuggestionRationaleFactor,
     AssemblyPetition, AssemblySpeech, AssemblyVote,
-    HistoryEntry, Memorial, clamp_state,
+    Memorial, clamp_state,
 )
 from models.enums import DecreeType, AssemblyPhase
 from engine.core import process_decree, check_preconditions, validate_target
@@ -20,6 +20,7 @@ from db import worlds
 from engine.tables import FACTION_STANCE
 from .action_service import ActionAdjudicationError
 from .narrative_routes import generate_committed_narrative
+from .history_service import append_history_entry
 from .schemas import (
     AdoptSuggestionRequest,
     AssemblyDebateRequest,
@@ -904,11 +905,13 @@ async def adopt_suggestion(req: AdoptSuggestionRequest):
             mark_monthly_usage=False,
         )
         mem_triggers = state.memorials[mem_count_before:]
-        state.history_log.append(HistoryEntry(
-            year=state.time.year, month=state.time.month,
-            decree_type=decree.type.value, decree_desc=decree.target or "",
-            delta=delta, narrative="",
-        ))
+        append_history_entry(
+            state,
+            decree_type=decree.type,
+            decree_desc=decree.target or "",
+            delta=delta,
+            structured_target=decree.target,
+        )
         action_text = (
             (req.edited_text or "").strip()
             if req.mode == "edited"

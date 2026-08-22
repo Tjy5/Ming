@@ -616,6 +616,7 @@ def list_visible_memories(
                   {retention_sql}
                 ORDER BY memories.created_world_hour DESC,
                          memories.created_at DESC,
+                         memories.rowid DESC,
                          memories.id DESC
                 LIMIT ?
                 """,
@@ -971,7 +972,7 @@ def list_artifacts(
                 """
                 SELECT * FROM narrative_artifacts
                 WHERE game_id = ? AND branch_id = ? AND settlement_id = ?
-                ORDER BY created_at, id
+                ORDER BY created_at, rowid, id
                 """,
                 (str(game_id), str(branch_id), str(settlement_id)),
             ).fetchall()

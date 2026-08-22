@@ -5,13 +5,14 @@ import asyncio
 import logging
 import os
 from collections import Counter
+from contextlib import suppress
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from models.game import (
-    GameState, StructuredDecree, DecreeResponse, HistoryEntry,
-    ErrorResponse, create_initial_state,
+    GameState, StructuredDecree, DecreeResponse,
+    ErrorResponse, create_initial_state, normalize_history_category,
     FreeformResult, Memorial, DialogueRequest, DialogueResponse, clamp_state,
     MemorialResolutionResult, DebateResult, Minister,
 )
@@ -34,6 +35,7 @@ from engine.elapsed_consumers import default_clock_registry, project_state_at_bo
 from engine.entity_views import resolve_dialogue_actor, resolve_registry_actor
 from api.action_service import AIActionAdjudicator, ActionAdjudicationError, ActionService
 from engine.lifecycle import DefaultLifecyclePlanner
+from engine.tables import region_target_members
 from db import worlds
 from db.narrative_memory import list_visible_memories
 from models.settlement import ActionIntent, AdjudicationProposal
@@ -47,6 +49,11 @@ from .schemas import (
     DebateStartRequest,
     DebateSilenceResponse,
     DecreeRequest,
+    DecreeStreamErrorPayload,
+    DecreeStreamFinalPayload,
+    DecreeStreamMemorialPayload,
+    DecreeStreamNarrativePayload,
+    DecreeStreamProgressPayload,
     GameStateResponse,
     HistoryPage,
     MAX_FREE_TEXT_LENGTH,
@@ -58,6 +65,7 @@ from .helpers import (
     apply_loyalty_effects as _apply_loyalty_effects,
     apply_state_effects as _apply_state_effects,
 )
+from .history_service import append_history_entry, filter_history_entries_cached
 from .debate_helpers import (
     DEBATE_TOPICS,
     is_ai_provider as _is_ai_provider,
@@ -69,6 +77,7 @@ from .state import (
     _MAX_DIALOGUE_MESSAGES,
     _get_provider,
     _get_state,
+    _get_world_head_ref,
     _ensure_world_head,
     _lock,
     _publish_world_head,
@@ -309,12 +318,13 @@ async def _execute_decree_core(
                     # canonical post-commit narrative below.
                     narrative = ""
 
-                    state.history_log.append(HistoryEntry(
-                        year=state.time.year, month=state.time.month,
+                    append_history_entry(
+                        state,
                         decree_type="freeform",
                         decree_desc=free_text_for_history[:50],
-                        delta=delta, narrative=narrative,
-                    ))
+                        delta=delta,
+                        narrative=narrative,
+                    )
 
                     last_response = DecreeResponse(
                         state=state, delta=delta, attribution=attribution,
@@ -389,12 +399,14 @@ async def _execute_decree_core(
 
                 narrative = ""
 
-                state.history_log.append(HistoryEntry(
-                    year=state.time.year, month=state.time.month,
-                    decree_type=decree.type.value,
+                append_history_entry(
+                    state,
+                    decree_type=decree.type,
                     decree_desc=decree.target or "",
-                    delta=delta, narrative=narrative,
-                ))
+                    delta=delta,
+                    narrative=narrative,
+                    structured_target=decree.target,
+                )
 
                 last_response = DecreeResponse(
                     state=state, delta=delta, attribution=attribution,
@@ -428,11 +440,12 @@ async def _execute_decree_core(
             delta, attribution, triggered, game_over, _reactions, _summary = process_decree(state)
             _mem_triggers = state.memorials[mem_count_before:]
             narrative = ""
-            state.history_log.append(HistoryEntry(
-                year=state.time.year, month=state.time.month,
-                decree_type="wait", decree_desc="",
-                delta=delta, narrative=narrative,
-            ))
+            append_history_entry(
+                state,
+                decree_type="wait",
+                delta=delta,
+                narrative=narrative,
+            )
             last_response = DecreeResponse(
                 state=state, delta=delta, attribution=attribution,
                 narrative=narrative, newly_triggered_events=triggered,
@@ -452,11 +465,17 @@ async def _execute_decree_core(
         raw_text = free_text or "；".join(
             decree.target or decree.type.value for decree in req.decrees
         ) or "等待时局演化"
+        regional_targets = list(dict.fromkeys(
+            region
+            for decree in req.decrees
+            for region in region_target_members(decree.target)
+        ))
         try:
             state, settlement_result = await _settle_state(
                 state,
                 action_kind="freeform_decree" if free_text else "structured_decree",
                 raw_text=raw_text,
+                regional_targets=regional_targets,
             )
         except ActionAdjudicationError as exc:
             raise HTTPException(
@@ -511,6 +530,25 @@ async def execute_decree(req: DecreeRequest):
     return await _finalize_decree_response(response, memorials, provider, state)
 
 
+def _stream_http_error_payload(exc: HTTPException) -> DecreeStreamErrorPayload:
+    status = (
+        exc.status_code
+        if isinstance(exc.status_code, int)
+        and not isinstance(exc.status_code, bool)
+        and 400 <= exc.status_code <= 599
+        else 500
+    )
+    try:
+        detail = ErrorResponse.model_validate(exc.detail)
+    except Exception:
+        detail = ErrorResponse(
+            error_code="stream_http_error",
+            message="流式请求失败，请检查请求后重试",
+            details=None,
+        )
+    return DecreeStreamErrorPayload(status=status, detail=detail)
+
+
 @router.post("/decree/stream")
 async def execute_decree_stream(req: DecreeRequest):
     async def event_stream():
@@ -520,7 +558,11 @@ async def execute_decree_stream(req: DecreeRequest):
         heartbeat_idx = 0
         try:
             yield _sse_event(
-                "progress", {"stage": "queued", "message": "军机处已接旨，正在核对政令。"},
+                "progress",
+                DecreeStreamProgressPayload(
+                    stage="queued",
+                    message="军机处已接旨，正在核对政令。",
+                ),
             )
 
             async def _on_narrative_chunk(chunk: str) -> None:
@@ -546,10 +588,12 @@ async def execute_decree_stream(req: DecreeRequest):
                         continue
                     yield _sse_event(
                         "progress",
-                        {
-                            "stage": "narrative" if narrative_started else "processing",
-                            "message": _STREAM_PROGRESS_MESSAGES[heartbeat_idx % len(_STREAM_PROGRESS_MESSAGES)],
-                        },
+                        DecreeStreamProgressPayload(
+                            stage="narrative" if narrative_started else "processing",
+                            message=_STREAM_PROGRESS_MESSAGES[
+                                heartbeat_idx % len(_STREAM_PROGRESS_MESSAGES)
+                            ],
+                        ),
                     )
                     heartbeat_idx += 1
                     continue
@@ -558,18 +602,25 @@ async def execute_decree_stream(req: DecreeRequest):
                     narrative_started = True
                     yield _sse_event(
                         "progress",
-                        {
-                            "stage": "validated",
-                            "message": "叙事已完成事实校验，正在宣读……",
-                        },
+                        DecreeStreamProgressPayload(
+                            stage="validated",
+                            message="叙事已完成事实校验，正在宣读……",
+                        ),
                     )
-                yield _sse_event("narrative", {"chunk": chunk})
+                yield _sse_event(
+                    "narrative",
+                    DecreeStreamNarrativePayload(chunk=chunk),
+                )
 
             response, memorials, provider, state = await core_task
 
             if memorials:
                 yield _sse_event(
-                    "progress", {"stage": "memorial", "message": "各部奏折正在誊录上呈……"},
+                    "progress",
+                    DecreeStreamProgressPayload(
+                        stage="memorial",
+                        message="各部奏折正在誊录上呈……",
+                    ),
                 )
                 response["memorial_triggers"] = [m.model_dump() for m in memorials]
 
@@ -577,34 +628,42 @@ async def execute_decree_stream(req: DecreeRequest):
                     for sentence in _split_stream_sentences(memorial.content):
                         yield _sse_event(
                             "memorial",
-                            {
-                                "memorial_id": memorial.id,
-                                "title": memorial.title,
-                                "chunk": sentence,
-                            },
+                            DecreeStreamMemorialPayload(
+                                memorial_id=memorial.id,
+                                title=memorial.title,
+                                chunk=sentence,
+                            ),
                         )
                         await asyncio.sleep(0.03)
 
             response["state"] = state.model_dump()
-            yield _sse_event("final", {"response": response})
+            yield _sse_event(
+                "final",
+                DecreeStreamFinalPayload(
+                    response=DecreeResponse.model_validate(response),
+                ),
+            )
         except HTTPException as exc:
-            detail = exc.detail if isinstance(exc.detail, dict) else ErrorResponse(
-                error_code="stream_http_error",
-                message=str(exc.detail),
-            ).model_dump()
-            yield _sse_event("error", {"status": exc.status_code, "detail": detail})
+            yield _sse_event("error", _stream_http_error_payload(exc))
         except asyncio.CancelledError:
-            if core_task is not None and not core_task.done():
-                core_task.cancel()
             raise
         except Exception:
-            yield _sse_event("error", {
-                "status": 500,
-                "detail": ErrorResponse(
-                    error_code="stream_error",
-                    message="流式执行失败，请稍后重试",
-                ).model_dump(),
-            })
+            yield _sse_event(
+                "error",
+                DecreeStreamErrorPayload(
+                    status=500,
+                    detail=ErrorResponse(
+                        error_code="stream_error",
+                        message="流式执行失败，请稍后重试",
+                        details=None,
+                    ),
+                ),
+            )
+        finally:
+            if core_task is not None and not core_task.done():
+                core_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await core_task
 
     return StreamingResponse(
         event_stream(),
@@ -791,18 +850,100 @@ async def get_state():
 # ── GET /api/history ────────────────────────────────────
 
 @router.get("/history", response_model=HistoryPage)
-async def get_history(offset: int = 0, limit: int = 20):
-    offset = max(0, offset)
-    limit = max(1, min(100, limit))
-    state = _get_state()
-    total = len(state.history_log)
-    entries = state.history_log[offset:offset + limit]
-    return {
-        "total": total,
-        "offset": offset,
-        "limit": limit,
-        "entries": [e.model_dump() for e in entries],
-    }
+async def get_history(
+    year: int | None = None,
+    month: int | None = None,
+    category: str | None = None,
+    province: str | None = None,
+    page: int | None = None,
+    offset: int = 0,
+    limit: int = 20,
+):
+    strict = any(
+        value is not None
+        for value in (year, month, category, province, page)
+    )
+
+    def invalid(message: str) -> None:
+        raise HTTPException(
+            422,
+            detail=ErrorResponse(
+                error_code="invalid_history_query",
+                message=message,
+            ).model_dump(exclude_none=True),
+        )
+
+    normalized_category = None
+    normalized_province = province.strip() if isinstance(province, str) else None
+    if strict:
+        if isinstance(year, bool) or (year is not None and year < 1):
+            invalid("year 必须大于等于 1")
+        if isinstance(month, bool) or (month is not None and not 1 <= month <= 12):
+            invalid("month 必须位于 1 到 12")
+        if isinstance(offset, bool) or offset < 0:
+            invalid("offset 必须大于等于 0")
+        if isinstance(limit, bool) or not 1 <= limit <= 100:
+            invalid("limit 必须位于 1 到 100")
+        if isinstance(page, bool) or (page is not None and page < 1):
+            invalid("page 必须大于等于 1")
+        if page is not None and offset != 0:
+            invalid("page 不能与非零 offset 同时使用")
+        if category is not None:
+            try:
+                normalized_category = normalize_history_category(category)
+            except ValueError:
+                invalid("category 不是受支持的历史类别")
+        if province is not None and not normalized_province:
+            invalid("province 不能为空")
+        if page is not None:
+            offset = (page - 1) * limit
+        normalized_page = offset // limit + 1
+    else:
+        offset = max(0, offset)
+        limit = max(1, min(100, limit))
+        normalized_page = offset // limit + 1
+
+    ref = _get_world_head_ref()
+    if ref is None:
+        return HistoryPage(
+            total=0,
+            offset=offset,
+            page=normalized_page,
+            limit=limit,
+            entries=[],
+        ).model_dump(mode="python")
+    try:
+        branch = worlds.get_branch(ref.game_id, ref.branch_id)
+        if branch.status != "active":
+            raise worlds.WorldNotFoundError("active_branch", str(ref.branch_id))
+        snapshot = worlds.load_branch_head(ref.game_id, ref.branch_id)
+        state = snapshot.state
+    except worlds.WorldStoreError as exc:
+        raise HTTPException(
+            500,
+            detail=ErrorResponse(
+                error_code="history_store_error",
+                message="当前世界历史无法读取",
+                details={"storage_code": exc.code},
+            ).model_dump(exclude_none=True),
+        ) from None
+
+    filtered = filter_history_entries_cached(
+        state.history_log,
+        version_key=snapshot.ref.version_id,
+        year=year,
+        month=month,
+        category=normalized_category,
+        province=normalized_province,
+    )
+    total = len(filtered)
+    return HistoryPage(
+        total=total,
+        offset=offset,
+        page=normalized_page,
+        limit=limit,
+        entries=filtered[offset:offset + limit],
+    ).model_dump(mode="python")
 
 
 # ── 6.10 POST /api/debate/start ────────────────────────
@@ -1001,11 +1142,13 @@ async def resolve_memorial(memorial_id: str, req: MemorialResolveRequest):
                 accumulated_reactions.extend(_reactions)
                 for k, v in delta.items():
                     accumulated_delta[k] = accumulated_delta.get(k, 0) + v
-                state.history_log.append(HistoryEntry(
-                    year=state.time.year, month=state.time.month,
-                    decree_type=decree.type.value, decree_desc=decree.target or "",
-                    delta=delta, narrative="",
-                ))
+                append_history_entry(
+                    state,
+                    decree_type=decree.type,
+                    decree_desc=decree.target or "",
+                    delta=delta,
+                    structured_target=decree.target,
+                )
                 if game_over:
                     break
 

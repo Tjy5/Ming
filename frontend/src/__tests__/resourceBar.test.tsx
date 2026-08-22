@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, afterEach } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import ResourceBar from '../components/ResourceBar'
 import type { GameState } from '../types/game'
+
+afterEach(cleanup)
 
 function makeState(): GameState {
   return {
@@ -30,7 +32,7 @@ describe('ResourceBar hover info', () => {
     expect(item).toBeTruthy()
   })
 
-  it('renders guide button when onOpenGuide provided', () => {
+  it('renders guide button in settings menu when onOpenGuide provided', () => {
     render(
       <ResourceBar
         state={makeState()}
@@ -43,6 +45,7 @@ describe('ResourceBar hover info', () => {
         onOpenGuide={() => {}}
       />
     )
+    fireEvent.click(screen.getByRole('button', { name: '宫禁设置' }))
     expect(screen.getByText('指引')).toBeTruthy()
   })
 })

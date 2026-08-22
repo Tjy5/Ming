@@ -1,0 +1,18 @@
+{
+  "fixture_id": "history-queries-v1",
+  "schema_version": 1,
+  "dataset_fixture_id": "history-v1",
+  "iterations_per_query": 100,
+  "warm_cache_p95_ms": 200,
+  "queries": [
+    {"case_id": "year-1352", "filters": {"year": 1352}, "expected_count": 1061, "expected_sha256": "c40a92a6d8059484bc96b5bbf816a7788fa3799d5a9e3ef75b62639c583b90b7"},
+    {"case_id": "month-04", "filters": {"month": 4}, "expected_count": 832, "expected_sha256": "c445ef13f8cc9e281b700290e97dd356113a0d7d385cda373293e6e9b3bcce6c"},
+    {"case_id": "category-military", "filters": {"category": "military"}, "expected_count": 1719, "expected_sha256": "d66262f4e00846a70392a58b10c4d70218dd581f880ba2140bca9502d36ae314"},
+    {"case_id": "province-01", "filters": {"province": "政区01"}, "expected_count": 473, "expected_sha256": "5267736593f5ad71ba170b29dfa764058490261cde8d390ca639270f36fb265d"},
+    {"case_id": "year-month", "filters": {"year": 1355, "month": 8}, "expected_count": 90, "expected_sha256": "485ff032f20f63ca7120acbd4ec88b7c35c7b14b49dca5f145b52fc9ca6cc951"},
+    {"case_id": "category-province", "filters": {"category": "diplomacy", "province": "政区07"}, "expected_count": 88, "expected_sha256": "2e53d9f951d2522fd9e4a8bd95cd5288325ab0e283b6ab2ac046320ea56f58f3"},
+    {"case_id": "year-month-category", "filters": {"year": 1358, "month": 12, "category": "disaster"}, "expected_count": 15, "expected_sha256": "b0fb12eaf2aeb4d9e549287c16441b3aa6e207bb7bf7a9bdd284658f08f47f3c"},
+    {"case_id": "all-filters", "filters": {"year": 1353, "month": 6, "category": "domestic", "province": "政区12"}, "expected_count": 0, "expected_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"}
+  ],
+  "manifest_sha256": "aa156fd58981163e62de24591341ecfb088cfd3fd305ebb0f69cfd0d13ded06d"
+}

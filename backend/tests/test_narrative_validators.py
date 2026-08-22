@@ -21,10 +21,12 @@ from models.world import (
 from models.world_state import ExecutorFacts, RollRecord, VisibleRollModifier
 
 
-def _committed_context(monkeypatch, tmp_path, *, player_update=None):
+def _committed_context(monkeypatch, tmp_path, *, player_update=None, state_update=None):
     monkeypatch.setattr(saves, "DB_PATH", tmp_path / "narrative-validators.db")
     saves.init_db()
     initial = create_initial_state()
+    if state_update:
+        initial = initial.model_copy(update=state_update)
     if player_update:
         initial.player_world_status = initial.player_world_status.model_copy(
             update=player_update,
@@ -258,6 +260,25 @@ def test_base_and_effective_band_claims_match_current_projection(monkeypatch, tm
     )
     assert "numeric_band_mismatch" not in _codes(
         f"{key}基础档位为{metric.base_band}，{key}有效档位为{metric.effective_band}。",
+        state=state,
+        context=context,
+    )
+
+
+def test_active_threshold_alert_rejects_contradictory_tone(monkeypatch, tmp_path):
+    state, context = _committed_context(
+        monkeypatch,
+        tmp_path,
+        state_update={"civil_morale": 10},
+    )
+
+    assert "threshold_tone_violation" in _codes(
+        "城中歌舞升平，百姓都说民心安泰。",
+        state=state,
+        context=context,
+    )
+    assert "threshold_tone_violation" not in _codes(
+        "城中并非歌舞升平，民怨沸腾，流民四起。",
         state=state,
         context=context,
     )

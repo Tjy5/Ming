@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 from models.game import (
     DebateResult,
@@ -71,6 +71,7 @@ class ResilientProvider(AIProvider):
         freeform_retries: int | None = None,
         turn_commentary_timeout: float | None = None,
         turn_commentary_retries: int | None = None,
+        narrative_rule_fallback: Callable[[object], object] | None = None,
     ):
         self._inner = inner
         env_timeout = _env_float("AI_TIMEOUT", 30.0)
@@ -103,6 +104,7 @@ class ResilientProvider(AIProvider):
             1,
             turn_commentary_retries if turn_commentary_retries is not None else env_turn_commentary_retries,
         )
+        self._narrative_rule_fallback = narrative_rule_fallback
 
     @staticmethod
     def _log_retry_failure(operation: str, attempt: int, retries: int, exc: Exception) -> None:
@@ -123,15 +125,33 @@ class ResilientProvider(AIProvider):
         max_output_tokens: int = 128,
         response_json: bool = False,
     ) -> GenerationResult:
-        return await asyncio.wait_for(
-            self._inner.generate_text_once(
-                prompt,
-                system_prompt=system_prompt,
-                max_output_tokens=max_output_tokens,
-                response_json=response_json,
-            ),
-            timeout=self._timeout,
-        )
+        last_error: Exception | None = None
+        for attempt in range(self._retries):
+            try:
+                return await asyncio.wait_for(
+                    self._inner.generate_text_once(
+                        prompt,
+                        system_prompt=system_prompt,
+                        max_output_tokens=max_output_tokens,
+                        response_json=response_json,
+                    ),
+                    timeout=self._timeout,
+                )
+            except Exception as exc:
+                last_error = exc
+                self._log_retry_failure(
+                    "generate_text_once",
+                    attempt + 1,
+                    self._retries,
+                    exc,
+                )
+        assert last_error is not None
+        raise last_error
+
+    def configured_narrative_fallback(self, context: object) -> object | None:
+        if self._narrative_rule_fallback is None:
+            return None
+        return self._narrative_rule_fallback(context)
 
     async def probe_generation_once(self) -> GenerationResult:
         return await asyncio.wait_for(

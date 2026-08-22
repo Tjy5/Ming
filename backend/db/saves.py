@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import json
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,9 +11,13 @@ from models.game import (
     GameState,
     get_initial_ministers,
     normalize_decree_category_usage,
+    normalize_history_payload,
 )
+from .maintenance import coordinated_storage_write
 
-DB_PATH = Path(__file__).parent.parent / "game_saves.db"
+DB_PATH = Path(
+    os.getenv("MING_GAME_SAVES_DB_PATH", Path(__file__).parent.parent / "game_saves.db"),
+)
 MAX_SAVES = 20
 
 # 版本化世界时钟允许开放沙盒越过历史朝代边界。这里只保留历元下限；
@@ -25,6 +30,7 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), timeout=5)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
@@ -44,10 +50,12 @@ def init_db() -> None:
     from .ai_assessments import init_ai_assessments
     from .worlds import init_worlds_db
     from .narrative_memory import init_narrative_memory_db
+    from .maintenance import init_storage_maintenance_db
 
     init_ai_assessments()
     init_worlds_db()
     init_narrative_memory_db()
+    init_storage_maintenance_db()
 
 
 def _era_display(state: GameState) -> str:
@@ -56,6 +64,7 @@ def _era_display(state: GameState) -> str:
     return f"{t.era_name}{year_str}{t.month}月"
 
 
+@coordinated_storage_write
 def save_game(state: GameState, name: str | None = None) -> int:
     display = _era_display(state)
     if not name:
@@ -310,6 +319,11 @@ def _migrate_save(data: dict) -> list[str]:
             notes.append("迁移了政令月度限制为类别键")
         data["decrees_this_month"] = normalized_usage
 
+    history, history_migrated = normalize_history_payload(data.get("history_log"))
+    data["history_log"] = history
+    if history_migrated:
+        notes.append("迁移了历史记录序号、类别与政区元数据")
+
     # ── trigger decisions ──
     if "trigger_decisions" not in data or not isinstance(data.get("trigger_decisions"), dict):
         data["trigger_decisions"] = {}
@@ -384,6 +398,7 @@ def list_saves() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+@coordinated_storage_write
 def delete_save(save_id: int) -> bool:
     with _connect() as conn:
         cur = conn.execute("DELETE FROM saves WHERE id = ?", (save_id,))

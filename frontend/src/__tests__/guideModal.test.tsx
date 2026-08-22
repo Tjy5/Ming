@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { cleanup, render, screen, fireEvent } from '@testing-library/react'
 import GuideModal from '../components/GuideModal'
 import { shouldAutoOpenGuide } from '../components/guideModalLogic'
+import { useStore } from '../hooks/store'
 
 describe('GuideModal', () => {
-  beforeEach(() => localStorage.clear())
-  afterEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    useStore.getState().reset()
+  })
+  afterEach(() => {
+    cleanup()
+    localStorage.clear()
+    useStore.getState().reset()
+  })
 
   it('renders nothing when closed', () => {
     render(<GuideModal open={false} onClose={() => {}} />)
@@ -17,6 +25,7 @@ describe('GuideModal', () => {
     const onClose = () => {}
     render(<GuideModal open={true} onClose={onClose} />)
     expect(screen.getByTestId('guide-modal')).toBeTruthy()
+    expect(useStore.getState().overlayStack.filter((entry) => entry.id === 'guide_modal')).toHaveLength(1)
     expect(screen.getByRole('dialog', { name: '界面指引' }).classList.contains('modal')).toBe(true)
     expect(screen.getByText('顶部数据栏')).toBeTruthy()
     fireEvent.click(screen.getByText('下一步'))

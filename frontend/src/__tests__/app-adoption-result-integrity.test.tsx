@@ -155,7 +155,7 @@ describe('App adoption result integrity', () => {
     expect(modal?.getAttribute('data-context-version-id')).toBe(response.context_version_id)
   })
 
-  it('marks unavailable management categories honestly and restores memorial trigger focus', async () => {
+  it('marks unavailable management categories honestly and restores memorial focus after button or Escape close', async () => {
     const initialState = {
       ...gameState(22),
       memorials: [{
@@ -208,9 +208,33 @@ describe('App adoption result integrity', () => {
     trigger.focus()
     fireEvent.click(trigger)
     expect(screen.getByRole('dialog', { name: '奏折批阅' })).toBeTruthy()
+    const escapeTarget = screen.getByRole('button', { name: '退出批阅' })
+    escapeTarget.focus()
+    expect(document.activeElement).toBe(escapeTarget)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '奏折批阅' })).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog', { name: '奏折批阅' })).toBeTruthy()
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '退出批阅' }))
     })
     await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
+
+  it('keeps the guide modal registered by one component owner', async () => {
+    vi.spyOn(api, 'getCapabilities').mockResolvedValue({ debate_supported: true, assembly_supported: true, memorial_enabled: true })
+    vi.spyOn(api, 'getSettings').mockResolvedValue({ rule_parse_fallback: false })
+    useStore.setState({ state: gameState(22) })
+
+    await act(async () => {
+      render(<MemoryRouter><App /></MemoryRouter>)
+    })
+    fireEvent.click(screen.getByRole('button', { name: '宫禁设置' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: '指引' }))
+
+    expect(await screen.findByTestId('guide-modal')).toBeTruthy()
+    expect(useStore.getState().overlayStack.filter((entry) => entry.id === 'guide_modal')).toHaveLength(1)
   })
 })

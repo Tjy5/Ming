@@ -4,7 +4,9 @@ import { act, cleanup, render, screen, fireEvent } from '@testing-library/react'
 import RegionMap from '../components/RegionMap'
 import { EAST_ASIA_POLITICAL_GRID } from '../data/map/eastAsiaPoliticalGrid'
 import { EAST_ASIA_REFERENCE_BASEMAP } from '../data/map/eastAsiaReferenceBasemap'
-import type { Region } from '../types/game'
+import { DEFAULT_CAPABILITIES, type Region } from '../types/game'
+import { useStore } from '../hooks/store'
+import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
 
 let resizeObserverCallback: ResizeObserverCallback | null = null
 
@@ -21,10 +23,12 @@ class ResizeObserverMock {
 beforeEach(() => {
   resizeObserverCallback = null
   vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+  useStore.getState().reset()
 })
 
 afterEach(() => {
   cleanup()
+  useStore.getState().reset()
   vi.unstubAllGlobals()
 })
 
@@ -46,6 +50,50 @@ function makeRegion(name: string): Region {
     civil_morale: 50, rebellion_risk: 20, tax_rate: 0.5,
     tax_collected: 30, disaster_level: 10,
   }
+}
+
+function GlobalEscapeDispatcher() {
+  const overlayStack = useStore((state) => state.overlayStack)
+  const closeTopmostOverlay = useStore((state) => state.closeTopmostOverlay)
+  const activeHudSurface = useStore((state) => state.activeHudSurface)
+
+  useGlobalShortcuts({
+    state: null,
+    loading: false,
+    currentModal: null,
+    hasBlockingEvent: false,
+    gameOver: null,
+    advanceMonthInFlight: false,
+    decreeInFlight: false,
+    activeHudSurface,
+    capabilities: DEFAULT_CAPABILITIES,
+    overlayStack,
+    pendingMemorialsCount: 0,
+    onAdvanceMonth: () => {},
+    onOpenEdictModal: () => {},
+    onOpenMemorials: () => {},
+    onToggleSurface: () => {},
+    onShowToast: () => {},
+    onCloseTopmostOverlay: closeTopmostOverlay,
+  })
+
+  return null
+}
+
+function ControlledRegionMapHarness({ regions }: { regions: Region[] }) {
+  const activeHudSurface = useStore((state) => state.activeHudSurface)
+  const setActiveHudSurface = useStore((state) => state.setActiveHudSurface)
+
+  return (
+    <>
+      <GlobalEscapeDispatcher />
+      <RegionMap
+        regions={regions}
+        activeHudSurface={activeHudSurface}
+        onHudSurfaceChange={setActiveHudSurface}
+      />
+    </>
+  )
 }
 
 describe('RegionMap administrative governance interaction', () => {
@@ -180,10 +228,13 @@ describe('RegionMap administrative governance interaction', () => {
 
   it('places court navigation at the map top-left and reveals right-rail tools on demand', () => {
     const { container, getByRole, getByLabelText, queryByRole } = render(
-      <RegionMap
-        regions={[makeRegion('应天')]}
-        railControls={<div role="group" aria-label="朝廷抽屉控制" />}
-      />,
+      <>
+        <GlobalEscapeDispatcher />
+        <RegionMap
+          regions={[makeRegion('应天')]}
+          railControls={<div role="group" aria-label="朝廷抽屉控制" />}
+        />
+      </>,
     )
     const primaryStrip = getByRole('navigation', { name: '朝廷管理' })
     const courtControls = getByRole('group', { name: '朝廷抽屉控制' })
@@ -237,6 +288,20 @@ describe('RegionMap administrative governance interaction', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(queryByRole('region', { name: '地图镜头面板' })).toBeNull()
     expect(cameraTrigger.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('uses only the store hud_surface registration in controlled mode', () => {
+    render(<ControlledRegionMapHarness regions={[makeRegion('应天')]} />)
+    const mapTrigger = screen.getByRole('button', { name: '地图模式' })
+
+    fireEvent.click(mapTrigger)
+    expect(screen.getByRole('region', { name: '地图模式面板' })).toBeTruthy()
+    expect(useStore.getState().overlayStack.map((entry) => entry.id)).toEqual(['hud_surface'])
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: '地图模式面板' })).toBeNull()
+    expect(useStore.getState().activeHudSurface).toBeNull()
+    expect(useStore.getState().overlayStack).toHaveLength(0)
   })
 
   it('zooms with controls and resets to the full East Asia view', () => {

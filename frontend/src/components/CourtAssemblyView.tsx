@@ -14,6 +14,7 @@ import type {
 } from '../types/game'
 import { DECREE_LABELS, DECREE_TYPES } from '../types/game'
 import { isAbortError, showCancelToast } from '../utils/toast'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const MIN_ASSEMBLY_PARTICIPANTS = 10
 const ASSEMBLY_PARTICIPATE_CAPABILITY = 'governance.assembly.participate'
@@ -77,30 +78,43 @@ function isModal(p: Props): p is ModalProps {
   return 'asModal' in p && p.asModal === true
 }
 
+function ModalCourtAssemblyView(props: ModalProps) {
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'central_current_modal',
+  })
+
+  return (
+    <div className="modal-overlay" onClick={props.onClose} data-overlay-root="modal">
+      <motion.div
+        ref={panelRef}
+        className="modal assembly-modal"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-label="朝议"
+        onClick={e => e.stopPropagation()}
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+      >
+        <AssemblyFlow
+          initialAssembly={props.assembly}
+          onStateUpdate={props.onStateUpdate}
+          onAdoptionResult={props.onAdoptionResult}
+          onClose={props.onClose}
+          onShowToast={props.onShowToast}
+        />
+      </motion.div>
+    </div>
+  )
+}
+
 /* ── Main component ── */
 export default function CourtAssemblyView(props: Props) {
   if (isModal(props)) {
-    return (
-      <div className="modal-overlay" onClick={props.onClose}>
-        <motion.div
-          className="modal assembly-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="朝议"
-          onClick={e => e.stopPropagation()}
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-        >
-          <AssemblyFlow
-            initialAssembly={props.assembly}
-            onStateUpdate={props.onStateUpdate}
-            onAdoptionResult={props.onAdoptionResult}
-            onClose={props.onClose}
-            onShowToast={props.onShowToast}
-          />
-        </motion.div>
-      </div>
-    )
+    return <ModalCourtAssemblyView {...props} />
   }
 
   return <AssemblyPanel {...props} />

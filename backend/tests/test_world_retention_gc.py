@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
+from uuid import uuid4
+
+import pytest
+
 from db import saves, worlds
 from models.game import create_initial_state
 from models.settlement import ActionIntent, AdjudicationProposal, MetricWorldDelta
@@ -80,6 +85,108 @@ def test_enabled_collection_deletes_only_unreferenced_versions_and_audits(monkey
     assert audit is not None
     assert audit["committed"] == 1
     assert str(first.version_id) in audit["deleted_version_ids_json"]
+    detached = worlds.load_version(second.version_id)
+    assert detached.ref.parent_version_id is None
+    assert detached.state.civil_morale == state.civil_morale
+    saves.init_db()
+    assert worlds.load_version(second.version_id).state == detached.state
+
+
+def test_collection_detaches_long_candidate_chain_before_uuid_ordered_deletes(
+    monkeypatch,
+    tmp_path,
+):
+    _setup(monkeypatch, tmp_path)
+    root = worlds.create_game_with_root(create_initial_state())
+    parent = root
+    state = worlds.load_version(root.version_id).state
+    for index in range(12):
+        parent, state = _commit(parent, state, f"chain-{index}")
+
+    result = worlds.collect_retention(
+        root.game_id,
+        root.branch_id,
+        recent_limit=1,
+        enabled=True,
+    )
+
+    assert result.committed is True
+    assert result.deleted_version_ids
+    assert worlds.load_version(parent.version_id).state == state
+
+
+def test_retention_recent_limit_is_strictly_bounded(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    root = worlds.create_game_with_root(create_initial_state())
+
+    for invalid in (True, 0, 1001, 1.5):
+        with pytest.raises(ValueError, match="1 to 1000"):
+            worlds.plan_retention(root.game_id, recent_limit=invalid)
+
+
+def test_retention_audit_failure_rolls_back_detaches_and_deletes(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    root = worlds.create_game_with_root(create_initial_state())
+    first, state = _commit(root, worlds.load_version(root.version_id).state, "first")
+    second, state = _commit(first, state, "second")
+    third, _ = _commit(second, state, "third")
+    with saves._connect() as conn:
+        conn.execute(
+            """
+            CREATE TRIGGER fail_retention_audit
+            BEFORE INSERT ON retention_gc_audits
+            BEGIN
+                SELECT RAISE(ABORT, 'injected audit failure');
+            END
+            """,
+        )
+
+    with pytest.raises(worlds.WorldStorageError):
+        worlds.collect_retention(
+            root.game_id,
+            root.branch_id,
+            recent_limit=1,
+            enabled=True,
+        )
+
+    assert worlds.load_version(first.version_id).ref.parent_version_id == root.version_id
+    assert worlds.load_version(second.version_id).ref.parent_version_id == first.version_id
+    assert worlds.get_branch_head(root.game_id, root.branch_id).version_id == third.version_id
+
+
+def test_bookmark_and_terminal_recovery_versions_are_protected(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    root = worlds.create_game_with_root(create_initial_state())
+    first, state = _commit(root, worlds.load_version(root.version_id).state, "first")
+    second, state = _commit(first, state, "second")
+    third, _ = _commit(second, state, "third")
+    worlds.create_bookmark(root.game_id, root.branch_id, first.version_id, "recovery")
+    assert third.settlement_id is not None
+    with saves._connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO terminal_records (
+                id, game_id, branch_id, settlement_id, version_id,
+                previous_version_id, facts_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, '{}', ?)
+            """,
+            (
+                str(uuid4()),
+                str(root.game_id),
+                str(root.branch_id),
+                str(third.settlement_id),
+                str(third.version_id),
+                str(second.version_id),
+                third.created_at.isoformat(),
+            ),
+        )
+
+    plan = worlds.plan_retention(root.game_id, root.branch_id, recent_limit=1)
+
+    assert "bookmark" in plan.reasons[str(first.version_id)]
+    assert "terminal_predecessor" in plan.reasons[str(second.version_id)]
+    assert "terminal_version" in plan.reasons[str(third.version_id)]
+    assert not {first.version_id, second.version_id, third.version_id} & set(plan.delete_version_ids)
 
 
 def test_shared_fork_ancestor_is_protected_when_cleaning_one_branch(monkeypatch, tmp_path):

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { markGuideSeen, setGuidePreference } from './guideModalLogic'
+import { useStore } from '../hooks/store'
+import { useFocusTrap } from '../hooks/useFocusTrap'
+import { useRegisterOverlay } from '../hooks/useRegisterOverlay'
 
 // 08-07-frontend-ui-polish：界面指引手册（新手引导）
 const GUIDE_SECTIONS: { title: string; body: string }[] = [
@@ -37,28 +40,33 @@ function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
   const section = GUIDE_SECTIONS[page]
   const isLast = page === GUIDE_SECTIONS.length - 1
 
+  useRegisterOverlay(true, {
+    id: 'guide_modal',
+    kind: 'central_modal',
+    priority: 30,
+    closeAction: onClose,
+  })
+
+  useFocusTrap({ active: true, containerRef: panelRef, overlayId: 'guide_modal' })
+
   useEffect(() => {
     returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const panel = panelRef.current
-    const focusable = () => panel ? Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : []
+    const focusable = () =>
+      panel
+        ? Array.from(
+            panel.querySelectorAll<HTMLElement>(
+              'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+            ),
+          )
+        : []
     focusable()[0]?.focus()
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        const stack = useStore.getState().overlayStack
+        if (stack.length > 0 && !useStore.getState().isTopmostOverlay('guide_modal')) return
         event.preventDefault()
         onClose()
-        return
-      }
-      if (event.key !== 'Tab') return
-      const items = focusable()
-      if (!items.length) return
-      const first = items[0]
-      const last = items[items.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
       }
     }
     document.addEventListener('keydown', onKeyDown)
@@ -69,8 +77,16 @@ function GuideModalContent({ onClose }: Pick<Props, 'onClose'>) {
   }, [onClose])
 
   return (
-    <div className="modal-overlay" onClick={onClose} data-testid="guide-modal">
-      <div ref={panelRef} className="modal guide-panel" role="dialog" aria-modal="true" aria-labelledby="guide-title" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={onClose} data-testid="guide-modal" data-overlay-root="modal">
+      <div
+        ref={panelRef}
+        className="modal guide-panel"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-labelledby="guide-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 id="guide-title" className="modal-title">界面指引</h2>
         <div className="guide-section">
           <h3>{section.title}</h3>

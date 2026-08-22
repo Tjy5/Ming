@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { GameState, DecreeType, StructuredDecree, PersonnelAction } from '../types/game'
 import { DECREE_LABELS, GOVERNANCE_REGION_NAMES, REGION_TARGET_NAMES, DIPLOMACY_TARGETS, PRECONDITION_MESSAGES } from '../types/game'
 import { checkPrecondition } from '../hooks/store'
+import { useRegisterOverlay } from '../hooks/useRegisterOverlay'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   type: DecreeType
@@ -37,7 +39,22 @@ export default function EdictWritingPanel({
   const submitted = useRef(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const timerRef = useRef<number[]>([])
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const [activeKeyword, setActiveKeyword] = useState<string | null>(null)
+
+  useRegisterOverlay(true, {
+    id: 'edict_writing_panel',
+    kind: 'nested_modal',
+    priority: 40,
+    openerId: 'imperial-decree-text',
+    closeAction: onCancel,
+  })
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'edict_writing_panel',
+  })
 
   useEffect(() => {
     const timers = timerRef.current
@@ -63,11 +80,6 @@ export default function EdictWritingPanel({
     else setTarget(kw)
   }
 
-  function handleSeal() {
-    if (!canIssue || !paramReady || sealing) return
-    setSealing(true)
-  }
-
   function buildDecree(): StructuredDecree {
     const params = prefilledDecree?.parameters ?? undefined
     if (type === 'personnel') return { type, target: personName.trim(), sub_action: subAction, parameters: params }
@@ -75,11 +87,25 @@ export default function EdictWritingPanel({
     return { type, parameters: params }
   }
 
+  function handleSeal() {
+    if (!canIssue || !paramReady || sealing) return
+    const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reducedMotion) {
+      onConfirm(buildDecree())
+      return
+    }
+    setSealing(true)
+  }
+
   function onSealLanded() {
     if (submitted.current) return
     // Sound
-    if (!audioRef.current) audioRef.current = new Audio('/seal.mp3')
-    audioRef.current.play().catch((err) => console.error('Audio playback failed:', err))
+    try {
+      if (!audioRef.current) audioRef.current = new Audio('/seal.mp3')
+      audioRef.current.play().catch(() => {})
+    } catch {
+      // Audio failure is ignored
+    }
     // Shake
     setShaking(true)
     timerRef.current.push(window.setTimeout(() => {
@@ -89,7 +115,7 @@ export default function EdictWritingPanel({
       timerRef.current.push(window.setTimeout(() => {
         submitted.current = true
         onConfirm(buildDecree())
-      }, 600))
+      }, 400))
     }, 200))
   }
 
@@ -98,15 +124,21 @@ export default function EdictWritingPanel({
     : { scale: 1, opacity: 1, x: 0 }
 
   return (
-    <div className="modal-overlay" onClick={() => !sealing && onCancel()}>
+    <div
+      className="modal-overlay"
+      onClick={() => !sealing && onCancel()}
+      data-overlay-root="modal"
+    >
       <AnimatePresence>
         {!sealing ? (
           <motion.div
             key="edict"
-            className="edict-panel"
+            ref={panelRef}
+            className="edict-panel modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="edict-dialog-title"
+            data-overlay-panel="true"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, width: 0, padding: 0 }}
@@ -187,7 +219,8 @@ export default function EdictWritingPanel({
         ) : (
           <motion.div
             key="seal-anim"
-            className="edict-panel sealing"
+            className="edict-panel sealing modal"
+            data-overlay-panel="true"
             onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 1 }}
             animate={{ opacity: 1 }}

@@ -102,7 +102,37 @@ DECREE_TARGET_REQUIRED: dict[DecreeType, str] = {
     DecreeType.DIPLOMACY: "diplomacy_target",
 }
 
-REGION_NAMES = {"应天", "太平", "镇江", "两淮", "杭州", "武昌", "平江", "大都"}
+REGION_ORDER = ("应天", "太平", "镇江", "两淮", "杭州", "武昌", "平江", "大都")
+REGION_NAMES = frozenset(REGION_ORDER)
+
+# Canonical backend geography used by regional prompt projection. Keep this
+# independent from frontend map assets so prompt safety cannot change with a UI
+# bundle. Tuple order follows REGION_ORDER and is therefore deterministic.
+REGION_ADJACENCY: dict[str, tuple[str, ...]] = {
+    "应天": ("太平", "镇江", "两淮"),
+    "太平": ("应天", "镇江", "武昌"),
+    "镇江": ("应天", "太平", "两淮", "杭州", "平江"),
+    "两淮": ("应天", "镇江", "武昌", "大都"),
+    "杭州": ("镇江", "平江"),
+    "武昌": ("太平", "两淮"),
+    "平江": ("镇江", "杭州"),
+    "大都": ("两淮",),
+}
+
+
+def validate_region_adjacency() -> None:
+    if set(REGION_ADJACENCY) != set(REGION_NAMES):
+        raise ValueError("REGION_ADJACENCY must cover every canonical region")
+    for region, neighbours in REGION_ADJACENCY.items():
+        if region in neighbours or len(neighbours) != len(set(neighbours)):
+            raise ValueError(f"invalid adjacency list for {region}")
+        if any(neighbour not in REGION_NAMES for neighbour in neighbours):
+            raise ValueError(f"unknown adjacency target for {region}")
+        if any(region not in REGION_ADJACENCY[neighbour] for neighbour in neighbours):
+            raise ValueError(f"REGION_ADJACENCY must be symmetric for {region}")
+
+
+validate_region_adjacency()
 GOVERNANCE_DIVISION_REGION_NAMES: dict[str, tuple[str, ...]] = {
     "中书省": ("大都",),
     "河南江北行省": ("两淮", "应天", "太平", "镇江", "平江"),

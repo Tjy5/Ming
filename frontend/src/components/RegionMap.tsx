@@ -10,12 +10,16 @@ import {
 } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Region, RegionControl } from '../types/game'
+import type { HudSurface } from '../hooks/store'
+import { useRegisterOverlay } from '../hooks/useRegisterOverlay'
 import {
   MAP_MODE_PRESENTATIONS,
   VIEW_MODES,
   getColorLevel,
+  getDivisionMainThreat,
   getModeValueLabel,
   getTaxCollectedRanks,
+  isDivisionInCrisis,
   type ViewMode,
 } from './regionMapUtils'
 import { EAST_ASIA_REFERENCE_BASEMAP } from '../data/map/eastAsiaReferenceBasemap'
@@ -117,7 +121,12 @@ interface MapDragState {
   view: MapView
 }
 
-type MapControlPanel = 'map' | 'camera'
+interface MapTooltipState {
+  status: GovernanceDivisionStatus
+  x: number
+  y: number
+  trigger: 'hover' | 'focus'
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
@@ -172,15 +181,42 @@ interface Props {
   toasts?: string[]
   onDivisionClick?: (division: GovernanceDivisionStatus) => void
   railControls?: ReactNode
+  activeHudSurface?: HudSurface
+  onHudSurfaceChange?: (surface: HudSurface) => void
 }
 
-export default function RegionMap({ regions, highlightDivisionId, toasts, onDivisionClick, railControls }: Props) {
+export default function RegionMap({
+  regions,
+  highlightDivisionId,
+  toasts,
+  onDivisionClick,
+  railControls,
+  activeHudSurface,
+  onHudSurfaceChange,
+}: Props) {
   const [hoveredDivisionId, setHoveredDivisionId] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<MapTooltipState | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('standard')
   const [mapCamera, setMapCamera] = useState<MapCamera>(DEFAULT_MAP_CAMERA)
   const [mapViewport, setMapViewport] = useState<MapViewport>(DEFAULT_MAP_VIEWPORT)
   const [isDraggingMap, setIsDraggingMap] = useState(false)
-  const [activeControlPanel, setActiveControlPanel] = useState<MapControlPanel | null>(null)
+  const [localControlPanel, setLocalControlPanel] = useState<'map' | 'camera' | null>(null)
+
+  const activeControlPanel = useMemo(() => {
+    if (activeHudSurface !== undefined) {
+      return activeHudSurface === 'map' || activeHudSurface === 'camera' ? activeHudSurface : null
+    }
+    return localControlPanel
+  }, [activeHudSurface, localControlPanel])
+
+  const setControlPanel = useCallback((panel: 'map' | 'camera' | null) => {
+    if (onHudSurfaceChange) {
+      onHudSurfaceChange(panel)
+    } else {
+      setLocalControlPanel(panel)
+    }
+  }, [onHudSurfaceChange])
+
   const mapSurface = useRef<HTMLDivElement | null>(null)
   const mapSvg = useRef<SVGSVGElement | null>(null)
   const mapDrag = useRef<MapDragState | null>(null)
@@ -267,32 +303,28 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
     return () => svg.removeEventListener('wheel', handleMapWheel)
   }, [handleMapWheel])
 
-  useEffect(() => {
-    if (!activeControlPanel) return
+  // Register overlay for map control panels
+  useRegisterOverlay(activeHudSurface === undefined && !!activeControlPanel, {
+    id: 'map_control_panel',
+    kind: 'surface',
+    priority: 10,
+    openerRef: activeControlPanel === 'map' ? mapPanelTrigger : cameraPanelTrigger,
+    closeAction: () => setControlPanel(null),
+  })
 
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      const trigger = activeControlPanel === 'map' ? mapPanelTrigger.current : cameraPanelTrigger.current
-      trigger?.focus()
-      setActiveControlPanel(null)
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [activeControlPanel])
-
-  function toggleControlPanel(panel: MapControlPanel) {
-    setActiveControlPanel((current) => current === panel ? null : panel)
+  function toggleControlPanel(panel: 'map' | 'camera') {
+    setControlPanel(activeControlPanel === panel ? null : panel)
   }
 
   function closeControlPanel() {
     const trigger = activeControlPanel === 'map' ? mapPanelTrigger.current : cameraPanelTrigger.current
     trigger?.focus()
-    setActiveControlPanel(null)
+    setControlPanel(null)
   }
 
   function handleMapPointerDown(event: ReactPointerEvent<SVGSVGElement>) {
     if (event.button !== 0) return
+    setTooltip(null)
     if (event.target instanceof Element && event.target.closest('[data-governance-division-id]')) return
     mapDrag.current = {
       pointerId: event.pointerId,
@@ -334,20 +366,43 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
     return viewMode === 'tax_collected' ? taxRanks?.get(region.name) ?? 'low' : getColorLevel(viewMode, region)
   }
 
+  const showTooltip = useCallback((item: GovernanceDivisionStatus, clientX: number, clientY: number, trigger: 'hover' | 'focus') => {
+    const tooltipWidth = 240
+    const tooltipHeight = 180
+    const x = clamp(clientX + 12, 10, window.innerWidth - tooltipWidth - 10)
+    const y = clamp(clientY + 12, 10, window.innerHeight - tooltipHeight - 10)
+    setTooltip({ status: item, x, y, trigger })
+  }, [])
+
+  const hideTooltip = useCallback(() => {
+    setTooltip(null)
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(hideTooltip, 0)
+    return () => window.clearTimeout(timer)
+  }, [activeHudSurface, hideTooltip])
+
   function renderGovernanceDivision(item: GovernanceDivisionStatus) {
     const { division, region, sourceRegions } = item
     const highlighted = highlightDivisionId === division.id
     const level = region ? resolveLevel(region) : 'low'
     const controlClass = region ? CONTROL_CLASSES[region.control] : 'control-missing'
-    const hasThreat = sourceRegions.some((sourceRegion) => sourceRegion.threat !== 'none')
+    const mainThreat = getDivisionMainThreat(item)
+    const hasThreat = mainThreat !== 'none'
+    const inCrisis = isDivisionInCrisis(item)
     const hovered = hoveredDivisionId === division.id
+    const crisisText = inCrisis
+      ? `【⚠️危机警示: ${region!.rebellion_risk > 50 ? `叛乱风险${region!.rebellion_risk}` : ''}${region!.disaster_level > 50 ? ` 灾情${region!.disaster_level}` : ''}】`
+      : ''
     const label = region
-      ? `${division.name}，所辖治理地区：${sourceRegions.map((sourceRegion) => sourceRegion.name).join('、')}，控制：${region.control}，${presentation.title}：${getModeValueLabel(viewMode, region)}`
+      ? `${division.name}${crisisText}，所辖治理地区：${sourceRegions.map((sourceRegion) => sourceRegion.name).join('、')}，控制：${region.control}，${presentation.title}：${getModeValueLabel(viewMode, region)}`
       : `${division.name}，尚未接入治理数据`
+
     return (
       <g
         key={division.id}
-        className={`map-governance-division stab-${level} ${controlClass}${highlighted ? ' selected' : ''}${hovered ? ' hovered' : ''}${hasThreat ? ' has-threat' : ''}${item.state === 'missing' ? ' missing' : ''}`}
+        className={`map-governance-division stab-${level} ${controlClass}${highlighted ? ' selected' : ''}${hovered ? ' hovered' : ''}${hasThreat ? ' has-threat' : ''}${inCrisis ? ' has-crisis' : ''}${item.state === 'missing' ? ' missing' : ''}`}
         data-governance-division-id={division.id}
         data-governance-division-name={division.name}
         data-source-region-names={sourceRegions.map((sourceRegion) => sourceRegion.name).join(' ')}
@@ -355,14 +410,33 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
         data-level={level}
         data-control={region?.control ?? 'missing'}
         data-threat={region?.threat ?? 'unknown'}
+        data-crisis={inCrisis ? 'true' : undefined}
         role={region ? 'button' : 'img'}
         tabIndex={region ? 0 : undefined}
         aria-disabled={!region || undefined}
         aria-label={label}
-        onMouseEnter={() => region && setHoveredDivisionId(division.id)}
-        onMouseLeave={() => setHoveredDivisionId(null)}
-        onFocus={() => region && setHoveredDivisionId(division.id)}
-        onBlur={() => setHoveredDivisionId(null)}
+        onMouseEnter={(e) => {
+          setHoveredDivisionId(division.id)
+          showTooltip(item, e.clientX, e.clientY, 'hover')
+        }}
+        onMouseMove={(e) => {
+          if (tooltip?.status.division.id === division.id) {
+            showTooltip(item, e.clientX, e.clientY, 'hover')
+          }
+        }}
+        onMouseLeave={() => {
+          setHoveredDivisionId(null)
+          hideTooltip()
+        }}
+        onFocus={(e) => {
+          setHoveredDivisionId(division.id)
+          const rect = e.currentTarget.getBoundingClientRect()
+          showTooltip(item, rect.left + rect.width / 2, rect.top, 'focus')
+        }}
+        onBlur={() => {
+          setHoveredDivisionId(null)
+          hideTooltip()
+        }}
         onClick={() => region && onDivisionClick?.(item)}
         onKeyDown={(event) => {
           if (!region || (event.key !== 'Enter' && event.key !== ' ')) return
@@ -520,20 +594,75 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
             })}
           </g>
         </svg>
+
+        {/* Map Tooltip preview */}
+        {tooltip && (
+          <div
+            className="map-division-tooltip"
+            role="tooltip"
+            style={{ top: tooltip.y, left: tooltip.x }}
+          >
+            <div className="tooltip-header">
+              <strong>{tooltip.status.division.name}</strong>
+              {isDivisionInCrisis(tooltip.status) && (
+                <span className="tooltip-crisis-badge" role="status">⚠️ 危机</span>
+              )}
+            </div>
+            {tooltip.status.region ? (
+              <div className="tooltip-metrics">
+                <div className="tooltip-metric-row">
+                  <span>控制状态</span>
+                  <span className={`control-tag ${CONTROL_CLASSES[tooltip.status.region.control]}`}>
+                    {tooltip.status.region.control}
+                  </span>
+                </div>
+                <div className="tooltip-metric-row">
+                  <span>稳定度 / 民心</span>
+                  <span>{tooltip.status.region.stability} / {tooltip.status.region.civil_morale}%</span>
+                </div>
+                <div className="tooltip-metric-row">
+                  <span>驻军兵力</span>
+                  <span>{tooltip.status.region.garrison.toLocaleString()}</span>
+                </div>
+                <div className="tooltip-metric-row">
+                  <span>主要威胁</span>
+                  <span className={getDivisionMainThreat(tooltip.status) !== 'none' ? 'text-threat' : ''}>
+                    {getDivisionMainThreat(tooltip.status) !== 'none' ? getDivisionMainThreat(tooltip.status) : '无'}
+                  </span>
+                </div>
+                <div className="tooltip-metric-row">
+                  <span>叛乱风险 / 灾情</span>
+                  <span className={isDivisionInCrisis(tooltip.status) ? 'text-crisis' : ''}>
+                    {tooltip.status.region.rebellion_risk}% / 等级{tooltip.status.region.disaster_level}
+                  </span>
+                </div>
+                <small className="tooltip-subregions">
+                  所辖：{tooltip.status.sourceRegions.map((r) => r.name).join('、')}
+                </small>
+              </div>
+            ) : (
+              <p className="tooltip-unmapped">尚未接入治理数据</p>
+            )}
+          </div>
+        )}
+
         {(joined.unmapped.length > 0 || joined.duplicates.length > 0) && (
           <div className="map-data-warning" role="status" aria-label="地图数据告警">
             {joined.unmapped.length > 0 && <span className="map-warning-item warning-unmapped" data-warning-kind="unmapped">未映射：{joined.unmapped.map((region) => region.name).join('、')}</span>}
             {joined.duplicates.length > 0 && <span className="map-warning-item warning-duplicate" data-warning-kind="duplicate">重复：{joined.duplicates.map((region) => region.name).join('、')}</span>}
           </div>
         )}
+
         {railControls && (
           <nav className="primary-command-strip" aria-label="朝廷管理">
             {railControls}
           </nav>
         )}
+
         <p className="map-accuracy-note">约 14 世纪中叶历史归组；现代省界仅用于拼合历史行政区。点击有治理数据的行政区轮廓可查看汇总状态并施政；淡色斜纹区尚未接入本剧本数据。</p>
         <AnimatePresence>{toasts?.map((msg) => <motion.div key={msg} className="map-toast" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>{msg}</motion.div>)}</AnimatePresence>
       </div>
+
       <aside className="view-switcher" aria-label="地图控制" data-expanded-panel={activeControlPanel ?? 'none'}>
         {activeControlPanel && (
           <section
@@ -621,18 +750,21 @@ export default function RegionMap({ regions, highlightDivisionId, toasts, onDivi
         <nav className="map-control-dock" aria-label="地图工具入口">
           <button
             ref={mapPanelTrigger}
+            id="rail-btn-map"
             type="button"
             className={`map-dock-button${activeControlPanel === 'map' ? ' active' : ''}`}
             aria-label="地图模式"
             aria-expanded={activeControlPanel === 'map'}
             aria-controls="map-map-control-panel"
-            title="地图模式"
+            title="地图模式 (快捷键: F1)"
+            data-shortcut="F1"
             onClick={() => toggleControlPanel('map')}
           >
             地图
           </button>
           <button
             ref={cameraPanelTrigger}
+            id="rail-btn-camera"
             type="button"
             className={`map-dock-button camera-dock-button${activeControlPanel === 'camera' ? ' active' : ''}`}
             aria-label="地图镜头"

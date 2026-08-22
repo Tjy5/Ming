@@ -1,4 +1,5 @@
 import type { Region } from '../types/game'
+import type { GovernanceDivisionStatus } from '../data/map/geography'
 
 export type ViewMode = 'standard' | 'disaster' | 'morale' | 'rebellion' | 'tax_rate' | 'tax_collected'
 export type MapLevel = 'high' | 'mid' | 'low'
@@ -90,6 +91,16 @@ function threeLevel(value: number, low: number, high: number): MapLevel {
   if (value > high) return 'high'
   if (value >= low) return 'mid'
   return 'low'
+}
+
+export function isDivisionInCrisis(status: GovernanceDivisionStatus): boolean {
+  if (!status.region) return false
+  return status.region.rebellion_risk > 50 || status.region.disaster_level > 50
+}
+
+export function getDivisionMainThreat(status: GovernanceDivisionStatus): string {
+  const hit = status.sourceRegions.find((region) => region.threat !== 'none')
+  return hit ? hit.threat : 'none'
 }
 
 export function levelColor(level: MapLevel): string {

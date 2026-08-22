@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 
 from db import narrative_memory
 from db import saves as db_saves
-from models.game import ErrorResponse, HistoryEntry
+from models.game import ErrorResponse
 from models.settlement import ResultTier
 from models.trpg import ATTR_KEYS, PLAYER_NAME, ActRequest, ConvergeRequest, SKILL_ATTR_MAP
 from models.world_state import RollRecord, VisibleRollModifier
@@ -28,6 +28,7 @@ from trpg import dice as dice_mod
 from trpg import gm as gm_mod
 from trpg import writeback as writeback_mod
 from .narrative_routes import generate_committed_narrative
+from .history_service import append_history_entry
 from .state import _ensure_world_head, _get_provider, _get_state, _lock, _settle_state
 
 trpg_router = APIRouter(prefix="/api/trpg")
@@ -216,15 +217,14 @@ async def act(req: ActRequest):
         state_changes_result = writeback_mod.apply_state_changes(state, result["state_changes"])
 
         # 5. 历史记录（供滚动窗口与存档回放）
-        state.history_log.append(HistoryEntry(
-            year=state.time.year,
-            month=state.time.month,
+        append_history_entry(
+            state,
             decree_type=TRPG_HISTORY_TYPE,
             decree_desc=req.action_text.strip(),
             # The GM candidate may guide structured options/state changes, but
             # only the post-commit canonical artifact is player-visible.
             narrative="",
-        ))
+        )
 
         public_roll = _roll_record(
             state=current_state,
@@ -335,13 +335,12 @@ async def complete_milestone(milestone_id: str):
         else:
             narrative = milestone.get("summary", "") if milestone else ""
 
-        state.history_log.append(HistoryEntry(
-            year=state.time.year,
-            month=state.time.month,
+        append_history_entry(
+            state,
             decree_type=TRPG_HISTORY_TYPE,
             decree_desc=f"关键事件:{result['title']}",
             narrative=narrative,
-        ))
+        )
 
         state, settlement_result = await _settle_state(
             state,
@@ -426,13 +425,12 @@ async def converge(req: ConvergeRequest):
                 "但当前世界线仍可继续，下一步须先求立足之地与可靠援手。"
             )
 
-        state.history_log.append(HistoryEntry(
-            year=state.time.year,
-            month=state.time.month,
+        append_history_entry(
+            state,
             decree_type=TRPG_HISTORY_TYPE,
             decree_desc="收束抉择:" + ("接受招揽" if req.choice == "accept" else "继续流窜"),
             narrative=narrative,
-        ))
+        )
 
         state, settlement_result = await _settle_state(
             state,

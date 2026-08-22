@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import Markdown from 'react-markdown'
 import type { Memorial } from '../types/game'
 import ResultDisplay from './shared/ResultDisplay'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   memorials: Memorial[]
@@ -27,7 +28,14 @@ function sortByUrgency(a: Memorial, b: Memorial) {
 export default function MemorialPanel({ memorials, resolving = false, onResolve, onClose }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const panelRef = useRef<HTMLDivElement | null>(null)
   const sorted = [...memorials].sort(sortByUrgency)
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'central_current_modal',
+  })
 
   useEffect(() => {
     if (expandedId && cardRefs.current[expandedId]) {
@@ -50,11 +58,13 @@ export default function MemorialPanel({ memorials, resolving = false, onResolve,
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} data-overlay-root="modal">
       <motion.div
+        ref={panelRef}
         className="modal memorial-modal"
         role="dialog"
         aria-modal="true"
+        data-overlay-panel="true"
         aria-labelledby="memorial-dialog-title"
         onClick={e => e.stopPropagation()}
         initial={{ scale: 0.9, opacity: 0 }}

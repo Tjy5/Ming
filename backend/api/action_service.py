@@ -59,6 +59,7 @@ from models.world import (
 )
 from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollRecord
 from ai.prompts import ADJUDICATION_SYSTEM_PROMPT
+from .history_service import append_history_entry
 
 
 class ActionAdjudicator(Protocol):
@@ -496,6 +497,14 @@ class ActionService:
                         "deltas": [*proposal_for_commit.deltas, *lifecycle.deltas],
                     },
                 )
+        append_history_entry(
+            changed,
+            decree_type=intent.action_kind or "other",
+            decree_desc=intent.raw_text,
+            target_region_id=intent.target_region_id,
+            target_entity_ids=intent.target_entity_ids,
+            settlement_deltas=proposal_for_commit.deltas,
+        )
         validate_final_state(previous, changed)
 
         # The provider call happens outside SQLite. Recheck before entering the

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Markdown from 'react-markdown'
 import type { GameEvent, StructuredDecree } from '../types/game'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   event: GameEvent
@@ -15,6 +16,13 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [warning, setWarning] = useState<string | null>(null)
   const [hintOpen, setHintOpen] = useState(false)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'central_current_modal',
+  })
 
   async function handleSubmit() {
     const trimmed = freeText.trim()
@@ -32,9 +40,17 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal script-modal" onClick={e => e.stopPropagation()}>
-        <h3>{event.name}</h3>
+    <div className="modal-overlay" data-overlay-root="modal">
+      <div
+        ref={panelRef}
+        className="modal script-modal"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-labelledby="script-event-title"
+        onClick={e => e.stopPropagation()}
+      >
+        <h3 id="script-event-title">{event.name}</h3>
         <div className="script-md-body">
           <Markdown>{text}</Markdown>
         </div>

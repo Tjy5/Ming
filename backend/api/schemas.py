@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from ai.narrative_service import NarrativeGenerationResult
 
 from models.game import (
+    DecreeResponse,
     ErrorResponse,
     GameState,
     HistoryEntry,
@@ -93,9 +94,39 @@ class ActionErrorEnvelope(BaseModel):
     detail: ErrorResponse
 
 
+DecreeStreamProgressStage = Literal[
+    "queued", "processing", "narrative", "validated", "memorial",
+]
+
+
+class DecreeStreamProgressPayload(BaseModel):
+    stage: DecreeStreamProgressStage
+    message: str = Field(min_length=1)
+
+
+class DecreeStreamNarrativePayload(BaseModel):
+    chunk: str = Field(min_length=1)
+
+
+class DecreeStreamMemorialPayload(BaseModel):
+    memorial_id: str = Field(min_length=1)
+    title: str = Field(min_length=1)
+    chunk: str = Field(min_length=1)
+
+
+class DecreeStreamFinalPayload(BaseModel):
+    response: DecreeResponse
+
+
+class DecreeStreamErrorPayload(BaseModel):
+    status: int = Field(ge=400, le=599)
+    detail: ErrorResponse
+
+
 class HistoryPage(BaseModel):
     total: int
     offset: int
+    page: int = Field(ge=1)
     limit: int
     entries: list[HistoryEntry] = Field(default_factory=list)
 
@@ -186,7 +217,7 @@ class WorldRetentionCollectRequest(BaseModel):
     """Explicit operator acknowledgement for destructive retention GC."""
 
     branch_id: BranchId | None = None
-    recent_limit: int = Field(default=100, ge=1)
+    recent_limit: int = Field(default=100, ge=1, le=1000)
     enabled: Literal[True] = True
 
 

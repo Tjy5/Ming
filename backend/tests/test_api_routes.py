@@ -39,11 +39,13 @@ from models.game import (
 def _restore_route_globals():
     old_state = api_state._state
     old_provider = api_state._provider
+    old_ref = api_state._get_world_head_ref()
     try:
         yield
     finally:
         api_state._state = old_state
         api_state._provider = old_provider
+        api_state._world_head_cache.restore_ref(old_ref)
 
 
 def _fake_provider():
@@ -111,15 +113,21 @@ def test_personnel_target_must_exist():
     assert api_state._state.model_dump() == before
 
 
-def test_get_history_normalizes_negative_offset_and_small_limit():
-    api_state._state = create_initial_state()
-    api_state._state.history_log = [
+def test_get_history_normalizes_negative_offset_and_small_limit(monkeypatch, tmp_path):
+    monkeypatch.setattr(saves, "DB_PATH", tmp_path / "history-legacy.db")
+    saves.init_db()
+    state = create_initial_state()
+    state.history_log = [
         HistoryEntry(year=1356, month=i, decree_type="x")
         for i in range(1, 6)
     ]
+    root = worlds.create_game_with_root(state)
+    snapshot = worlds.load_version(root.version_id)
+    api_state._world_head_cache.publish(snapshot.state, snapshot.ref)
 
     result = asyncio.run(routes.get_history(offset=-2, limit=0))
     assert result["offset"] == 0
+    assert result["page"] == 1
     assert result["limit"] == 1
     assert len(result["entries"]) == 1
     assert result["entries"][0]["month"] == 1

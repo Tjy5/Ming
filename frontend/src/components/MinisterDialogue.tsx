@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Minister, GameState, DialogueMessage } from '../types/game'
 import { api } from '../api/client'
 import { getPortraitUrl } from '../utils/portraits'
+import { useStore } from '../hooks/store'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 interface Props {
   minister: Minister | null
@@ -19,7 +21,10 @@ export default function MinisterDialogue({ minister, onClose, onStateUpdate }: P
   const [portraitError, setPortraitError] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const loyaltyTimerRef = useRef<number>(0)
+
+  useFocusTrap({ active: !!minister, containerRef: panelRef, overlayId: 'minister_dialogue' })
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -29,7 +34,11 @@ export default function MinisterDialogue({ minister, onClose, onStateUpdate }: P
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        const stack = useStore.getState().overlayStack
+        if (stack.length > 0 && !useStore.getState().isTopmostOverlay('minister_dialogue')) return
+        onClose()
+      }
     }
     window.addEventListener('keydown', handleEsc)
     return () => {
@@ -71,15 +80,19 @@ export default function MinisterDialogue({ minister, onClose, onStateUpdate }: P
   const loyaltyColor = minister.loyalty > 60 ? 'var(--green)' : minister.loyalty > 30 ? 'var(--yellow)' : 'var(--red)'
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} data-overlay-root="modal">
       <motion.div
-        className="minister-dialogue-modal"
-        onClick={e => e.stopPropagation()}
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+        ref={panelRef}
+        className="minister-dialogue-panel modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="dialogue-minister-name"
+        data-overlay-panel="true"
+        aria-labelledby="md-minister-name"
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        transition={{ duration: 0.25 }}
+        onClick={e => e.stopPropagation()}
       >
         <div className="md-content">
           <div className="md-left">

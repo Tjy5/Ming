@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { MinisterReaction, TurnSummary, RegionChange } from '../types/game'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 
 const FIELD_LABELS: Record<string, string> = {
   national_treasury: '国库', imperial_treasury: '内帑', grain: '粮草',
@@ -92,16 +93,28 @@ export default function NarrativeModal({
   const [deltaOpen, setDeltaOpen] = useState(entries.length > 0)
   const [summaryOpen, setSummaryOpen] = useState(true)
   const [expandedRegions, setExpandedRegions] = useState<Set<string>>(new Set())
+  const panelRef = useRef<HTMLDivElement | null>(null)
+
+  useFocusTrap({
+    active: true,
+    containerRef: panelRef,
+    overlayId: 'central_current_modal',
+  })
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} data-overlay-root="modal">
       <div
+        ref={panelRef}
         className="modal narrative-modal"
+        role="dialog"
+        aria-modal="true"
+        data-overlay-panel="true"
+        aria-labelledby="narrative-modal-title"
         data-settlement-id={settlementId ?? undefined}
         data-context-version-id={contextVersionId ?? undefined}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="narrative-header">令谕已下</h3>
+        <h3 className="narrative-header" id="narrative-modal-title">令谕已下</h3>
         <p className="narrative-text">{narrative}</p>
 
         {turnSummary && (

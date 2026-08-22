@@ -14,6 +14,7 @@ from ai.narrative_service import (
     generate_narrative_artifact,
     result_from_artifact,
     runtime_generator,
+    runtime_rule_fallback,
 )
 from db import worlds
 from db.narrative_memory import (
@@ -227,6 +228,7 @@ async def generate_committed_narrative(
             context=context,
             state=state,
             generate=runtime_generator(provider),
+            rule_fallback=runtime_rule_fallback(provider),
         )
         _append_result_memory(context=context, result=result, action_text=action_text)
         return result

@@ -117,16 +117,24 @@ def region_numeric_context(state: GameState) -> str:
     return "危险区域：\n" + "\n".join(lines) if lines else ""
 
 
-def threshold_alerts(state: GameState) -> list[str]:
-    """命中 THRESHOLD_ALERTS 的强制叙事口径提示。只读 state，无副作用。"""
+def active_threshold_alerts(state: GameState) -> list[tuple[str, str]]:
+    """Return active alert names and their deterministic narrative constraints."""
     from engine.world_state import project_effective_state
 
     effective_state = project_effective_state(state)
-    hits: list[str] = []
+    hits: list[tuple[str, str]] = []
     for name, check, message in THRESHOLD_ALERTS:
         try:
             if check(effective_state):
-                hits.append(f"【{name}】{message}。")
+                hits.append((name, message))
         except Exception:
             logger.warning("threshold alert check failed", extra={"alert": name})
     return hits
+
+
+def threshold_alerts(state: GameState) -> list[str]:
+    """命中 THRESHOLD_ALERTS 的强制叙事口径提示。只读 state，无副作用。"""
+    return [
+        f"【{name}】{message}。"
+        for name, message in active_threshold_alerts(state)
+    ]

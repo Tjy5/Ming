@@ -12,6 +12,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field
 
 from ai.narrative_context import NarrativeContext
+from engine.numeric_bands import active_threshold_alerts
 from engine.state_consistency import validate_narrative_text
 from models.game import GameState
 from models.settlement import PlayerWorldDelta
@@ -149,6 +150,19 @@ _FACT_SECTION_LABELS = {
     "跨越事件",
     "活动中断依据",
 }
+_THRESHOLD_TONE_CONTRADICTIONS = {
+    "民心崩溃预警": (
+        "歌舞升平", "民心安泰", "民心稳固", "百姓安居", "秩序井然", "天下太平",
+    ),
+    "军心动摇预警": ("士气高昂", "军令严明", "军心稳固", "士卒用命"),
+    "国库空虚预警": ("大兴土木", "挥霍无度", "财力充盈", "国库充盈"),
+    "叛乱高危预警": ("上下同欲", "朝局稳固", "人心归附"),
+    "区域失稳预警": ("安居乐业", "秩序井然", "地方安宁", "四境安定"),
+}
+_THRESHOLD_NEGATIONS = (
+    "不", "未", "非", "无", "不是", "并非", "绝非", "并不", "未见", "不见",
+    "难言", "不可谓", "不能说", "不能说是",
+)
 
 
 def iter_sentences(text: str) -> list[str]:
@@ -203,6 +217,37 @@ def _legacy_findings(
                 fact_reference=f"entity:{actor}" if actor else None,
             ),
         )
+    return findings
+
+
+def _threshold_phrase_is_negated(sentence: str, phrase_index: int) -> bool:
+    prefix = sentence[max(0, phrase_index - 8):phrase_index].rstrip()
+    return any(prefix.endswith(marker) for marker in _THRESHOLD_NEGATIONS)
+
+
+def _threshold_tone_findings(text: str, state: GameState) -> list[NarrativeFinding]:
+    findings: list[NarrativeFinding] = []
+    sentences = iter_sentences(text)
+    for alert_name, constraint in active_threshold_alerts(state):
+        contradictions = _THRESHOLD_TONE_CONTRADICTIONS.get(alert_name, ())
+        for sentence in sentences:
+            violating_phrase = next(
+                (
+                    phrase
+                    for phrase in contradictions
+                    if (index := sentence.find(phrase)) >= 0
+                    and not _threshold_phrase_is_negated(sentence, index)
+                ),
+                None,
+            )
+            if violating_phrase is None:
+                continue
+            findings.append(NarrativeFinding(
+                code="threshold_tone_violation",
+                message=f"叙事违反{alert_name}：{constraint}",
+                sentence=sentence,
+                fact_reference=f"threshold:{alert_name}",
+            ))
     return findings
 
 
@@ -582,6 +627,7 @@ def validate_narrative_candidate(
         return [NarrativeFinding(code="empty_narrative", message="模型未返回叙事文本")]
 
     findings = _legacy_findings(candidate, context, state)
+    findings.extend(_threshold_tone_findings(candidate, state))
     sentences = iter_sentences(candidate)
     entity_by_name = {entity.display_name: entity for entity in context.entities}
     for sentence in sentences:

@@ -1,0 +1,107 @@
+{
+  "report_version": 1,
+  "change": "backend-storage-engine-streaming-optimization",
+  "measured_on": "2026-08-15",
+  "command": "python -m tests.benchmarks.run_acceptance",
+  "all_gates_passed": true,
+  "environment": {
+    "cpu": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "logical_cpu_count": 16,
+    "platform": "Windows-10-10.0.26100-SP0",
+    "python": "3.11.6",
+    "sqlite": "3.42.0"
+  },
+  "sqlite_pragmas": {
+    "busy_timeout_ms": 5000,
+    "foreign_keys": 1,
+    "journal_mode": "delete",
+    "page_size": 4096,
+    "synchronous": 2
+  },
+  "storage": {
+    "fixture": "storage-v1",
+    "seed": 135204,
+    "generator_version": "storage-v1",
+    "manifest_sha256": "68464a77590f33064ca52e2951e946e9b2542281e12b63aa92023966d60d1355",
+    "payload_rule_sha256": "4dc333b42e36edad58e43f93ed05d7dca37f286a876678fdb5ccd8f78c4887f0",
+    "snapshots": 1000,
+    "branches": {"A": 600, "B": 250, "C": 150},
+    "bookmarks": 20,
+    "average_snapshot_bytes": 65345.797,
+    "fixture_generation_ms": 14823.571,
+    "maintenance_duration_ms": 11945,
+    "size_before": 71557120,
+    "size_after": 27910144,
+    "reclaimed_bytes": 43646976,
+    "post_vacuum_ratio": 0.39004,
+    "gate": {
+      "passed": true,
+      "max_post_vacuum_ratio": 0.45
+    },
+    "timing_boundary": "fixture generation and run_storage_maintenance(retention plus VACUUM)"
+  },
+  "sse": {
+    "benchmark_version": "sse-local-loopback-v1",
+    "requests": 100,
+    "transport": "in-process ASGI local loopback",
+    "provider_network_wait_included": false,
+    "first_progress_ms": {"p50": 3.202, "p95": 4.893},
+    "validated_to_safe_narrative_ms": {"p50": 0.0, "p95": 0.001},
+    "gate": {
+      "passed": true,
+      "first_progress_p95_ms_max": 250.0,
+      "validated_to_safe_narrative_p95_ms_max": 100.0
+    },
+    "timing_boundary": "request start to first progress; validated event to safe narrative event"
+  },
+  "history": {
+    "fixture": "history-v1",
+    "seed": 135205,
+    "generator_version": "history-sha256-round-robin-v1",
+    "manifest_sha256": "a6935c16f44fe97d9ad446e47f6ab95c541ddbcdcc2a84c1d175ecb348fadcdc",
+    "dataset_sha256": "4f25cd4059c01bdf4423329573278307279112d532f0762be2c873886dddd5b7",
+    "query_manifest_sha256": "aa156fd58981163e62de24591341ecfb088cfd3fd305ebb0f69cfd0d13ded06d",
+    "query_expectations_sha256": "1a16d6f4073dd9c613b5c965c5042e5c4f4771aaf37694b14155719bfe92fd91",
+    "entries": 10000,
+    "queries": 8,
+    "iterations_per_query": 100,
+    "strategy": "bounded-version-query-cache-v1",
+    "cache_max_entries": 64,
+    "latency_ms": {"p50": 0.002, "p95": 0.004},
+    "query_results": [
+      {"case_id": "year-1352", "expected_sha256": "c40a92a6d8059484bc96b5bbf816a7788fa3799d5a9e3ef75b62639c583b90b7", "p95_ms": 0.003},
+      {"case_id": "month-04", "expected_sha256": "c445ef13f8cc9e281b700290e97dd356113a0d7d385cda373293e6e9b3bcce6c", "p95_ms": 0.003},
+      {"case_id": "category-military", "expected_sha256": "d66262f4e00846a70392a58b10c4d70218dd581f880ba2140bca9502d36ae314", "p95_ms": 0.004},
+      {"case_id": "province-01", "expected_sha256": "5267736593f5ad71ba170b29dfa764058490261cde8d390ca639270f36fb265d", "p95_ms": 0.002},
+      {"case_id": "year-month", "expected_sha256": "485ff032f20f63ca7120acbd4ec88b7c35c7b14b49dca5f145b52fc9ca6cc951", "p95_ms": 0.001},
+      {"case_id": "category-province", "expected_sha256": "2e53d9f951d2522fd9e4a8bd95cd5288325ab0e283b6ab2ac046320ea56f58f3", "p95_ms": 0.001},
+      {"case_id": "year-month-category", "expected_sha256": "b0fb12eaf2aeb4d9e549287c16441b3aa6e207bb7bf7a9bdd284658f08f47f3c", "p95_ms": 0.001},
+      {"case_id": "all-filters", "expected_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945", "p95_ms": 0.001}
+    ],
+    "gate": {
+      "passed": true,
+      "warm_cache_p95_ms_max": 200
+    },
+    "timing_boundary": "warm bounded-version query cache lookup"
+  },
+  "prompt": {
+    "fixture": "prompt-regions-v1",
+    "generator_version": "prompt-regions-v1",
+    "manifest_sha256": "866be2b0b913ab42eafb1631f19f904c3b4942f8891878b7aafba3864727363a",
+    "corpus_sha256": "695210c91da1d5036a7c61b3ca61154a9df8095e0ac7c06fd067c24242361802",
+    "cases": 30,
+    "tokenizer_id": "ming-conservative-token-v1",
+    "provider_id": "provider-neutral-json-context-v1",
+    "median_full_tokens": 90882.0,
+    "median_pruned_tokens": 11931.0,
+    "median_reduction_percent": 86.872,
+    "fact_matches": 30,
+    "projection_latency_ms": {"p50": 3.776, "p95": 7.587},
+    "gate": {
+      "passed": true,
+      "minimum_median_token_reduction_percent": 25,
+      "projection_p95_ms_max": 100.0
+    },
+    "timing_boundary": "pure project_narrative_context_for_prompt call"
+  }
+}

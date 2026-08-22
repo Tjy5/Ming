@@ -13,6 +13,7 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
+from pydantic import BaseModel
 
 from models.game import (
     GameState, StructuredDecree, create_initial_state,
@@ -128,6 +129,7 @@ async def _settle_state(
     result_tier: ResultTier = "success",
     key_factors: list[str] | None = None,
     rolls: list[RollRecord] | None = None,
+    regional_targets: list[str] | None = None,
 ) -> tuple[GameState, SettlementCommitResult]:
     """Atomically settle an isolated legacy action state through the world graph.
 
@@ -185,6 +187,7 @@ async def _settle_state(
         client_action_id=action_id,
         raw_text=raw_text.strip() or "兼容行动",
         action_kind=action_kind,
+        regional_targets=list(regional_targets or ()),
         mode=previous.phase,
     )
     adjudicated = await AIActionAdjudicator(_get_provider).adjudicate(
@@ -214,6 +217,7 @@ async def _settle_state(
             client_action_id=action_id,
             raw_text=raw_text.strip() or "兼容行动",
             action_kind=action_kind,
+            regional_targets=list(regional_targets or ()),
             mode=previous.phase,
         )
 
@@ -427,7 +431,7 @@ def _split_stream_sentences(text: str) -> list[str]:
     return chunks or [normalized]
 
 
-def _sse_event(event: str, data: dict) -> str:
+def _sse_event(event: str, data: BaseModel | dict) -> str:
     payload = json.dumps(jsonable_encoder(data), ensure_ascii=False)
     return f"event: {event}\ndata: {payload}\n\n"
 

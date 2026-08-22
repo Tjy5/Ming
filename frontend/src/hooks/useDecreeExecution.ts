@@ -135,15 +135,15 @@ export function useDecreeExecution({
     state,
   ])
 
-  const handleFreeText = useCallback(async (text: string) => {
-    if (!state) return
+  const handleFreeText = useCallback(async (text: string): Promise<string | null> => {
+    if (!state) return 'no_state'
     const trimmed = text.trim()
-    if (!trimmed) return
+    if (!trimmed) return 'empty'
     if (trimmed.length > 200) {
       showToast('政令文本过长（最多200字）')
-      return
+      return 'too_long'
     }
-    await executeDecrees([], undefined, trimmed)
+    return await executeDecrees([], undefined, trimmed)
   }, [executeDecrees, showToast, state])
 
   useEffect(() => {

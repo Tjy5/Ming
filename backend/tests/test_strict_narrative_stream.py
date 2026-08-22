@@ -3,14 +3,23 @@ import json
 from uuid import UUID
 
 import pytest
+from fastapi import HTTPException
 
 from ai.base import GenerationResult
+from ai.narrative_validators import facts_narrative
 from ai.provider import ResilientProvider
 from api import narrative_routes, routes
 from api import state as api_state
+from api.schemas import (
+    DecreeStreamErrorPayload,
+    DecreeStreamFinalPayload,
+    DecreeStreamMemorialPayload,
+    DecreeStreamNarrativePayload,
+    DecreeStreamProgressPayload,
+)
 from db import narrative_memory, saves, worlds
 from models.enums import DecreeType, MinisterStatus
-from models.game import StructuredDecree, create_initial_state
+from models.game import DecreeResponse, StructuredDecree, create_initial_state
 from fakes import FakeProvider
 
 
@@ -39,6 +48,34 @@ class _FailingAdjudicationProvider(FakeProvider):
     async def generate_text_once(self, prompt, **kwargs):
         del prompt, kwargs
         raise RuntimeError("private provider failure body")
+
+
+class _BlockingProvider(FakeProvider):
+    def __init__(self, *, block_adjudication: bool):
+        self.block_adjudication = block_adjudication
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+
+    async def generate_text_once(self, prompt, **kwargs):
+        is_adjudication = "ACTION_INTENT=" in prompt
+        if is_adjudication != self.block_adjudication:
+            return await super().generate_text_once(prompt, **kwargs)
+        self.started.set()
+        try:
+            await asyncio.Future()
+        finally:
+            self.cancelled.set()
+
+
+class _RetryFailingNarrativeProvider(FakeProvider):
+    def __init__(self):
+        self.narrative_calls = 0
+
+    async def generate_text_once(self, prompt, **kwargs):
+        if "ACTION_INTENT=" in prompt:
+            return await super().generate_text_once(prompt, **kwargs)
+        self.narrative_calls += 1
+        raise RuntimeError("private provider retry body")
 
 
 @pytest.fixture
@@ -148,6 +185,133 @@ def test_first_narrative_chunk_follows_validation_complete_stage(
         for event, data in events[:first_narrative]
     )
     assert all(event != "narrative" for event, _ in events[:first_narrative])
+    assert names.count("final") == 1
+    assert names[-1] == "final"
+
+
+def test_normal_stream_payloads_validate_against_shared_schemas(_isolated_runtime):
+    provider = _StrictNarrativeProvider(["政令已按已提交事实执行。"])
+    api_state._provider = ResilientProvider(provider, timeout=1, retries=1)
+
+    response = asyncio.run(routes.execute_decree_stream(_structured_request()))
+    events = _events(asyncio.run(_collect_stream(response)))
+    schemas = {
+        "progress": DecreeStreamProgressPayload,
+        "narrative": DecreeStreamNarrativePayload,
+        "memorial": DecreeStreamMemorialPayload,
+        "final": DecreeStreamFinalPayload,
+        "error": DecreeStreamErrorPayload,
+    }
+
+    for event, payload in events:
+        schemas[event].model_validate(payload)
+
+
+@pytest.mark.parametrize("status, expected_status", [(418, 418), (799, 500)])
+def test_malformed_http_error_is_sanitized(
+    _isolated_runtime,
+    monkeypatch,
+    status,
+    expected_status,
+):
+    async def fail_core(*_args, **_kwargs):
+        raise HTTPException(status, detail={"private": "provider-secret"})
+
+    monkeypatch.setattr(routes, "_execute_decree_core", fail_core)
+    response = asyncio.run(routes.execute_decree_stream(_structured_request()))
+    payload = asyncio.run(_collect_stream(response))
+    events = _events(payload)
+
+    assert [name for name, _ in events] == ["progress", "error"]
+    error = DecreeStreamErrorPayload.model_validate(events[-1][1])
+    assert error.status == expected_status
+    assert error.detail.error_code == "stream_http_error"
+    assert error.detail.details is None
+    assert "provider-secret" not in payload
+
+
+def test_resilient_retries_then_uses_configured_rule_fallback(_isolated_runtime):
+    inner = _RetryFailingNarrativeProvider()
+    fallback_calls: list[str] = []
+
+    def configured_fallback(context):
+        fallback_calls.append(str(context.settlement_id))
+        return facts_narrative(context)
+
+    api_state._provider = ResilientProvider(
+        inner,
+        timeout=1,
+        retries=2,
+        narrative_rule_fallback=configured_fallback,
+    )
+
+    response = asyncio.run(routes.execute_decree_stream(_structured_request()))
+    payload = asyncio.run(_collect_stream(response))
+    events = _events(payload)
+    final = DecreeStreamFinalPayload.model_validate(events[-1][1]).response
+
+    assert inner.narrative_calls == 2
+    assert len(fallback_calls) == 1
+    assert final.narrative_status == "fallback_facts"
+    assert "private provider retry body" not in payload
+
+
+def test_client_disconnect_before_commit_cancels_without_writes(_isolated_runtime):
+    async def scenario():
+        inner = _BlockingProvider(block_adjudication=True)
+        api_state._provider = ResilientProvider(inner, timeout=10, retries=1)
+        response = await routes.execute_decree_stream(_structured_request())
+        iterator = response.body_iterator
+        first = await anext(iterator)
+        assert "event: progress" in str(first)
+        pending = asyncio.create_task(anext(iterator))
+        await asyncio.wait_for(inner.started.wait(), timeout=1)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await asyncio.wait_for(inner.cancelled.wait(), timeout=1)
+
+    asyncio.run(scenario())
+
+    assert api_state._get_world_head_ref() is None
+    assert _row_count("versions") == 0
+    assert _row_count("settlements") == 0
+    assert _row_count("narrative_artifacts") == 0
+
+
+def test_client_disconnect_after_commit_preserves_world_state(_isolated_runtime):
+    async def scenario():
+        inner = _BlockingProvider(block_adjudication=False)
+        api_state._provider = ResilientProvider(inner, timeout=10, retries=1)
+        response = await routes.execute_decree_stream(_structured_request())
+        iterator = response.body_iterator
+        await anext(iterator)
+        pending = asyncio.create_task(anext(iterator))
+        await asyncio.wait_for(inner.started.wait(), timeout=2)
+        assert _row_count("settlements") == 1
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await asyncio.wait_for(inner.cancelled.wait(), timeout=1)
+
+    asyncio.run(scenario())
+
+    ref = api_state._get_world_head_ref()
+    assert ref is not None
+    assert worlds.load_version(ref.version_id).ref == ref
+    assert _row_count("settlements") == 1
+    assert _row_count("narrative_artifacts") == 0
+
+
+def test_non_streaming_response_remains_decree_response(_isolated_runtime):
+    provider = _StrictNarrativeProvider(["政令已按已提交事实执行。"])
+    api_state._provider = ResilientProvider(provider, timeout=1, retries=1)
+
+    payload = asyncio.run(routes.execute_decree(_structured_request()))
+
+    response = DecreeResponse.model_validate(payload)
+    assert response.settlement_id is not None
+    assert response.narrative_status == "validated"
 
 
 def test_postcommit_narrative_failure_returns_facts_with_settlement_id(

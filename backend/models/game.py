@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .enums import (
     DecreeType, RegionControl, RegionThreat, TaxContribution,
@@ -82,6 +82,111 @@ def normalize_decree_category_usage(raw: object) -> dict[str, bool]:
         normalized[decree_category_of(decree_type)] = True
 
     return normalized
+
+
+HistoryCategory = Literal[
+    "domestic", "military", "diplomacy", "personnel", "disaster", "other",
+]
+HISTORY_CATEGORIES = frozenset(
+    {"domestic", "military", "diplomacy", "personnel", "disaster", "other"},
+)
+HISTORY_DECREE_CATEGORY_MAP: dict[str, HistoryCategory] = {
+    DecreeType.TAX_INCREASE.value: "domestic",
+    DecreeType.TAX_DECREASE.value: "domestic",
+    DecreeType.HARSH_PUNISHMENT.value: "domestic",
+    DecreeType.RECRUIT_TROOPS.value: "military",
+    DecreeType.DISBAND_TROOPS.value: "military",
+    DecreeType.DIPLOMACY.value: "diplomacy",
+    DecreeType.PERSONNEL.value: "personnel",
+    DecreeType.DISASTER_RELIEF.value: "disaster",
+}
+HISTORY_CATEGORY_ALIASES: dict[str, HistoryCategory] = {
+    "domestic": "domestic",
+    "military": "military",
+    "diplomacy": "diplomacy",
+    "personnel": "personnel",
+    "disaster": "disaster",
+    "other": "other",
+    "内政": "domestic",
+    "政务": "domestic",
+    "民生": "domestic",
+    "军事": "military",
+    "外交": "diplomacy",
+    "人事": "personnel",
+    "天灾": "disaster",
+    "灾变": "disaster",
+    "其他": "other",
+}
+
+
+def history_category_of(decree_type: object) -> HistoryCategory:
+    token = getattr(decree_type, "value", decree_type)
+    return HISTORY_DECREE_CATEGORY_MAP.get(str(token).strip(), "other")
+
+
+def normalize_history_category(value: object) -> HistoryCategory:
+    token = str(value).strip()
+    normalized = HISTORY_CATEGORY_ALIASES.get(token.lower())
+    if normalized is None:
+        normalized = HISTORY_CATEGORY_ALIASES.get(token)
+    if normalized is None:
+        raise ValueError("unknown history category")
+    return normalized
+
+
+def normalize_history_payload(value: object) -> tuple[object, bool]:
+    if value is None:
+        return [], True
+    if not isinstance(value, list):
+        return value, False
+
+    normalized: list[dict] = []
+    changed = False
+    valid_sequences: list[int] = []
+    for item in value:
+        if isinstance(item, HistoryEntry):
+            payload = item.model_dump(mode="python")
+        elif isinstance(item, dict):
+            payload = dict(item)
+        else:
+            changed = True
+            continue
+
+        sequence = payload.get("sequence")
+        if isinstance(sequence, int) and not isinstance(sequence, bool) and sequence >= 0:
+            valid_sequences.append(sequence)
+        else:
+            valid_sequences.append(-1)
+        expected_category = history_category_of(payload.get("decree_type", ""))
+        if payload.get("category") not in HISTORY_CATEGORIES:
+            payload["category"] = expected_category
+            changed = True
+        provinces = payload.get("provinces")
+        if not isinstance(provinces, list):
+            provinces = []
+            changed = True
+        deduplicated: list[str] = []
+        for province in provinces:
+            if not isinstance(province, str):
+                changed = True
+                continue
+            name = province.strip()
+            if not name or name in deduplicated:
+                changed = True
+                continue
+            deduplicated.append(name)
+        payload["provinces"] = deduplicated
+        normalized.append(payload)
+
+    if (
+        len(valid_sequences) != len(normalized)
+        or any(sequence < 0 for sequence in valid_sequences)
+        or len(set(valid_sequences)) != len(valid_sequences)
+    ):
+        for sequence, payload in enumerate(normalized):
+            payload["sequence"] = sequence
+        changed = True
+    return normalized, changed
 
 
 # ── Faction ──────────────────────────────────────────────
@@ -402,6 +507,7 @@ class GameEvent(BaseModel):
     is_scripted: bool = False
     is_blocking: bool = False
     script_id: str | None = None
+    related_entity_ids: list[EntityId] = Field(default_factory=list)
     historical_hint: str = ""
     historical_basis: str = ""
 
@@ -417,12 +523,38 @@ class TriggerDecision(BaseModel):
 # ── History ──────────────────────────────────────────────
 
 class HistoryEntry(BaseModel):
+    sequence: int = Field(default=0, strict=True, ge=0)
     year: int
     month: int
     decree_type: str
+    category: HistoryCategory = "other"
+    provinces: list[str] = Field(default_factory=list)
     decree_desc: str = ""
     delta: dict = Field(default_factory=dict)
     narrative: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_metadata(cls, value):
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        if payload.get("category") not in HISTORY_CATEGORIES:
+            payload["category"] = history_category_of(payload.get("decree_type", ""))
+        payload.setdefault("sequence", 0)
+        payload.setdefault("provinces", [])
+        return payload
+
+    @field_validator("provinces", mode="before")
+    @classmethod
+    def _normalize_provinces(cls, value):
+        if not isinstance(value, list):
+            return []
+        result: list[str] = []
+        for item in value:
+            if isinstance(item, str) and (name := item.strip()) and name not in result:
+                result.append(name)
+        return result
 
 
 # ── GameTime ─────────────────────────────────────────────
@@ -504,6 +636,12 @@ class GameState(BaseModel):
     execution_rng_seed: int | None = None
     # 在办国策（国家层面长期政令，区别于大臣任务），随存档持久化
     active_policies: list[PolicyProgress] = Field(default_factory=list)
+
+    @field_validator("history_log", mode="before")
+    @classmethod
+    def _normalize_history_log(cls, value):
+        normalized, _changed = normalize_history_payload(value)
+        return normalized
 
     @field_validator("minister_conversations", mode="before")
     @classmethod

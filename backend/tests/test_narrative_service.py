@@ -5,16 +5,19 @@ import asyncio
 from db import narrative_memory, saves, worlds
 from ai.narrative_context import build_narrative_context
 from ai.narrative_registry import iter_narrative_paths
-from ai.narrative_service import generate_narrative_artifact
+from ai.narrative_service import build_narrative_prompt, generate_narrative_artifact
 from models.game import create_initial_state
 from models.settlement import ActionIntent, AdjudicationProposal
 from models.world import new_client_action_id
 
 
-def _context(monkeypatch, tmp_path):
+def _context(monkeypatch, tmp_path, *, state_update=None):
     monkeypatch.setattr(saves, "DB_PATH", tmp_path / "narrative-service.db")
     saves.init_db()
-    root = worlds.create_game_with_root(create_initial_state())
+    initial = create_initial_state()
+    if state_update:
+        initial = initial.model_copy(update=state_update)
+    root = worlds.create_game_with_root(initial)
     parent = worlds.load_version(root.version_id).state
     intent = ActionIntent(
         game_id=root.game_id,
@@ -39,6 +42,43 @@ def _context(monkeypatch, tmp_path):
         action_text=intent.raw_text,
     )
     return root, state, context
+
+
+def test_runtime_prompt_preserves_historical_persona(monkeypatch, tmp_path):
+    _root, _state, context = _context(monkeypatch, tmp_path)
+
+    _prompt, system = build_narrative_prompt(context)
+
+    assert "元末" in system
+    assert "至正" in system
+    assert "洪武皇帝" in system
+    assert "臣僚" in system
+
+
+def test_threshold_tone_violation_triggers_repair(monkeypatch, tmp_path):
+    _root, state, context = _context(
+        monkeypatch,
+        tmp_path,
+        state_update={"civil_morale": 10},
+    )
+    repairs: list[str | None] = []
+
+    async def generate(_context, repair):
+        repairs.append(repair)
+        if repair is None:
+            return "城中歌舞升平，民心安泰。"
+        return "民怨沸腾，流民四起，盗匪横行。"
+
+    result = asyncio.run(generate_narrative_artifact(
+        context=context,
+        state=state,
+        generate=generate,
+    ))
+
+    assert result.narrative_status == "repaired"
+    assert "threshold_tone_violation" in result.finding_codes
+    assert repairs[1] is not None and "民心崩溃预警" in repairs[1]
+    assert "歌舞升平" not in result.text
 
 
 def test_service_repairs_full_buffer_before_returning_any_chunk(monkeypatch, tmp_path):

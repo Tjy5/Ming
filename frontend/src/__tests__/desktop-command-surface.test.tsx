@@ -56,9 +56,12 @@ describe('desktop command and report surfaces', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '存档' }))
-    fireEvent.click(screen.getByRole('button', { name: '查看世界分支、书签和活动' }))
-    fireEvent.click(screen.getByRole('button', { name: '开始新局' }))
+    fireEvent.click(screen.getByRole('button', { name: '宫禁设置' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '存档' }))
+    fireEvent.click(screen.getByRole('button', { name: '宫禁设置' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '连续性分支' }))
+    fireEvent.click(screen.getByRole('button', { name: '宫禁设置' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '开始新局' }))
     fireEvent.click(screen.getByRole('button', { name: /奏折待批/ }))
     fireEvent.click(screen.getByRole('button', { name: /关键剧情待决/ }))
 

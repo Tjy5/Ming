@@ -56,6 +56,7 @@ class ActionIntent(_SettlementContract):
     suggestion_id: str | None = None
     requested_executor_id: EntityId | None = None
     target_region_id: EntityId | None = None
+    regional_targets: list[str] = Field(default_factory=list)
     target_entity_ids: list[EntityId] = Field(default_factory=list)
     mode: str | None = None
     topic: str | None = None
@@ -469,6 +470,9 @@ class SettlementFacts(_SettlementContract):
     immediate_changes: list[str] = Field(default_factory=list)
     long_term_risks: list[str] = Field(default_factory=list)
     new_opportunities: list[str] = Field(default_factory=list)
+    regional_targets: list[str] = Field(default_factory=list)
+    target_region_ids: list[EntityId] = Field(default_factory=list)
+    target_entity_ids: list[EntityId] = Field(default_factory=list)
     deltas: list[WorldDelta] = Field(default_factory=list)
     duration_reason: str | None = None
     time_plan: ElapsedSegmentPlan | None = None

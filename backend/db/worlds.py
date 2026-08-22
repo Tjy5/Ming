@@ -6,10 +6,13 @@ import sqlite3
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
+from .maintenance import coordinated_storage_write
+
+from engine.tables import REGION_NAMES
 from models.game import GameState
 from models.settlement import (
     ActionIntent,
@@ -59,6 +62,8 @@ from models.world_state import AppliedMetricAttribution, ExecutorFacts, RollReco
 
 
 _INITIAL_ENTITY_SOURCE_REF = "yuanming-initial-v1"
+MIN_RETENTION_RECENT_LIMIT = 1
+MAX_RETENTION_RECENT_LIMIT = 1000
 
 
 @dataclass(frozen=True)
@@ -557,6 +562,7 @@ def _create_root_in_transaction(
     return ref, snapshot
 
 
+@coordinated_storage_write
 def create_game_with_root(
     state: GameState,
     *,
@@ -624,6 +630,7 @@ def create_game_with_root(
             raise
 
 
+@coordinated_storage_write
 def create_branch_from_version(version_id: VersionId) -> WorldVersionRef:
     """Atomically fork an immutable version into a new active branch root."""
     source = load_version(version_id)
@@ -919,6 +926,7 @@ def get_settlement(settlement_id: SettlementId) -> SettlementFacts:
         raise WorldStorageError() from exc
 
 
+@coordinated_storage_write
 def create_bookmark(
     game_id: GameId,
     branch_id: BranchId,
@@ -954,6 +962,7 @@ def create_bookmark(
     )
 
 
+@coordinated_storage_write
 def delete_bookmark(bookmark_id: BookmarkId, *, game_id: GameId | None = None) -> None:
     with closing(_connect()) as conn:
         try:
@@ -1188,8 +1197,12 @@ def plan_retention(
     recent_limit: int = 100,
 ) -> RetentionPlan:
     """Build a report-only, reference-aware retention plan (never deletes)."""
-    if isinstance(recent_limit, bool) or recent_limit < 1:
-        raise ValueError("recent_limit must be a positive integer")
+    if (
+        isinstance(recent_limit, bool)
+        or not isinstance(recent_limit, int)
+        or not MIN_RETENTION_RECENT_LIMIT <= recent_limit <= MAX_RETENTION_RECENT_LIMIT
+    ):
+        raise ValueError("recent_limit must be an integer from 1 to 1000")
     try:
         with closing(_connect()) as conn:
             return _retention_plan_in_transaction(conn, game_id, branch_id, recent_limit)
@@ -1201,6 +1214,7 @@ def plan_retention(
         raise WorldStorageError() from exc
 
 
+@coordinated_storage_write
 def collect_retention(
     game_id: GameId,
     branch_id: BranchId | None = None,
@@ -1215,8 +1229,12 @@ def collect_retention(
     row deletion, and audit completion all run in one SQLite transaction.  Any
     failure rolls back the graph and leaves no misleading audit entry.
     """
-    if isinstance(recent_limit, bool) or recent_limit < 1:
-        raise ValueError("recent_limit must be a positive integer")
+    if (
+        isinstance(recent_limit, bool)
+        or not isinstance(recent_limit, int)
+        or not MIN_RETENTION_RECENT_LIMIT <= recent_limit <= MAX_RETENTION_RECENT_LIMIT
+    ):
+        raise ValueError("recent_limit must be an integer from 1 to 1000")
     audit_id = str(uuid4())
     with closing(_connect()) as conn:
         try:
@@ -1278,6 +1296,18 @@ def collect_retention(
                 ).fetchone() is not None:
                     blocked.add(version)
             delete_ids = tuple(sorted(planned - blocked, key=str))
+            # UUID ordering is unrelated to graph depth. Detach every child of
+            # a deletable full snapshot before row deletion so a long chain
+            # cannot attempt to delete a parent ahead of its candidate child.
+            for version in delete_ids:
+                conn.execute(
+                    "UPDATE versions SET parent_version_id = NULL WHERE game_id = ? AND parent_version_id = ?",
+                    (str(game_id), str(version)),
+                )
+                conn.execute(
+                    "UPDATE settlements SET parent_version_id = NULL WHERE game_id = ? AND parent_version_id = ?",
+                    (str(game_id), str(version)),
+                )
             deleted_settlements: list[SettlementId] = []
             for version in sorted(delete_ids, key=str, reverse=True):
                 row = conn.execute(
@@ -1744,6 +1774,70 @@ def _validate_registry_continuity(previous: GameState, changed: GameState) -> No
         )
 
 
+def _append_unique_entity_id(result: list[EntityId], value: object) -> None:
+    if isinstance(value, UUID) and value not in result:
+        result.append(value)
+
+
+def _settlement_prompt_targets(
+    intent: ActionIntent,
+    state: GameState,
+    proposal: AdjudicationProposal,
+) -> tuple[list[str], list[EntityId], list[EntityId]]:
+    region_ids: list[EntityId] = []
+    entity_ids: list[EntityId] = []
+
+    _append_unique_entity_id(region_ids, intent.target_region_id)
+    for entity_id in intent.target_entity_ids:
+        target = state.entity_registry.get(entity_id)
+        _append_unique_entity_id(
+            region_ids if isinstance(target, RegionEntity) else entity_ids,
+            entity_id,
+        )
+
+    for delta in proposal.deltas:
+        scope = getattr(delta, "target_scope", None)
+        target_id = getattr(delta, "target_id", None)
+        if scope == "region":
+            _append_unique_entity_id(region_ids, target_id)
+        elif scope == "entity":
+            _append_unique_entity_id(entity_ids, target_id)
+
+        for field in (
+            "target_entity_id",
+            "from_entity_id",
+            "to_entity_id",
+            "office_entity_id",
+            "holder_entity_id",
+            "before_holder_entity_id",
+        ):
+            value = getattr(delta, field, None)
+            target = state.entity_registry.get(value)
+            _append_unique_entity_id(
+                region_ids if isinstance(target, RegionEntity) else entity_ids,
+                value,
+            )
+        for source in getattr(delta, "sources", ()):
+            _append_unique_entity_id(entity_ids, getattr(source, "entity_id", None))
+        for entity in getattr(delta, "result_entities", ()):
+            _append_unique_entity_id(entity_ids, getattr(entity, "entity_id", None))
+
+    regional_targets: list[str] = []
+    for raw_name in intent.regional_targets:
+        name = raw_name.strip()
+        if name and name not in regional_targets:
+            regional_targets.append(name)
+    for entity_id in region_ids:
+        entity = state.entity_registry.get(entity_id)
+        if not isinstance(entity, RegionEntity):
+            continue
+        name = entity.legacy_name or entity.display_name
+        if name in REGION_NAMES and name not in regional_targets:
+            regional_targets.append(name)
+    return regional_targets, region_ids, entity_ids
+
+
+@coordinated_storage_write
 def commit_settlement(
     intent: ActionIntent,
     state: GameState,
@@ -1809,6 +1903,9 @@ def commit_settlement(
             )
 
             _insert_action_request(conn, intent, payload_hash, committed_at)
+            regional_targets, target_region_ids, target_entity_ids = (
+                _settlement_prompt_targets(intent, state, proposal)
+            )
             attribution = SettlementAttribution(
                 requested_executor_id=proposal.requested_executor_id,
                 actual_executor_id=proposal.actual_executor_id,
@@ -1829,6 +1926,9 @@ def commit_settlement(
                 immediate_changes=proposal.immediate_changes,
                 long_term_risks=proposal.long_term_risks,
                 new_opportunities=proposal.new_opportunities,
+                regional_targets=regional_targets,
+                target_region_ids=target_region_ids,
+                target_entity_ids=target_entity_ids,
                 deltas=proposal.deltas,
                 duration_reason=proposal.duration_reason,
                 time_plan=time_plan,
@@ -2141,6 +2241,7 @@ def _existing_legacy_import(
     )
 
 
+@coordinated_storage_write
 def import_legacy_save(save_id: int) -> LegacyWorldImportResult:
     """Import one legacy row without updating or deleting it.
 

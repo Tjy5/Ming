@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator, Awaitable, Callable
 from time import perf_counter
 from typing import Literal
@@ -9,7 +10,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ai.narrative_context import NarrativeContext
+from ai.narrative_context import NarrativeContext, project_narrative_context_for_prompt
 from ai.narrative_registry import get_narrative_path
 from ai.narrative_validators import (
     NarrativeFinding,
@@ -25,6 +26,7 @@ from models.game import GameState
 
 NarrativeGenerate = Callable[[NarrativeContext, str | None], Awaitable[str]]
 NarrativeStream = Callable[[NarrativeContext], AsyncIterator[str]]
+NarrativeRuleFallback = Callable[[NarrativeContext], str | Awaitable[str] | None]
 
 
 class NarrativeGenerationResult(BaseModel):
@@ -60,12 +62,14 @@ def build_narrative_prompt(
     """Render the typed context without logging or persisting raw prompts."""
 
     system = (
-        "你是开放沙盒世界的叙事者。只描述 NARRATIVE_CONTEXT 中当前版本和已提交"
+        "你是元末至正时代的开放沙盒世界叙事者，以后世洪武皇帝朱元璋及其开国"
+        "臣僚的历史视角叙事。只描述 NARRATIVE_CONTEXT 中当前版本和已提交"
         "结算的事实；正史不是标准答案。不得输出隐藏推理、未落库变化或未来完成结果。"
     )
+    prompt_context = project_narrative_context_for_prompt(context)
     prompt = (
         "请生成简洁、因果连续、可继续行动的中文叙事。\n"
-        f"NARRATIVE_CONTEXT={context.model_dump_json(exclude_none=True)}"
+        f"NARRATIVE_CONTEXT={prompt_context.prompt_json()}"
     )
     if repair_instruction:
         prompt += "\nREPAIR_REQUIREMENTS=" + repair_instruction
@@ -88,6 +92,23 @@ def runtime_generator(provider) -> NarrativeGenerate:
         return result.text
 
     return _generate
+
+
+def runtime_rule_fallback(provider) -> NarrativeRuleFallback | None:
+    handler = getattr(provider, "configured_narrative_fallback", None)
+    if not callable(handler):
+        return None
+
+    async def _fallback(context: NarrativeContext) -> str | None:
+        value = handler(context)
+        if inspect.isawaitable(value):
+            value = await value
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    return _fallback
 
 
 def result_from_artifact(artifact: NarrativeArtifactRecord) -> NarrativeGenerationResult:
@@ -130,6 +151,7 @@ async def generate_narrative_artifact(
     model_label: str | None = None,
     request_id: str | None = None,
     persist: bool = True,
+    rule_fallback: NarrativeRuleFallback | None = None,
 ) -> NarrativeGenerationResult:
     """Generate a safe result without exposing candidate/provider chunks.
 
@@ -175,7 +197,21 @@ async def generate_narrative_artifact(
     status: Literal["validated", "repaired", "sanitized", "fallback_facts"]
     final_text = candidate.strip()
     if generation_failed:
-        final_text = fallback
+        configured_fallback = ""
+        if rule_fallback is not None:
+            try:
+                configured_fallback = (await rule_fallback(context) or "").strip()
+            except Exception:
+                configured_fallback = ""
+        if configured_fallback and not validate_narrative_candidate(
+            configured_fallback,
+            context=context,
+            state=state,
+            forbidden_claims=forbidden_claims,
+        ):
+            final_text = configured_fallback
+        else:
+            final_text = fallback
         status = "fallback_facts"
     elif not findings:
         status = "validated"
