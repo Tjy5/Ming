@@ -80,6 +80,7 @@ export default function ActionArea({
       <div className="category-tabs" role="tablist" aria-label="政令分类">
         {CATEGORY_TABS.map(c => (
           <button
+            type="button"
             key={c}
             className={`cat-tab${tab === c ? ' active' : ''}`}
             id={`decree-category-${c}`}
@@ -102,6 +103,7 @@ export default function ActionArea({
               const usedThisMonth = !!state.decrees_this_month[TAB_TO_CATEGORY[tab]]
               return (
                 <button
+                  type="button"
                   key={type}
                   className="decree-btn"
                   disabled={!ok || actionLocked || usedThisMonth}
@@ -127,16 +129,18 @@ export default function ActionArea({
           </div>
         )}
         <input
+          aria-label="御前政令"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && !textLocked && handleSubmit()}
           placeholder="输入政令（如：整顿军备）"
           disabled={textLocked}
         />
-        <button className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}><DesktopIcon name="document" />下令</button>
+        <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={textLocked || !text.trim()}><DesktopIcon name="document" />下令</button>
       </div>
 
       <button
+        type="button"
         className="advance-btn"
         disabled={loading || !!currentModal || hasBlockingEvent || advanceMonthInFlight || actionLocked}
         onClick={onAdvanceMonth}

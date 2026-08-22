@@ -69,8 +69,8 @@ export default function ModeSelectPage() {
           阻断剧情事件已触发。可先听谋臣详述局势，或直接进入操作面板裁断政务。
         </p>
 
-        {loading && <p className="mode-select-note">正在载入当前局势…</p>}
-        {!loading && error && <p className="mode-select-error">{error}</p>}
+        {loading && <p className="mode-select-note" role="status">正在载入当前局势…</p>}
+        {!loading && error && <p className="mode-select-error" role="alert">{error}</p>}
 
         {!loading && !error && blockingEvent && (
           <div className="mode-select-event">

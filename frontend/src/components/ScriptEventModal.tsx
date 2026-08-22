@@ -75,6 +75,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
 
         <div className="script-freetext">
           <textarea
+            aria-label="事件处置指令"
             maxLength={200}
             value={freeText}
             onChange={e => { setFreeText(e.target.value); setWarning(null) }}
@@ -82,9 +83,10 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
             disabled={submitting}
           />
           <div className="script-freetext-footer">
-            {warning && <span className="script-warning">{warning}</span>}
+            {warning && <span className="script-warning" role="alert">{warning}</span>}
             <span className="char-count">{freeText.length}/200</span>
             <button
+              type="button"
               className="modal-btn"
               disabled={submitting}
               onClick={onBack}
@@ -92,6 +94,7 @@ export default function ScriptEventModal({ event, onChoose, onBack }: Props) {
               返回
             </button>
             <button
+              type="button"
               className="modal-btn primary"
               disabled={!freeText.trim() || submitting}
               onClick={handleSubmit}

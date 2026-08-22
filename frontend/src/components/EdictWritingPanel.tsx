@@ -158,6 +158,7 @@ export default function EdictWritingPanel({
                   const role = matchKeyword(type, kw)
                   return (
                     <button
+                      type="button"
                       key={kw}
                       className={`edict-keyword${activeKeyword === kw ? ' active' : ''}${!role ? ' inert' : ''}`}
                       onClick={() => handleKeywordClick(kw)}
@@ -173,6 +174,7 @@ export default function EdictWritingPanel({
               <div className="edict-targets">
                 {GOVERNANCE_REGION_NAMES.map(name => (
                   <button
+                    type="button"
                     key={name}
                     className={`edict-target-btn${target === name ? ' selected' : ''}`}
                     onClick={() => { setTarget(name); setActiveKeyword(null) }}
@@ -185,6 +187,7 @@ export default function EdictWritingPanel({
               <div className="edict-targets">
                 {DIPLOMACY_TARGETS.map(name => (
                   <button
+                    type="button"
                     key={name}
                     className={`edict-target-btn${target === name ? ' selected' : ''}`}
                     onClick={() => { setTarget(name); setActiveKeyword(null) }}
@@ -195,11 +198,12 @@ export default function EdictWritingPanel({
 
             {type === 'personnel' && (
               <div className="edict-personnel">
-                <select value={subAction} onChange={e => setSubAction(e.target.value as PersonnelAction)}>
+                <select aria-label="任免方式" value={subAction} onChange={e => setSubAction(e.target.value as PersonnelAction)}>
                   <option value="appoint">任命</option>
                   <option value="dismiss">罢免</option>
                 </select>
                 <input
+                  aria-label="人物名称"
                   placeholder="输入人物名称"
                   value={personName}
                   onChange={e => { setPersonName(e.target.value); setActiveKeyword(null) }}
@@ -208,8 +212,9 @@ export default function EdictWritingPanel({
             )}
 
             <div className="edict-actions">
-              <button className="edict-cancel" onClick={onCancel}>取消</button>
+              <button type="button" className="edict-cancel" onClick={onCancel}>取消</button>
               <button
+                type="button"
                 className="edict-seal-btn"
                 disabled={!canIssue || !paramReady || loading}
                 onClick={handleSeal}

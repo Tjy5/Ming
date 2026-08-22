@@ -554,6 +554,7 @@ export default function ChatPage() {
         )}
         <form className="chat-input-form" onSubmit={handleSubmit}>
           <input
+            aria-label="朝政指令"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleInputKeyDown}
@@ -564,7 +565,7 @@ export default function ChatPage() {
             {sending ? '处理中…' : '发送'}
           </button>
         </form>
-        {error && <div className="chat-error">{error}</div>}
+        {error && <div className="chat-error" role="alert">{error}</div>}
       </footer>
       {gameOver && (
         <div className="chat-gameover-overlay">

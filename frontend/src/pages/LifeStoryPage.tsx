@@ -333,6 +333,7 @@ export default function LifeStoryPage() {
           )}
           <form className="ls-freetext" onSubmit={handleFreeSubmit}>
             <input
+              aria-label="自由行动"
               value={freeText}
               onChange={(e) => setFreeText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handleFreeSubmit(e)}
@@ -342,7 +343,7 @@ export default function LifeStoryPage() {
             />
             <button type="submit" disabled={busy || !freeText.trim()}>行动</button>
           </form>
-          {error && <div className="ls-error">{error}</div>}
+          {error && <div className="ls-error" role="alert">{error}</div>}
           {settingsNotice && (
             <div className="ls-settings-notice" role="status">
               {settingsNotice}
