@@ -7,6 +7,7 @@ import { test, expect } from '@playwright/test'
 const evidenceDirectory = process.env.MING_VISUAL_EVIDENCE_DIR
 const captureLabel = process.env.MING_VISUAL_CAPTURE_LABEL
 const viewports = [
+  { width: 1024, height: 768 },
   { width: 1440, height: 900 },
   { width: 1920, height: 1080 },
 ]
